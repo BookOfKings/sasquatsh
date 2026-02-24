@@ -1,0 +1,160 @@
+@import "tailwindcss";
+
+@theme {
+  /* Sasquatch forest theme colors */
+  --color-primary-50: #f0f7f1;
+  --color-primary-100: #dcedde;
+  --color-primary-200: #bcdbc0;
+  --color-primary-300: #90c298;
+  --color-primary-400: #5fa36b;
+  --color-primary-500: #2D5A3D;
+  --color-primary-600: #285036;
+  --color-primary-700: #22432e;
+  --color-primary-800: #1d3726;
+  --color-primary-900: #182d20;
+
+  --color-secondary-50: #faf6f3;
+  --color-secondary-100: #f2e8e0;
+  --color-secondary-200: #e4cfc0;
+  --color-secondary-300: #d3af96;
+  --color-secondary-400: #bf8a68;
+  --color-secondary-500: #6B4423;
+  --color-secondary-600: #5f3c1f;
+  --color-secondary-700: #4f321a;
+  --color-secondary-800: #412916;
+  --color-secondary-900: #362213;
+
+  --color-accent-50: #fef9eb;
+  --color-accent-100: #fdf0c8;
+  --color-accent-200: #fbe08c;
+  --color-accent-300: #f8cb4f;
+  --color-accent-400: #f5b523;
+  --color-accent-500: #D4920A;
+  --color-accent-600: #b87a08;
+  --color-accent-700: #935d09;
+  --color-accent-800: #79490e;
+  --color-accent-900: #663c12;
+
+  --font-family-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-stone-50 text-gray-900 antialiased;
+    font-family: var(--font-family-sans);
+  }
+
+  #app {
+    @apply min-h-screen;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed bg-primary-500 text-white hover:bg-primary-600 focus:ring-primary-500;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed bg-secondary-500 text-white hover:bg-secondary-600 focus:ring-secondary-500;
+  }
+
+  .btn-accent {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed bg-accent-500 text-white hover:bg-accent-600 focus:ring-accent-500;
+  }
+
+  .btn-outline {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-primary-500 text-primary-500 hover:bg-primary-50 focus:ring-primary-500;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed text-gray-600 hover:bg-gray-100 focus:ring-gray-500;
+  }
+
+  .btn-sm {
+    @apply px-3 py-1.5 text-sm;
+  }
+
+  .btn-lg {
+    @apply px-6 py-3 text-lg;
+  }
+
+  .input {
+    @apply block w-full rounded-lg border border-gray-300 px-4 py-2.5 text-gray-900 placeholder-gray-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-colors;
+  }
+
+  .input-error {
+    @apply border-red-500 focus:border-red-500 focus:ring-red-500;
+  }
+
+  .label {
+    @apply block text-sm font-medium text-gray-700 mb-1;
+  }
+
+  .card {
+    @apply bg-white rounded-xl shadow-sm border border-gray-100;
+  }
+
+  .card-hover {
+    @apply bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer;
+  }
+
+  .chip {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .chip-primary {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-700;
+  }
+
+  .chip-secondary {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary-100 text-secondary-700;
+  }
+
+  .chip-accent {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-accent-100 text-accent-700;
+  }
+
+  .chip-success {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700;
+  }
+
+  .chip-warning {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700;
+  }
+
+  .chip-error {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700;
+  }
+
+  .container-narrow {
+    @apply max-w-3xl mx-auto px-4 sm:px-6;
+  }
+
+  .container-wide {
+    @apply max-w-6xl mx-auto px-4 sm:px-6;
+  }
+
+  .alert {
+    @apply p-4 rounded-lg flex items-start gap-3;
+  }
+
+  .alert-error {
+    @apply p-4 rounded-lg flex items-start gap-3 bg-red-50 text-red-800 border border-red-200;
+  }
+
+  .alert-success {
+    @apply p-4 rounded-lg flex items-start gap-3 bg-green-50 text-green-800 border border-green-200;
+  }
+
+  .alert-warning {
+    @apply p-4 rounded-lg flex items-start gap-3 bg-yellow-50 text-yellow-800 border border-yellow-200;
+  }
+
+  .alert-info {
+    @apply p-4 rounded-lg flex items-start gap-3 bg-blue-50 text-blue-800 border border-blue-200;
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "Sasquatsh",
+  "short_name": "Sasquatsh",
+  "description": "Plan legendary game nights with your crew",
+  "icons": [
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#2D5A3D",
+  "background_color": "#F5F0EB",
+  "display": "standalone"
+}
