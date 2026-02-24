@@ -1,6 +1,6 @@
 using System.Data;
 using GameNight.Api.Entities;
-using MySqlConnector;
+using Npgsql;
 
 namespace GameNight.Api.Services;
 
@@ -12,7 +12,7 @@ public class UserRepository : IUserRepository
     public UserRepository(IConfiguration configuration, ILogger<UserRepository> logger)
     {
         _connectionString = configuration.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("The MySQL connection string 'DefaultConnection' was not found.");
+            ?? throw new InvalidOperationException("The PostgreSQL connection string 'DefaultConnection' was not found.");
         _logger = logger;
     }
 
@@ -25,10 +25,8 @@ FROM users
 WHERE id = @Id;";
 
         await using var connection = await OpenConnectionAsync(cancellationToken);
-        await using var command = new MySqlCommand(sql, connection)
-        {
-            Parameters = { new("@Id", DbType.Guid) { Value = id } }
-        };
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@Id", id);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (await reader.ReadAsync(cancellationToken))
@@ -48,10 +46,8 @@ FROM users
 WHERE firebase_uid = @FirebaseUid;";
 
         await using var connection = await OpenConnectionAsync(cancellationToken);
-        await using var command = new MySqlCommand(sql, connection)
-        {
-            Parameters = { new("@FirebaseUid", DbType.String) { Value = firebaseUid } }
-        };
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@FirebaseUid", firebaseUid);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (await reader.ReadAsync(cancellationToken))
@@ -71,10 +67,8 @@ FROM users
 WHERE email = @Email;";
 
         await using var connection = await OpenConnectionAsync(cancellationToken);
-        await using var command = new MySqlCommand(sql, connection)
-        {
-            Parameters = { new("@Email", DbType.String) { Value = email.ToLowerInvariant() } }
-        };
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@Email", email.ToLowerInvariant());
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (await reader.ReadAsync(cancellationToken))
@@ -96,20 +90,15 @@ VALUES (@Id, @FirebaseUid, @Email, @DisplayName, @AvatarUrl, @SubscriptionTier, 
         user.UpdatedAt = DateTime.UtcNow;
 
         await using var connection = await OpenConnectionAsync(cancellationToken);
-        await using var command = new MySqlCommand(sql, connection)
-        {
-            Parameters =
-            {
-                new("@Id", DbType.Guid) { Value = user.Id },
-                new("@FirebaseUid", DbType.String) { Value = user.FirebaseUid },
-                new("@Email", DbType.String) { Value = user.Email.ToLowerInvariant() },
-                new("@DisplayName", DbType.String) { Value = (object?)user.DisplayName ?? DBNull.Value },
-                new("@AvatarUrl", DbType.String) { Value = (object?)user.AvatarUrl ?? DBNull.Value },
-                new("@SubscriptionTier", DbType.String) { Value = user.SubscriptionTier.ToString().ToLowerInvariant() },
-                new("@CreatedAt", DbType.DateTime2) { Value = user.CreatedAt },
-                new("@UpdatedAt", DbType.DateTime2) { Value = user.UpdatedAt },
-            }
-        };
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@Id", user.Id);
+        command.Parameters.AddWithValue("@FirebaseUid", user.FirebaseUid);
+        command.Parameters.AddWithValue("@Email", user.Email.ToLowerInvariant());
+        command.Parameters.AddWithValue("@DisplayName", (object?)user.DisplayName ?? DBNull.Value);
+        command.Parameters.AddWithValue("@AvatarUrl", (object?)user.AvatarUrl ?? DBNull.Value);
+        command.Parameters.AddWithValue("@SubscriptionTier", user.SubscriptionTier.ToString().ToLowerInvariant());
+        command.Parameters.AddWithValue("@CreatedAt", user.CreatedAt);
+        command.Parameters.AddWithValue("@UpdatedAt", user.UpdatedAt);
 
         await command.ExecuteNonQueryAsync(cancellationToken);
         _logger.LogInformation("Created user {UserId} with email {Email}", user.Id, user.Email);
@@ -130,18 +119,13 @@ WHERE id = @Id;";
         user.UpdatedAt = DateTime.UtcNow;
 
         await using var connection = await OpenConnectionAsync(cancellationToken);
-        await using var command = new MySqlCommand(sql, connection)
-        {
-            Parameters =
-            {
-                new("@Id", DbType.Guid) { Value = user.Id },
-                new("@DisplayName", DbType.String) { Value = (object?)user.DisplayName ?? DBNull.Value },
-                new("@AvatarUrl", DbType.String) { Value = (object?)user.AvatarUrl ?? DBNull.Value },
-                new("@SubscriptionTier", DbType.String) { Value = user.SubscriptionTier.ToString().ToLowerInvariant() },
-                new("@SubscriptionExpiresAt", DbType.DateTime2) { Value = (object?)user.SubscriptionExpiresAt ?? DBNull.Value },
-                new("@UpdatedAt", DbType.DateTime2) { Value = user.UpdatedAt },
-            }
-        };
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@Id", user.Id);
+        command.Parameters.AddWithValue("@DisplayName", (object?)user.DisplayName ?? DBNull.Value);
+        command.Parameters.AddWithValue("@AvatarUrl", (object?)user.AvatarUrl ?? DBNull.Value);
+        command.Parameters.AddWithValue("@SubscriptionTier", user.SubscriptionTier.ToString().ToLowerInvariant());
+        command.Parameters.AddWithValue("@SubscriptionExpiresAt", (object?)user.SubscriptionExpiresAt ?? DBNull.Value);
+        command.Parameters.AddWithValue("@UpdatedAt", user.UpdatedAt);
 
         await command.ExecuteNonQueryAsync(cancellationToken);
         return user;
@@ -179,14 +163,14 @@ WHERE id = @Id;";
         return await CreateAsync(newUser, cancellationToken);
     }
 
-    private async Task<MySqlConnection> OpenConnectionAsync(CancellationToken cancellationToken)
+    private async Task<NpgsqlConnection> OpenConnectionAsync(CancellationToken cancellationToken)
     {
-        var connection = new MySqlConnection(_connectionString);
+        var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
         return connection;
     }
 
-    private static User MapUser(MySqlDataReader reader)
+    private static User MapUser(NpgsqlDataReader reader)
     {
         var tierString = reader.GetString(reader.GetOrdinal("subscription_tier"));
         var tier = tierString switch

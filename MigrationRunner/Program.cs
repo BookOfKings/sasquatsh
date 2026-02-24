@@ -1,29 +1,29 @@
-using MySqlConnector;
+using Npgsql;
 
-var connectionString = "Server=35.233.243.215;Database=gamedaydb;Uid=j1lv2coreuser;Pwd={02F3B125-E499-48FA-8AEE-AACB17E5D2A9};SslMode=none";
+var connectionString = "Host=ep-raspy-wildflower-ain3l9jz-pooler.c-4.us-east-1.aws.neon.tech;Database=neondb;Username=neondb_owner;Password=npg_FlRQPCj5ymL4;SSL Mode=Require";
 
 var migrations = new (string Name, string Sql)[]
 {
     ("Create users table", @"
         CREATE TABLE IF NOT EXISTS users (
-            id CHAR(36) NOT NULL,
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             firebase_uid VARCHAR(128) NOT NULL,
             email VARCHAR(255) NOT NULL,
             display_name VARCHAR(120) NULL,
             avatar_url VARCHAR(500) NULL,
-            subscription_tier ENUM('free', 'pro', 'premium') NOT NULL DEFAULT 'free',
-            subscription_expires_at DATETIME(6) NULL,
-            created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-            updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
-            PRIMARY KEY (id),
-            UNIQUE KEY ux_users_firebase_uid (firebase_uid),
-            UNIQUE KEY ux_users_email (email)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"),
+            subscription_tier VARCHAR(20) NOT NULL DEFAULT 'free',
+            subscription_expires_at TIMESTAMP NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT ux_users_firebase_uid UNIQUE (firebase_uid),
+            CONSTRAINT ux_users_email UNIQUE (email),
+            CONSTRAINT chk_subscription_tier CHECK (subscription_tier IN ('free', 'pro', 'premium'))
+        )"),
 
     ("Create events table", @"
         CREATE TABLE IF NOT EXISTS events (
-            id CHAR(36) NOT NULL,
-            host_user_id CHAR(36) NOT NULL,
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            host_user_id UUID NOT NULL,
             title VARCHAR(160) NOT NULL,
             description VARCHAR(2000) NULL,
             game_title VARCHAR(160) NULL,
@@ -37,57 +37,60 @@ var migrations = new (string Name, string Sql)[]
             state VARCHAR(50) NULL,
             postal_code VARCHAR(20) NULL,
             location_details VARCHAR(200) NULL,
-            difficulty_level ENUM('beginner', 'intermediate', 'advanced') NULL,
+            difficulty_level VARCHAR(20) NULL,
             max_players INT NOT NULL DEFAULT 4,
             is_public BOOLEAN NOT NULL DEFAULT TRUE,
             is_charity_event BOOLEAN NOT NULL DEFAULT FALSE,
-            status ENUM('draft', 'published', 'cancelled', 'completed') NOT NULL DEFAULT 'draft',
-            created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-            updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
-            PRIMARY KEY (id),
+            status VARCHAR(20) NOT NULL DEFAULT 'draft',
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             CONSTRAINT fk_events_host FOREIGN KEY (host_user_id) REFERENCES users(id) ON DELETE CASCADE,
-            INDEX ix_events_date (event_date),
-            INDEX ix_events_city (city),
-            INDEX ix_events_state (state)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"),
+            CONSTRAINT chk_difficulty_level CHECK (difficulty_level IS NULL OR difficulty_level IN ('beginner', 'intermediate', 'advanced')),
+            CONSTRAINT chk_status CHECK (status IN ('draft', 'published', 'cancelled', 'completed'))
+        )"),
+
+    ("Create events indexes", @"
+        CREATE INDEX IF NOT EXISTS ix_events_date ON events (event_date);
+        CREATE INDEX IF NOT EXISTS ix_events_city ON events (city);
+        CREATE INDEX IF NOT EXISTS ix_events_state ON events (state)"),
 
     ("Create event_registrations table", @"
         CREATE TABLE IF NOT EXISTS event_registrations (
-            id CHAR(36) NOT NULL,
-            event_id CHAR(36) NOT NULL,
-            user_id CHAR(36) NOT NULL,
-            status ENUM('pending', 'confirmed', 'declined', 'cancelled', 'waitlist') NOT NULL DEFAULT 'pending',
-            registered_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-            updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
-            PRIMARY KEY (id),
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            event_id UUID NOT NULL,
+            user_id UUID NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'pending',
+            registered_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             CONSTRAINT fk_registrations_event FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
             CONSTRAINT fk_registrations_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-            UNIQUE KEY ux_event_user (event_id, user_id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"),
+            CONSTRAINT ux_event_user UNIQUE (event_id, user_id),
+            CONSTRAINT chk_registration_status CHECK (status IN ('pending', 'confirmed', 'declined', 'cancelled', 'waitlist'))
+        )"),
 
     ("Create event_items table", @"
         CREATE TABLE IF NOT EXISTS event_items (
-            id CHAR(36) NOT NULL,
-            event_id CHAR(36) NOT NULL,
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            event_id UUID NOT NULL,
             item_name VARCHAR(100) NOT NULL,
-            item_category ENUM('food', 'drinks', 'supplies', 'other') NOT NULL DEFAULT 'other',
+            item_category VARCHAR(20) NOT NULL DEFAULT 'other',
             quantity_needed INT NOT NULL DEFAULT 1,
-            claimed_by_user_id CHAR(36) NULL,
-            claimed_at DATETIME(6) NULL,
-            created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-            PRIMARY KEY (id),
+            claimed_by_user_id UUID NULL,
+            claimed_at TIMESTAMP NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             CONSTRAINT fk_items_event FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
-            CONSTRAINT fk_items_claimed_by FOREIGN KEY (claimed_by_user_id) REFERENCES users(id) ON DELETE SET NULL
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci")
+            CONSTRAINT fk_items_claimed_by FOREIGN KEY (claimed_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+            CONSTRAINT chk_item_category CHECK (item_category IN ('food', 'drinks', 'supplies', 'other'))
+        )")
 };
 
-Console.WriteLine("GameNight Database Migration Runner");
-Console.WriteLine("====================================\n");
+Console.WriteLine("GameNight Database Migration Runner (PostgreSQL/Neon)");
+Console.WriteLine("=====================================================\n");
 
 try
 {
-    await using var connection = new MySqlConnection(connectionString);
-    Console.WriteLine("Connecting to database...");
+    await using var connection = new NpgsqlConnection(connectionString);
+    Console.WriteLine("Connecting to Neon PostgreSQL...");
     await connection.OpenAsync();
     Console.WriteLine("Connected!\n");
 
@@ -96,7 +99,7 @@ try
         try
         {
             Console.Write($"Running: {name}... ");
-            await using var cmd = new MySqlCommand(sql, connection);
+            await using var cmd = new NpgsqlCommand(sql, connection);
             await cmd.ExecuteNonQueryAsync();
             Console.WriteLine("OK");
         }

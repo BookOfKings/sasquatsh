@@ -1,6 +1,6 @@
 using System.Data;
 using GameNight.Api.Entities;
-using MySqlConnector;
+using Npgsql;
 
 namespace GameNight.Api.Services;
 
@@ -23,59 +23,59 @@ SELECT e.*, u.id AS host_id, u.display_name AS host_name, u.avatar_url AS host_a
        (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.status = 'confirmed') AS confirmed_count
 FROM events e
 JOIN users u ON u.id = e.host_user_id
-WHERE e.is_public = TRUE AND e.status = 'published' AND e.event_date >= CURDATE()";
+WHERE e.is_public = TRUE AND e.status = 'published' AND e.event_date >= CURRENT_DATE";
 
-        var parameters = new List<MySqlParameter>();
+        var parameters = new List<NpgsqlParameter>();
 
         if (filter != null)
         {
             if (!string.IsNullOrWhiteSpace(filter.City))
             {
                 sql += " AND LOWER(e.city) LIKE @City";
-                parameters.Add(new("@City", DbType.String) { Value = $"%{filter.City.ToLowerInvariant()}%" });
+                parameters.Add(new NpgsqlParameter("@City", $"%{filter.City.ToLowerInvariant()}%"));
             }
 
             if (!string.IsNullOrWhiteSpace(filter.State))
             {
                 sql += " AND LOWER(e.state) LIKE @State";
-                parameters.Add(new("@State", DbType.String) { Value = $"%{filter.State.ToLowerInvariant()}%" });
+                parameters.Add(new NpgsqlParameter("@State", $"%{filter.State.ToLowerInvariant()}%"));
             }
 
             if (!string.IsNullOrWhiteSpace(filter.SearchText))
             {
                 sql += " AND (LOWER(e.title) LIKE @Search OR LOWER(e.game_title) LIKE @Search OR LOWER(e.description) LIKE @Search)";
-                parameters.Add(new("@Search", DbType.String) { Value = $"%{filter.SearchText.ToLowerInvariant()}%" });
+                parameters.Add(new NpgsqlParameter("@Search", $"%{filter.SearchText.ToLowerInvariant()}%"));
             }
 
             if (filter.GameCategory.HasValue)
             {
                 sql += " AND e.game_category = @GameCategory";
-                parameters.Add(new("@GameCategory", DbType.String) { Value = GameCategoryToDbString(filter.GameCategory.Value) });
+                parameters.Add(new NpgsqlParameter("@GameCategory", GameCategoryToDbString(filter.GameCategory.Value)));
             }
 
             if (filter.DifficultyLevel.HasValue)
             {
                 sql += " AND e.difficulty_level = @DifficultyLevel";
-                parameters.Add(new("@DifficultyLevel", DbType.String) { Value = filter.DifficultyLevel.Value.ToString().ToLowerInvariant() });
+                parameters.Add(new NpgsqlParameter("@DifficultyLevel", filter.DifficultyLevel.Value.ToString().ToLowerInvariant()));
             }
 
             if (filter.DateFrom.HasValue)
             {
                 sql += " AND e.event_date >= @DateFrom";
-                parameters.Add(new("@DateFrom", DbType.Date) { Value = filter.DateFrom.Value.ToDateTime(TimeOnly.MinValue) });
+                parameters.Add(new NpgsqlParameter("@DateFrom", filter.DateFrom.Value.ToDateTime(TimeOnly.MinValue)));
             }
 
             if (filter.DateTo.HasValue)
             {
                 sql += " AND e.event_date <= @DateTo";
-                parameters.Add(new("@DateTo", DbType.Date) { Value = filter.DateTo.Value.ToDateTime(TimeOnly.MinValue) });
+                parameters.Add(new NpgsqlParameter("@DateTo", filter.DateTo.Value.ToDateTime(TimeOnly.MinValue)));
             }
         }
 
         sql += " ORDER BY e.event_date ASC, e.start_time ASC LIMIT 100";
 
         await using var connection = await OpenConnectionAsync(cancellationToken);
-        await using var command = new MySqlCommand(sql, connection);
+        await using var command = new NpgsqlCommand(sql, connection);
         command.Parameters.AddRange(parameters.ToArray());
 
         var events = new List<Event>();
@@ -109,10 +109,8 @@ WHERE r.user_id = @UserId AND r.status IN ('pending', 'confirmed')
 ORDER BY e.event_date ASC, e.start_time ASC;";
 
         await using var connection = await OpenConnectionAsync(cancellationToken);
-        await using var command = new MySqlCommand(sql, connection)
-        {
-            Parameters = { new("@UserId", DbType.Guid) { Value = userId } }
-        };
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@UserId", userId);
 
         var events = new List<Event>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -135,10 +133,8 @@ WHERE e.host_user_id = @HostUserId
 ORDER BY e.event_date DESC, e.start_time ASC;";
 
         await using var connection = await OpenConnectionAsync(cancellationToken);
-        await using var command = new MySqlCommand(sql, connection)
-        {
-            Parameters = { new("@HostUserId", DbType.Guid) { Value = hostUserId } }
-        };
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@HostUserId", hostUserId);
 
         var events = new List<Event>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -177,9 +173,9 @@ ORDER BY i.item_category, i.item_name;";
 
         // Get event
         Event? evt = null;
-        await using (var command = new MySqlCommand(eventSql, connection))
+        await using (var command = new NpgsqlCommand(eventSql, connection))
         {
-            command.Parameters.Add(new("@Id", DbType.Guid) { Value = id });
+            command.Parameters.AddWithValue("@Id", id);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             if (await reader.ReadAsync(cancellationToken))
             {
@@ -190,9 +186,9 @@ ORDER BY i.item_category, i.item_name;";
         if (evt is null) return null;
 
         // Get registrations
-        await using (var command = new MySqlCommand(registrationsSql, connection))
+        await using (var command = new NpgsqlCommand(registrationsSql, connection))
         {
-            command.Parameters.Add(new("@Id", DbType.Guid) { Value = id });
+            command.Parameters.AddWithValue("@Id", id);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
             {
@@ -201,9 +197,9 @@ ORDER BY i.item_category, i.item_name;";
         }
 
         // Get items
-        await using (var command = new MySqlCommand(itemsSql, connection))
+        await using (var command = new NpgsqlCommand(itemsSql, connection))
         {
-            command.Parameters.Add(new("@Id", DbType.Guid) { Value = id });
+            command.Parameters.AddWithValue("@Id", id);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
             {
@@ -229,34 +225,29 @@ VALUES (@Id, @HostUserId, @Title, @Description, @GameTitle, @GameCategory, @Even
         evt.UpdatedAt = DateTime.UtcNow;
 
         await using var connection = await OpenConnectionAsync(cancellationToken);
-        await using var command = new MySqlCommand(sql, connection)
-        {
-            Parameters =
-            {
-                new("@Id", DbType.Guid) { Value = evt.Id },
-                new("@HostUserId", DbType.Guid) { Value = evt.HostUserId },
-                new("@Title", DbType.String) { Value = evt.Title },
-                new("@Description", DbType.String) { Value = (object?)evt.Description ?? DBNull.Value },
-                new("@GameTitle", DbType.String) { Value = (object?)evt.GameTitle ?? DBNull.Value },
-                new("@GameCategory", DbType.String) { Value = evt.GameCategory.HasValue ? GameCategoryToDbString(evt.GameCategory.Value) : DBNull.Value },
-                new("@EventDate", DbType.Date) { Value = evt.EventDate.ToDateTime(TimeOnly.MinValue) },
-                new("@StartTime", DbType.Time) { Value = evt.StartTime.ToTimeSpan() },
-                new("@DurationMinutes", DbType.Int32) { Value = evt.DurationMinutes },
-                new("@SetupMinutes", DbType.Int32) { Value = evt.SetupMinutes },
-                new("@AddressLine1", DbType.String) { Value = (object?)evt.AddressLine1 ?? DBNull.Value },
-                new("@City", DbType.String) { Value = (object?)evt.City ?? DBNull.Value },
-                new("@State", DbType.String) { Value = (object?)evt.State ?? DBNull.Value },
-                new("@PostalCode", DbType.String) { Value = (object?)evt.PostalCode ?? DBNull.Value },
-                new("@LocationDetails", DbType.String) { Value = (object?)evt.LocationDetails ?? DBNull.Value },
-                new("@DifficultyLevel", DbType.String) { Value = evt.DifficultyLevel?.ToString().ToLowerInvariant() ?? (object)DBNull.Value },
-                new("@MaxPlayers", DbType.Int32) { Value = evt.MaxPlayers },
-                new("@IsPublic", DbType.Boolean) { Value = evt.IsPublic },
-                new("@IsCharityEvent", DbType.Boolean) { Value = evt.IsCharityEvent },
-                new("@Status", DbType.String) { Value = evt.Status.ToString().ToLowerInvariant() },
-                new("@CreatedAt", DbType.DateTime2) { Value = evt.CreatedAt },
-                new("@UpdatedAt", DbType.DateTime2) { Value = evt.UpdatedAt },
-            }
-        };
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@Id", evt.Id);
+        command.Parameters.AddWithValue("@HostUserId", evt.HostUserId);
+        command.Parameters.AddWithValue("@Title", evt.Title);
+        command.Parameters.AddWithValue("@Description", (object?)evt.Description ?? DBNull.Value);
+        command.Parameters.AddWithValue("@GameTitle", (object?)evt.GameTitle ?? DBNull.Value);
+        command.Parameters.AddWithValue("@GameCategory", evt.GameCategory.HasValue ? GameCategoryToDbString(evt.GameCategory.Value) : DBNull.Value);
+        command.Parameters.AddWithValue("@EventDate", evt.EventDate.ToDateTime(TimeOnly.MinValue));
+        command.Parameters.AddWithValue("@StartTime", evt.StartTime.ToTimeSpan());
+        command.Parameters.AddWithValue("@DurationMinutes", evt.DurationMinutes);
+        command.Parameters.AddWithValue("@SetupMinutes", evt.SetupMinutes);
+        command.Parameters.AddWithValue("@AddressLine1", (object?)evt.AddressLine1 ?? DBNull.Value);
+        command.Parameters.AddWithValue("@City", (object?)evt.City ?? DBNull.Value);
+        command.Parameters.AddWithValue("@State", (object?)evt.State ?? DBNull.Value);
+        command.Parameters.AddWithValue("@PostalCode", (object?)evt.PostalCode ?? DBNull.Value);
+        command.Parameters.AddWithValue("@LocationDetails", (object?)evt.LocationDetails ?? DBNull.Value);
+        command.Parameters.AddWithValue("@DifficultyLevel", evt.DifficultyLevel?.ToString().ToLowerInvariant() ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("@MaxPlayers", evt.MaxPlayers);
+        command.Parameters.AddWithValue("@IsPublic", evt.IsPublic);
+        command.Parameters.AddWithValue("@IsCharityEvent", evt.IsCharityEvent);
+        command.Parameters.AddWithValue("@Status", evt.Status.ToString().ToLowerInvariant());
+        command.Parameters.AddWithValue("@CreatedAt", evt.CreatedAt);
+        command.Parameters.AddWithValue("@UpdatedAt", evt.UpdatedAt);
 
         await command.ExecuteNonQueryAsync(cancellationToken);
         return evt;
@@ -283,32 +274,27 @@ WHERE id = @Id;";
 
         evt.UpdatedAt = DateTime.UtcNow;
 
-        await using var command = new MySqlCommand(sql, connection)
-        {
-            Parameters =
-            {
-                new("@Id", DbType.Guid) { Value = evt.Id },
-                new("@Title", DbType.String) { Value = evt.Title },
-                new("@Description", DbType.String) { Value = (object?)evt.Description ?? DBNull.Value },
-                new("@GameTitle", DbType.String) { Value = (object?)evt.GameTitle ?? DBNull.Value },
-                new("@GameCategory", DbType.String) { Value = evt.GameCategory.HasValue ? GameCategoryToDbString(evt.GameCategory.Value) : DBNull.Value },
-                new("@EventDate", DbType.Date) { Value = evt.EventDate.ToDateTime(TimeOnly.MinValue) },
-                new("@StartTime", DbType.Time) { Value = evt.StartTime.ToTimeSpan() },
-                new("@DurationMinutes", DbType.Int32) { Value = evt.DurationMinutes },
-                new("@SetupMinutes", DbType.Int32) { Value = evt.SetupMinutes },
-                new("@AddressLine1", DbType.String) { Value = (object?)evt.AddressLine1 ?? DBNull.Value },
-                new("@City", DbType.String) { Value = (object?)evt.City ?? DBNull.Value },
-                new("@State", DbType.String) { Value = (object?)evt.State ?? DBNull.Value },
-                new("@PostalCode", DbType.String) { Value = (object?)evt.PostalCode ?? DBNull.Value },
-                new("@LocationDetails", DbType.String) { Value = (object?)evt.LocationDetails ?? DBNull.Value },
-                new("@DifficultyLevel", DbType.String) { Value = evt.DifficultyLevel?.ToString().ToLowerInvariant() ?? (object)DBNull.Value },
-                new("@MaxPlayers", DbType.Int32) { Value = evt.MaxPlayers },
-                new("@IsPublic", DbType.Boolean) { Value = evt.IsPublic },
-                new("@IsCharityEvent", DbType.Boolean) { Value = evt.IsCharityEvent },
-                new("@Status", DbType.String) { Value = evt.Status.ToString().ToLowerInvariant() },
-                new("@UpdatedAt", DbType.DateTime2) { Value = evt.UpdatedAt },
-            }
-        };
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@Id", evt.Id);
+        command.Parameters.AddWithValue("@Title", evt.Title);
+        command.Parameters.AddWithValue("@Description", (object?)evt.Description ?? DBNull.Value);
+        command.Parameters.AddWithValue("@GameTitle", (object?)evt.GameTitle ?? DBNull.Value);
+        command.Parameters.AddWithValue("@GameCategory", evt.GameCategory.HasValue ? GameCategoryToDbString(evt.GameCategory.Value) : DBNull.Value);
+        command.Parameters.AddWithValue("@EventDate", evt.EventDate.ToDateTime(TimeOnly.MinValue));
+        command.Parameters.AddWithValue("@StartTime", evt.StartTime.ToTimeSpan());
+        command.Parameters.AddWithValue("@DurationMinutes", evt.DurationMinutes);
+        command.Parameters.AddWithValue("@SetupMinutes", evt.SetupMinutes);
+        command.Parameters.AddWithValue("@AddressLine1", (object?)evt.AddressLine1 ?? DBNull.Value);
+        command.Parameters.AddWithValue("@City", (object?)evt.City ?? DBNull.Value);
+        command.Parameters.AddWithValue("@State", (object?)evt.State ?? DBNull.Value);
+        command.Parameters.AddWithValue("@PostalCode", (object?)evt.PostalCode ?? DBNull.Value);
+        command.Parameters.AddWithValue("@LocationDetails", (object?)evt.LocationDetails ?? DBNull.Value);
+        command.Parameters.AddWithValue("@DifficultyLevel", evt.DifficultyLevel?.ToString().ToLowerInvariant() ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("@MaxPlayers", evt.MaxPlayers);
+        command.Parameters.AddWithValue("@IsPublic", evt.IsPublic);
+        command.Parameters.AddWithValue("@IsCharityEvent", evt.IsCharityEvent);
+        command.Parameters.AddWithValue("@Status", evt.Status.ToString().ToLowerInvariant());
+        command.Parameters.AddWithValue("@UpdatedAt", evt.UpdatedAt);
 
         await command.ExecuteNonQueryAsync(cancellationToken);
         return EventResult.SuccessResult();
@@ -323,10 +309,8 @@ WHERE id = @Id;";
         if (existingEvent.HostUserId != requestingUserId) return EventResult.NotAuthorized();
 
         const string sql = "DELETE FROM events WHERE id = @Id";
-        await using var command = new MySqlCommand(sql, connection)
-        {
-            Parameters = { new("@Id", DbType.Guid) { Value = id } }
-        };
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@Id", id);
 
         await command.ExecuteNonQueryAsync(cancellationToken);
         return EventResult.SuccessResult();
@@ -376,18 +360,13 @@ WHERE id = @Id;";
 INSERT INTO event_registrations (id, event_id, user_id, status, registered_at, updated_at)
 VALUES (@Id, @EventId, @UserId, @Status, @RegisteredAt, @UpdatedAt);";
 
-            await using var command = new MySqlCommand(sql, connection, (MySqlTransaction)transaction)
-            {
-                Parameters =
-                {
-                    new("@Id", DbType.Guid) { Value = registration.Id },
-                    new("@EventId", DbType.Guid) { Value = registration.EventId },
-                    new("@UserId", DbType.Guid) { Value = registration.UserId },
-                    new("@Status", DbType.String) { Value = registration.Status.ToString().ToLowerInvariant() },
-                    new("@RegisteredAt", DbType.DateTime2) { Value = registration.RegisteredAt },
-                    new("@UpdatedAt", DbType.DateTime2) { Value = registration.UpdatedAt },
-                }
-            };
+            await using var command = new NpgsqlCommand(sql, connection, transaction);
+            command.Parameters.AddWithValue("@Id", registration.Id);
+            command.Parameters.AddWithValue("@EventId", registration.EventId);
+            command.Parameters.AddWithValue("@UserId", registration.UserId);
+            command.Parameters.AddWithValue("@Status", registration.Status.ToString().ToLowerInvariant());
+            command.Parameters.AddWithValue("@RegisteredAt", registration.RegisteredAt);
+            command.Parameters.AddWithValue("@UpdatedAt", registration.UpdatedAt);
 
             await command.ExecuteNonQueryAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
@@ -406,14 +385,9 @@ VALUES (@Id, @EventId, @UserId, @Status, @RegisteredAt, @UpdatedAt);";
         await using var connection = await OpenConnectionAsync(cancellationToken);
 
         const string sql = "DELETE FROM event_registrations WHERE event_id = @EventId AND user_id = @UserId";
-        await using var command = new MySqlCommand(sql, connection)
-        {
-            Parameters =
-            {
-                new("@EventId", DbType.Guid) { Value = eventId },
-                new("@UserId", DbType.Guid) { Value = userId },
-            }
-        };
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@EventId", eventId);
+        command.Parameters.AddWithValue("@UserId", userId);
 
         var rows = await command.ExecuteNonQueryAsync(cancellationToken);
         if (rows == 0) return RegistrationResult.NotRegistered();
@@ -432,18 +406,13 @@ VALUES (@Id, @EventId, @ItemName, @ItemCategory, @QuantityNeeded, @CreatedAt);";
         item.CreatedAt = DateTime.UtcNow;
 
         await using var connection = await OpenConnectionAsync(cancellationToken);
-        await using var command = new MySqlCommand(sql, connection)
-        {
-            Parameters =
-            {
-                new("@Id", DbType.Guid) { Value = item.Id },
-                new("@EventId", DbType.Guid) { Value = item.EventId },
-                new("@ItemName", DbType.String) { Value = item.ItemName },
-                new("@ItemCategory", DbType.String) { Value = item.ItemCategory.ToString().ToLowerInvariant() },
-                new("@QuantityNeeded", DbType.Int32) { Value = item.QuantityNeeded },
-                new("@CreatedAt", DbType.DateTime2) { Value = item.CreatedAt },
-            }
-        };
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@Id", item.Id);
+        command.Parameters.AddWithValue("@EventId", item.EventId);
+        command.Parameters.AddWithValue("@ItemName", item.ItemName);
+        command.Parameters.AddWithValue("@ItemCategory", item.ItemCategory.ToString().ToLowerInvariant());
+        command.Parameters.AddWithValue("@QuantityNeeded", item.QuantityNeeded);
+        command.Parameters.AddWithValue("@CreatedAt", item.CreatedAt);
 
         await command.ExecuteNonQueryAsync(cancellationToken);
         return item;
@@ -457,16 +426,11 @@ SET claimed_by_user_id = @UserId, claimed_at = @ClaimedAt
 WHERE id = @ItemId AND event_id = @EventId AND claimed_by_user_id IS NULL;";
 
         await using var connection = await OpenConnectionAsync(cancellationToken);
-        await using var command = new MySqlCommand(sql, connection)
-        {
-            Parameters =
-            {
-                new("@ItemId", DbType.Guid) { Value = itemId },
-                new("@EventId", DbType.Guid) { Value = eventId },
-                new("@UserId", DbType.Guid) { Value = userId },
-                new("@ClaimedAt", DbType.DateTime2) { Value = DateTime.UtcNow },
-            }
-        };
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@ItemId", itemId);
+        command.Parameters.AddWithValue("@EventId", eventId);
+        command.Parameters.AddWithValue("@UserId", userId);
+        command.Parameters.AddWithValue("@ClaimedAt", DateTime.UtcNow);
 
         var rows = await command.ExecuteNonQueryAsync(cancellationToken);
         if (rows == 0) return EventResult.Failure("Item not found or already claimed");
@@ -482,15 +446,10 @@ SET claimed_by_user_id = NULL, claimed_at = NULL
 WHERE id = @ItemId AND event_id = @EventId AND claimed_by_user_id = @UserId;";
 
         await using var connection = await OpenConnectionAsync(cancellationToken);
-        await using var command = new MySqlCommand(sql, connection)
-        {
-            Parameters =
-            {
-                new("@ItemId", DbType.Guid) { Value = itemId },
-                new("@EventId", DbType.Guid) { Value = eventId },
-                new("@UserId", DbType.Guid) { Value = userId },
-            }
-        };
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@ItemId", itemId);
+        command.Parameters.AddWithValue("@EventId", eventId);
+        command.Parameters.AddWithValue("@UserId", userId);
 
         var rows = await command.ExecuteNonQueryAsync(cancellationToken);
         if (rows == 0) return EventResult.Failure("Item not found or not claimed by you");
@@ -498,14 +457,14 @@ WHERE id = @ItemId AND event_id = @EventId AND claimed_by_user_id = @UserId;";
         return EventResult.SuccessResult();
     }
 
-    private async Task<MySqlConnection> OpenConnectionAsync(CancellationToken cancellationToken)
+    private async Task<NpgsqlConnection> OpenConnectionAsync(CancellationToken cancellationToken)
     {
-        var connection = new MySqlConnection(_connectionString);
+        var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
         return connection;
     }
 
-    private static Event MapEvent(MySqlDataReader reader)
+    private static Event MapEvent(NpgsqlDataReader reader)
     {
         var evt = new Event
         {
@@ -568,7 +527,7 @@ WHERE id = @ItemId AND event_id = @EventId AND claimed_by_user_id = @UserId;";
         return evt;
     }
 
-    private static EventRegistration MapRegistration(MySqlDataReader reader)
+    private static EventRegistration MapRegistration(NpgsqlDataReader reader)
     {
         var reg = new EventRegistration
         {
@@ -598,7 +557,7 @@ WHERE id = @ItemId AND event_id = @EventId AND claimed_by_user_id = @UserId;";
         return reg;
     }
 
-    private static EventItem MapItem(MySqlDataReader reader)
+    private static EventItem MapItem(NpgsqlDataReader reader)
     {
         var item = new EventItem
         {
@@ -629,7 +588,7 @@ WHERE id = @ItemId AND event_id = @EventId AND claimed_by_user_id = @UserId;";
         return item;
     }
 
-    private static bool HasColumn(MySqlDataReader reader, string columnName)
+    private static bool HasColumn(NpgsqlDataReader reader, string columnName)
     {
         for (int i = 0; i < reader.FieldCount; i++)
         {
@@ -639,13 +598,13 @@ WHERE id = @ItemId AND event_id = @EventId AND claimed_by_user_id = @UserId;";
         return false;
     }
 
-    private static async Task<Event?> LoadEventForUpdate(MySqlConnection connection, MySqlTransaction? transaction, Guid id, CancellationToken cancellationToken)
+    private static async Task<Event?> LoadEventForUpdate(NpgsqlConnection connection, NpgsqlTransaction? transaction, Guid id, CancellationToken cancellationToken)
     {
         var sql = "SELECT * FROM events WHERE id = @Id" + (transaction is not null ? " FOR UPDATE" : "");
         await using var command = transaction is not null
-            ? new MySqlCommand(sql, connection, transaction)
-            : new MySqlCommand(sql, connection);
-        command.Parameters.Add(new("@Id", DbType.Guid) { Value = id });
+            ? new NpgsqlCommand(sql, connection, transaction)
+            : new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@Id", id);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (await reader.ReadAsync(cancellationToken))
@@ -660,17 +619,12 @@ WHERE id = @ItemId AND event_id = @EventId AND claimed_by_user_id = @UserId;";
         return null;
     }
 
-    private static async Task<EventRegistration?> GetExistingRegistration(MySqlConnection connection, MySqlTransaction transaction, Guid eventId, Guid userId, CancellationToken cancellationToken)
+    private static async Task<EventRegistration?> GetExistingRegistration(NpgsqlConnection connection, NpgsqlTransaction transaction, Guid eventId, Guid userId, CancellationToken cancellationToken)
     {
         const string sql = "SELECT id FROM event_registrations WHERE event_id = @EventId AND user_id = @UserId LIMIT 1";
-        await using var command = new MySqlCommand(sql, connection, transaction)
-        {
-            Parameters =
-            {
-                new("@EventId", DbType.Guid) { Value = eventId },
-                new("@UserId", DbType.Guid) { Value = userId },
-            }
-        };
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("@EventId", eventId);
+        command.Parameters.AddWithValue("@UserId", userId);
 
         var result = await command.ExecuteScalarAsync(cancellationToken);
         if (result is null) return null;
@@ -678,13 +632,11 @@ WHERE id = @ItemId AND event_id = @EventId AND claimed_by_user_id = @UserId;";
         return new EventRegistration { Id = (Guid)result, EventId = eventId, UserId = userId };
     }
 
-    private static async Task<int> CountConfirmedRegistrations(MySqlConnection connection, MySqlTransaction transaction, Guid eventId, CancellationToken cancellationToken)
+    private static async Task<int> CountConfirmedRegistrations(NpgsqlConnection connection, NpgsqlTransaction transaction, Guid eventId, CancellationToken cancellationToken)
     {
         const string sql = "SELECT COUNT(*) FROM event_registrations WHERE event_id = @EventId AND status = 'confirmed'";
-        await using var command = new MySqlCommand(sql, connection, transaction)
-        {
-            Parameters = { new("@EventId", DbType.Guid) { Value = eventId } }
-        };
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("@EventId", eventId);
 
         var result = await command.ExecuteScalarAsync(cancellationToken);
         return Convert.ToInt32(result, System.Globalization.CultureInfo.InvariantCulture);
