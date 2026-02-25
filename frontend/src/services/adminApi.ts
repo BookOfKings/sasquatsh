@@ -40,34 +40,26 @@ async function authenticatedRequest<T>(
 
 // ============ Event Location Admin ============
 
-// Get pending locations (admin only)
-export async function getPendingLocations(token: string): Promise<EventLocation[]> {
-  return authenticatedRequest<EventLocation[]>('/event-locations?status=pending', token)
-}
-
-// Get all locations (admin only)
+// Get all locations including expired (admin only)
 export async function getAllLocations(token: string): Promise<EventLocation[]> {
-  return authenticatedRequest<EventLocation[]>('/event-locations?status=all', token)
+  return authenticatedRequest<EventLocation[]>('/event-locations?all=true', token)
 }
 
-// Approve location (admin only)
-export async function approveLocation(token: string, id: string): Promise<EventLocation> {
-  return authenticatedRequest<EventLocation>(`/event-locations?id=${id}&action=approve`, token, {
-    method: 'PUT',
-  })
-}
-
-// Reject location (admin only)
-export async function rejectLocation(token: string, id: string): Promise<EventLocation> {
-  return authenticatedRequest<EventLocation>(`/event-locations?id=${id}&action=reject`, token, {
-    method: 'PUT',
-  })
-}
-
-// Delete location (admin only)
-export async function deleteLocation(token: string, id: string): Promise<void> {
-  return authenticatedRequest<void>(`/event-locations?id=${id}`, token, {
-    method: 'DELETE',
+// Create location (admin only)
+export async function createLocation(
+  token: string,
+  data: {
+    name: string
+    city: string
+    state: string
+    venue?: string
+    startDate: string
+    endDate: string
+  }
+): Promise<EventLocation> {
+  return authenticatedRequest<EventLocation>('/event-locations', token, {
+    method: 'POST',
+    body: JSON.stringify(data),
   })
 }
 
@@ -80,5 +72,25 @@ export async function updateLocation(
   return authenticatedRequest<EventLocation>(`/event-locations?id=${id}`, token, {
     method: 'PUT',
     body: JSON.stringify(data),
+  })
+}
+
+// Delete location (admin only)
+export async function deleteLocation(token: string, id: string): Promise<void> {
+  return authenticatedRequest<void>(`/event-locations?id=${id}`, token, {
+    method: 'DELETE',
+  })
+}
+
+// Merge duplicate locations (admin only)
+// Keeps the first location and updates all player_requests to point to it
+export async function mergeLocations(
+  token: string,
+  keepId: string,
+  removeIds: string[]
+): Promise<{ merged: number; keptId: string }> {
+  return authenticatedRequest<{ merged: number; keptId: string }>('/event-locations?action=merge', token, {
+    method: 'POST',
+    body: JSON.stringify({ keepId, removeIds }),
   })
 }

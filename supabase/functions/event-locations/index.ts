@@ -15,15 +15,8 @@ function toEventLocation(row: Record<string, unknown>) {
     startDate: row.start_date as string,
     endDate: row.end_date as string,
     status: row.status as string,
-    createdByUserId: row.created_by_user_id as string | null,
-    approvedByUserId: row.approved_by_user_id as string | null,
-    approvedAt: row.approved_at as string | null,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
-    createdBy: row.created_by ? {
-      id: (row.created_by as Record<string, unknown>).id as string,
-      displayName: (row.created_by as Record<string, unknown>).display_name as string | null,
-    } : null,
   }
 }
 
@@ -42,12 +35,13 @@ Deno.serve(async (req) => {
   const url = new URL(req.url)
   const locationId = url.searchParams.get('id')
   const action = url.searchParams.get('action')
-  const status = url.searchParams.get('status')
 
-  // GET - List event locations (public for approved, admin for pending/all)
+  // GET - List event locations
   if (req.method === 'GET' && !locationId) {
-    // Check if admin is requesting pending locations
-    if (status === 'pending' || status === 'all') {
+    // Check if admin is requesting all locations (including expired)
+    const includeAll = url.searchParams.get('all') === 'true'
+
+    if (includeAll) {
       const token = getFirebaseToken(req)
       if (!token) {
         return errorResponse('Admin authentication required', 401)
@@ -68,19 +62,10 @@ Deno.serve(async (req) => {
         return errorResponse('Admin access required', 403)
       }
 
-      let query = supabase
+      const { data, error } = await supabase
         .from('event_locations')
-        .select(`
-          *,
-          created_by:users!event_locations_created_by_user_id_fkey(id, display_name)
-        `)
-        .order('created_at', { ascending: false })
-
-      if (status === 'pending') {
-        query = query.eq('status', 'pending')
-      }
-
-      const { data, error } = await query
+        .select('*')
+        .order('start_date', { ascending: false })
 
       if (error) {
         return errorResponse(error.message, 500)
@@ -89,12 +74,11 @@ Deno.serve(async (req) => {
       return jsonResponse(data.map(toEventLocation))
     }
 
-    // Public: List approved, active (not expired) locations
+    // Public: List active (not expired) locations
     const today = new Date().toISOString().split('T')[0]
     const { data, error } = await supabase
       .from('event_locations')
       .select('*')
-      .eq('status', 'approved')
       .gte('end_date', today)
       .order('start_date', { ascending: true })
 
@@ -109,10 +93,7 @@ Deno.serve(async (req) => {
   if (req.method === 'GET' && locationId) {
     const { data, error } = await supabase
       .from('event_locations')
-      .select(`
-        *,
-        created_by:users!event_locations_created_by_user_id_fkey(id, display_name)
-      `)
+      .select('*')
       .eq('id', locationId)
       .single()
 
@@ -123,7 +104,7 @@ Deno.serve(async (req) => {
     return jsonResponse(toEventLocation(data))
   }
 
-  // All other operations require authentication
+  // All other operations require admin authentication
   const token = getFirebaseToken(req)
   if (!token) {
     return errorResponse('Missing Firebase token', 401)
@@ -145,8 +126,43 @@ Deno.serve(async (req) => {
     return errorResponse('User not found', 404)
   }
 
-  // POST - Create new event location
+  if (!user.is_admin) {
+    return errorResponse('Admin access required', 403)
+  }
+
+  // POST - Create new event location (admin only)
   if (req.method === 'POST') {
+    // Check for merge action
+    if (action === 'merge') {
+      const body = await req.json()
+      const keepId = body.keepId as string
+      const removeIds = body.removeIds as string[]
+
+      if (!keepId || !removeIds || removeIds.length === 0) {
+        return errorResponse('keepId and removeIds are required', 400)
+      }
+
+      // Update all player_requests to point to the kept location
+      for (const removeId of removeIds) {
+        await supabase
+          .from('player_requests')
+          .update({ event_location_id: keepId })
+          .eq('event_location_id', removeId)
+      }
+
+      // Delete the duplicate locations
+      const { error: deleteError } = await supabase
+        .from('event_locations')
+        .delete()
+        .in('id', removeIds)
+
+      if (deleteError) {
+        return errorResponse(deleteError.message, 500)
+      }
+
+      return jsonResponse({ merged: removeIds.length, keptId: keepId })
+    }
+
     const body = await req.json()
 
     if (!body.name?.trim()) {
@@ -172,22 +188,6 @@ Deno.serve(async (req) => {
 
     const normalizedName = normalizeName(body.name)
 
-    // Check for duplicates (same normalized name + overlapping dates)
-    const { data: duplicates } = await supabase
-      .from('event_locations')
-      .select('id, name, start_date, end_date')
-      .eq('name_normalized', normalizedName)
-      .neq('status', 'rejected')
-      .lte('start_date', body.endDate)
-      .gte('end_date', body.startDate)
-
-    if (duplicates && duplicates.length > 0) {
-      return errorResponse(
-        `A similar event location "${duplicates[0].name}" already exists for overlapping dates`,
-        400
-      )
-    }
-
     const { data, error } = await supabase
       .from('event_locations')
       .insert({
@@ -198,7 +198,7 @@ Deno.serve(async (req) => {
         venue: body.venue?.trim() || null,
         start_date: body.startDate,
         end_date: body.endDate,
-        status: 'pending',
+        status: 'approved',
         created_by_user_id: user.id,
       })
       .select('*')
@@ -211,57 +211,12 @@ Deno.serve(async (req) => {
     return jsonResponse(toEventLocation(data), 201)
   }
 
-  // PUT - Update/Approve/Reject location (admin only)
+  // PUT - Update location (admin only)
   if (req.method === 'PUT') {
     if (!locationId) {
       return errorResponse('Location ID required', 400)
     }
 
-    if (!user.is_admin) {
-      return errorResponse('Admin access required', 403)
-    }
-
-    // Approve action
-    if (action === 'approve') {
-      const { data, error } = await supabase
-        .from('event_locations')
-        .update({
-          status: 'approved',
-          approved_by_user_id: user.id,
-          approved_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', locationId)
-        .select('*')
-        .single()
-
-      if (error) {
-        return errorResponse(error.message, 500)
-      }
-
-      return jsonResponse(toEventLocation(data))
-    }
-
-    // Reject action
-    if (action === 'reject') {
-      const { data, error } = await supabase
-        .from('event_locations')
-        .update({
-          status: 'rejected',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', locationId)
-        .select('*')
-        .single()
-
-      if (error) {
-        return errorResponse(error.message, 500)
-      }
-
-      return jsonResponse(toEventLocation(data))
-    }
-
-    // General update
     const body = await req.json()
     const updates: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
@@ -276,7 +231,6 @@ Deno.serve(async (req) => {
     if (body.venue !== undefined) updates.venue = body.venue?.trim() || null
     if (body.startDate !== undefined) updates.start_date = body.startDate
     if (body.endDate !== undefined) updates.end_date = body.endDate
-    if (body.status !== undefined) updates.status = body.status
 
     const { data, error } = await supabase
       .from('event_locations')
@@ -298,9 +252,11 @@ Deno.serve(async (req) => {
       return errorResponse('Location ID required', 400)
     }
 
-    if (!user.is_admin) {
-      return errorResponse('Admin access required', 403)
-    }
+    // First, clear the event_location_id from any player_requests using this location
+    await supabase
+      .from('player_requests')
+      .update({ event_location_id: null })
+      .eq('event_location_id', locationId)
 
     const { error } = await supabase
       .from('event_locations')
