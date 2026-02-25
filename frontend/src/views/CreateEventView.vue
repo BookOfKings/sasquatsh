@@ -129,6 +129,7 @@ async function handleSubmit() {
     if (token && selectedGames.value.length > 0) {
       for (let i = 0; i < selectedGames.value.length; i++) {
         const game = selectedGames.value[i]
+        if (!game) continue
         try {
           await addEventGame(token, createResult.event.id, {
             bggId: game.bggId,
@@ -182,6 +183,7 @@ function setPrimaryGame(index: number) {
   if (index <= 0 || index >= selectedGames.value.length) return
   // Move the game to the front
   const game = selectedGames.value[index]
+  if (!game) return
   selectedGames.value.splice(index, 1)
   selectedGames.value.unshift(game)
   form.gameTitle = game.name
