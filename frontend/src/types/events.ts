@@ -101,6 +101,7 @@ export interface CreateEventInput {
   isPublic?: boolean
   isCharityEvent?: boolean
   status?: string
+  groupId?: string  // Link to a group
 }
 
 export interface UpdateEventInput {

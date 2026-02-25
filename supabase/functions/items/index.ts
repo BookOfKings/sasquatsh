@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { verifyFirebaseToken, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/firebase.ts'
+import { verifyFirebaseToken, jsonResponse, errorResponse, getCorsHeaders, getFirebaseToken } from '../_shared/firebase.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -10,16 +10,15 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: getCorsHeaders() })
   }
 
-  // Get authorization token
-  const authHeader = req.headers.get('Authorization')
-  if (!authHeader?.startsWith('Bearer ')) {
-    return errorResponse('Unauthorized', 401)
+  // Get Firebase token from custom header
+  const token = getFirebaseToken(req)
+  if (!token) {
+    return errorResponse('Missing Firebase token', 401)
   }
 
-  const token = authHeader.slice(7)
   const firebaseUser = await verifyFirebaseToken(token)
   if (!firebaseUser) {
-    return errorResponse('Invalid token', 401)
+    return errorResponse('Invalid Firebase token', 401)
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)

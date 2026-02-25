@@ -2,11 +2,15 @@ import type {
   PlayerRequest,
   CreatePlayerRequestInput,
   UpdatePlayerRequestInput,
+  PlayerRequestFilters,
   GameInvitation,
   CreateInvitationInput,
+  EventLocation,
+  CreateEventLocationInput,
 } from '@/types/social'
 
 const FUNCTIONS_URL = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 // Helper to make authenticated requests
 async function authenticatedRequest<T>(
@@ -17,7 +21,8 @@ async function authenticatedRequest<T>(
   const response = await fetch(`${FUNCTIONS_URL}${path}`, {
     ...options,
     headers: {
-      Authorization: `Bearer ${token}`,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'X-Firebase-Token': token,
       'Content-Type': 'application/json',
       ...options?.headers,
     },
@@ -42,19 +47,62 @@ async function authenticatedRequest<T>(
   return response.json() as Promise<T>
 }
 
+// ============ Event Locations ============
+
+// Get all approved, active event locations (public)
+export async function getEventLocations(): Promise<EventLocation[]> {
+  const response = await fetch(`${FUNCTIONS_URL}/event-locations`, {
+    headers: {
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+    },
+  })
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch event locations')
+  }
+
+  return response.json() as Promise<EventLocation[]>
+}
+
+// Create event location (authenticated - creates as pending)
+export async function createEventLocation(
+  token: string,
+  data: CreateEventLocationInput
+): Promise<EventLocation> {
+  return authenticatedRequest<EventLocation>('/event-locations', token, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
 // ============ Player Requests ============
 
-// Get all active player requests (public)
-export async function getPlayerRequests(filters?: {
-  city?: string
-  state?: string
-}): Promise<PlayerRequest[]> {
+// Get all active player requests (public, but can pass token for blocked user filtering)
+export async function getPlayerRequests(
+  filters?: PlayerRequestFilters,
+  token?: string
+): Promise<PlayerRequest[]> {
   const params = new URLSearchParams()
   if (filters?.city) params.set('city', filters.city)
   if (filters?.state) params.set('state', filters.state)
+  if (filters?.gameName) params.set('gameName', filters.gameName)
+  if (filters?.playerCount) params.set('playerCount', String(filters.playerCount))
+  if (filters?.eventLocationId) params.set('eventLocationId', filters.eventLocationId)
 
   const url = `${FUNCTIONS_URL}/player-requests${params.toString() ? '?' + params.toString() : ''}`
-  const response = await fetch(url)
+
+  const headers: Record<string, string> = {
+    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+    'Content-Type': 'application/json',
+  }
+
+  // Pass token for blocked user filtering if authenticated
+  if (token) {
+    headers['X-Firebase-Token'] = token
+  }
+
+  const response = await fetch(url, { headers })
 
   if (!response.ok) {
     throw new Error('Failed to fetch player requests')
@@ -103,9 +151,14 @@ export async function deletePlayerRequest(
 
 // ============ Invitations ============
 
-// Get invitation by code (public)
+// Get invitation by code (public - but Supabase requires anon key)
 export async function getInvitationByCode(code: string): Promise<GameInvitation> {
-  const response = await fetch(`${FUNCTIONS_URL}/invitations?code=${code}`)
+  const response = await fetch(`${FUNCTIONS_URL}/invitations?code=${code}`, {
+    headers: {
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+    },
+  })
 
   if (!response.ok) {
     let message = 'Invitation not found'

@@ -73,6 +73,11 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/groups/invite/:code',
+    name: 'group-invite',
+    component: () => import('@/views/GroupInviteView.vue'),
+  },
+  {
     path: '/groups/:slug',
     name: 'group-detail',
     component: () => import('@/views/GroupDetailView.vue'),
@@ -82,6 +87,13 @@ const routes: RouteRecordRaw[] = [
     path: '/looking-for-players',
     name: 'looking-for-players',
     component: () => import('@/views/LookingForPlayersView.vue'),
+  },
+  // Admin
+  {
+    path: '/admin',
+    name: 'admin',
+    component: () => import('@/views/AdminView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true },
   },
   // Invitations
   {
@@ -131,6 +143,11 @@ router.beforeEach(async (to) => {
 
   if (to.meta.guestOnly && auth.isAuthenticated.value) {
     return { name: 'dashboard' }
+  }
+
+  // Admin route guard
+  if (to.meta.requiresAdmin && !auth.isAdmin.value) {
+    return { name: 'home' }
   }
 
   // Allow navigation

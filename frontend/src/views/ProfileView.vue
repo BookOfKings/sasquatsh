@@ -2,8 +2,8 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
-import { getMyProfile, updateProfile } from '@/services/profileApi'
-import type { UserProfile, UpdateProfileInput } from '@/types/profile'
+import { getMyProfile, updateProfile, getBlockedUsers, unblockUser } from '@/services/profileApi'
+import type { UserProfile, UpdateProfileInput, BlockedUser } from '@/types/profile'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -11,6 +11,8 @@ const auth = useAuthStore()
 const loading = ref(true)
 const saving = ref(false)
 const profile = ref<UserProfile | null>(null)
+const blockedUsers = ref<BlockedUser[]>([])
+const loadingBlocked = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
 const isEditing = ref(false)
@@ -63,6 +65,7 @@ const memberSince = computed(() => {
 
 onMounted(async () => {
   await loadProfile()
+  await loadBlockedUsers()
 })
 
 async function loadProfile() {
@@ -82,6 +85,36 @@ async function loadProfile() {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to load profile'
   } finally {
     loading.value = false
+  }
+}
+
+async function loadBlockedUsers() {
+  loadingBlocked.value = true
+  try {
+    const token = await auth.getIdToken()
+    if (token) {
+      blockedUsers.value = await getBlockedUsers(token)
+    }
+  } catch (err) {
+    console.error('Failed to load blocked users:', err)
+  } finally {
+    loadingBlocked.value = false
+  }
+}
+
+async function handleUnblock(userId: string) {
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+
+    await unblockUser(token, userId)
+    blockedUsers.value = blockedUsers.value.filter(u => u.id !== userId)
+    successMessage.value = 'User unblocked successfully'
+    setTimeout(() => {
+      successMessage.value = ''
+    }, 3000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to unblock user'
   }
 }
 
@@ -471,7 +504,7 @@ function goToGroup(slug: string) {
         <div class="p-4 border-b border-gray-100">
           <h3 class="font-semibold flex items-center gap-2">
             <svg class="w-5 h-5 text-secondary-500" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M7,6H17A6,6 0 0,1 23,12A6,6 0 0,1 17,18C15.22,18 13.63,17.23 12.53,16H11.47C10.37,17.23 8.78,18 7,18A6,6 0 0,1 1,12A6,6 0 0,1 7,6M6,9V11H4V13H6V15H8V13H10V11H8V9H6M15.5,12A1.5,1.5 0 0,0 14,13.5A1.5,1.5 0 0,0 15.5,15A1.5,1.5 0 0,0 17,13.5A1.5,1.5 0 0,0 15.5,12M18.5,9A1.5,1.5 0 0,0 17,10.5A1.5,1.5 0 0,0 18.5,12A1.5,1.5 0 0,0 20,10.5A1.5,1.5 0 0,0 18.5,9Z"/>
+              <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
             </svg>
             Preferred Game Types
           </h3>
@@ -490,42 +523,118 @@ function goToGroup(slug: string) {
       </div>
 
       <!-- Groups -->
-      <div v-if="profile.groups && profile.groups.length > 0" class="card mb-6">
-        <div class="p-4 border-b border-gray-100">
+      <div class="card mb-6">
+        <div class="p-4 border-b border-gray-100 flex items-center justify-between">
           <h3 class="font-semibold flex items-center gap-2">
             <svg class="w-5 h-5 text-accent-500" viewBox="0 0 24 24" fill="currentColor">
               <path d="M12,5.5A3.5,3.5 0 0,1 15.5,9A3.5,3.5 0 0,1 12,12.5A3.5,3.5 0 0,1 8.5,9A3.5,3.5 0 0,1 12,5.5M5,8C5.56,8 6.08,8.15 6.53,8.42C6.38,9.85 6.8,11.27 7.66,12.38C7.16,13.34 6.16,14 5,14A3,3 0 0,1 2,11A3,3 0 0,1 5,8M19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14C17.84,14 16.84,13.34 16.34,12.38C17.2,11.27 17.62,9.85 17.47,8.42C17.92,8.15 18.44,8 19,8M5.5,18.25C5.5,16.18 8.41,14.5 12,14.5C15.59,14.5 18.5,16.18 18.5,18.25V20H5.5V18.25M0,20V18.5C0,17.11 1.89,15.94 4.45,15.6C3.86,16.28 3.5,17.22 3.5,18.25V20H0M24,20H20.5V18.25C20.5,17.22 20.14,16.28 19.55,15.6C22.11,15.94 24,17.11 24,18.5V20Z"/>
             </svg>
             My Groups
           </h3>
+          <button @click="router.push('/groups')" class="text-sm text-primary-500 hover:text-primary-600 font-medium">
+            Browse Groups
+          </button>
         </div>
-        <div class="divide-y divide-gray-100">
-          <button
+        <div v-if="profile.groups && profile.groups.length > 0" class="divide-y divide-gray-100">
+          <div
             v-for="membership in profile.groups"
             :key="membership.group?.id"
-            class="w-full flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors text-left"
-            @click="membership.group && goToGroup(membership.group.slug)"
+            class="flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors"
           >
-            <div class="w-10 h-10 rounded-lg bg-accent-500 flex items-center justify-center overflow-hidden flex-shrink-0">
-              <img
-                v-if="membership.group?.logoUrl"
-                :src="membership.group.logoUrl"
-                class="w-full h-full object-cover"
-              />
-              <svg v-else class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12,5.5A3.5,3.5 0 0,1 15.5,9A3.5,3.5 0 0,1 12,12.5A3.5,3.5 0 0,1 8.5,9A3.5,3.5 0 0,1 12,5.5M5,8C5.56,8 6.08,8.15 6.53,8.42C6.38,9.85 6.8,11.27 7.66,12.38C7.16,13.34 6.16,14 5,14A3,3 0 0,1 2,11A3,3 0 0,1 5,8M19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14C17.84,14 16.84,13.34 16.34,12.38C17.2,11.27 17.62,9.85 17.47,8.42C17.92,8.15 18.44,8 19,8M5.5,18.25C5.5,16.18 8.41,14.5 12,14.5C15.59,14.5 18.5,16.18 18.5,18.25V20H5.5V18.25Z"/>
-              </svg>
-            </div>
-            <div class="flex-1 min-w-0">
-              <div class="font-medium">{{ membership.group?.name }}</div>
-              <div class="text-sm text-gray-500">
-                {{ membership.role }} &bull; {{ membership.group?.groupType }}
+            <button
+              class="flex items-center gap-3 flex-1 min-w-0 text-left"
+              @click="membership.group && goToGroup(membership.group.slug)"
+            >
+              <div class="w-10 h-10 rounded-lg bg-accent-100 flex items-center justify-center overflow-hidden flex-shrink-0">
+                <img
+                  v-if="membership.group?.logoUrl"
+                  :src="membership.group.logoUrl"
+                  class="w-full h-full object-cover"
+                />
+                <svg v-else class="w-5 h-5 text-accent-500" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12,5.5A3.5,3.5 0 0,1 15.5,9A3.5,3.5 0 0,1 12,12.5A3.5,3.5 0 0,1 8.5,9A3.5,3.5 0 0,1 12,5.5M5,8C5.56,8 6.08,8.15 6.53,8.42C6.38,9.85 6.8,11.27 7.66,12.38C7.16,13.34 6.16,14 5,14A3,3 0 0,1 2,11A3,3 0 0,1 5,8M19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14C17.84,14 16.84,13.34 16.34,12.38C17.2,11.27 17.62,9.85 17.47,8.42C17.92,8.15 18.44,8 19,8M5.5,18.25C5.5,16.18 8.41,14.5 12,14.5C15.59,14.5 18.5,16.18 18.5,18.25V20H5.5V18.25Z"/>
+                </svg>
               </div>
-            </div>
+              <div class="flex-1 min-w-0">
+                <div class="font-medium">{{ membership.group?.name }}</div>
+                <div class="text-sm text-gray-500 capitalize">
+                  {{ membership.group?.groupType === 'geographic' ? 'Local Community' : membership.group?.groupType === 'interest' ? 'Interest Group' : 'Community' }}
+                </div>
+              </div>
+            </button>
+            <span :class="[
+              'text-xs px-2 py-1 rounded-full',
+              membership.role === 'owner' ? 'bg-purple-100 text-purple-700' :
+              membership.role === 'admin' ? 'bg-blue-100 text-blue-700' :
+              'bg-gray-100 text-gray-600'
+            ]">
+              {{ membership.role }}
+            </span>
             <svg class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
               <path d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"/>
             </svg>
+          </div>
+        </div>
+        <div v-else class="p-8 text-center">
+          <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12,5.5A3.5,3.5 0 0,1 15.5,9A3.5,3.5 0 0,1 12,12.5A3.5,3.5 0 0,1 8.5,9A3.5,3.5 0 0,1 12,5.5M5,8C5.56,8 6.08,8.15 6.53,8.42C6.38,9.85 6.8,11.27 7.66,12.38C7.16,13.34 6.16,14 5,14A3,3 0 0,1 2,11A3,3 0 0,1 5,8M19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14C17.84,14 16.84,13.34 16.34,12.38C17.2,11.27 17.62,9.85 17.47,8.42C17.92,8.15 18.44,8 19,8M5.5,18.25C5.5,16.18 8.41,14.5 12,14.5C15.59,14.5 18.5,16.18 18.5,18.25V20H5.5V18.25M0,20V18.5C0,17.11 1.89,15.94 4.45,15.6C3.86,16.28 3.5,17.22 3.5,18.25V20H0M24,20H20.5V18.25C20.5,17.22 20.14,16.28 19.55,15.6C22.11,15.94 24,17.11 24,18.5V20Z"/>
+          </svg>
+          <p class="text-gray-500 mb-3">You haven't joined any groups yet.</p>
+          <button @click="router.push('/groups')" class="btn-primary">
+            Find Groups
           </button>
+        </div>
+      </div>
+
+      <!-- Blocked Users -->
+      <div class="card mb-6">
+        <div class="p-4 border-b border-gray-100">
+          <h3 class="font-semibold flex items-center gap-2">
+            <svg class="w-5 h-5 text-red-500" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12,2C17.5,2 22,6.5 22,12C22,17.5 17.5,22 12,22C6.5,22 2,17.5 2,12C2,6.5 6.5,2 12,2M12,4C7.58,4 4,7.58 4,12C4,16.42 7.58,20 12,20C16.42,20 20,16.42 20,12C20,7.58 16.42,4 12,4M16.59,6L18,7.41L13.41,12L18,16.59L16.59,18L12,13.41L7.41,18L6,16.59L10.59,12L6,7.41L7.41,6L12,10.59L16.59,6Z"/>
+            </svg>
+            Blocked Users
+          </h3>
+        </div>
+        <div v-if="loadingBlocked" class="p-8 text-center">
+          <svg class="w-6 h-6 mx-auto text-gray-400 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+        </div>
+        <div v-else-if="blockedUsers.length > 0" class="divide-y divide-gray-100">
+          <div
+            v-for="user in blockedUsers"
+            :key="user.id"
+            class="flex items-center gap-3 p-4"
+          >
+            <div class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+              <img
+                v-if="user.avatarUrl"
+                :src="user.avatarUrl"
+                class="w-full h-full object-cover"
+              />
+              <svg v-else class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="font-medium">{{ user.displayName || 'Unknown User' }}</div>
+            </div>
+            <button
+              class="btn-ghost text-red-500 text-sm"
+              @click="handleUnblock(user.id)"
+            >
+              Unblock
+            </button>
+          </div>
+        </div>
+        <div v-else class="p-8 text-center">
+          <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6M12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8Z"/>
+          </svg>
+          <p class="text-gray-500">You haven't blocked anyone.</p>
+          <p class="text-sm text-gray-400 mt-1">Blocked users won't appear in your LFP or Games feeds.</p>
         </div>
       </div>
 
@@ -548,7 +657,7 @@ function goToGroup(slug: string) {
           >
             <div class="w-12 h-12 rounded-lg bg-primary-100 flex items-center justify-center flex-shrink-0">
               <svg class="w-6 h-6 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M7,6H17A6,6 0 0,1 23,12A6,6 0 0,1 17,18C15.22,18 13.63,17.23 12.53,16H11.47C10.37,17.23 8.78,18 7,18A6,6 0 0,1 1,12A6,6 0 0,1 7,6M6,9V11H4V13H6V15H8V13H10V11H8V9H6M15.5,12A1.5,1.5 0 0,0 14,13.5A1.5,1.5 0 0,0 15.5,15A1.5,1.5 0 0,0 17,13.5A1.5,1.5 0 0,0 15.5,12M18.5,9A1.5,1.5 0 0,0 17,10.5A1.5,1.5 0 0,0 18.5,12A1.5,1.5 0 0,0 20,10.5A1.5,1.5 0 0,0 18.5,9Z"/>
+                <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
               </svg>
             </div>
             <div class="flex-1 min-w-0">

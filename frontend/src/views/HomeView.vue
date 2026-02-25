@@ -33,6 +33,10 @@ function goToDashboard() {
 function goToGames() {
   router.push('/games')
 }
+
+function goToCreateGame() {
+  router.push('/games/create')
+}
 </script>
 
 <template>
@@ -63,7 +67,7 @@ function goToGames() {
         <div class="bg-secondary-50 rounded-xl p-4">
           <div class="flex items-center justify-center gap-2 mb-1">
             <svg class="w-5 h-5 text-secondary-500" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M7,6H17A6,6 0 0,1 23,12A6,6 0 0,1 17,18C15.22,18 13.63,17.23 12.53,16H11.47C10.37,17.23 8.78,18 7,18A6,6 0 0,1 1,12A6,6 0 0,1 7,6M6,9V11H4V13H6V15H8V13H10V11H8V9H6M15.5,12A1.5,1.5 0 0,0 14,13.5A1.5,1.5 0 0,0 15.5,15A1.5,1.5 0 0,0 17,13.5A1.5,1.5 0 0,0 15.5,12M18.5,9A1.5,1.5 0 0,0 17,10.5A1.5,1.5 0 0,0 18.5,12A1.5,1.5 0 0,0 20,10.5A1.5,1.5 0 0,0 18.5,9Z"/>
+              <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
             </svg>
             <span class="text-sm font-medium text-secondary-700">All Time</span>
           </div>
@@ -80,18 +84,26 @@ function goToGames() {
         <p class="text-gray-700 mb-4">
           Welcome back, <strong>{{ auth.user.value?.displayName || auth.user.value?.email }}</strong>!
         </p>
-        <button @click="goToDashboard" class="btn-primary w-full mb-3">
+        <button @click="goToCreateGame" class="btn-primary w-full mb-3">
           <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M13,3V9H21V3M13,21H21V11H13M3,21H11V15H3M3,13H11V3H3V13Z"/>
+            <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/>
           </svg>
-          Go to Dashboard
+          Host a Game Night
         </button>
-        <button @click="goToGames" class="btn-outline w-full">
-          <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M7,6H17A6,6 0 0,1 23,12A6,6 0 0,1 17,18C15.22,18 13.63,17.23 12.53,16H11.47C10.37,17.23 8.78,18 7,18A6,6 0 0,1 1,12A6,6 0 0,1 7,6M6,9V11H4V13H6V15H8V13H10V11H8V9H6M15.5,12A1.5,1.5 0 0,0 14,13.5A1.5,1.5 0 0,0 15.5,15A1.5,1.5 0 0,0 17,13.5A1.5,1.5 0 0,0 15.5,12M18.5,9A1.5,1.5 0 0,0 17,10.5A1.5,1.5 0 0,0 18.5,12A1.5,1.5 0 0,0 20,10.5A1.5,1.5 0 0,0 18.5,9Z"/>
-          </svg>
-          Browse Games
-        </button>
+        <div class="grid grid-cols-2 gap-3">
+          <button @click="goToDashboard" class="btn-outline">
+            <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M13,3V9H21V3M13,21H21V11H13M3,21H11V15H3M3,13H11V3H3V13Z"/>
+            </svg>
+            Dashboard
+          </button>
+          <button @click="goToGames" class="btn-outline">
+            <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
+            </svg>
+            Browse
+          </button>
+        </div>
       </template>
 
       <template v-else>

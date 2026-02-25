@@ -2,7 +2,7 @@
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGroupStore } from '@/stores/useGroupStore'
-import type { CreateGroupInput, GroupType } from '@/types/groups'
+import type { CreateGroupInput, GroupType, JoinPolicy } from '@/types/groups'
 
 const router = useRouter()
 const groupStore = useGroupStore()
@@ -18,13 +18,19 @@ const form = reactive<CreateGroupInput>({
   locationCity: '',
   locationState: '',
   locationRadiusMiles: 25,
-  isPublic: true,
+  joinPolicy: 'open',
 })
 
 const groupTypeOptions: { title: string; value: GroupType }[] = [
   { title: 'Community (Both)', value: 'both' },
   { title: 'Geographic (Local Area)', value: 'geographic' },
   { title: 'Interest-Based', value: 'interest' },
+]
+
+const joinPolicyOptions: { title: string; value: JoinPolicy; description: string }[] = [
+  { title: 'Open', value: 'open', description: 'Anyone can join instantly' },
+  { title: 'Request to Join', value: 'request', description: 'Members must be approved by admins' },
+  { title: 'Invitation Only', value: 'invite_only', description: 'Only people with an invite link can join' },
 ]
 
 function validate(): boolean {
@@ -193,19 +199,31 @@ function goBack() {
             </div>
           </div>
 
-          <!-- Visibility -->
+          <!-- Join Policy -->
           <div>
-            <h3 class="font-semibold text-gray-900 mb-4">Visibility</h3>
+            <h3 class="font-semibold text-gray-900 mb-4">How Can People Join?</h3>
+            <p class="text-sm text-gray-500 mb-4">All groups are searchable. Choose who can join.</p>
 
-            <label class="flex items-center gap-2 cursor-pointer">
-              <input
-                v-model="form.isPublic"
-                type="checkbox"
-                class="w-4 h-4 rounded border-gray-300 text-primary-500 focus:ring-primary-500"
-                :disabled="loading"
-              />
-              <span class="text-sm text-gray-700">Public group (anyone can find and join)</span>
-            </label>
+            <div class="space-y-3">
+              <label
+                v-for="opt in joinPolicyOptions"
+                :key="opt.value"
+                class="flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors"
+                :class="form.joinPolicy === opt.value ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:bg-gray-50'"
+              >
+                <input
+                  v-model="form.joinPolicy"
+                  type="radio"
+                  :value="opt.value"
+                  class="mt-1 w-4 h-4 text-primary-500 focus:ring-primary-500"
+                  :disabled="loading"
+                />
+                <div>
+                  <div class="font-medium text-gray-900">{{ opt.title }}</div>
+                  <div class="text-sm text-gray-500">{{ opt.description }}</div>
+                </div>
+              </label>
+            </div>
           </div>
 
           <!-- Actions -->

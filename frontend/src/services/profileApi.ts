@@ -1,6 +1,7 @@
-import type { UserProfile, PublicProfile, UpdateProfileInput } from '@/types/profile'
+import type { UserProfile, PublicProfile, UpdateProfileInput, BlockedUser } from '@/types/profile'
 
 const FUNCTIONS_URL = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 // Helper to make authenticated requests
 async function authenticatedRequest<T>(
@@ -11,7 +12,8 @@ async function authenticatedRequest<T>(
   const response = await fetch(`${FUNCTIONS_URL}${path}`, {
     ...options,
     headers: {
-      Authorization: `Bearer ${token}`,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'X-Firebase-Token': token,
       'Content-Type': 'application/json',
       ...options?.headers,
     },
@@ -39,7 +41,12 @@ export async function getMyProfile(token: string): Promise<UserProfile> {
 
 // Get public profile by user ID
 export async function getPublicProfile(userId: string): Promise<PublicProfile> {
-  const response = await fetch(`${FUNCTIONS_URL}/profile?id=${userId}`)
+  const response = await fetch(`${FUNCTIONS_URL}/profile?id=${userId}`, {
+    headers: {
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+    },
+  })
 
   if (!response.ok) {
     throw new Error('Failed to fetch profile')
@@ -57,4 +64,35 @@ export async function updateProfile(
     method: 'PUT',
     body: JSON.stringify(data),
   })
+}
+
+// ============ Blocked Users ============
+
+// Get list of blocked users with details
+export async function getBlockedUsers(token: string): Promise<BlockedUser[]> {
+  return authenticatedRequest<BlockedUser[]>('/profile?include=blocked', token)
+}
+
+// Block a user
+export async function blockUser(
+  token: string,
+  userId: string
+): Promise<{ message: string; blockedUserIds: string[] }> {
+  return authenticatedRequest<{ message: string; blockedUserIds: string[] }>(
+    `/profile?action=block&userId=${userId}`,
+    token,
+    { method: 'POST' }
+  )
+}
+
+// Unblock a user
+export async function unblockUser(
+  token: string,
+  userId: string
+): Promise<{ message: string; blockedUserIds: string[] }> {
+  return authenticatedRequest<{ message: string; blockedUserIds: string[] }>(
+    `/profile?action=unblock&userId=${userId}`,
+    token,
+    { method: 'POST' }
+  )
 }

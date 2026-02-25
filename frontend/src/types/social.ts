@@ -1,5 +1,32 @@
 import type { UserSummary } from './events'
 
+// Event Locations (shared gaming convention/event locations)
+export interface EventLocation {
+  id: string
+  name: string
+  city: string
+  state: string
+  venue: string | null
+  startDate: string
+  endDate: string
+  status: 'pending' | 'approved' | 'rejected'
+  createdByUserId: string | null
+  createdAt: string
+  createdBy?: {
+    id: string
+    displayName: string | null
+  } | null
+}
+
+export interface CreateEventLocationInput {
+  name: string
+  city: string
+  state: string
+  venue?: string
+  startDate: string
+  endDate: string
+}
+
 export interface PlayerRequest {
   id: string
   userId: string
@@ -13,6 +40,12 @@ export interface PlayerRequest {
   isActive: boolean
   createdAt: string
   expiresAt: string | null
+  // Event location fields
+  eventLocationId: string | null
+  hallArea: string | null
+  tableNumber: string | null
+  booth: string | null
+  eventLocation: EventLocation | null
   user: UserSummary | null
 }
 
@@ -25,6 +58,11 @@ export interface CreatePlayerRequestInput {
   availableDays?: string
   playerCountNeeded?: number
   expiresInDays?: number
+  // Event location fields
+  eventLocationId?: string
+  hallArea?: string
+  tableNumber?: string
+  booth?: string
 }
 
 export interface UpdatePlayerRequestInput {
@@ -36,6 +74,19 @@ export interface UpdatePlayerRequestInput {
   availableDays?: string | null
   playerCountNeeded?: number
   isActive?: boolean
+  // Event location fields
+  eventLocationId?: string | null
+  hallArea?: string | null
+  tableNumber?: string | null
+  booth?: string | null
+}
+
+export interface PlayerRequestFilters {
+  city?: string
+  state?: string
+  gameName?: string
+  playerCount?: number
+  eventLocationId?: string
 }
 
 export interface GameInvitation {

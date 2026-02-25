@@ -8,8 +8,9 @@ import {
   createPlayerRequest,
   updatePlayerRequest,
   deletePlayerRequest,
+  getEventLocations,
 } from '@/services/socialApi'
-import type { PlayerRequest, CreatePlayerRequestInput } from '@/types/social'
+import type { PlayerRequest, CreatePlayerRequestInput, EventLocation, PlayerRequestFilters } from '@/types/social'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -17,15 +18,19 @@ const auth = useAuthStore()
 const loading = ref(true)
 const requests = ref<PlayerRequest[]>([])
 const myRequests = ref<PlayerRequest[]>([])
+const eventLocations = ref<EventLocation[]>([])
 const errorMessage = ref('')
 const successMessage = ref('')
 const activeTab = ref<'browse' | 'mine'>('browse')
 const showCreateDialog = ref(false)
 const creating = ref(false)
 
-const filters = reactive({
+const filters = reactive<PlayerRequestFilters>({
   city: '',
   state: '',
+  gameName: '',
+  playerCount: undefined,
+  eventLocationId: '',
 })
 
 const form = reactive<CreatePlayerRequestInput>({
@@ -36,11 +41,24 @@ const form = reactive<CreatePlayerRequestInput>({
   state: '',
   availableDays: '',
   playerCountNeeded: 1,
+  eventLocationId: '',
+  hallArea: '',
+  tableNumber: '',
+  booth: '',
 })
 
-const hasFilters = computed(() => filters.city || filters.state)
+const locationType = ref<'local' | 'event'>('local')
+
+const hasFilters = computed(() => filters.city || filters.state || filters.gameName || filters.playerCount || filters.eventLocationId)
 
 onMounted(async () => {
+  // Load event locations for filter dropdown
+  try {
+    eventLocations.value = await getEventLocations()
+  } catch (err) {
+    console.error('Failed to load event locations:', err)
+  }
+
   await loadRequests()
   if (auth.isAuthenticated.value) {
     await loadMyRequests()
@@ -52,9 +70,21 @@ async function loadRequests() {
   errorMessage.value = ''
 
   try {
-    requests.value = await getPlayerRequests(
-      hasFilters.value ? { city: filters.city, state: filters.state } : undefined
-    )
+    // Get token for blocked user filtering (if authenticated)
+    const token = auth.isAuthenticated.value ? await auth.getIdToken() : undefined
+
+    // Build filters object
+    const activeFilters: PlayerRequestFilters | undefined = hasFilters.value
+      ? {
+          city: filters.city || undefined,
+          state: filters.state || undefined,
+          gameName: filters.gameName || undefined,
+          playerCount: filters.playerCount || undefined,
+          eventLocationId: filters.eventLocationId || undefined,
+        }
+      : undefined
+
+    requests.value = await getPlayerRequests(activeFilters, token ?? undefined)
   } catch (err) {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to load requests'
   } finally {
@@ -80,6 +110,9 @@ function applyFilters() {
 function clearFilters() {
   filters.city = ''
   filters.state = ''
+  filters.gameName = ''
+  filters.playerCount = undefined
+  filters.eventLocationId = ''
   loadRequests()
 }
 
@@ -100,6 +133,11 @@ function resetForm() {
   form.state = ''
   form.availableDays = ''
   form.playerCountNeeded = 1
+  form.eventLocationId = ''
+  form.hallArea = ''
+  form.tableNumber = ''
+  form.booth = ''
+  locationType.value = 'local'
 }
 
 async function handleCreate() {
@@ -237,15 +275,40 @@ function getTimeAgo(dateStr: string): string {
     <div v-if="activeTab === 'browse'" class="card p-4 mb-6">
       <div class="flex flex-wrap gap-4 items-end">
         <div class="flex-1 min-w-[150px]">
+          <label class="label">Game</label>
+          <input
+            v-model="filters.gameName"
+            type="text"
+            class="input"
+            placeholder="Filter by game"
+          />
+        </div>
+        <div class="w-32">
+          <label class="label">Players</label>
+          <select v-model="filters.playerCount" class="input">
+            <option :value="undefined">Any</option>
+            <option v-for="n in 10" :key="n" :value="n">{{ n }}+</option>
+          </select>
+        </div>
+        <div class="flex-1 min-w-[200px]">
+          <label class="label">Event Location</label>
+          <select v-model="filters.eventLocationId" class="input">
+            <option value="">Any location</option>
+            <option v-for="loc in eventLocations" :key="loc.id" :value="loc.id">
+              {{ loc.name }} ({{ loc.city }}, {{ loc.state }})
+            </option>
+          </select>
+        </div>
+        <div class="flex-1 min-w-[120px]">
           <label class="label">City</label>
           <input
             v-model="filters.city"
             type="text"
             class="input"
-            placeholder="Filter by city"
+            placeholder="City"
           />
         </div>
-        <div class="w-32">
+        <div class="w-24">
           <label class="label">State</label>
           <input
             v-model="filters.state"
@@ -307,12 +370,28 @@ function getTimeAgo(dateStr: string): string {
                   <h3 class="font-semibold text-gray-900">{{ request.title }}</h3>
                   <p class="text-sm text-gray-500">
                     {{ request.user?.displayName || 'Anonymous' }}
-                    <span v-if="request.city || request.state">
+                    <template v-if="request.eventLocation">
+                      &bull; {{ request.eventLocation.name }}
+                      <span v-if="request.eventLocation.venue">({{ request.eventLocation.venue }})</span>
+                    </template>
+                    <span v-else-if="request.city || request.state">
                       &bull; {{ [request.city, request.state].filter(Boolean).join(', ') }}
                     </span>
                   </p>
                 </div>
                 <span class="text-xs text-gray-400 whitespace-nowrap">{{ getTimeAgo(request.createdAt) }}</span>
+              </div>
+
+              <!-- Event location details -->
+              <div v-if="request.eventLocation" class="mt-2 text-sm text-gray-600 bg-primary-50 rounded-lg px-3 py-2">
+                <div class="flex flex-wrap gap-x-4 gap-y-1">
+                  <span>
+                    <strong>{{ request.eventLocation.city }}, {{ request.eventLocation.state }}</strong>
+                  </span>
+                  <span v-if="request.hallArea">Hall: {{ request.hallArea }}</span>
+                  <span v-if="request.tableNumber">Table: {{ request.tableNumber }}</span>
+                  <span v-if="request.booth">Booth: {{ request.booth }}</span>
+                </div>
               </div>
 
               <p v-if="request.description" class="mt-2 text-gray-600">
@@ -360,10 +439,21 @@ function getTimeAgo(dateStr: string): string {
               </div>
               <p class="text-sm text-gray-500">
                 Posted {{ getTimeAgo(request.createdAt) }}
-                <span v-if="request.city || request.state">
+                <template v-if="request.eventLocation">
+                  &bull; {{ request.eventLocation.name }}
+                </template>
+                <span v-else-if="request.city || request.state">
                   &bull; {{ [request.city, request.state].filter(Boolean).join(', ') }}
                 </span>
               </p>
+              <!-- Event location details -->
+              <div v-if="request.eventLocation" class="mt-2 text-sm text-gray-600 bg-primary-50 rounded-lg px-3 py-2">
+                <div class="flex flex-wrap gap-x-4 gap-y-1">
+                  <span v-if="request.hallArea">Hall: {{ request.hallArea }}</span>
+                  <span v-if="request.tableNumber">Table: {{ request.tableNumber }}</span>
+                  <span v-if="request.booth">Booth: {{ request.booth }}</span>
+                </div>
+              </div>
               <p v-if="request.description" class="mt-2 text-gray-600">
                 {{ request.description }}
               </p>
@@ -426,7 +516,31 @@ function getTimeAgo(dateStr: string): string {
             />
           </div>
 
-          <div class="grid grid-cols-2 gap-4">
+          <!-- Location Type Toggle -->
+          <div>
+            <label class="label">Location Type</label>
+            <div class="flex gap-2">
+              <button
+                type="button"
+                class="px-4 py-2 rounded-lg font-medium transition-colors"
+                :class="locationType === 'local' ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+                @click="locationType = 'local'"
+              >
+                Local Area
+              </button>
+              <button
+                type="button"
+                class="px-4 py-2 rounded-lg font-medium transition-colors"
+                :class="locationType === 'event' ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+                @click="locationType = 'event'"
+              >
+                At an Event
+              </button>
+            </div>
+          </div>
+
+          <!-- Local Area Fields -->
+          <div v-if="locationType === 'local'" class="grid grid-cols-2 gap-4">
             <div>
               <label class="label">City</label>
               <input
@@ -446,6 +560,52 @@ function getTimeAgo(dateStr: string): string {
               />
             </div>
           </div>
+
+          <!-- Event Location Fields -->
+          <template v-if="locationType === 'event'">
+            <div>
+              <label class="label">Event Location</label>
+              <select v-model="form.eventLocationId" class="input">
+                <option value="">Select an event...</option>
+                <option v-for="loc in eventLocations" :key="loc.id" :value="loc.id">
+                  {{ loc.name }} - {{ loc.city }}, {{ loc.state }} ({{ formatDate(loc.startDate) }} - {{ formatDate(loc.endDate) }})
+                </option>
+              </select>
+              <p class="text-xs text-gray-500 mt-1">
+                Don't see your event? Contact us to add it.
+              </p>
+            </div>
+
+            <div class="grid grid-cols-3 gap-4">
+              <div>
+                <label class="label">Hall/Area</label>
+                <input
+                  v-model="form.hallArea"
+                  type="text"
+                  class="input"
+                  placeholder="e.g., Hall B"
+                />
+              </div>
+              <div>
+                <label class="label">Table #</label>
+                <input
+                  v-model="form.tableNumber"
+                  type="text"
+                  class="input"
+                  placeholder="e.g., 42"
+                />
+              </div>
+              <div>
+                <label class="label">Booth</label>
+                <input
+                  v-model="form.booth"
+                  type="text"
+                  class="input"
+                  placeholder="e.g., 1234"
+                />
+              </div>
+            </div>
+          </template>
 
           <div>
             <label class="label">Availability</label>

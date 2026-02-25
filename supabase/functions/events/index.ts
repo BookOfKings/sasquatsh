@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { verifyFirebaseToken, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/firebase.ts'
+import { verifyFirebaseToken, jsonResponse, errorResponse, getCorsHeaders, getFirebaseToken } from '../_shared/firebase.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -10,24 +10,23 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: getCorsHeaders() })
   }
 
-  // Get authorization token
-  const authHeader = req.headers.get('Authorization')
-  if (!authHeader?.startsWith('Bearer ')) {
-    return errorResponse('Unauthorized', 401)
+  // Get Firebase token from custom header
+  const token = getFirebaseToken(req)
+  if (!token) {
+    return errorResponse('Missing Firebase token', 401)
   }
 
-  const token = authHeader.slice(7)
   const firebaseUser = await verifyFirebaseToken(token)
   if (!firebaseUser) {
-    return errorResponse('Invalid token', 401)
+    return errorResponse('Invalid Firebase token', 401)
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-  // Get the user from database
+  // Get the user from database including blocked users
   const { data: user, error: userError } = await supabase
     .from('users')
-    .select('id')
+    .select('id, blocked_user_ids')
     .eq('firebase_uid', firebaseUser.uid)
     .single()
 
@@ -35,12 +34,75 @@ Deno.serve(async (req) => {
     return errorResponse('User not found', 404)
   }
 
+  const blockedUserIds: string[] = user.blocked_user_ids ?? []
+
   const url = new URL(req.url)
   const eventId = url.searchParams.get('id')
   const type = url.searchParams.get('type')
 
   // GET - List events
   if (req.method === 'GET') {
+    // Browse public events (with blocked user filtering)
+    if (type === 'browse') {
+      const city = url.searchParams.get('city')
+      const state = url.searchParams.get('state')
+      const gameCategory = url.searchParams.get('gameCategory')
+      const difficulty = url.searchParams.get('difficulty')
+      const dateFrom = url.searchParams.get('dateFrom')
+      const dateTo = url.searchParams.get('dateTo')
+      const search = url.searchParams.get('search')
+
+      let query = supabase
+        .from('events')
+        .select(`
+          id, title, game_title, game_category, event_date, start_time,
+          duration_minutes, city, state, difficulty_level, max_players,
+          is_public, is_charity_event, status, host_user_id,
+          host:users!host_user_id(id, display_name, avatar_url),
+          registrations:event_registrations(count)
+        `)
+        .eq('is_public', true)
+        .eq('status', 'published')
+        .gte('event_date', new Date().toISOString().split('T')[0])
+        .order('event_date', { ascending: true })
+
+      // Filter out events hosted by blocked users
+      if (blockedUserIds.length > 0) {
+        query = query.not('host_user_id', 'in', `(${blockedUserIds.join(',')})`)
+      }
+
+      // Apply filters
+      if (city) query = query.ilike('city', `%${city}%`)
+      if (state) query = query.eq('state', state)
+      if (gameCategory) query = query.eq('game_category', gameCategory)
+      if (difficulty) query = query.eq('difficulty_level', difficulty)
+      if (dateFrom) query = query.gte('event_date', dateFrom)
+      if (dateTo) query = query.lte('event_date', dateTo)
+      if (search) query = query.or(`title.ilike.%${search}%,game_title.ilike.%${search}%`)
+
+      const { data, error } = await query
+
+      if (error) return errorResponse(error.message, 500)
+
+      // Also filter out events where blocked users are participants
+      let filteredData = data
+      if (blockedUserIds.length > 0) {
+        // Get event IDs with blocked participants
+        const { data: blockedParticipantEvents } = await supabase
+          .from('event_registrations')
+          .select('event_id')
+          .in('user_id', blockedUserIds)
+          .in('status', ['pending', 'confirmed'])
+
+        if (blockedParticipantEvents && blockedParticipantEvents.length > 0) {
+          const blockedEventIds = new Set(blockedParticipantEvents.map(e => e.event_id))
+          filteredData = data.filter(e => !blockedEventIds.has(e.id as string))
+        }
+      }
+
+      return jsonResponse(filteredData.map(transformEventSummary))
+    }
+
     if (type === 'hosted') {
       // Get events hosted by user
       const { data, error } = await supabase
@@ -91,10 +153,25 @@ Deno.serve(async (req) => {
   if (req.method === 'POST') {
     const body = await req.json()
 
+    // If groupId is provided, verify the user is owner/admin of that group
+    if (body.groupId) {
+      const { data: membership } = await supabase
+        .from('group_memberships')
+        .select('role')
+        .eq('group_id', body.groupId)
+        .eq('user_id', user.id)
+        .single()
+
+      if (!membership || !['owner', 'admin'].includes(membership.role)) {
+        return errorResponse('You must be an owner or admin of the group to create events for it', 403)
+      }
+    }
+
     const { data, error } = await supabase
       .from('events')
       .insert({
         host_user_id: user.id,
+        group_id: body.groupId || null,
         title: body.title,
         description: body.description,
         game_title: body.gameTitle,

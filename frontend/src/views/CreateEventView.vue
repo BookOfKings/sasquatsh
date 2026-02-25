@@ -1,17 +1,23 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useEventStore } from '@/stores/useEventStore'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { useGroupStore } from '@/stores/useGroupStore'
 import { addEventGame } from '@/services/bggApi'
 import GameSearch from '@/components/common/GameSearch.vue'
 import GameCard from '@/components/common/GameCard.vue'
 import type { CreateEventInput } from '@/types/events'
 import type { BggGame } from '@/types/bgg'
+import type { GroupSummary } from '@/types/groups'
 
 const router = useRouter()
 const eventStore = useEventStore()
 const authStore = useAuthStore()
+const groupStore = useGroupStore()
+
+// Groups where user is owner/admin (can create events for)
+const userGroups = ref<GroupSummary[]>([])
 
 // Selected games for this event
 const selectedGames = ref<BggGame[]>([])
@@ -40,6 +46,16 @@ const form = reactive<CreateEventInput>({
   isPublic: true,
   isCharityEvent: false,
   status: 'draft',
+  groupId: undefined,
+})
+
+onMounted(async () => {
+  // Load groups where user is owner/admin
+  await groupStore.loadMyGroups()
+  // Filter to only groups where user can create events
+  userGroups.value = groupStore.myGroups.value.filter(
+    g => g.userRole === 'owner' || g.userRole === 'admin'
+  )
 })
 
 const difficultyOptions = [
@@ -205,7 +221,7 @@ function setPrimaryGame(index: number) {
       <div class="p-6 border-b border-gray-100">
         <h1 class="text-xl font-bold flex items-center gap-2">
           <svg class="w-6 h-6 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M7,6H17A6,6 0 0,1 23,12A6,6 0 0,1 17,18C15.22,18 13.63,17.23 12.53,16H11.47C10.37,17.23 8.78,18 7,18A6,6 0 0,1 1,12A6,6 0 0,1 7,6M6,9V11H4V13H6V15H8V13H10V11H8V9H6M15.5,12A1.5,1.5 0 0,0 14,13.5A1.5,1.5 0 0,0 15.5,15A1.5,1.5 0 0,0 17,13.5A1.5,1.5 0 0,0 15.5,12M18.5,9A1.5,1.5 0 0,0 17,10.5A1.5,1.5 0 0,0 18.5,12A1.5,1.5 0 0,0 20,10.5A1.5,1.5 0 0,0 18.5,9Z"/>
+            <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
           </svg>
           Create Game Night
         </h1>
@@ -231,6 +247,29 @@ function setPrimaryGame(index: number) {
             <h3 class="font-semibold text-gray-900 mb-4">Basic Information</h3>
 
             <div class="space-y-4">
+              <!-- Group Selector -->
+              <div v-if="userGroups.length > 0">
+                <label for="groupId" class="label">Host for Group (optional)</label>
+                <select
+                  id="groupId"
+                  v-model="form.groupId"
+                  class="input"
+                  :disabled="loading"
+                >
+                  <option :value="undefined">No group - personal event</option>
+                  <option
+                    v-for="group in userGroups"
+                    :key="group.id"
+                    :value="group.id"
+                  >
+                    {{ group.name }}
+                  </option>
+                </select>
+                <p class="text-sm text-gray-500 mt-1">
+                  Group members will see this event on the group page.
+                </p>
+              </div>
+
               <div>
                 <label for="title" class="label">Game Night Title *</label>
                 <input

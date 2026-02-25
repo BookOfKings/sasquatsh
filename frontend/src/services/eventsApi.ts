@@ -11,6 +11,7 @@ import type {
 } from '@/types/events'
 
 const FUNCTIONS_URL = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 // Helper to make authenticated requests to Edge Functions
 async function authenticatedRequest<T>(
@@ -21,7 +22,8 @@ async function authenticatedRequest<T>(
   const response = await fetch(`${FUNCTIONS_URL}${path}`, {
     ...options,
     headers: {
-      Authorization: `Bearer ${token}`,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'X-Firebase-Token': token,
       'Content-Type': 'application/json',
       ...options?.headers,
     },

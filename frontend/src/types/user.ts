@@ -5,6 +5,8 @@ export interface User {
   avatarUrl?: string
   subscriptionTier: 'free' | 'pro' | 'premium'
   subscriptionExpiresAt?: string
+  isAdmin: boolean
+  blockedUserIds: string[]
   createdAt: string
 }
 

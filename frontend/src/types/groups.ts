@@ -1,5 +1,6 @@
 export type GroupType = 'geographic' | 'interest' | 'both'
 export type MemberRole = 'owner' | 'admin' | 'member'
+export type JoinPolicy = 'open' | 'request' | 'invite_only'
 
 export interface Group {
   id: string
@@ -12,7 +13,7 @@ export interface Group {
   locationCity: string | null
   locationState: string | null
   locationRadiusMiles: number | null
-  isPublic: boolean
+  joinPolicy: JoinPolicy
   createdByUserId: string
   createdAt: string
   updatedAt: string
@@ -33,8 +34,9 @@ export interface GroupSummary {
   groupType: GroupType
   locationCity: string | null
   locationState: string | null
-  isPublic: boolean
+  joinPolicy: JoinPolicy
   memberCount: number
+  userRole?: MemberRole  // Present when fetching user's groups
 }
 
 export interface GroupMembership {
@@ -71,7 +73,7 @@ export interface CreateGroupInput {
   locationCity?: string
   locationState?: string
   locationRadiusMiles?: number
-  isPublic?: boolean
+  joinPolicy?: JoinPolicy
 }
 
 export interface UpdateGroupInput {
@@ -81,7 +83,8 @@ export interface UpdateGroupInput {
   locationCity?: string
   locationState?: string
   locationRadiusMiles?: number
-  isPublic?: boolean
+  joinPolicy?: JoinPolicy
+  logoUrl?: string | null
 }
 
 export interface GroupSearchFilter {
@@ -89,4 +92,66 @@ export interface GroupSearchFilter {
   groupType?: GroupType
   city?: string
   state?: string
+}
+
+// Member management types
+export interface GroupMember {
+  id: string
+  userId: string
+  displayName: string | null
+  email: string | null
+  avatarUrl: string | null
+  role: MemberRole
+  joinedAt: string
+}
+
+export interface JoinRequest {
+  id: string
+  userId: string
+  displayName: string | null
+  email: string | null
+  avatarUrl: string | null
+  message: string | null
+  status: 'pending' | 'approved' | 'rejected'
+  createdAt: string
+}
+
+export interface GroupInvitation {
+  id: string
+  inviteCode: string
+  invitedByDisplayName: string | null
+  invitedEmail: string | null
+  maxUses: number | null
+  usesCount: number
+  expiresAt: string | null
+  createdAt: string
+}
+
+export interface CreateInvitationInput {
+  email?: string
+  phone?: string
+  maxUses?: number
+  expiresInDays?: number
+}
+
+export interface InvitationPreview {
+  inviteCode: string
+  invitedEmail: string | null
+  group: {
+    id: string
+    name: string
+    slug: string
+    description: string | null
+    logoUrl: string | null
+    groupType: GroupType
+    locationCity: string | null
+    locationState: string | null
+    joinPolicy: JoinPolicy
+  }
+  invitedBy: {
+    id: string
+    displayName: string | null
+    avatarUrl: string | null
+  }
+  expiresAt: string | null
 }

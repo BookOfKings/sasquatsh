@@ -1,4 +1,5 @@
 const FUNCTIONS_URL = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 export interface Stats {
   gamesToday: number
@@ -7,7 +8,12 @@ export interface Stats {
 
 export async function getStats(): Promise<Stats> {
   try {
-    const response = await fetch(`${FUNCTIONS_URL}/stats`)
+    const response = await fetch(`${FUNCTIONS_URL}/stats`, {
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+      },
+    })
 
     if (!response.ok) {
       throw new Error('Failed to fetch stats')

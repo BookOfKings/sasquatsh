@@ -296,9 +296,14 @@ export async function verifyFirebaseToken(token: string): Promise<DecodedToken |
 export function getCorsHeaders(): Record<string, string> {
   return {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-firebase-token',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
   }
+}
+
+// Get Firebase token from request headers
+export function getFirebaseToken(req: Request): string | null {
+  return req.headers.get('X-Firebase-Token')
 }
 
 export function jsonResponse(data: unknown, status = 200): Response {

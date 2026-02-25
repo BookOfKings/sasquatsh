@@ -11,11 +11,19 @@ export interface UserProfile {
   bio: string | null
   favoriteGames: string[] | null
   preferredGameTypes: string[] | null
+  isAdmin: boolean
+  blockedUserIds: string[]
   createdAt: string
   updatedAt: string
   groups?: UserGroupMembership[]
   upcomingEvents?: UserUpcomingEvent[]
   stats?: UserStats
+}
+
+export interface BlockedUser {
+  id: string
+  displayName: string | null
+  avatarUrl: string | null
 }
 
 export interface UserGroupMembership {

@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app'
 import { getAuth } from 'firebase/auth'
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -12,4 +13,16 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig)
 export const auth = getAuth(app)
+export const storage = getStorage(app)
+
+// Upload an image and return the download URL
+export async function uploadImage(
+  file: File,
+  path: string
+): Promise<string> {
+  const storageRef = ref(storage, path)
+  await uploadBytes(storageRef, file)
+  return getDownloadURL(storageRef)
+}
+
 export default app

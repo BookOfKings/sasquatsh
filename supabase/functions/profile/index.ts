@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { verifyFirebaseToken, jsonResponse, errorResponse, getCorsHeaders } from '../_shared/firebase.ts'
+import { verifyFirebaseToken, jsonResponse, errorResponse, getCorsHeaders, getFirebaseToken } from '../_shared/firebase.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -19,6 +19,8 @@ function toUserProfile(row: Record<string, unknown>) {
     bio: row.bio as string | null,
     favoriteGames: row.favorite_games as string[] | null,
     preferredGameTypes: row.preferred_game_types as string[] | null,
+    isAdmin: row.is_admin as boolean ?? false,
+    blockedUserIds: row.blocked_user_ids as string[] ?? [],
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   }
@@ -48,6 +50,8 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
   const url = new URL(req.url)
   const userId = url.searchParams.get('id')
+  const action = url.searchParams.get('action')
+  const include = url.searchParams.get('include')
 
   // GET public profile by ID (no auth required)
   if (req.method === 'GET' && userId) {
@@ -65,15 +69,14 @@ Deno.serve(async (req) => {
   }
 
   // All other operations require authentication
-  const authHeader = req.headers.get('Authorization')
-  if (!authHeader?.startsWith('Bearer ')) {
-    return errorResponse('Unauthorized', 401)
+  const token = getFirebaseToken(req)
+  if (!token) {
+    return errorResponse('Missing Firebase token', 401)
   }
 
-  const token = authHeader.slice(7)
   const firebaseUser = await verifyFirebaseToken(token)
   if (!firebaseUser) {
-    return errorResponse('Invalid token', 401)
+    return errorResponse('Invalid Firebase token', 401)
   }
 
   // Get the user from database
@@ -85,6 +88,30 @@ Deno.serve(async (req) => {
 
   if (userError || !user) {
     return errorResponse('User not found', 404)
+  }
+
+  // GET - Get blocked users list
+  if (req.method === 'GET' && include === 'blocked') {
+    const blockedIds: string[] = user.blocked_user_ids ?? []
+
+    if (blockedIds.length === 0) {
+      return jsonResponse([])
+    }
+
+    const { data: blockedUsers, error } = await supabase
+      .from('users')
+      .select('id, display_name, avatar_url')
+      .in('id', blockedIds)
+
+    if (error) {
+      return errorResponse(error.message, 500)
+    }
+
+    return jsonResponse(blockedUsers.map(u => ({
+      id: u.id,
+      displayName: u.display_name,
+      avatarUrl: u.avatar_url,
+    })))
   }
 
   // GET - Get current user's full profile
@@ -189,6 +216,80 @@ Deno.serve(async (req) => {
     }
 
     return jsonResponse(toUserProfile(data))
+  }
+
+  // POST - Block/Unblock user actions
+  if (req.method === 'POST') {
+    const targetUserId = url.searchParams.get('userId')
+
+    if (!targetUserId) {
+      return errorResponse('userId parameter required', 400)
+    }
+
+    if (targetUserId === user.id) {
+      return errorResponse('Cannot block yourself', 400)
+    }
+
+    // Verify target user exists
+    const { data: targetUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', targetUserId)
+      .single()
+
+    if (!targetUser) {
+      return errorResponse('Target user not found', 404)
+    }
+
+    const currentBlockedIds: string[] = user.blocked_user_ids ?? []
+
+    if (action === 'block') {
+      // Add to blocked list if not already blocked
+      if (currentBlockedIds.includes(targetUserId)) {
+        return jsonResponse({ message: 'User already blocked', blockedUserIds: currentBlockedIds })
+      }
+
+      const newBlockedIds = [...currentBlockedIds, targetUserId]
+
+      const { data, error } = await supabase
+        .from('users')
+        .update({
+          blocked_user_ids: newBlockedIds,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', user.id)
+        .select('blocked_user_ids')
+        .single()
+
+      if (error) {
+        return errorResponse(error.message, 500)
+      }
+
+      return jsonResponse({ message: 'User blocked', blockedUserIds: data.blocked_user_ids })
+    }
+
+    if (action === 'unblock') {
+      // Remove from blocked list
+      const newBlockedIds = currentBlockedIds.filter(id => id !== targetUserId)
+
+      const { data, error } = await supabase
+        .from('users')
+        .update({
+          blocked_user_ids: newBlockedIds,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', user.id)
+        .select('blocked_user_ids')
+        .single()
+
+      if (error) {
+        return errorResponse(error.message, 500)
+      }
+
+      return jsonResponse({ message: 'User unblocked', blockedUserIds: data.blocked_user_ids })
+    }
+
+    return errorResponse('Invalid action. Use block or unblock', 400)
   }
 
   return errorResponse('Method not allowed', 405)

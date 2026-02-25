@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 
 const form = reactive({
@@ -11,6 +12,13 @@ const form = reactive({
   email: '',
   password: '',
   confirmPassword: '',
+})
+
+// Pre-fill email from query param (e.g., from invitation link)
+onMounted(() => {
+  if (route.query.email && typeof route.query.email === 'string') {
+    form.email = route.query.email
+  }
 })
 
 const showPassword = ref(false)
@@ -39,7 +47,9 @@ async function handleEmailSignup() {
   const result = await auth.signupWithEmail(form.email, form.password, form.displayName)
 
   if (result.ok) {
-    router.push('/dashboard')
+    // Redirect to original destination or dashboard
+    const redirect = route.query.redirect as string
+    router.push(redirect || '/dashboard')
   } else {
     errorMessage.value = result.message
   }
@@ -54,7 +64,9 @@ async function handleGoogleSignup() {
   const result = await auth.loginWithGoogle()
 
   if (result.ok) {
-    router.push('/dashboard')
+    // Redirect to original destination or dashboard
+    const redirect = route.query.redirect as string
+    router.push(redirect || '/dashboard')
   } else {
     errorMessage.value = result.message
   }
