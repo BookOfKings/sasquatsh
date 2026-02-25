@@ -82,6 +82,19 @@ const routes: RouteRecordRaw[] = [
     name: 'group-detail',
     component: () => import('@/views/GroupDetailView.vue'),
   },
+  {
+    path: '/groups/:slug/plan',
+    name: 'plan-game-night',
+    component: () => import('@/views/PlanGameNightView.vue'),
+    meta: { requiresAuth: true },
+  },
+  // Planning Sessions
+  {
+    path: '/planning/:id',
+    name: 'planning-session',
+    component: () => import('@/views/PlanningSessionView.vue'),
+    meta: { requiresAuth: true },
+  },
   // Looking for Players
   {
     path: '/looking-for-players',

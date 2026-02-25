@@ -3,6 +3,8 @@ import { onMounted, computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useGroupStore } from '@/stores/useGroupStore'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { getGroupPlanningSessions } from '@/services/planningApi'
+import type { PlanningSession } from '@/types/planning'
 import GroupAdminPanel from '@/components/groups/GroupAdminPanel.vue'
 import EditGroupModal from '@/components/groups/EditGroupModal.vue'
 
@@ -25,17 +27,36 @@ const isAdmin = computed(() => ['owner', 'admin'].includes(userMembership.value?
 const isMember = computed(() => !!userMembership.value)
 
 const showEditModal = ref(false)
+const planningSessions = ref<PlanningSession[]>([])
+const loadingPlans = ref(false)
 
 onMounted(async () => {
   await groupStore.loadGroup(groupSlug.value)
   if (group.value && auth.isAuthenticated.value) {
     await groupStore.loadGroupMembers(group.value.id)
+    await loadPlanningSessions()
   }
 })
+
+async function loadPlanningSessions() {
+  if (!group.value) return
+  loadingPlans.value = true
+  try {
+    const token = await auth.getIdToken()
+    if (token) {
+      planningSessions.value = await getGroupPlanningSessions(token, group.value.id)
+    }
+  } catch (err) {
+    console.error('Failed to load planning sessions:', err)
+  } finally {
+    loadingPlans.value = false
+  }
+}
 
 watch(() => auth.isAuthenticated.value, async (isAuth) => {
   if (isAuth && group.value) {
     await groupStore.loadGroupMembers(group.value.id)
+    await loadPlanningSessions()
   }
 })
 
@@ -263,6 +284,62 @@ async function handleGroupUpdated() {
         @toast="(msg, type) => showMessage(type === 'success', msg)"
         class="mb-6"
       />
+
+      <!-- Planning Sessions Section -->
+      <div v-if="isMember" class="card mb-6">
+        <div class="p-4 border-b border-gray-100 flex items-center justify-between">
+          <h2 class="font-semibold flex items-center gap-2">
+            <svg class="w-5 h-5 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19,19H5V8H19M16,1V3H8V1H6V3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3H18V1M11,9H9V12H6V14H9V17H11V14H14V12H11V9Z"/>
+            </svg>
+            Game Night Planning
+          </h2>
+          <button
+            v-if="isAdmin"
+            class="btn-primary text-sm"
+            @click="router.push(`/groups/${groupSlug}/plan`)"
+          >
+            <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/>
+            </svg>
+            Plan a Game Night
+          </button>
+        </div>
+        <div v-if="loadingPlans" class="p-6 text-center">
+          <svg class="w-6 h-6 mx-auto text-gray-400 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+        </div>
+        <div v-else-if="planningSessions.filter(s => s.status === 'open').length > 0" class="divide-y divide-gray-100">
+          <button
+            v-for="session in planningSessions.filter(s => s.status === 'open')"
+            :key="session.id"
+            class="w-full flex items-center gap-4 p-4 hover:bg-gray-50 transition-colors text-left"
+            @click="router.push(`/planning/${session.id}`)"
+          >
+            <div class="w-10 h-10 rounded-lg bg-primary-100 flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19,19H5V8H19M16,1V3H8V1H6V3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3H18V1"/>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="font-medium">{{ session.title }}</div>
+              <div class="text-sm text-gray-500">
+                Deadline: {{ new Date(session.responseDeadline).toLocaleDateString() }}
+              </div>
+            </div>
+            <span class="chip-success text-xs">Open</span>
+            <svg class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"/>
+            </svg>
+          </button>
+        </div>
+        <div v-else class="p-6 text-center text-gray-500">
+          <p>No active planning sessions.</p>
+          <p v-if="isAdmin" class="text-sm mt-1">Click "Plan a Game Night" to start coordinating your next game night.</p>
+        </div>
+      </div>
 
       <!-- Upcoming Games Section -->
       <div class="card">

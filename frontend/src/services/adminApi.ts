@@ -94,3 +94,56 @@ export async function mergeLocations(
     body: JSON.stringify({ keepId, removeIds }),
   })
 }
+
+// ============ BGG Cache Admin ============
+
+export interface BggCacheStats {
+  totalGames: number
+  rankedGames: number
+  oldestCache: string | null
+}
+
+export interface BggCacheImportResult {
+  message: string
+  imported: number
+  refreshed?: number
+}
+
+// Get BGG cache statistics
+export async function getBggCacheStats(token: string): Promise<BggCacheStats> {
+  return authenticatedRequest<BggCacheStats>('/bgg-cache?action=stats', token)
+}
+
+// Import popular games (top BGG + hot list)
+export async function importPopularGames(token: string): Promise<BggCacheImportResult> {
+  return authenticatedRequest<BggCacheImportResult>('/bgg-cache?action=import-popular', token, {
+    method: 'POST',
+  })
+}
+
+// Import hot games from BGG
+export async function importHotGames(token: string): Promise<BggCacheImportResult> {
+  return authenticatedRequest<BggCacheImportResult>('/bgg-cache?action=import-hot', token, {
+    method: 'POST',
+  })
+}
+
+// Refresh stale cache entries
+export async function refreshStaleCache(token: string): Promise<BggCacheImportResult> {
+  return authenticatedRequest<BggCacheImportResult>('/bgg-cache?action=refresh-stale', token, {
+    method: 'POST',
+  })
+}
+
+// Import games by ID range
+export async function importGamesByRange(
+  token: string,
+  startId: number,
+  endId: number,
+  batchSize = 100
+): Promise<BggCacheImportResult & { nextStartId: number }> {
+  return authenticatedRequest<BggCacheImportResult & { nextStartId: number }>('/bgg-cache?action=import-range', token, {
+    method: 'POST',
+    body: JSON.stringify({ startId, endId, batchSize }),
+  })
+}

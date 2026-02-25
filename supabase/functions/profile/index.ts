@@ -12,6 +12,7 @@ function toUserProfile(row: Record<string, unknown>) {
     email: row.email as string,
     displayName: row.display_name as string | null,
     avatarUrl: row.avatar_url as string | null,
+    birthYear: row.birth_year as number | null,
     maxTravelMiles: row.max_travel_miles as number | null,
     homeCity: row.home_city as string | null,
     homeState: row.home_state as string | null,
@@ -196,6 +197,7 @@ Deno.serve(async (req) => {
     // Only update fields that are provided
     if (body.displayName !== undefined) updates.display_name = body.displayName?.trim() || null
     if (body.avatarUrl !== undefined) updates.avatar_url = body.avatarUrl || null
+    if (body.birthYear !== undefined) updates.birth_year = body.birthYear || null
     if (body.maxTravelMiles !== undefined) updates.max_travel_miles = body.maxTravelMiles
     if (body.homeCity !== undefined) updates.home_city = body.homeCity?.trim() || null
     if (body.homeState !== undefined) updates.home_state = body.homeState?.trim() || null

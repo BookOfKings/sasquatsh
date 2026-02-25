@@ -19,6 +19,7 @@ export interface EventSummary {
   confirmedCount: number
   isPublic: boolean
   isCharityEvent: boolean
+  minAge: number | null
   status: string
   host: UserSummary | null
 }
@@ -74,6 +75,7 @@ export interface Event {
   confirmedCount: number
   isPublic: boolean
   isCharityEvent: boolean
+  minAge: number | null
   status: string
   host: UserSummary | null
   registrations: EventRegistration[] | null
@@ -100,6 +102,7 @@ export interface CreateEventInput {
   maxPlayers?: number
   isPublic?: boolean
   isCharityEvent?: boolean
+  minAge?: number
   status?: string
   groupId?: string  // Link to a group
 }
@@ -122,6 +125,7 @@ export interface UpdateEventInput {
   maxPlayers: number
   isPublic: boolean
   isCharityEvent: boolean
+  minAge: number | null
   status: string
 }
 

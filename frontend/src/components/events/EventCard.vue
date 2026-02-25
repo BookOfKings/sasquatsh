@@ -139,6 +139,13 @@ function getPlayerProgress(confirmed: number, max: number): number {
         </svg>
         Charity
       </span>
+
+      <span
+        v-if="event.minAge"
+        class="chip bg-orange-100 text-orange-700"
+      >
+        {{ event.minAge }}+
+      </span>
     </div>
 
     <!-- Date & Time -->

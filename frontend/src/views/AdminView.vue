@@ -7,15 +7,27 @@ import {
   updateLocation,
   deleteLocation,
   mergeLocations,
+  getBggCacheStats,
+  importPopularGames,
+  importHotGames,
+  refreshStaleCache,
 } from '@/services/adminApi'
 import type { EventLocation } from '@/types/social'
+import type { BggCacheStats } from '@/services/adminApi'
 
 const auth = useAuthStore()
+
+const activeTab = ref<'locations' | 'bggCache'>('locations')
 
 const loading = ref(true)
 const locations = ref<EventLocation[]>([])
 const errorMessage = ref('')
 const successMessage = ref('')
+
+// BGG Cache state
+const cacheStats = ref<BggCacheStats | null>(null)
+const cacheLoading = ref(false)
+const cacheImporting = ref(false)
 
 // Create/Edit dialog
 const showDialog = ref(false)
@@ -36,7 +48,84 @@ const selectedForMerge = ref<string[]>([])
 
 onMounted(async () => {
   await loadLocations()
+  await loadCacheStats()
 })
+
+async function loadCacheStats() {
+  cacheLoading.value = true
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    cacheStats.value = await getBggCacheStats(token)
+  } catch (err) {
+    console.error('Failed to load cache stats:', err)
+  } finally {
+    cacheLoading.value = false
+  }
+}
+
+async function handleImportPopular() {
+  cacheImporting.value = true
+  errorMessage.value = ''
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    const result = await importPopularGames(token)
+    successMessage.value = result.message
+    await loadCacheStats()
+    setTimeout(() => successMessage.value = '', 5000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to import games'
+  } finally {
+    cacheImporting.value = false
+  }
+}
+
+async function handleImportHot() {
+  cacheImporting.value = true
+  errorMessage.value = ''
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    const result = await importHotGames(token)
+    successMessage.value = result.message
+    await loadCacheStats()
+    setTimeout(() => successMessage.value = '', 5000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to import hot games'
+  } finally {
+    cacheImporting.value = false
+  }
+}
+
+async function handleRefreshStale() {
+  cacheImporting.value = true
+  errorMessage.value = ''
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    const result = await refreshStaleCache(token)
+    successMessage.value = result.message
+    await loadCacheStats()
+    setTimeout(() => successMessage.value = '', 5000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to refresh cache'
+  } finally {
+    cacheImporting.value = false
+  }
+}
+
+function formatCacheDate(dateStr: string | null): string {
+  if (!dateStr) return 'Never'
+  const date = new Date(dateStr)
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
 
 async function loadLocations() {
   loading.value = true
@@ -197,44 +286,30 @@ function isExpired(endDate: string): boolean {
 
 <template>
   <div class="container-narrow py-8">
-    <div class="flex items-center justify-between mb-6">
-      <div>
-        <h1 class="text-2xl font-bold">Site Administration</h1>
-        <p class="text-gray-500">Manage event locations</p>
-      </div>
-      <div class="flex gap-2">
-        <button
-          v-if="!mergeMode"
-          class="btn-outline"
-          @click="toggleMergeMode"
-        >
-          Merge Duplicates
-        </button>
-        <button
-          v-if="mergeMode"
-          class="btn-ghost"
-          @click="toggleMergeMode"
-        >
-          Cancel
-        </button>
-        <button
-          v-if="mergeMode && selectedForMerge.length >= 2"
-          class="btn-primary"
-          @click="handleMerge"
-        >
-          Merge Selected ({{ selectedForMerge.length }})
-        </button>
-        <button
-          v-if="!mergeMode"
-          class="btn-primary"
-          @click="openCreateDialog"
-        >
-          <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/>
-          </svg>
-          Add Location
-        </button>
-      </div>
+    <div class="mb-6">
+      <h1 class="text-2xl font-bold">Site Administration</h1>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex gap-1 mb-6 border-b border-gray-200">
+      <button
+        class="px-4 py-2 text-sm font-medium transition-colors -mb-px"
+        :class="activeTab === 'locations'
+          ? 'text-primary-600 border-b-2 border-primary-500'
+          : 'text-gray-500 hover:text-gray-700'"
+        @click="activeTab = 'locations'"
+      >
+        Event Locations
+      </button>
+      <button
+        class="px-4 py-2 text-sm font-medium transition-colors -mb-px"
+        :class="activeTab === 'bggCache'
+          ? 'text-primary-600 border-b-2 border-primary-500'
+          : 'text-gray-500 hover:text-gray-700'"
+        @click="activeTab = 'bggCache'"
+      >
+        BGG Cache
+      </button>
     </div>
 
     <!-- Messages -->
@@ -244,6 +319,126 @@ function isExpired(endDate: string): boolean {
     <div v-if="errorMessage" class="alert-error mb-6">
       {{ errorMessage }}
     </div>
+
+    <!-- BGG Cache Tab -->
+    <div v-if="activeTab === 'bggCache'">
+      <div class="card p-6 mb-6">
+        <h2 class="text-lg font-semibold mb-4">BoardGameGeek Cache</h2>
+        <p class="text-gray-600 mb-6">
+          The BGG cache stores board game data locally for fast searching. Games are fetched from BoardGameGeek and cached to avoid rate limits and slow API responses.
+        </p>
+
+        <!-- Stats -->
+        <div v-if="cacheLoading" class="text-center py-4">
+          <svg class="w-6 h-6 mx-auto text-primary-500 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+        </div>
+        <div v-else-if="cacheStats" class="grid grid-cols-3 gap-4 mb-6">
+          <div class="bg-gray-50 rounded-lg p-4 text-center">
+            <div class="text-2xl font-bold text-gray-900">{{ cacheStats.totalGames.toLocaleString() }}</div>
+            <div class="text-sm text-gray-500">Total Games</div>
+          </div>
+          <div class="bg-gray-50 rounded-lg p-4 text-center">
+            <div class="text-2xl font-bold text-gray-900">{{ cacheStats.rankedGames.toLocaleString() }}</div>
+            <div class="text-sm text-gray-500">With Rankings</div>
+          </div>
+          <div class="bg-gray-50 rounded-lg p-4 text-center">
+            <div class="text-sm font-medium text-gray-900">{{ formatCacheDate(cacheStats.oldestCache) }}</div>
+            <div class="text-sm text-gray-500">Oldest Entry</div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
+            <div>
+              <div class="font-medium text-blue-900">Import Popular Games</div>
+              <div class="text-sm text-blue-700">Imports ~100 top-rated BGG games + current hot list</div>
+            </div>
+            <button
+              class="btn-primary"
+              :disabled="cacheImporting"
+              @click="handleImportPopular"
+            >
+              <svg v-if="cacheImporting" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+              </svg>
+              Import Popular
+            </button>
+          </div>
+
+          <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <div>
+              <div class="font-medium text-gray-900">Import Hot Games</div>
+              <div class="text-sm text-gray-600">Imports BGG's current "hot" list (~50 games)</div>
+            </div>
+            <button
+              class="btn-outline"
+              :disabled="cacheImporting"
+              @click="handleImportHot"
+            >
+              Import Hot
+            </button>
+          </div>
+
+          <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <div>
+              <div class="font-medium text-gray-900">Refresh Stale Entries</div>
+              <div class="text-sm text-gray-600">Updates cache entries older than 7 days</div>
+            </div>
+            <button
+              class="btn-outline"
+              :disabled="cacheImporting"
+              @click="handleRefreshStale"
+            >
+              Refresh Stale
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Locations Tab -->
+    <div v-if="activeTab === 'locations'">
+      <div class="flex items-center justify-between mb-6">
+        <p class="text-gray-500">Manage event locations for Looking For Players</p>
+        <div class="flex gap-2">
+          <button
+            v-if="!mergeMode"
+            class="btn-outline"
+            @click="toggleMergeMode"
+          >
+            Merge Duplicates
+          </button>
+          <button
+            v-if="mergeMode"
+            class="btn-ghost"
+            @click="toggleMergeMode"
+          >
+            Cancel
+          </button>
+          <button
+            v-if="mergeMode && selectedForMerge.length >= 2"
+            class="btn-primary"
+            @click="handleMerge"
+          >
+            Merge Selected ({{ selectedForMerge.length }})
+          </button>
+          <button
+            v-if="!mergeMode"
+            class="btn-primary"
+            @click="openCreateDialog"
+          >
+            <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/>
+            </svg>
+            Add Location
+          </button>
+        </div>
+      </div>
 
     <!-- Merge instructions -->
     <div v-if="mergeMode" class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
@@ -412,6 +607,7 @@ function isExpired(endDate: string): boolean {
           </button>
         </div>
       </div>
+    </div>
     </div>
   </div>
 </template>

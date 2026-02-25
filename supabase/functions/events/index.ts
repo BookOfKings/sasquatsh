@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
         .select(`
           id, title, game_title, game_category, event_date, start_time,
           duration_minutes, city, state, difficulty_level, max_players,
-          is_public, is_charity_event, status, host_user_id,
+          is_public, is_charity_event, min_age, status, host_user_id,
           host:users!host_user_id(id, display_name, avatar_url),
           registrations:event_registrations(count)
         `)
@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
         .select(`
           id, title, game_title, game_category, event_date, start_time,
           duration_minutes, city, state, difficulty_level, max_players,
-          is_public, is_charity_event, status,
+          is_public, is_charity_event, min_age, status,
           host:users!host_user_id(id, display_name, avatar_url),
           registrations:event_registrations(count)
         `)
@@ -129,7 +129,7 @@ Deno.serve(async (req) => {
           event:events(
             id, title, game_title, game_category, event_date, start_time,
             duration_minutes, city, state, difficulty_level, max_players,
-            is_public, is_charity_event, status,
+            is_public, is_charity_event, min_age, status,
             host:users!host_user_id(id, display_name, avatar_url),
             registrations:event_registrations(count)
           )
@@ -189,6 +189,7 @@ Deno.serve(async (req) => {
         max_players: body.maxPlayers ?? 4,
         is_public: body.isPublic ?? true,
         is_charity_event: body.isCharityEvent ?? false,
+        min_age: body.minAge ?? null,
         status: body.status ?? 'draft',
       })
       .select(`
@@ -238,6 +239,7 @@ Deno.serve(async (req) => {
         max_players: body.maxPlayers,
         is_public: body.isPublic,
         is_charity_event: body.isCharityEvent,
+        min_age: body.minAge,
         status: body.status,
         updated_at: new Date().toISOString(),
       })
@@ -309,6 +311,7 @@ function transformEventSummary(row: Record<string, unknown>) {
     confirmedCount: (row.registrations as { count: number }[])?.[0]?.count ?? 0,
     isPublic: row.is_public,
     isCharityEvent: row.is_charity_event,
+    minAge: row.min_age,
     status: row.status,
     host: row.host
       ? {
@@ -342,6 +345,7 @@ function transformEvent(row: Record<string, unknown>) {
     confirmedCount: Array.isArray(row.registrations) ? row.registrations.length : 0,
     isPublic: row.is_public,
     isCharityEvent: row.is_charity_event,
+    minAge: row.min_age,
     status: row.status,
     host: row.host
       ? {

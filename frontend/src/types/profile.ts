@@ -4,6 +4,7 @@ export interface UserProfile {
   email: string
   displayName: string | null
   avatarUrl: string | null
+  birthYear: number | null
   maxTravelMiles: number | null
   homeCity: string | null
   homeState: string | null
@@ -71,6 +72,7 @@ export interface PublicProfile {
 export interface UpdateProfileInput {
   displayName?: string | null
   avatarUrl?: string | null
+  birthYear?: number | null
   maxTravelMiles?: number | null
   homeCity?: string | null
   homeState?: string | null

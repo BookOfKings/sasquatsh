@@ -45,6 +45,7 @@ const form = reactive<CreateEventInput>({
   maxPlayers: 4,
   isPublic: true,
   isCharityEvent: false,
+  minAge: undefined,
   status: 'draft',
   groupId: undefined,
 })
@@ -487,7 +488,7 @@ function setPrimaryGame(index: number) {
           <div>
             <h3 class="font-semibold text-gray-900 mb-4">Game Night Settings</h3>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <label for="maxPlayers" class="label">Max Players *</label>
                 <input
@@ -500,6 +501,20 @@ function setPrimaryGame(index: number) {
                   :disabled="loading"
                 />
                 <p v-if="errors.maxPlayers" class="text-sm text-red-500 mt-1">{{ errors.maxPlayers }}</p>
+              </div>
+              <div>
+                <label for="minAge" class="label">Minimum Age</label>
+                <input
+                  id="minAge"
+                  v-model.number="form.minAge"
+                  type="number"
+                  class="input"
+                  min="0"
+                  max="100"
+                  placeholder="Any"
+                  :disabled="loading"
+                />
+                <p class="text-sm text-gray-500 mt-1">Leave blank for all ages</p>
               </div>
               <div>
                 <label for="difficultyLevel" class="label">Difficulty Level</label>

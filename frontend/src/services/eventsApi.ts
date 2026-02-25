@@ -65,6 +65,7 @@ function toEventSummary(row: Record<string, unknown>): EventSummary {
     confirmedCount: (row.registrations as { count: number }[])?.[0]?.count ?? 0,
     isPublic: row.is_public as boolean,
     isCharityEvent: row.is_charity_event as boolean,
+    minAge: row.min_age as number | null,
     status: row.status as string,
     host: row.host
       ? {
@@ -99,6 +100,7 @@ function toEvent(row: Record<string, unknown>): Event {
     confirmedCount: (row.registrations as unknown[])?.length ?? 0,
     isPublic: row.is_public as boolean,
     isCharityEvent: row.is_charity_event as boolean,
+    minAge: row.min_age as number | null,
     status: row.status as string,
     host: row.host
       ? {
@@ -155,7 +157,7 @@ export async function getPublicEvents(
     .select(`
       id, title, game_title, game_category, event_date, start_time,
       duration_minutes, city, state, difficulty_level, max_players,
-      is_public, is_charity_event, status,
+      is_public, is_charity_event, min_age, status,
       host:users!host_user_id(id, display_name, avatar_url),
       registrations:event_registrations(count)
     `)

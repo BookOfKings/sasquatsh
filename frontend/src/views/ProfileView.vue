@@ -20,6 +20,7 @@ const isEditing = ref(false)
 const form = reactive<UpdateProfileInput>({
   displayName: '',
   avatarUrl: '',
+  birthYear: undefined,
   maxTravelMiles: 25,
   homeCity: '',
   homeState: '',
@@ -122,6 +123,7 @@ function populateForm() {
   if (!profile.value) return
   form.displayName = profile.value.displayName ?? ''
   form.avatarUrl = profile.value.avatarUrl ?? ''
+  form.birthYear = profile.value.birthYear ?? undefined
   form.maxTravelMiles = profile.value.maxTravelMiles ?? 25
   form.homeCity = profile.value.homeCity ?? ''
   form.homeState = profile.value.homeState ?? ''
@@ -330,6 +332,21 @@ function goToGroup(slug: string) {
                 class="input"
                 placeholder="https://..."
               />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="label">Birth Year</label>
+              <input
+                v-model.number="form.birthYear"
+                type="number"
+                class="input"
+                :min="1900"
+                :max="new Date().getFullYear()"
+                placeholder="e.g. 1990"
+              />
+              <p class="text-sm text-gray-500 mt-1">Used to check age requirements for game nights</p>
             </div>
           </div>
 
