@@ -19,7 +19,8 @@ Sasquatsh is a board game night planning platform built with Vue 3 + TypeScript 
 - **Authentication**: Firebase Auth (tokens passed via `X-Firebase-Token` header)
 
 ### Hosting
-- **Frontend**: Firebase Hosting
+- **Frontend**: Vercel (auto-deploys from GitHub)
+- **GitHub Repo**: BookOfKings/sasquatsh
 - **Domain**: https://sasquatsh.com
 - **Backend**: Supabase (hosted)
 
@@ -51,31 +52,39 @@ gamenightapp/
 
 ## Deployment
 
-### Frontend Deployment
-The frontend is deployed to Firebase Hosting. To deploy:
+### Frontend Deployment (Vercel - Auto Deploy)
+The frontend is hosted on **Vercel** and auto-deploys when you push to GitHub.
+
+**DO NOT manually run `vercel` commands.** Just push to GitHub:
 
 ```bash
-cd frontend
-npm run build
-npx firebase deploy --only hosting
+git add -A
+git commit -m "Your message"
+git push origin master
 ```
 
-The site will be live at **https://sasquatsh.com**
+Vercel is connected to the GitHub repo (`BookOfKings/sasquatsh`) and will automatically build and deploy.
 
-**DO NOT use Netlify, Vercel, or other hosting services.**
+The site will be live at **https://sasquatsh.com**
 
 ### Backend Deployment (Edge Functions)
 Edge Functions are deployed to Supabase. To deploy a function:
 
 ```bash
-npx supabase functions deploy <function-name> --no-verify-jwt
+npx supabase functions deploy <function-name>
 ```
 
 Examples:
 ```bash
-npx supabase functions deploy events --no-verify-jwt
-npx supabase functions deploy groups --no-verify-jwt
-npx supabase functions deploy users --no-verify-jwt
+npx supabase functions deploy events
+npx supabase functions deploy groups
+npx supabase functions deploy player-requests
+npx supabase functions deploy event-locations
+```
+
+To deploy multiple functions at once:
+```bash
+npx supabase functions deploy events groups player-requests profile auth-sync
 ```
 
 ### Database Migrations
@@ -119,21 +128,27 @@ All authenticated API requests use this pattern:
 # Frontend development
 cd frontend && npm run dev
 
-# Build frontend
+# Build frontend (to check for errors)
 cd frontend && npm run build
 
-# FULL DEPLOYMENT (both frontend and backend)
+# FULL DEPLOYMENT
 # 1. Deploy backend (Supabase Edge Functions)
-cd supabase && npx supabase functions deploy
+npx supabase functions deploy <function-names>
 
-# 2. Deploy frontend (Firebase Hosting)
-cd frontend && npm run build && npx firebase deploy --only hosting
+# 2. Apply database migrations (if any)
+npx supabase db push
+
+# 3. Deploy frontend (just push to GitHub - Vercel auto-deploys)
+git add -A && git commit -m "Your message" && git push origin master
 
 # Deploy a single Edge Function
-npx supabase functions deploy <name> --no-verify-jwt
+npx supabase functions deploy <name>
 
 # Run database migrations
 npx supabase db push
 ```
 
-**When user asks to "deploy", always deploy BOTH backend and frontend.**
+**When user asks to "deploy":**
+1. Deploy Edge Functions with `npx supabase functions deploy`
+2. Apply migrations with `npx supabase db push`
+3. Push to GitHub to trigger Vercel auto-deploy (DO NOT run `vercel` commands manually)
