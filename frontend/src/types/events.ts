@@ -41,6 +41,18 @@ export interface EventItem {
   claimedAt: string | null
 }
 
+export interface EventGameSummary {
+  id: string
+  bggId: number | null
+  gameName: string
+  thumbnailUrl: string | null
+  minPlayers: number | null
+  maxPlayers: number | null
+  playingTime: number | null
+  isPrimary: boolean
+  isAlternative: boolean
+}
+
 export interface Event {
   id: string
   hostUserId: string
@@ -66,6 +78,7 @@ export interface Event {
   host: UserSummary | null
   registrations: EventRegistration[] | null
   items: EventItem[] | null
+  games: EventGameSummary[] | null
   createdAt: string
 }
 

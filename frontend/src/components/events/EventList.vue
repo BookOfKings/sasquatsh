@@ -25,10 +25,10 @@ const emit = defineEmits<{
     <!-- Empty state -->
     <div v-if="events.length === 0 && !loading" class="text-center py-12">
       <svg class="w-16 h-16 mx-auto text-gray-300 mb-4" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M19,19H5V8H19M16,1V3H8V1H6V3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3H18V1M9,10H7V12H9V10M13,10H11V12H13V10M17,10H15V12H17V10M9,14H7V16H9V14M13,14H11V16H13V14M17,14H15V16H17V14Z"/>
+        <path d="M7,6H17A6,6 0 0,1 23,12A6,6 0 0,1 17,18C15.22,18 13.63,17.23 12.53,16H11.47C10.37,17.23 8.78,18 7,18A6,6 0 0,1 1,12A6,6 0 0,1 7,6M6,9V11H4V13H6V15H8V13H10V11H8V9H6M15.5,12A1.5,1.5 0 0,0 14,13.5A1.5,1.5 0 0,0 15.5,15A1.5,1.5 0 0,0 17,13.5A1.5,1.5 0 0,0 15.5,12M18.5,9A1.5,1.5 0 0,0 17,10.5A1.5,1.5 0 0,0 18.5,12A1.5,1.5 0 0,0 20,10.5A1.5,1.5 0 0,0 18.5,9Z"/>
       </svg>
       <p class="text-gray-500">
-        {{ emptyText || 'No events found' }}
+        {{ emptyText || 'No games found' }}
       </p>
     </div>
 

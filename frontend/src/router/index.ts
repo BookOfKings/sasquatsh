@@ -1,7 +1,7 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
 
-const routes = [
+const routes: RouteRecordRaw[] = [
   {
     path: '/',
     name: 'home',
@@ -26,25 +26,84 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
-    path: '/events',
-    name: 'events',
+    path: '/profile',
+    name: 'profile',
+    component: () => import('@/views/ProfileView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/games',
+    name: 'games',
     component: () => import('@/views/EventsView.vue'),
   },
   {
-    path: '/events/create',
-    name: 'create-event',
+    path: '/games/create',
+    name: 'create-game',
     component: () => import('@/views/CreateEventView.vue'),
     meta: { requiresAuth: true },
   },
   {
-    path: '/events/:id',
-    name: 'event-detail',
+    path: '/games/:id',
+    name: 'game-detail',
     component: () => import('@/views/EventDetailView.vue'),
   },
-  // Redirect old /games route to /events
+  // Redirect old /events routes to /games for backwards compatibility
   {
-    path: '/games',
-    redirect: '/events',
+    path: '/events',
+    redirect: '/games',
+  },
+  {
+    path: '/events/create',
+    redirect: '/games/create',
+  },
+  {
+    path: '/events/:id',
+    redirect: (to) => `/games/${to.params.id}`,
+  },
+  // Groups
+  {
+    path: '/groups',
+    name: 'groups',
+    component: () => import('@/views/GroupsView.vue'),
+  },
+  {
+    path: '/groups/create',
+    name: 'create-group',
+    component: () => import('@/views/CreateGroupView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/groups/:slug',
+    name: 'group-detail',
+    component: () => import('@/views/GroupDetailView.vue'),
+  },
+  // Looking for Players
+  {
+    path: '/looking-for-players',
+    name: 'looking-for-players',
+    component: () => import('@/views/LookingForPlayersView.vue'),
+  },
+  // Invitations
+  {
+    path: '/invite/:code',
+    name: 'invite',
+    component: () => import('@/views/InviteView.vue'),
+  },
+  // Legal pages
+  {
+    path: '/terms',
+    name: 'terms',
+    component: () => import('@/views/TermsView.vue'),
+  },
+  {
+    path: '/privacy',
+    name: 'privacy',
+    component: () => import('@/views/PrivacyView.vue'),
+  },
+  {
+    path: '/cookies',
+    name: 'cookies',
+    component: () => import('@/views/CookiesView.vue'),
   },
   // Catch-all redirect to home
   {

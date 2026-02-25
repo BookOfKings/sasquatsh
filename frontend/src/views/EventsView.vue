@@ -101,11 +101,11 @@ onMounted(() => {
 })
 
 function handleSelectEvent(event: EventSummary) {
-  router.push(`/events/${event.id}`)
+  router.push(`/games/${event.id}`)
 }
 
-function goToCreateEvent() {
-  router.push('/events/create')
+function goToCreateGame() {
+  router.push('/games/create')
 }
 </script>
 
@@ -115,18 +115,18 @@ function goToCreateEvent() {
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
       <div>
         <h1 class="text-2xl font-bold text-gray-900">Find Game Nights</h1>
-        <p class="text-gray-500">Discover events near you</p>
+        <p class="text-gray-500">Discover game nights near you</p>
       </div>
 
       <button
         v-if="auth.isAuthenticated.value"
         class="btn-primary"
-        @click="goToCreateEvent"
+        @click="goToCreateGame"
       >
         <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
           <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/>
         </svg>
-        Host Event
+        Host Game Night
       </button>
     </div>
 
@@ -142,7 +142,7 @@ function goToCreateEvent() {
             v-model="searchText"
             type="text"
             class="input pl-10"
-            placeholder="Search events or games..."
+            placeholder="Search game nights..."
           />
         </div>
 
@@ -248,7 +248,7 @@ function goToCreateEvent() {
     <!-- Results Summary -->
     <div class="flex flex-wrap items-center gap-2 mb-4">
       <span class="text-sm text-gray-500">
-        {{ eventStore.publicEvents.value.length }} event{{ eventStore.publicEvents.value.length !== 1 ? 's' : '' }} found
+        {{ eventStore.publicEvents.value.length }} game{{ eventStore.publicEvents.value.length !== 1 ? 's' : '' }} found
       </span>
       <div class="flex-1" />
       <span
@@ -277,7 +277,7 @@ function goToCreateEvent() {
     <EventList
       :events="eventStore.publicEvents.value"
       :loading="eventStore.loading.value"
-      empty-text="No events found. Try adjusting your filters or be the first to host one!"
+      empty-text="No games found. Try adjusting your filters or be the first to host one!"
       @select="handleSelectEvent"
     />
   </div>

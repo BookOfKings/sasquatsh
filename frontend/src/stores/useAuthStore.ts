@@ -54,7 +54,18 @@ async function loginWithEmail(email: string, password: string): Promise<{ ok: bo
   error.value = null
 
   try {
-    await signInWithEmailAndPassword(auth, email, password)
+    const result = await signInWithEmailAndPassword(auth, email, password)
+
+    // Wait for backend sync to complete
+    if (result.user) {
+      try {
+        const idToken = await result.user.getIdToken()
+        user.value = await getCurrentUser(idToken)
+      } catch (syncErr) {
+        console.error('Failed to sync user with backend:', syncErr)
+      }
+    }
+
     return { ok: true, message: 'Welcome back!' }
   } catch (err: any) {
     const message = getAuthErrorMessage(err.code)
@@ -81,6 +92,16 @@ async function signupWithEmail(
       await updateProfile(result.user, { displayName })
     }
 
+    // Wait for backend sync to complete
+    if (result.user) {
+      try {
+        const idToken = await result.user.getIdToken()
+        user.value = await getCurrentUser(idToken)
+      } catch (syncErr) {
+        console.error('Failed to sync user with backend:', syncErr)
+      }
+    }
+
     return { ok: true, message: 'Account created!' }
   } catch (err: any) {
     const message = getAuthErrorMessage(err.code)
@@ -97,7 +118,18 @@ async function loginWithGoogle(): Promise<{ ok: boolean; message: string }> {
 
   try {
     const provider = new GoogleAuthProvider()
-    await signInWithPopup(auth, provider)
+    const result = await signInWithPopup(auth, provider)
+
+    // Wait for backend sync to complete
+    if (result.user) {
+      try {
+        const idToken = await result.user.getIdToken()
+        user.value = await getCurrentUser(idToken)
+      } catch (syncErr) {
+        console.error('Failed to sync user with backend:', syncErr)
+      }
+    }
+
     return { ok: true, message: 'Welcome!' }
   } catch (err: any) {
     console.error('Google sign-in error:', err.code, err.message)

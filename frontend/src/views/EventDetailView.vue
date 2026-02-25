@@ -3,6 +3,7 @@ import { onMounted, computed, ref, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useEventStore } from '@/stores/useEventStore'
 import { useAuthStore } from '@/stores/useAuthStore'
+import ShareModal from '@/components/common/ShareModal.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -18,6 +19,7 @@ const toast = reactive({
 const addItemDialog = ref(false)
 const newItemName = ref('')
 const newItemCategory = ref('other')
+const showShareModal = ref(false)
 
 const eventId = computed(() => route.params.id as string)
 const event = computed(() => eventStore.currentEvent.value)
@@ -114,11 +116,11 @@ async function handleUnclaimItem(itemId: string) {
 }
 
 function goToEdit() {
-  router.push(`/events/${eventId.value}/edit`)
+  router.push(`/games/${eventId.value}/edit`)
 }
 
 function goBack() {
-  router.push('/events')
+  router.push('/games')
 }
 
 function goToLogin() {
@@ -133,7 +135,7 @@ function goToLogin() {
       <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
         <path d="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z"/>
       </svg>
-      Back to Events
+      Back to Games
     </button>
 
     <!-- Loading -->
@@ -163,16 +165,28 @@ function goToLogin() {
               Hosted by {{ event.host?.displayName || 'Unknown' }}
             </p>
           </div>
-          <button
-            v-if="isHost"
-            class="btn-outline"
-            @click="goToEdit"
-          >
-            <svg class="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
-            </svg>
-            Edit
-          </button>
+          <div class="flex gap-2">
+            <button
+              v-if="auth.isAuthenticated.value"
+              class="btn-outline"
+              @click="showShareModal = true"
+            >
+              <svg class="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M18,16.08C17.24,16.08 16.56,16.38 16.04,16.85L8.91,12.7C8.96,12.47 9,12.24 9,12C9,11.76 8.96,11.53 8.91,11.3L15.96,7.19C16.5,7.69 17.21,8 18,8A3,3 0 0,0 21,5A3,3 0 0,0 18,2A3,3 0 0,0 15,5C15,5.24 15.04,5.47 15.09,5.7L8.04,9.81C7.5,9.31 6.79,9 6,9A3,3 0 0,0 3,12A3,3 0 0,0 6,15C6.79,15 7.5,14.69 8.04,14.19L15.16,18.34C15.11,18.55 15.08,18.77 15.08,19C15.08,20.61 16.39,21.91 18,21.91C19.61,21.91 20.92,20.61 20.92,19A2.92,2.92 0 0,0 18,16.08Z"/>
+              </svg>
+              Share
+            </button>
+            <button
+              v-if="isHost"
+              class="btn-outline"
+              @click="goToEdit"
+            >
+              <svg class="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
+              </svg>
+              Edit
+            </button>
+          </div>
         </div>
 
         <!-- Tags -->
@@ -240,7 +254,7 @@ function goToLogin() {
             <div>
               <div class="font-medium">{{ event.confirmedCount }} / {{ event.maxPlayers }} players</div>
               <div class="text-sm text-gray-500">
-                {{ spotsLeft > 0 ? `${spotsLeft} spots left` : 'Event is full' }}
+                {{ spotsLeft > 0 ? `${spotsLeft} spots left` : 'Game is full' }}
               </div>
             </div>
           </div>
@@ -248,8 +262,56 @@ function goToLogin() {
 
         <!-- Description -->
         <div v-if="event.description" class="mb-6">
-          <h3 class="font-semibold mb-2">About this event</h3>
+          <h3 class="font-semibold mb-2">About this game night</h3>
           <p class="text-gray-600">{{ event.description }}</p>
+        </div>
+
+        <!-- Games -->
+        <div v-if="event.games && event.games.length > 0" class="mb-6">
+          <h3 class="font-semibold mb-3">Games</h3>
+          <div class="space-y-3">
+            <div
+              v-for="game in event.games"
+              :key="game.id"
+              class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg"
+              :class="{ 'ring-2 ring-primary-500 bg-primary-50': game.isPrimary }"
+            >
+              <div class="w-12 h-12 rounded bg-gray-100 flex-shrink-0 overflow-hidden">
+                <img
+                  v-if="game.thumbnailUrl"
+                  :src="game.thumbnailUrl"
+                  :alt="game.gameName"
+                  class="w-full h-full object-cover"
+                />
+                <div v-else class="w-full h-full flex items-center justify-center">
+                  <svg class="w-6 h-6 text-gray-300" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M7,6H17A6,6 0 0,1 23,12A6,6 0 0,1 17,18C15.22,18 13.63,17.23 12.53,16H11.47C10.37,17.23 8.78,18 7,18A6,6 0 0,1 1,12A6,6 0 0,1 7,6M6,9V11H4V13H6V15H8V13H10V11H8V9H6M15.5,12A1.5,1.5 0 0,0 14,13.5A1.5,1.5 0 0,0 15.5,15A1.5,1.5 0 0,0 17,13.5A1.5,1.5 0 0,0 15.5,12M18.5,9A1.5,1.5 0 0,0 17,10.5A1.5,1.5 0 0,0 18.5,12A1.5,1.5 0 0,0 20,10.5A1.5,1.5 0 0,0 18.5,9Z"/>
+                  </svg>
+                </div>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="font-medium text-gray-900">{{ game.gameName }}</span>
+                  <span v-if="game.isPrimary" class="chip-primary text-xs">Primary</span>
+                  <span v-else-if="game.isAlternative" class="chip text-xs bg-gray-100 text-gray-600">Alternative</span>
+                </div>
+                <div class="flex flex-wrap gap-2 mt-1 text-xs text-gray-500">
+                  <span v-if="game.minPlayers || game.maxPlayers">
+                    <svg class="w-3 h-3 inline mr-1" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M16,13C15.71,13 15.38,13 15.03,13.05C16.19,13.89 17,15 17,16.5V19H23V16.5C23,14.17 18.33,13 16,13M8,13C5.67,13 1,14.17 1,16.5V19H15V16.5C15,14.17 10.33,13 8,13M8,11A3,3 0 0,0 11,8A3,3 0 0,0 8,5A3,3 0 0,0 5,8A3,3 0 0,0 8,11M16,11A3,3 0 0,0 19,8A3,3 0 0,0 16,5A3,3 0 0,0 13,8A3,3 0 0,0 16,11Z"/>
+                    </svg>
+                    {{ game.minPlayers === game.maxPlayers ? `${game.minPlayers}` : `${game.minPlayers}-${game.maxPlayers}` }} players
+                  </span>
+                  <span v-if="game.playingTime">
+                    <svg class="w-3 h-3 inline mr-1" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22C6.47,22 2,17.5 2,12A10,10 0 0,1 12,2M12.5,7V12.25L17,14.92L16.25,16.15L11,13V7H12.5Z"/>
+                    </svg>
+                    {{ game.playingTime }} min
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Registration Actions -->
@@ -262,7 +324,7 @@ function goToLogin() {
             <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
               <path d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z"/>
             </svg>
-            Join Event
+            Join Game
           </button>
           <button
             v-else-if="isRegistered"
@@ -275,7 +337,7 @@ function goToLogin() {
             Cancel Registration
           </button>
           <span v-else-if="spotsLeft <= 0" class="chip-error">
-            Event is Full
+            Game is Full
           </span>
         </div>
 
@@ -421,5 +483,14 @@ function goToLogin() {
     >
       {{ toast.message }}
     </div>
+
+    <!-- Share Modal -->
+    <ShareModal
+      v-if="event"
+      :event-id="event.id"
+      :event-title="event.title"
+      :visible="showShareModal"
+      @close="showShareModal = false"
+    />
   </div>
 </template>

@@ -1,0 +1,97 @@
+import type { BggSearchResult, BggGame, EventGame, AddEventGameInput } from '@/types/bgg'
+
+const FUNCTIONS_URL = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL
+
+// Helper to make authenticated requests
+async function authenticatedRequest<T>(
+  path: string,
+  token: string,
+  options?: RequestInit
+): Promise<T> {
+  const response = await fetch(`${FUNCTIONS_URL}${path}`, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      ...options?.headers,
+    },
+  })
+
+  if (!response.ok) {
+    let message = response.statusText
+    try {
+      const data = await response.json()
+      if (data?.error) message = data.error
+      if (data?.message) message = data.message
+    } catch {
+      // no JSON body
+    }
+    throw new Error(message)
+  }
+
+  if (response.status === 204) {
+    return undefined as T
+  }
+
+  return response.json() as Promise<T>
+}
+
+// Search BGG for games
+export async function searchBggGames(query: string): Promise<BggSearchResult[]> {
+  if (!query.trim()) return []
+
+  const response = await fetch(
+    `${FUNCTIONS_URL}/bgg?search=${encodeURIComponent(query)}`
+  )
+
+  if (!response.ok) {
+    throw new Error('Failed to search BGG')
+  }
+
+  return response.json() as Promise<BggSearchResult[]>
+}
+
+// Get BGG game details
+export async function getBggGame(bggId: number): Promise<BggGame> {
+  const response = await fetch(`${FUNCTIONS_URL}/bgg?id=${bggId}`)
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch game details')
+  }
+
+  return response.json() as Promise<BggGame>
+}
+
+// Add game to event
+export async function addEventGame(
+  token: string,
+  eventId: string,
+  data: AddEventGameInput
+): Promise<EventGame> {
+  return authenticatedRequest<EventGame>('/event-games', token, {
+    method: 'POST',
+    body: JSON.stringify({ eventId, ...data }),
+  })
+}
+
+// Remove game from event
+export async function removeEventGame(
+  token: string,
+  gameId: string
+): Promise<void> {
+  return authenticatedRequest<void>(`/event-games?id=${gameId}`, token, {
+    method: 'DELETE',
+  })
+}
+
+// Update game in event (change primary/alternative status)
+export async function updateEventGame(
+  token: string,
+  gameId: string,
+  data: Partial<AddEventGameInput>
+): Promise<EventGame> {
+  return authenticatedRequest<EventGame>(`/event-games?id=${gameId}`, token, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}

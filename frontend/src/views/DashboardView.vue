@@ -10,8 +10,8 @@ async function handleLogout() {
   router.push('/')
 }
 
-function goToEvents() {
-  router.push('/events')
+function goToGames() {
+  router.push('/games')
 }
 </script>
 
@@ -50,15 +50,15 @@ function goToEvents() {
 
       <!-- Feature Cards -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <!-- My Events Card -->
+        <!-- My Games Card -->
         <div class="bg-primary-50 rounded-xl p-5">
           <div class="flex items-center gap-4 mb-4">
             <svg class="w-10 h-10 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M19,19H5V8H19M16,1V3H8V1H6V3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3H18V1M12,10A3,3 0 0,0 9,13A3,3 0 0,0 12,16A3,3 0 0,0 15,13A3,3 0 0,0 12,10Z"/>
+              <path d="M7,6H17A6,6 0 0,1 23,12A6,6 0 0,1 17,18C15.22,18 13.63,17.23 12.53,16H11.47C10.37,17.23 8.78,18 7,18A6,6 0 0,1 1,12A6,6 0 0,1 7,6M6,9V11H4V13H6V15H8V13H10V11H8V9H6M15.5,12A1.5,1.5 0 0,0 14,13.5A1.5,1.5 0 0,0 15.5,15A1.5,1.5 0 0,0 17,13.5A1.5,1.5 0 0,0 15.5,12M18.5,9A1.5,1.5 0 0,0 17,10.5A1.5,1.5 0 0,0 18.5,12A1.5,1.5 0 0,0 20,10.5A1.5,1.5 0 0,0 18.5,9Z"/>
             </svg>
             <div>
-              <p class="font-semibold text-gray-900">My Events</p>
-              <p class="text-sm text-gray-600">Events you're registered for</p>
+              <p class="font-semibold text-gray-900">My Games</p>
+              <p class="text-sm text-gray-600">Games you're signed up for</p>
             </div>
           </div>
           <button class="btn-primary w-full opacity-50 cursor-not-allowed" disabled>
@@ -66,15 +66,15 @@ function goToEvents() {
           </button>
         </div>
 
-        <!-- Host Events Card -->
+        <!-- Hosted Games Card -->
         <div class="bg-secondary-50 rounded-xl p-5">
           <div class="flex items-center gap-4 mb-4">
             <svg class="w-10 h-10 text-secondary-500" viewBox="0 0 24 24" fill="currentColor">
               <path d="M16,13C15.71,13 15.38,13 15.03,13.05C16.19,13.89 17,15 17,16.5V19H23V16.5C23,14.17 18.33,13 16,13M8,13C5.67,13 1,14.17 1,16.5V19H15V16.5C15,14.17 10.33,13 8,13M8,11A3,3 0 0,0 11,8A3,3 0 0,0 8,5A3,3 0 0,0 5,8A3,3 0 0,0 8,11M16,11A3,3 0 0,0 19,8A3,3 0 0,0 16,5A3,3 0 0,0 13,8A3,3 0 0,0 16,11Z"/>
             </svg>
             <div>
-              <p class="font-semibold text-gray-900">Host Events</p>
-              <p class="text-sm text-gray-600">Events you're hosting</p>
+              <p class="font-semibold text-gray-900">Hosted Games</p>
+              <p class="text-sm text-gray-600">Games you're hosting</p>
             </div>
           </div>
           <button class="btn-secondary w-full opacity-50 cursor-not-allowed" disabled>
@@ -87,11 +87,11 @@ function goToEvents() {
 
       <!-- Actions -->
       <div class="flex flex-col sm:flex-row sm:justify-between gap-3">
-        <button class="btn-outline" @click="goToEvents">
+        <button class="btn-outline" @click="goToGames">
           <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M19,19H5V8H19M16,1V3H8V1H6V3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3H18V1"/>
+            <path d="M7,6H17A6,6 0 0,1 23,12A6,6 0 0,1 17,18C15.22,18 13.63,17.23 12.53,16H11.47C10.37,17.23 8.78,18 7,18A6,6 0 0,1 1,12A6,6 0 0,1 7,6M6,9V11H4V13H6V15H8V13H10V11H8V9H6M15.5,12A1.5,1.5 0 0,0 14,13.5A1.5,1.5 0 0,0 15.5,15A1.5,1.5 0 0,0 17,13.5A1.5,1.5 0 0,0 15.5,12M18.5,9A1.5,1.5 0 0,0 17,10.5A1.5,1.5 0 0,0 18.5,12A1.5,1.5 0 0,0 20,10.5A1.5,1.5 0 0,0 18.5,9Z"/>
           </svg>
-          Browse Events
+          Browse Games
         </button>
 
         <button class="btn-ghost text-red-600 hover:bg-red-50" @click="handleLogout">

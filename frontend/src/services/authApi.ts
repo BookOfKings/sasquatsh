@@ -1,10 +1,10 @@
 import type { User } from '@/types/user'
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5191'
+const FUNCTIONS_URL = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL
 
 export async function getCurrentUser(idToken: string): Promise<User> {
-  const response = await fetch(`${BASE_URL}/api/auth/me`, {
-    method: 'GET',
+  const response = await fetch(`${FUNCTIONS_URL}/auth-sync`, {
+    method: 'POST',
     headers: {
       Authorization: `Bearer ${idToken}`,
       'Content-Type': 'application/json',
@@ -13,7 +13,7 @@ export async function getCurrentUser(idToken: string): Promise<User> {
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
-    throw new Error(error.message || 'Failed to get user')
+    throw new Error(error.message || error.error || 'Failed to get user')
   }
 
   return response.json()
@@ -23,7 +23,7 @@ export async function updateUser(
   idToken: string,
   data: { displayName?: string }
 ): Promise<User> {
-  const response = await fetch(`${BASE_URL}/api/auth/me`, {
+  const response = await fetch(`${FUNCTIONS_URL}/auth-sync`, {
     method: 'PUT',
     headers: {
       Authorization: `Bearer ${idToken}`,
@@ -34,7 +34,7 @@ export async function updateUser(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
-    throw new Error(error.message || 'Failed to update user')
+    throw new Error(error.message || error.error || 'Failed to update user')
   }
 
   return response.json()

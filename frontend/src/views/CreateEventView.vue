@@ -2,10 +2,20 @@
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useEventStore } from '@/stores/useEventStore'
+import { useAuthStore } from '@/stores/useAuthStore'
+import { addEventGame } from '@/services/bggApi'
+import GameSearch from '@/components/common/GameSearch.vue'
+import GameCard from '@/components/common/GameCard.vue'
 import type { CreateEventInput } from '@/types/events'
+import type { BggGame } from '@/types/bgg'
 
 const router = useRouter()
 const eventStore = useEventStore()
+const authStore = useAuthStore()
+
+// Selected games for this event
+const selectedGames = ref<BggGame[]>([])
+const gameSearchQuery = ref('')
 
 const loading = ref(false)
 const errorMessage = ref('')
@@ -72,12 +82,12 @@ function validate(): boolean {
   let valid = true
 
   if (!form.title.trim()) {
-    errors.title = 'Event title is required'
+    errors.title = 'Game night title is required'
     valid = false
   }
 
   if (!form.eventDate) {
-    errors.eventDate = 'Event date is required'
+    errors.eventDate = 'Date is required'
     valid = false
   }
 
@@ -114,7 +124,28 @@ async function handleSubmit() {
   const createResult = await eventStore.createEvent(submitData)
 
   if (createResult.ok && createResult.event) {
-    router.push(`/events/${createResult.event.id}`)
+    // Add selected games to the event
+    const token = await authStore.getIdToken()
+    if (token && selectedGames.value.length > 0) {
+      for (let i = 0; i < selectedGames.value.length; i++) {
+        const game = selectedGames.value[i]
+        try {
+          await addEventGame(token, createResult.event.id, {
+            bggId: game.bggId,
+            gameName: game.name,
+            thumbnailUrl: game.thumbnailUrl ?? undefined,
+            minPlayers: game.minPlayers ?? undefined,
+            maxPlayers: game.maxPlayers ?? undefined,
+            playingTime: game.playingTime ?? undefined,
+            isPrimary: i === 0, // First game is primary
+            isAlternative: i > 0, // Others are alternatives
+          })
+        } catch (err) {
+          console.error('Failed to add game:', err)
+        }
+      }
+    }
+    router.push(`/games/${createResult.event.id}`)
   } else {
     errorMessage.value = createResult.message
   }
@@ -123,7 +154,37 @@ async function handleSubmit() {
 }
 
 function goBack() {
-  router.push('/events')
+  router.push('/games')
+}
+
+function handleGameSelect(game: BggGame) {
+  // Don't add duplicates
+  if (selectedGames.value.some(g => g.bggId === game.bggId)) {
+    return
+  }
+  selectedGames.value.push(game)
+  gameSearchQuery.value = ''
+
+  // Update form with primary game info if first game
+  if (selectedGames.value.length === 1) {
+    form.gameTitle = game.name
+  }
+}
+
+function removeGame(index: number) {
+  selectedGames.value.splice(index, 1)
+  // Update form gameTitle with new primary (first) game
+  const primaryGame = selectedGames.value[0]
+  form.gameTitle = primaryGame?.name ?? ''
+}
+
+function setPrimaryGame(index: number) {
+  if (index <= 0 || index >= selectedGames.value.length) return
+  // Move the game to the front
+  const game = selectedGames.value[index]
+  selectedGames.value.splice(index, 1)
+  selectedGames.value.unshift(game)
+  form.gameTitle = game.name
 }
 </script>
 
@@ -134,7 +195,7 @@ function goBack() {
       <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
         <path d="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z"/>
       </svg>
-      Back to Events
+      Back to Games
     </button>
 
     <div class="card">
@@ -142,9 +203,9 @@ function goBack() {
       <div class="p-6 border-b border-gray-100">
         <h1 class="text-xl font-bold flex items-center gap-2">
           <svg class="w-6 h-6 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M19,19H5V8H19M16,1V3H8V1H6V3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3H18V1M17,12H12V17H17V12Z"/>
+            <path d="M7,6H17A6,6 0 0,1 23,12A6,6 0 0,1 17,18C15.22,18 13.63,17.23 12.53,16H11.47C10.37,17.23 8.78,18 7,18A6,6 0 0,1 1,12A6,6 0 0,1 7,6M6,9V11H4V13H6V15H8V13H10V11H8V9H6M15.5,12A1.5,1.5 0 0,0 14,13.5A1.5,1.5 0 0,0 15.5,15A1.5,1.5 0 0,0 17,13.5A1.5,1.5 0 0,0 15.5,12M18.5,9A1.5,1.5 0 0,0 17,10.5A1.5,1.5 0 0,0 18.5,12A1.5,1.5 0 0,0 20,10.5A1.5,1.5 0 0,0 18.5,9Z"/>
           </svg>
-          Create Event
+          Create Game Night
         </h1>
       </div>
 
@@ -169,7 +230,7 @@ function goBack() {
 
             <div class="space-y-4">
               <div>
-                <label for="title" class="label">Event Title *</label>
+                <label for="title" class="label">Game Night Title *</label>
                 <input
                   id="title"
                   v-model="form.title"
@@ -182,9 +243,37 @@ function goBack() {
                 <p v-if="errors.title" class="text-sm text-red-500 mt-1">{{ errors.title }}</p>
               </div>
 
+              <!-- Game Search -->
+              <div>
+                <label class="label">Search BoardGameGeek</label>
+                <GameSearch
+                  v-model="gameSearchQuery"
+                  placeholder="Search for a board game..."
+                  :disabled="loading"
+                  @select="handleGameSelect"
+                />
+                <p class="text-sm text-gray-500 mt-1">
+                  Search BGG to add games with details, or type a name manually below.
+                </p>
+              </div>
+
+              <!-- Selected Games -->
+              <div v-if="selectedGames.length > 0" class="space-y-2">
+                <label class="label">Selected Games</label>
+                <GameCard
+                  v-for="(game, index) in selectedGames"
+                  :key="game.bggId"
+                  :game="game"
+                  :primary="index === 0"
+                  removable
+                  @remove="removeGame(index)"
+                  @set-primary="setPrimaryGame(index)"
+                />
+              </div>
+
               <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div class="md:col-span-2">
-                  <label for="gameTitle" class="label">Game Title</label>
+                  <label for="gameTitle" class="label">Primary Game Name</label>
                   <input
                     id="gameTitle"
                     v-model="form.gameTitle"
@@ -193,6 +282,9 @@ function goBack() {
                     placeholder="e.g., Catan, Ticket to Ride"
                     :disabled="loading"
                   />
+                  <p class="text-sm text-gray-500 mt-1">
+                    {{ selectedGames.length > 0 ? 'Auto-filled from BGG selection' : 'Or enter manually' }}
+                  </p>
                 </div>
                 <div>
                   <label for="gameCategory" class="label">Category</label>
@@ -233,7 +325,7 @@ function goBack() {
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label for="eventDate" class="label">Event Date *</label>
+                <label for="eventDate" class="label">Date *</label>
                 <input
                   id="eventDate"
                   v-model="form.eventDate"
@@ -350,9 +442,9 @@ function goBack() {
             </div>
           </div>
 
-          <!-- Event Settings -->
+          <!-- Game Night Settings -->
           <div>
-            <h3 class="font-semibold text-gray-900 mb-4">Event Settings</h3>
+            <h3 class="font-semibold text-gray-900 mb-4">Game Night Settings</h3>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
@@ -412,7 +504,7 @@ function goBack() {
                   class="w-4 h-4 rounded border-gray-300 text-primary-500 focus:ring-primary-500"
                   :disabled="loading"
                 />
-                <span class="text-sm text-gray-700">Public event (visible to everyone)</span>
+                <span class="text-sm text-gray-700">Public game (visible to everyone)</span>
               </label>
               <label class="flex items-center gap-2 cursor-pointer">
                 <input
@@ -445,7 +537,7 @@ function goBack() {
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
               </svg>
-              Create Event
+              Create Game Night
             </button>
           </div>
         </form>
