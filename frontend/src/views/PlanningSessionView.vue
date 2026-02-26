@@ -431,6 +431,16 @@ function formatDateTime(dateStr: string): string {
   })
 }
 
+function formatTime(timeStr: string): string {
+  // Convert "HH:MM" or "HH:MM:SS" to 12-hour format
+  const parts = timeStr.split(':').map(Number)
+  const hours = parts[0] ?? 0
+  const minutes = parts[1] ?? 0
+  const period = hours >= 12 ? 'PM' : 'AM'
+  const hour12 = hours % 12 || 12
+  return `${hour12}:${minutes.toString().padStart(2, '0')} ${period}`
+}
+
 function getStatusBadgeClass(status: string) {
   switch (status) {
     case 'open':
@@ -613,7 +623,7 @@ function getStatusBadgeClass(status: string) {
                   />
                   <div class="flex-1">
                     <span class="font-medium">{{ formatDate(date.proposedDate) }}</span>
-                    <span v-if="date.startTime" class="text-gray-500 ml-2">at {{ date.startTime }}</span>
+                    <span v-if="date.startTime" class="text-gray-500 ml-2">at {{ formatTime(date.startTime) }}</span>
                   </div>
                   <span class="text-sm text-gray-500">{{ date.availableCount ?? 0 }} available</span>
                 </label>
