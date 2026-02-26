@@ -4,40 +4,37 @@ import { verifyFirebaseToken, jsonResponse, errorResponse, getCorsHeaders, getFi
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
+// Max duration for a player request (15 minutes)
+const MAX_REQUEST_MINUTES = 15
+
 // Transform database row to PlayerRequest
 function toPlayerRequest(row: Record<string, unknown>) {
-  const eventLoc = row.event_location as Record<string, unknown> | null
+  const event = row.event as Record<string, unknown> | null
+  const host = row.user as Record<string, unknown> | null
   return {
     id: row.id as string,
     userId: row.user_id as string,
-    title: row.title as string,
+    eventId: row.event_id as string,
     description: row.description as string | null,
-    gamePreferences: row.game_preferences as string | null,
-    city: row.city as string | null,
-    state: row.state as string | null,
-    availableDays: row.available_days as string | null,
     playerCountNeeded: row.player_count_needed as number,
+    status: row.status as string,
     isActive: row.is_active as boolean,
     createdAt: row.created_at as string,
-    expiresAt: row.expires_at as string | null,
-    // New fields
-    eventLocationId: row.event_location_id as string | null,
-    hallArea: row.hall_area as string | null,
-    tableNumber: row.table_number as string | null,
-    booth: row.booth as string | null,
-    eventLocation: eventLoc ? {
-      id: eventLoc.id as string,
-      name: eventLoc.name as string,
-      city: eventLoc.city as string,
-      state: eventLoc.state as string,
-      venue: eventLoc.venue as string | null,
-      startDate: eventLoc.start_date as string,
-      endDate: eventLoc.end_date as string,
+    expiresAt: row.expires_at as string,
+    event: event ? {
+      id: event.id as string,
+      title: event.title as string,
+      gameTitle: event.game_title as string | null,
+      eventDate: event.event_date as string,
+      startTime: event.start_time as string,
+      location: event.location as string | null,
+      address: event.address as string | null,
     } : null,
-    user: row.user ? {
-      id: (row.user as Record<string, unknown>).id as string,
-      displayName: (row.user as Record<string, unknown>).display_name as string | null,
-      avatarUrl: (row.user as Record<string, unknown>).avatar_url as string | null,
+    host: host ? {
+      id: host.id as string,
+      displayName: host.display_name as string | null,
+      username: host.username as string | null,
+      avatarUrl: host.avatar_url as string | null,
     } : null,
   }
 }
@@ -51,14 +48,11 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
   const url = new URL(req.url)
   const requestId = url.searchParams.get('id')
+  const action = url.searchParams.get('action')
 
-  // GET - List player requests (public, but filters blocked users if authenticated)
+  // GET - List active player requests (public)
   if (req.method === 'GET' && !requestId) {
-    const city = url.searchParams.get('city')
-    const state = url.searchParams.get('state')
-    const gameName = url.searchParams.get('gameName')
-    const playerCount = url.searchParams.get('playerCount')
-    const eventLocationId = url.searchParams.get('eventLocationId')
+    const eventId = url.searchParams.get('eventId')
 
     // Get blocked user IDs if user is authenticated
     let blockedUserIds: string[] = []
@@ -79,11 +73,12 @@ Deno.serve(async (req) => {
       .from('player_requests')
       .select(`
         *,
-        user:users(id, display_name, avatar_url),
-        event_location:event_locations(id, name, city, state, venue, start_date, end_date)
+        user:users(id, display_name, username, avatar_url),
+        event:events(id, title, game_title, event_date, start_time, location, address)
       `)
+      .eq('status', 'open')
       .eq('is_active', true)
-      .or('expires_at.is.null,expires_at.gt.' + new Date().toISOString())
+      .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false })
       .limit(50)
 
@@ -92,23 +87,9 @@ Deno.serve(async (req) => {
       query = query.not('user_id', 'in', `(${blockedUserIds.join(',')})`)
     }
 
-    // Location filters
-    if (city) {
-      query = query.ilike('city', `%${city}%`)
-    }
-    if (state) {
-      query = query.eq('state', state)
-    }
-
-    // New filters
-    if (gameName) {
-      query = query.ilike('game_preferences', `%${gameName}%`)
-    }
-    if (playerCount) {
-      query = query.eq('player_count_needed', parseInt(playerCount))
-    }
-    if (eventLocationId) {
-      query = query.eq('event_location_id', eventLocationId)
+    // Filter by specific event
+    if (eventId) {
+      query = query.eq('event_id', eventId)
     }
 
     const { data, error } = await query
@@ -142,17 +123,18 @@ Deno.serve(async (req) => {
     return errorResponse('User not found', 404)
   }
 
-  // GET - Get my requests
+  // GET - Get my requests (as host)
   if (req.method === 'GET' && requestId === 'mine') {
     const { data, error } = await supabase
       .from('player_requests')
       .select(`
         *,
-        user:users(id, display_name, avatar_url),
-        event_location:event_locations(id, name, city, state, venue, start_date, end_date)
+        user:users(id, display_name, username, avatar_url),
+        event:events(id, title, game_title, event_date, start_time, location, address)
       `)
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
+      .limit(20)
 
     if (error) {
       return errorResponse(error.message, 500)
@@ -161,40 +143,60 @@ Deno.serve(async (req) => {
     return jsonResponse(data.map(toPlayerRequest))
   }
 
-  // POST - Create player request
-  if (req.method === 'POST') {
+  // POST - Create player request (host needs players for their event)
+  if (req.method === 'POST' && !action) {
     const body = await req.json()
 
-    if (!body.title?.trim()) {
-      return errorResponse('Title is required', 400)
+    if (!body.eventId) {
+      return errorResponse('eventId is required', 400)
     }
 
-    // Calculate expiry (default 30 days)
+    // Verify the user is the host of this event
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('id, host_user_id, title, event_date, start_time')
+      .eq('id', body.eventId)
+      .single()
+
+    if (eventError || !event) {
+      return errorResponse('Event not found', 404)
+    }
+
+    if (event.host_user_id !== user.id) {
+      return errorResponse('Only the event host can request players', 403)
+    }
+
+    // Check if there's already an active request for this event
+    const { data: existingRequest } = await supabase
+      .from('player_requests')
+      .select('id')
+      .eq('event_id', body.eventId)
+      .eq('status', 'open')
+      .gt('expires_at', new Date().toISOString())
+      .single()
+
+    if (existingRequest) {
+      return errorResponse('There is already an active player request for this event', 400)
+    }
+
+    // Calculate expiry (max 15 minutes)
     const expiresAt = new Date()
-    expiresAt.setDate(expiresAt.getDate() + (body.expiresInDays || 30))
+    expiresAt.setMinutes(expiresAt.getMinutes() + MAX_REQUEST_MINUTES)
 
     const { data, error } = await supabase
       .from('player_requests')
       .insert({
         user_id: user.id,
-        title: body.title.trim(),
+        event_id: body.eventId,
         description: body.description?.trim() || null,
-        game_preferences: body.gamePreferences?.trim() || null,
-        city: body.city?.trim() || null,
-        state: body.state?.trim() || null,
-        available_days: body.availableDays?.trim() || null,
         player_count_needed: body.playerCountNeeded || 1,
+        status: 'open',
         expires_at: expiresAt.toISOString(),
-        // New fields
-        event_location_id: body.eventLocationId || null,
-        hall_area: body.hallArea?.trim() || null,
-        table_number: body.tableNumber?.trim() || null,
-        booth: body.booth?.trim() || null,
       })
       .select(`
         *,
-        user:users(id, display_name, avatar_url),
-        event_location:event_locations(id, name, city, state, venue, start_date, end_date)
+        user:users(id, display_name, username, avatar_url),
+        event:events(id, title, game_title, event_date, start_time, location, address)
       `)
       .single()
 
@@ -205,7 +207,79 @@ Deno.serve(async (req) => {
     return jsonResponse(toPlayerRequest(data), 201)
   }
 
-  // PUT - Update player request
+  // POST with action - Mark as filled or cancelled
+  if (req.method === 'POST' && action) {
+    if (!requestId) {
+      return errorResponse('Request ID required', 400)
+    }
+
+    // Verify ownership
+    const { data: existing } = await supabase
+      .from('player_requests')
+      .select('user_id, status')
+      .eq('id', requestId)
+      .single()
+
+    if (!existing) {
+      return errorResponse('Request not found', 404)
+    }
+
+    if (existing.user_id !== user.id) {
+      return errorResponse('Not authorized', 403)
+    }
+
+    if (action === 'fill') {
+      // Mark as filled (found players)
+      const { data, error } = await supabase
+        .from('player_requests')
+        .update({
+          status: 'filled',
+          is_active: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', requestId)
+        .select(`
+          *,
+          user:users(id, display_name, username, avatar_url),
+          event:events(id, title, game_title, event_date, start_time, location, address)
+        `)
+        .single()
+
+      if (error) {
+        return errorResponse(error.message, 500)
+      }
+
+      return jsonResponse(toPlayerRequest(data))
+    }
+
+    if (action === 'cancel') {
+      // Cancel the request
+      const { data, error } = await supabase
+        .from('player_requests')
+        .update({
+          status: 'cancelled',
+          is_active: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', requestId)
+        .select(`
+          *,
+          user:users(id, display_name, username, avatar_url),
+          event:events(id, title, game_title, event_date, start_time, location, address)
+        `)
+        .single()
+
+      if (error) {
+        return errorResponse(error.message, 500)
+      }
+
+      return jsonResponse(toPlayerRequest(data))
+    }
+
+    return errorResponse('Invalid action', 400)
+  }
+
+  // PUT - Update player request (only description and player count)
   if (req.method === 'PUT') {
     if (!requestId) {
       return errorResponse('Request ID required', 400)
@@ -214,12 +288,20 @@ Deno.serve(async (req) => {
     // Verify ownership
     const { data: existing } = await supabase
       .from('player_requests')
-      .select('user_id')
+      .select('user_id, status')
       .eq('id', requestId)
       .single()
 
-    if (!existing || existing.user_id !== user.id) {
+    if (!existing) {
+      return errorResponse('Request not found', 404)
+    }
+
+    if (existing.user_id !== user.id) {
       return errorResponse('Not authorized', 403)
+    }
+
+    if (existing.status !== 'open') {
+      return errorResponse('Cannot update a closed request', 400)
     }
 
     const body = await req.json()
@@ -227,19 +309,8 @@ Deno.serve(async (req) => {
       updated_at: new Date().toISOString(),
     }
 
-    if (body.title !== undefined) updates.title = body.title.trim()
     if (body.description !== undefined) updates.description = body.description?.trim() || null
-    if (body.gamePreferences !== undefined) updates.game_preferences = body.gamePreferences?.trim() || null
-    if (body.city !== undefined) updates.city = body.city?.trim() || null
-    if (body.state !== undefined) updates.state = body.state?.trim() || null
-    if (body.availableDays !== undefined) updates.available_days = body.availableDays?.trim() || null
     if (body.playerCountNeeded !== undefined) updates.player_count_needed = body.playerCountNeeded
-    if (body.isActive !== undefined) updates.is_active = body.isActive
-    // New fields
-    if (body.eventLocationId !== undefined) updates.event_location_id = body.eventLocationId || null
-    if (body.hallArea !== undefined) updates.hall_area = body.hallArea?.trim() || null
-    if (body.tableNumber !== undefined) updates.table_number = body.tableNumber?.trim() || null
-    if (body.booth !== undefined) updates.booth = body.booth?.trim() || null
 
     const { data, error } = await supabase
       .from('player_requests')
@@ -247,8 +318,8 @@ Deno.serve(async (req) => {
       .eq('id', requestId)
       .select(`
         *,
-        user:users(id, display_name, avatar_url),
-        event_location:event_locations(id, name, city, state, venue, start_date, end_date)
+        user:users(id, display_name, username, avatar_url),
+        event:events(id, title, game_title, event_date, start_time, location, address)
       `)
       .single()
 

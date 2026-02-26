@@ -1,5 +1,3 @@
-import type { UserSummary } from './events'
-
 // Event Locations (shared gaming convention/event locations)
 export interface EventLocation {
   id: string
@@ -27,66 +25,47 @@ export interface CreateEventLocationInput {
   endDate: string
 }
 
+// Player Request - Host needs players for their event (someone bailed)
 export interface PlayerRequest {
   id: string
   userId: string
-  title: string
+  eventId: string
   description: string | null
-  gamePreferences: string | null
-  city: string | null
-  state: string | null
-  availableDays: string | null
   playerCountNeeded: number
+  status: 'open' | 'filled' | 'cancelled'
   isActive: boolean
   createdAt: string
-  expiresAt: string | null
-  // Event location fields
-  eventLocationId: string | null
-  hallArea: string | null
-  tableNumber: string | null
-  booth: string | null
-  eventLocation: EventLocation | null
-  user: UserSummary | null
+  expiresAt: string
+  event: {
+    id: string
+    title: string
+    gameTitle: string | null
+    eventDate: string
+    startTime: string
+    location: string | null
+    address: string | null
+  } | null
+  host: {
+    id: string
+    displayName: string | null
+    username: string | null
+    avatarUrl: string | null
+  } | null
 }
 
 export interface CreatePlayerRequestInput {
-  title: string
+  eventId: string
   description?: string
-  gamePreferences?: string
-  city?: string
-  state?: string
-  availableDays?: string
   playerCountNeeded?: number
-  expiresInDays?: number
-  // Event location fields
-  eventLocationId?: string
-  hallArea?: string
-  tableNumber?: string
-  booth?: string
 }
 
 export interface UpdatePlayerRequestInput {
-  title?: string
   description?: string | null
-  gamePreferences?: string | null
-  city?: string | null
-  state?: string | null
-  availableDays?: string | null
   playerCountNeeded?: number
-  isActive?: boolean
-  // Event location fields
-  eventLocationId?: string | null
-  hallArea?: string | null
-  tableNumber?: string | null
-  booth?: string | null
 }
 
 export interface PlayerRequestFilters {
-  city?: string
-  state?: string
-  gameName?: string
-  playerCount?: number
-  eventLocationId?: string
+  eventId?: string
 }
 
 export interface GameInvitation {

@@ -76,7 +76,7 @@ export async function createEventLocation(
   })
 }
 
-// ============ Player Requests ============
+// ============ Player Requests (Host needs players - someone bailed) ============
 
 // Get all active player requests (public, but can pass token for blocked user filtering)
 export async function getPlayerRequests(
@@ -84,11 +84,7 @@ export async function getPlayerRequests(
   token?: string
 ): Promise<PlayerRequest[]> {
   const params = new URLSearchParams()
-  if (filters?.city) params.set('city', filters.city)
-  if (filters?.state) params.set('state', filters.state)
-  if (filters?.gameName) params.set('gameName', filters.gameName)
-  if (filters?.playerCount) params.set('playerCount', String(filters.playerCount))
-  if (filters?.eventLocationId) params.set('eventLocationId', filters.eventLocationId)
+  if (filters?.eventId) params.set('eventId', filters.eventId)
 
   const url = `${FUNCTIONS_URL}/player-requests${params.toString() ? '?' + params.toString() : ''}`
 
@@ -111,12 +107,12 @@ export async function getPlayerRequests(
   return response.json() as Promise<PlayerRequest[]>
 }
 
-// Get my player requests
+// Get my player requests (requests I've made as host)
 export async function getMyPlayerRequests(token: string): Promise<PlayerRequest[]> {
   return authenticatedRequest<PlayerRequest[]>('/player-requests?id=mine', token)
 }
 
-// Create player request
+// Create player request (I'm hosting an event and need players)
 export async function createPlayerRequest(
   token: string,
   data: CreatePlayerRequestInput
@@ -136,6 +132,26 @@ export async function updatePlayerRequest(
   return authenticatedRequest<PlayerRequest>(`/player-requests?id=${requestId}`, token, {
     method: 'PUT',
     body: JSON.stringify(data),
+  })
+}
+
+// Mark request as filled (found players)
+export async function fillPlayerRequest(
+  token: string,
+  requestId: string
+): Promise<PlayerRequest> {
+  return authenticatedRequest<PlayerRequest>(`/player-requests?id=${requestId}&action=fill`, token, {
+    method: 'POST',
+  })
+}
+
+// Cancel player request
+export async function cancelPlayerRequest(
+  token: string,
+  requestId: string
+): Promise<PlayerRequest> {
+  return authenticatedRequest<PlayerRequest>(`/player-requests?id=${requestId}&action=cancel`, token, {
+    method: 'POST',
   })
 }
 
