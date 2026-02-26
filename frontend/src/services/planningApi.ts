@@ -4,6 +4,8 @@ import type {
   PlanningResponseInput,
   SuggestGameInput,
   GameSuggestion,
+  PlanningItem,
+  AddPlanningItemInput,
 } from '@/types/planning'
 
 const FUNCTIONS_URL = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL
@@ -199,4 +201,67 @@ export async function deletePlanningSession(
   return authenticatedRequest<void>(`/planning?id=${sessionId}`, token, {
     method: 'DELETE',
   })
+}
+
+// ============ Item Management ============
+
+// Add an item to bring
+export async function addPlanningItem(
+  token: string,
+  sessionId: string,
+  data: AddPlanningItemInput
+): Promise<PlanningItem> {
+  return authenticatedRequest<PlanningItem>(
+    `/planning?id=${sessionId}&action=add-item`,
+    token,
+    {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }
+  )
+}
+
+// Claim an item
+export async function claimPlanningItem(
+  token: string,
+  sessionId: string,
+  itemId: string
+): Promise<void> {
+  return authenticatedRequest<void>(
+    `/planning?id=${sessionId}&action=claim-item&itemId=${itemId}`,
+    token,
+    {
+      method: 'POST',
+    }
+  )
+}
+
+// Unclaim an item
+export async function unclaimPlanningItem(
+  token: string,
+  sessionId: string,
+  itemId: string
+): Promise<void> {
+  return authenticatedRequest<void>(
+    `/planning?id=${sessionId}&action=unclaim-item&itemId=${itemId}`,
+    token,
+    {
+      method: 'POST',
+    }
+  )
+}
+
+// Remove an item
+export async function removePlanningItem(
+  token: string,
+  sessionId: string,
+  itemId: string
+): Promise<void> {
+  return authenticatedRequest<void>(
+    `/planning?id=${sessionId}&action=remove-item&itemId=${itemId}`,
+    token,
+    {
+      method: 'POST',
+    }
+  )
 }

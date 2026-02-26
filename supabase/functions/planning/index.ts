@@ -160,7 +160,17 @@ Deno.serve(async (req) => {
         .eq('session_id', sessionId)
         .order('created_at', { ascending: true })
 
-      return jsonResponse(transformSessionFull(session, invitees ?? [], dates ?? [], suggestions ?? [], user.id))
+      // Fetch items to bring
+      const { data: items } = await supabase
+        .from('planning_session_items')
+        .select(`
+          id, item_name, item_category, quantity_needed, claimed_by_user_id, claimed_at, created_at,
+          claimed_by:users!claimed_by_user_id(id, display_name, username, avatar_url)
+        `)
+        .eq('session_id', sessionId)
+        .order('created_at', { ascending: true })
+
+      return jsonResponse(transformSessionFull(session, invitees ?? [], dates ?? [], suggestions ?? [], items ?? [], user.id))
     }
 
     return errorResponse('groupId, id, or mine parameter required', 400)
@@ -479,6 +489,154 @@ Deno.serve(async (req) => {
       return jsonResponse({ message: 'Suggestion removed' })
     }
 
+    // ============ Item Management ============
+
+    // Add item to bring
+    if (action === 'add-item') {
+      if (session.status !== 'open') {
+        return errorResponse('Session is no longer open', 400)
+      }
+
+      // Only creator can add items
+      if (!isCreator) {
+        return errorResponse('Only the session creator can add items', 403)
+      }
+
+      const body = await req.json()
+
+      if (!body.itemName?.trim()) {
+        return errorResponse('itemName required', 400)
+      }
+
+      const validCategories = ['food', 'drinks', 'supplies', 'other']
+      const category = validCategories.includes(body.itemCategory) ? body.itemCategory : 'other'
+
+      const { data: item, error } = await supabase
+        .from('planning_session_items')
+        .insert({
+          session_id: sessionId,
+          item_name: body.itemName.trim(),
+          item_category: category,
+          quantity_needed: body.quantityNeeded || 1,
+        })
+        .select(`
+          id, item_name, item_category, quantity_needed, claimed_by_user_id, claimed_at, created_at
+        `)
+        .single()
+
+      if (error) return errorResponse(error.message, 500)
+
+      return jsonResponse(transformItem(item, null))
+    }
+
+    // Claim an item
+    if (action === 'claim-item') {
+      const itemId = url.searchParams.get('itemId')
+      if (!itemId) {
+        return errorResponse('itemId required', 400)
+      }
+
+      // Verify item belongs to this session and is unclaimed
+      const { data: item } = await supabase
+        .from('planning_session_items')
+        .select('id, session_id, claimed_by_user_id')
+        .eq('id', itemId)
+        .single()
+
+      if (!item || item.session_id !== sessionId) {
+        return errorResponse('Item not found', 404)
+      }
+
+      if (item.claimed_by_user_id) {
+        return errorResponse('Item already claimed', 400)
+      }
+
+      const { error } = await supabase
+        .from('planning_session_items')
+        .update({
+          claimed_by_user_id: user.id,
+          claimed_at: new Date().toISOString(),
+        })
+        .eq('id', itemId)
+
+      if (error) return errorResponse(error.message, 500)
+
+      return jsonResponse({ message: 'Item claimed' })
+    }
+
+    // Unclaim an item
+    if (action === 'unclaim-item') {
+      const itemId = url.searchParams.get('itemId')
+      if (!itemId) {
+        return errorResponse('itemId required', 400)
+      }
+
+      // Verify item belongs to this session and is claimed by this user
+      const { data: item } = await supabase
+        .from('planning_session_items')
+        .select('id, session_id, claimed_by_user_id')
+        .eq('id', itemId)
+        .single()
+
+      if (!item || item.session_id !== sessionId) {
+        return errorResponse('Item not found', 404)
+      }
+
+      // Only the claimer or session creator can unclaim
+      if (item.claimed_by_user_id !== user.id && !isCreator) {
+        return errorResponse('Only the claimer or session creator can unclaim', 403)
+      }
+
+      const { error } = await supabase
+        .from('planning_session_items')
+        .update({
+          claimed_by_user_id: null,
+          claimed_at: null,
+        })
+        .eq('id', itemId)
+
+      if (error) return errorResponse(error.message, 500)
+
+      return jsonResponse({ message: 'Item unclaimed' })
+    }
+
+    // Remove an item
+    if (action === 'remove-item') {
+      if (session.status !== 'open') {
+        return errorResponse('Session is no longer open', 400)
+      }
+
+      // Only creator can remove items
+      if (!isCreator) {
+        return errorResponse('Only the session creator can remove items', 403)
+      }
+
+      const itemId = url.searchParams.get('itemId')
+      if (!itemId) {
+        return errorResponse('itemId required', 400)
+      }
+
+      // Verify item belongs to this session
+      const { data: item } = await supabase
+        .from('planning_session_items')
+        .select('id, session_id')
+        .eq('id', itemId)
+        .single()
+
+      if (!item || item.session_id !== sessionId) {
+        return errorResponse('Item not found', 404)
+      }
+
+      const { error } = await supabase
+        .from('planning_session_items')
+        .delete()
+        .eq('id', itemId)
+
+      if (error) return errorResponse(error.message, 500)
+
+      return jsonResponse({ message: 'Item removed' })
+    }
+
     return errorResponse('Invalid action', 400)
   }
 
@@ -628,6 +786,25 @@ Deno.serve(async (req) => {
         await supabase.from('event_registrations').insert(registrations)
       }
 
+      // Copy items to bring from planning session to event
+      const { data: planningItems } = await supabase
+        .from('planning_session_items')
+        .select('item_name, item_category, quantity_needed, claimed_by_user_id, claimed_at')
+        .eq('session_id', sessionId)
+
+      if (planningItems?.length) {
+        const eventItems = planningItems.map(item => ({
+          event_id: event.id,
+          item_name: item.item_name,
+          item_category: item.item_category,
+          quantity_needed: item.quantity_needed,
+          claimed_by_user_id: item.claimed_by_user_id,
+          claimed_at: item.claimed_at,
+        }))
+
+        await supabase.from('event_items').insert(eventItems)
+      }
+
       // Update session
       await supabase
         .from('planning_sessions')
@@ -706,6 +883,7 @@ function transformSessionFull(
   invitees: Record<string, unknown>[],
   dates: Record<string, unknown>[],
   suggestions: Record<string, unknown>[],
+  items: Record<string, unknown>[],
   currentUserId: string
 ) {
   return {
@@ -741,6 +919,28 @@ function transformSessionFull(
       }
     }),
     gameSuggestions: suggestions.map(s => transformGameSuggestion(s, (s.votes as Record<string, unknown>[]) ?? [], currentUserId)),
+    items: items.map(i => transformItem(i, i.claimed_by as Record<string, unknown> | null)),
+  }
+}
+
+function transformItem(
+  row: Record<string, unknown>,
+  claimedBy: Record<string, unknown> | null
+) {
+  return {
+    id: row.id,
+    itemName: row.item_name,
+    itemCategory: row.item_category,
+    quantityNeeded: row.quantity_needed,
+    claimedByUserId: row.claimed_by_user_id,
+    claimedAt: row.claimed_at,
+    createdAt: row.created_at,
+    claimedBy: claimedBy ? {
+      id: claimedBy.id,
+      displayName: claimedBy.display_name,
+      username: claimedBy.username,
+      avatarUrl: claimedBy.avatar_url,
+    } : null,
   }
 }
 

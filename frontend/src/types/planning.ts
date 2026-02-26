@@ -24,6 +24,31 @@ export interface PlanningSession {
   invitees?: PlanningInvitee[]
   dates?: PlanningDate[]
   gameSuggestions?: GameSuggestion[]
+  items?: PlanningItem[]
+}
+
+export type ItemCategory = 'food' | 'drinks' | 'supplies' | 'other'
+
+export interface PlanningItem {
+  id: string
+  itemName: string
+  itemCategory: ItemCategory
+  quantityNeeded: number
+  claimedByUserId: string | null
+  claimedAt: string | null
+  createdAt: string
+  claimedBy?: {
+    id: string
+    displayName: string | null
+    username: string
+    avatarUrl: string | null
+  } | null
+}
+
+export interface AddPlanningItemInput {
+  itemName: string
+  itemCategory?: ItemCategory
+  quantityNeeded?: number
 }
 
 export interface PlanningInvitee {

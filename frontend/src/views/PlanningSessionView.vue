@@ -11,9 +11,13 @@ import {
   removeSuggestion,
   finalizePlanningSession,
   cancelPlanningSession,
+  addPlanningItem,
+  claimPlanningItem,
+  unclaimPlanningItem,
+  removePlanningItem,
 } from '@/services/planningApi'
 import { searchBggGames, getBggGame } from '@/services/bggApi'
-import type { PlanningSession, GameSuggestion } from '@/types/planning'
+import type { PlanningSession, GameSuggestion, PlanningItem, ItemCategory } from '@/types/planning'
 import type { BggSearchResult } from '@/types/bgg'
 import DateAvailabilityMatrix from '@/components/planning/DateAvailabilityMatrix.vue'
 import GameSuggestionCard from '@/components/planning/GameSuggestionCard.vue'
@@ -45,6 +49,16 @@ const showGameSearch = ref(false)
 const finalizing = ref(false)
 const selectedDateId = ref<string | null>(null)
 const selectedGameId = ref<string | null>(null)
+
+// Items to bring state
+const showAddItemForm = ref(false)
+const addingItem = ref(false)
+const claimingItemId = ref<string | null>(null)
+const newItem = reactive({
+  name: '',
+  category: 'food' as ItemCategory,
+  quantity: 1,
+})
 
 const sessionId = computed(() => route.params.id as string)
 
@@ -298,6 +312,103 @@ async function handleCancel() {
     await loadSession()
   } catch (err) {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to cancel session'
+  }
+}
+
+// ============ Items to Bring ============
+
+async function handleAddItem() {
+  if (!session.value || !newItem.name.trim()) return
+
+  addingItem.value = true
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+
+    await addPlanningItem(token, session.value.id, {
+      itemName: newItem.name.trim(),
+      itemCategory: newItem.category,
+      quantityNeeded: newItem.quantity,
+    })
+
+    // Reset form
+    newItem.name = ''
+    newItem.category = 'food'
+    newItem.quantity = 1
+    showAddItemForm.value = false
+
+    await loadSession(true)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to add item'
+  } finally {
+    addingItem.value = false
+  }
+}
+
+async function handleClaimItem(item: PlanningItem) {
+  if (!session.value) return
+
+  claimingItemId.value = item.id
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+
+    await claimPlanningItem(token, session.value.id, item.id)
+    await loadSession(true)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to claim item'
+  } finally {
+    claimingItemId.value = null
+  }
+}
+
+async function handleUnclaimItem(item: PlanningItem) {
+  if (!session.value) return
+
+  claimingItemId.value = item.id
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+
+    await unclaimPlanningItem(token, session.value.id, item.id)
+    await loadSession(true)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to unclaim item'
+  } finally {
+    claimingItemId.value = null
+  }
+}
+
+async function handleRemoveItem(item: PlanningItem) {
+  if (!session.value) return
+  if (!confirm(`Remove "${item.itemName}" from the list?`)) return
+
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+
+    await removePlanningItem(token, session.value.id, item.id)
+    await loadSession(true)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to remove item'
+  }
+}
+
+function getCategoryIcon(category: ItemCategory): string {
+  switch (category) {
+    case 'food': return 'M12,6A2,2 0 0,0 14,4A2,2 0 0,0 12,2A2,2 0 0,0 10,4A2,2 0 0,0 12,6M15.5,11.5C15.5,12.34 14.83,13 14,13V22H12V16H10V22H8V13C7.17,13 6.5,12.34 6.5,11.5V7C6.5,5.62 7.62,4.5 9,4.5H15C16.38,4.5 17.5,5.62 17.5,7V11.5'
+    case 'drinks': return 'M3,14C3,15.31 3.84,16.41 5,16.83V20H2V22H22V20H19V16.83C20.16,16.41 21,15.31 21,14V8H3V14M7,10H17V14C17,14.55 16.55,15 16,15H8C7.45,15 7,14.55 7,14V10M8,2H10V4H8V2M14,2H16V4H14V2M11,2H13V5H11V2Z'
+    case 'supplies': return 'M20,8H17V5C17,3.89 16.11,3 15,3H9C7.89,3 7,3.89 7,5V8H4C2.89,8 2,8.89 2,10V20C2,21.11 2.89,22 4,22H20C21.11,22 22,21.11 22,20V10C22,8.89 21.11,8 20,8M9,5H15V8H9V5M20,20H4V10H20V20Z'
+    default: return 'M20,6H16V4C16,2.89 15.11,2 14,2H10C8.89,2 8,2.89 8,4V6H4C2.89,6 2,6.89 2,8V19C2,20.11 2.89,21 4,21H20C21.11,21 22,20.11 22,19V8C22,6.89 21.11,6 20,6M10,4H14V6H10V4Z'
+  }
+}
+
+function getCategoryColor(category: ItemCategory): string {
+  switch (category) {
+    case 'food': return 'text-orange-500 bg-orange-100'
+    case 'drinks': return 'text-blue-500 bg-blue-100'
+    case 'supplies': return 'text-purple-500 bg-purple-100'
+    default: return 'text-gray-500 bg-gray-100'
   }
 }
 
@@ -581,6 +692,149 @@ function getStatusBadgeClass(status: string) {
               </div>
               <div v-else class="text-gray-500 text-sm py-2">
                 No games suggested yet. Be the first to suggest a game!
+              </div>
+            </div>
+
+            <!-- Items to Bring Section -->
+            <div class="mb-6 pt-6 border-t border-gray-200">
+              <h3 class="font-medium text-gray-700 mb-3 flex items-center gap-2">
+                <svg class="w-5 h-5 text-green-500" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M20,6H16V4C16,2.89 15.11,2 14,2H10C8.89,2 8,2.89 8,4V6H4C2.89,6 2,6.89 2,8V19C2,20.11 2.89,21 4,21H20C21.11,21 22,20.11 22,19V8C22,6.89 21.11,6 20,6M10,4H14V6H10V4Z"/>
+                </svg>
+                Items to Bring
+                <span class="text-sm font-normal text-gray-500">(claim items you'll bring)</span>
+              </h3>
+
+              <!-- Add Item Form (Creator only) -->
+              <div v-if="isCreator && isOpen" class="mb-4">
+                <button v-if="!showAddItemForm" class="btn-outline text-sm" @click="showAddItemForm = true">
+                  <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/>
+                  </svg>
+                  Add Item
+                </button>
+                <div v-else class="bg-gray-50 rounded-lg p-4">
+                  <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                    <input
+                      v-model="newItem.name"
+                      type="text"
+                      class="input sm:col-span-2"
+                      placeholder="Item name (e.g., Chips, Soda, Napkins)"
+                    />
+                    <select v-model="newItem.category" class="input">
+                      <option value="food">Food</option>
+                      <option value="drinks">Drinks</option>
+                      <option value="supplies">Supplies</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <label class="flex items-center gap-2 text-sm text-gray-600">
+                      Qty:
+                      <input
+                        v-model.number="newItem.quantity"
+                        type="number"
+                        min="1"
+                        max="99"
+                        class="input w-16 text-center"
+                      />
+                    </label>
+                    <div class="flex-1"></div>
+                    <button class="btn-ghost text-sm" @click="showAddItemForm = false" :disabled="addingItem">
+                      Cancel
+                    </button>
+                    <button
+                      class="btn-primary text-sm"
+                      :disabled="!newItem.name.trim() || addingItem"
+                      @click="handleAddItem"
+                    >
+                      <svg v-if="addingItem" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                      </svg>
+                      Add
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Items List -->
+              <div v-if="session.items && session.items.length > 0" class="space-y-2">
+                <div
+                  v-for="item in session.items"
+                  :key="item.id"
+                  class="flex items-center gap-3 p-3 rounded-lg border"
+                  :class="item.claimedByUserId ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'"
+                >
+                  <!-- Category Icon -->
+                  <div
+                    class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                    :class="getCategoryColor(item.itemCategory)"
+                  >
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                      <path :d="getCategoryIcon(item.itemCategory)"/>
+                    </svg>
+                  </div>
+
+                  <!-- Item Info -->
+                  <div class="flex-1 min-w-0">
+                    <div class="font-medium">
+                      {{ item.itemName }}
+                      <span v-if="item.quantityNeeded > 1" class="text-gray-500 text-sm">(x{{ item.quantityNeeded }})</span>
+                    </div>
+                    <div v-if="item.claimedBy" class="text-sm text-green-600">
+                      Claimed by {{ item.claimedBy.displayName || '@' + item.claimedBy.username }}
+                    </div>
+                    <div v-else class="text-sm text-gray-400">Unclaimed</div>
+                  </div>
+
+                  <!-- Actions -->
+                  <div class="flex items-center gap-2">
+                    <!-- Claim/Unclaim Button -->
+                    <template v-if="item.claimedByUserId === auth.user.value?.id">
+                      <button
+                        class="btn-ghost text-sm text-red-600"
+                        :disabled="claimingItemId === item.id"
+                        @click="handleUnclaimItem(item)"
+                      >
+                        <svg v-if="claimingItemId === item.id" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        </svg>
+                        <span v-else>Unclaim</span>
+                      </button>
+                    </template>
+                    <template v-else-if="!item.claimedByUserId">
+                      <button
+                        class="btn-outline text-sm"
+                        :disabled="claimingItemId === item.id"
+                        @click="handleClaimItem(item)"
+                      >
+                        <svg v-if="claimingItemId === item.id" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        </svg>
+                        <span v-else>I'll bring this</span>
+                      </button>
+                    </template>
+
+                    <!-- Remove Button (Creator only) -->
+                    <button
+                      v-if="isCreator && isOpen"
+                      class="btn-ghost text-gray-400 hover:text-red-500 p-1"
+                      title="Remove item"
+                      @click="handleRemoveItem(item)"
+                    >
+                      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="text-gray-500 text-sm py-2">
+                No items added yet.
+                <span v-if="isCreator && isOpen">Add items that attendees can volunteer to bring!</span>
               </div>
             </div>
 
