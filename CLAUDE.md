@@ -15,14 +15,31 @@ Sasquatsh is a board game night planning platform built with Vue 3 + TypeScript 
 
 ### Backend
 - **Database**: Supabase PostgreSQL
-- **API**: Supabase Edge Functions (Deno)
+- **API**: Supabase Edge Functions (Deno runtime)
 - **Authentication**: Firebase Auth (tokens passed via `X-Firebase-Token` header)
+- **Supabase Project ID**: `yyfukoddeyiaxiufztdx`
+- **Supabase Dashboard**: https://supabase.com/dashboard/project/yyfukoddeyiaxiufztdx
 
 ### Hosting
 - **Frontend**: Firebase Hosting
 - **Domain**: https://sasquatsh.com (also https://sasquatsh.web.app)
 - **Backend**: Supabase (hosted)
-- **GitHub Repo**: BookOfKings/sasquatsh
+- **GitHub Repo**: https://github.com/BookOfKings/sasquatsh
+
+## Edge Functions
+
+| Function | Description |
+|----------|-------------|
+| `auth-sync` | User creation/sync between Firebase Auth and Supabase |
+| `profile` | User profile management (get, update, block users) |
+| `events` | Game events CRUD operations |
+| `planning` | Game night planning sessions with date/game voting |
+| `player-requests` | Looking for Players (LFP) posts |
+| `event-locations` | Gaming event/convention locations (admin managed) |
+| `bgg-cache` | BoardGameGeek game data caching and search |
+| `admin-stats` | Admin dashboard, user/group management |
+| `check-username` | Username availability checking |
+| `groups` | Group management and memberships |
 
 ## Project Structure
 
