@@ -25,6 +25,15 @@ function formatDate(dateStr: string): string {
   })
 }
 
+function formatTime(timeStr: string): string {
+  const parts = timeStr.split(':').map(Number)
+  const hours = parts[0] ?? 0
+  const minutes = parts[1] ?? 0
+  const period = hours >= 12 ? 'PM' : 'AM'
+  const hour12 = hours % 12 || 12
+  return `${hour12}:${minutes.toString().padStart(2, '0')} ${period}`
+}
+
 function getVoteStatus(date: PlanningDate, invitee: PlanningInvitee): 'available' | 'unavailable' | 'pending' | 'cannot-attend' {
   if (invitee.cannotAttendAny) return 'cannot-attend'
   if (!invitee.hasResponded) return 'pending'
@@ -111,7 +120,7 @@ function getVoteColor(status: 'available' | 'unavailable' | 'pending' | 'cannot-
               />
               <div>
                 <div class="font-medium text-sm">{{ formatDate(date.proposedDate) }}</div>
-                <div v-if="date.startTime" class="text-xs text-gray-500">{{ date.startTime }}</div>
+                <div v-if="date.startTime" class="text-xs text-gray-500">{{ formatTime(date.startTime) }}</div>
               </div>
             </div>
           </td>
