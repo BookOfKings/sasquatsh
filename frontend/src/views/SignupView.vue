@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { checkUsernameAvailable } from '@/services/authApi'
 
 const router = useRouter()
 const route = useRoute()
@@ -9,6 +10,7 @@ const auth = useAuthStore()
 
 const form = reactive({
   displayName: '',
+  username: '',
   email: '',
   password: '',
   confirmPassword: '',
@@ -25,9 +27,95 @@ const showPassword = ref(false)
 const loading = ref(false)
 const errorMessage = ref('')
 
+// Username validation state
+const usernameChecking = ref(false)
+const usernameAvailable = ref<boolean | null>(null)
+const usernameError = ref('')
+
+// Debounce timer for username check
+let usernameCheckTimer: ReturnType<typeof setTimeout> | null = null
+
+// Username format regex (matches backend)
+const USERNAME_REGEX = /^[a-zA-Z][a-zA-Z0-9_]{2,29}$/
+
+// Watch username changes and check availability
+watch(() => form.username, (newUsername) => {
+  // Reset state
+  usernameAvailable.value = null
+  usernameError.value = ''
+
+  // Clear previous timer
+  if (usernameCheckTimer) {
+    clearTimeout(usernameCheckTimer)
+  }
+
+  if (!newUsername) {
+    return
+  }
+
+  // Validate format first
+  if (!USERNAME_REGEX.test(newUsername)) {
+    if (newUsername.length < 3) {
+      usernameError.value = 'Username must be at least 3 characters'
+    } else if (newUsername.length > 30) {
+      usernameError.value = 'Username must be at most 30 characters'
+    } else if (!/^[a-zA-Z]/.test(newUsername)) {
+      usernameError.value = 'Username must start with a letter'
+    } else {
+      usernameError.value = 'Only letters, numbers, and underscores allowed'
+    }
+    return
+  }
+
+  // Debounce the availability check
+  usernameCheckTimer = setTimeout(async () => {
+    usernameChecking.value = true
+    try {
+      const result = await checkUsernameAvailable(newUsername)
+      usernameAvailable.value = result.available
+      if (!result.available && result.reason) {
+        usernameError.value = result.reason
+      }
+    } catch (err) {
+      console.error('Failed to check username:', err)
+    } finally {
+      usernameChecking.value = false
+    }
+  }, 500)
+})
+
+// Get reCAPTCHA token
+async function getRecaptchaToken(): Promise<string | undefined> {
+  try {
+    // @ts-expect-error - grecaptcha is loaded from external script
+    if (typeof grecaptcha === 'undefined') {
+      console.warn('reCAPTCHA not loaded')
+      return undefined
+    }
+    // @ts-expect-error - grecaptcha is loaded from external script
+    const token = await grecaptcha.execute('6LfZ-HcsAAAAALniN1xOkc_I5t443MorPE66H0CK', { action: 'signup' })
+    return token
+  } catch (err) {
+    console.error('Failed to get reCAPTCHA token:', err)
+    return undefined
+  }
+}
+
 async function handleEmailSignup() {
-  if (!form.displayName || !form.email || !form.password) {
+  if (!form.displayName || !form.username || !form.email || !form.password) {
     errorMessage.value = 'Please fill in all fields'
+    return
+  }
+
+  // Validate username format
+  if (!USERNAME_REGEX.test(form.username)) {
+    errorMessage.value = 'Please enter a valid username'
+    return
+  }
+
+  // Check if username is available
+  if (usernameAvailable.value === false) {
+    errorMessage.value = 'Please choose a different username'
     return
   }
 
@@ -44,7 +132,16 @@ async function handleEmailSignup() {
   loading.value = true
   errorMessage.value = ''
 
-  const result = await auth.signupWithEmail(form.email, form.password, form.displayName)
+  // Get reCAPTCHA token
+  const recaptchaToken = await getRecaptchaToken()
+
+  const result = await auth.signupWithEmail(
+    form.email,
+    form.password,
+    form.displayName,
+    form.username,
+    recaptchaToken
+  )
 
   if (result.ok) {
     // Redirect to original destination or dashboard
@@ -114,6 +211,48 @@ function goToLogin() {
             placeholder="Your name"
             :disabled="loading"
           />
+          <p class="text-xs text-gray-500 mt-1">This is how you'll appear to group members and event hosts</p>
+        </div>
+
+        <div>
+          <label for="username" class="label">Username</label>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">@</span>
+            <input
+              id="username"
+              v-model="form.username"
+              type="text"
+              class="input pl-7"
+              :class="{
+                'border-green-500 focus:ring-green-500': usernameAvailable === true,
+                'border-red-500 focus:ring-red-500': usernameAvailable === false || usernameError
+              }"
+              placeholder="choose_a_username"
+              :disabled="loading"
+            />
+            <!-- Loading indicator -->
+            <div v-if="usernameChecking" class="absolute right-3 top-1/2 -translate-y-1/2">
+              <svg class="animate-spin h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+              </svg>
+            </div>
+            <!-- Available checkmark -->
+            <div v-else-if="usernameAvailable === true" class="absolute right-3 top-1/2 -translate-y-1/2">
+              <svg class="h-5 w-5 text-green-500" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+              </svg>
+            </div>
+            <!-- Unavailable X -->
+            <div v-else-if="usernameAvailable === false || usernameError" class="absolute right-3 top-1/2 -translate-y-1/2">
+              <svg class="h-5 w-5 text-red-500" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
+              </svg>
+            </div>
+          </div>
+          <p v-if="usernameError" class="text-xs text-red-500 mt-1">{{ usernameError }}</p>
+          <p v-else-if="usernameAvailable === true" class="text-xs text-green-600 mt-1">Username is available!</p>
+          <p v-else class="text-xs text-gray-500 mt-1">3-30 characters, letters, numbers, and underscores only</p>
         </div>
 
         <div>
@@ -173,6 +312,13 @@ function goToLogin() {
           </svg>
           Create Account
         </button>
+
+        <!-- reCAPTCHA notice -->
+        <p class="text-xs text-gray-400 text-center">
+          This site is protected by reCAPTCHA and the Google
+          <a href="https://policies.google.com/privacy" target="_blank" class="underline">Privacy Policy</a> and
+          <a href="https://policies.google.com/terms" target="_blank" class="underline">Terms of Service</a> apply.
+        </p>
       </form>
 
       <!-- Divider -->
@@ -196,6 +342,7 @@ function goToLogin() {
         </svg>
         Sign up with Google
       </button>
+      <p class="text-xs text-gray-400 text-center mt-2">Google users get an auto-generated username that can be changed later</p>
 
       <!-- Login link -->
       <div class="text-center mt-6">

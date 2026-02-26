@@ -24,6 +24,9 @@ const showShareModal = ref(false)
 const eventId = computed(() => route.params.id as string)
 const event = computed(() => eventStore.currentEvent.value)
 const isHost = computed(() => event.value?.hostUserId === auth.user.value?.id)
+const canDelete = computed(() => isHost.value || auth.isAdmin.value)
+const canEdit = computed(() => isHost.value || auth.isAdmin.value)
+const deleting = ref(false)
 const isRegistered = computed(() => {
   if (!auth.user.value || !event.value?.registrations) return false
   return event.value.registrations.some(
@@ -119,6 +122,24 @@ function goToEdit() {
   router.push(`/games/${eventId.value}/edit`)
 }
 
+async function handleDelete() {
+  if (!event.value) return
+  if (!confirm(`Are you sure you want to delete "${event.value.title}"? This cannot be undone.`)) {
+    return
+  }
+
+  deleting.value = true
+  const result = await eventStore.deleteEvent(eventId.value)
+
+  if (result.ok) {
+    showMessage(true, 'Event deleted')
+    router.push('/games')
+  } else {
+    showMessage(false, result.message)
+  }
+  deleting.value = false
+}
+
 function goBack() {
   router.push('/games')
 }
@@ -139,8 +160,36 @@ function goToLogin() {
     </button>
 
     <!-- Loading -->
-    <div v-if="eventStore.loading.value" class="h-1 w-full bg-gray-200 rounded-full overflow-hidden mb-4">
-      <div class="h-full bg-primary-500 rounded-full animate-pulse" style="width: 60%"></div>
+    <div v-if="eventStore.loading.value" class="text-center py-12">
+      <svg class="w-8 h-8 mx-auto text-primary-500 animate-spin" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+      </svg>
+      <p class="mt-4 text-gray-500">Loading event...</p>
+    </div>
+
+    <!-- Error State -->
+    <div v-else-if="eventStore.error.value && !event" class="card p-8 text-center">
+      <svg class="w-16 h-16 mx-auto text-red-400 mb-4" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M13,13H11V7H13M13,17H11V15H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
+      </svg>
+      <h2 class="text-xl font-semibold text-gray-900 mb-2">Unable to load event</h2>
+      <p class="text-gray-500 mb-6">{{ eventStore.error.value }}</p>
+      <button class="btn-primary" @click="eventStore.loadEvent(eventId)">
+        Try Again
+      </button>
+    </div>
+
+    <!-- Event Not Found -->
+    <div v-else-if="!eventStore.loading.value && !event" class="card p-8 text-center">
+      <svg class="w-16 h-16 mx-auto text-gray-300 mb-4" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M19,19H5V8H19M16,1V3H8V1H6V3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3H18V1M17,12H12V17H17V12Z"/>
+      </svg>
+      <h2 class="text-xl font-semibold text-gray-900 mb-2">Event not found</h2>
+      <p class="text-gray-500 mb-6">This event may have been deleted or you don't have access to view it.</p>
+      <button class="btn-primary" @click="goBack">
+        Back to Games
+      </button>
     </div>
 
     <template v-if="event">
@@ -177,7 +226,7 @@ function goToLogin() {
               Share
             </button>
             <button
-              v-if="isHost"
+              v-if="canEdit"
               class="btn-outline"
               @click="goToEdit"
             >
@@ -185,6 +234,21 @@ function goToLogin() {
                 <path d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
               </svg>
               Edit
+            </button>
+            <button
+              v-if="canDelete"
+              class="btn-outline text-red-600 hover:bg-red-50"
+              :disabled="deleting"
+              @click="handleDelete"
+            >
+              <svg v-if="deleting" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+              </svg>
+              <svg v-else class="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
+              </svg>
+              Delete
             </button>
           </div>
         </div>

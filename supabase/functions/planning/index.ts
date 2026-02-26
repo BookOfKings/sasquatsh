@@ -220,8 +220,11 @@ Deno.serve(async (req) => {
 
       if (sessionError) return errorResponse(sessionError.message, 500)
 
-      // Add invitees
-      const inviteeRows = body.inviteeUserIds.map((userId: string) => ({
+      // Add invitees (always include the creator so they can participate too)
+      const allInviteeIds = new Set<string>(body.inviteeUserIds)
+      allInviteeIds.add(user.id) // Ensure creator is included
+
+      const inviteeRows = Array.from(allInviteeIds).map((userId: string) => ({
         session_id: session.id,
         user_id: userId,
       }))
@@ -454,9 +457,9 @@ Deno.serve(async (req) => {
         return errorResponse('Suggestion not found', 404)
       }
 
-      // Only allow the person who suggested it or the session creator to remove
-      if (suggestion.suggested_by_user_id !== user.id && session.created_by_user_id !== user.id) {
-        return errorResponse('Only the suggester or session creator can remove this', 403)
+      // Only allow the person who suggested it, session creator, or site admin to remove
+      if (suggestion.suggested_by_user_id !== user.id && session.created_by_user_id !== user.id && !user.is_admin) {
+        return errorResponse('Only the suggester, session creator, or admin can remove this', 403)
       }
 
       // Delete votes first (foreign key constraint)

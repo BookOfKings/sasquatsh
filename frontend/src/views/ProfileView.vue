@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { getMyProfile, updateProfile, getBlockedUsers, unblockUser } from '@/services/profileApi'
+import { checkUsernameAvailable } from '@/services/authApi'
 import type { UserProfile, UpdateProfileInput, BlockedUser } from '@/types/profile'
 
 const router = useRouter()
@@ -17,7 +18,15 @@ const errorMessage = ref('')
 const successMessage = ref('')
 const isEditing = ref(false)
 
+// Username validation state
+const usernameChecking = ref(false)
+const usernameAvailable = ref<boolean | null>(null)
+const usernameError = ref('')
+let usernameCheckTimer: ReturnType<typeof setTimeout> | null = null
+const USERNAME_REGEX = /^[a-zA-Z][a-zA-Z0-9_]{2,29}$/
+
 const form = reactive<UpdateProfileInput>({
+  username: '',
   displayName: '',
   avatarUrl: '',
   birthYear: undefined,
@@ -28,6 +37,58 @@ const form = reactive<UpdateProfileInput>({
   bio: '',
   favoriteGames: [],
   preferredGameTypes: [],
+})
+
+// Watch username changes for availability checking
+watch(() => form.username, (newUsername) => {
+  // Reset state
+  usernameAvailable.value = null
+  usernameError.value = ''
+
+  // Clear previous timer
+  if (usernameCheckTimer) {
+    clearTimeout(usernameCheckTimer)
+  }
+
+  // If username hasn't changed from profile, mark as available
+  if (newUsername === profile.value?.username) {
+    usernameAvailable.value = true
+    return
+  }
+
+  if (!newUsername) {
+    return
+  }
+
+  // Validate format first
+  if (!USERNAME_REGEX.test(newUsername)) {
+    if (newUsername.length < 3) {
+      usernameError.value = 'Username must be at least 3 characters'
+    } else if (newUsername.length > 30) {
+      usernameError.value = 'Username must be at most 30 characters'
+    } else if (!/^[a-zA-Z]/.test(newUsername)) {
+      usernameError.value = 'Username must start with a letter'
+    } else {
+      usernameError.value = 'Only letters, numbers, and underscores allowed'
+    }
+    return
+  }
+
+  // Debounce the availability check
+  usernameCheckTimer = setTimeout(async () => {
+    usernameChecking.value = true
+    try {
+      const result = await checkUsernameAvailable(newUsername)
+      usernameAvailable.value = result.available
+      if (!result.available && result.reason) {
+        usernameError.value = result.reason
+      }
+    } catch (err) {
+      console.error('Failed to check username:', err)
+    } finally {
+      usernameChecking.value = false
+    }
+  }, 500)
 })
 
 const newFavoriteGame = ref('')
@@ -121,6 +182,7 @@ async function handleUnblock(userId: string) {
 
 function populateForm() {
   if (!profile.value) return
+  form.username = profile.value.username ?? ''
   form.displayName = profile.value.displayName ?? ''
   form.avatarUrl = profile.value.avatarUrl ?? ''
   form.birthYear = profile.value.birthYear ?? undefined
@@ -131,6 +193,9 @@ function populateForm() {
   form.bio = profile.value.bio ?? ''
   form.favoriteGames = profile.value.favoriteGames ?? []
   form.preferredGameTypes = profile.value.preferredGameTypes ?? []
+  // Reset username availability state
+  usernameAvailable.value = true
+  usernameError.value = ''
 }
 
 function startEditing() {
@@ -145,6 +210,18 @@ function cancelEditing() {
 }
 
 async function saveProfile() {
+  // Validate username if changed
+  if (form.username && form.username !== profile.value?.username) {
+    if (!USERNAME_REGEX.test(form.username)) {
+      errorMessage.value = 'Please enter a valid username'
+      return
+    }
+    if (usernameAvailable.value === false) {
+      errorMessage.value = 'Please choose a different username'
+      return
+    }
+  }
+
   saving.value = true
   errorMessage.value = ''
   successMessage.value = ''
@@ -260,7 +337,8 @@ function goToGroup(slug: string) {
             <!-- Info -->
             <div class="flex-1">
               <h2 class="text-xl font-bold">{{ profile.displayName || 'No name set' }}</h2>
-              <p class="text-gray-500">{{ profile.email }}</p>
+              <p class="text-primary-600 font-medium">@{{ profile.username }}</p>
+              <p class="text-gray-500 text-sm">{{ profile.email }}</p>
               <p class="text-sm text-gray-400 mt-1">Member since {{ memberSince }}</p>
 
               <div v-if="profile.homeCity || profile.homeState" class="flex items-center gap-1 mt-2 text-gray-600">
@@ -313,6 +391,46 @@ function goToGroup(slug: string) {
           <h3 class="font-semibold">Edit Profile</h3>
         </div>
         <div class="p-6 space-y-6">
+          <!-- Username -->
+          <div>
+            <label class="label">Username</label>
+            <div class="relative">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">@</span>
+              <input
+                v-model="form.username"
+                type="text"
+                class="input pl-7"
+                :class="{
+                  'border-green-500 focus:ring-green-500': usernameAvailable === true && form.username !== profile?.username,
+                  'border-red-500 focus:ring-red-500': usernameAvailable === false || usernameError
+                }"
+                placeholder="your_username"
+              />
+              <!-- Loading indicator -->
+              <div v-if="usernameChecking" class="absolute right-3 top-1/2 -translate-y-1/2">
+                <svg class="animate-spin h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+              </div>
+              <!-- Available checkmark (only when changed) -->
+              <div v-else-if="usernameAvailable === true && form.username !== profile?.username" class="absolute right-3 top-1/2 -translate-y-1/2">
+                <svg class="h-5 w-5 text-green-500" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+                </svg>
+              </div>
+              <!-- Unavailable X -->
+              <div v-else-if="usernameAvailable === false || usernameError" class="absolute right-3 top-1/2 -translate-y-1/2">
+                <svg class="h-5 w-5 text-red-500" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
+                </svg>
+              </div>
+            </div>
+            <p v-if="usernameError" class="text-xs text-red-500 mt-1">{{ usernameError }}</p>
+            <p v-else-if="usernameAvailable === true && form.username !== profile?.username" class="text-xs text-green-600 mt-1">Username is available!</p>
+            <p v-else class="text-xs text-gray-500 mt-1">3-30 characters, letters, numbers, and underscores only</p>
+          </div>
+
           <!-- Basic Info -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -323,6 +441,7 @@ function goToGroup(slug: string) {
                 class="input"
                 placeholder="Your display name"
               />
+              <p class="text-xs text-gray-500 mt-1">Visible to group members and event hosts</p>
             </div>
             <div>
               <label class="label">Avatar URL</label>
@@ -636,7 +755,8 @@ function goToGroup(slug: string) {
               </svg>
             </div>
             <div class="flex-1 min-w-0">
-              <div class="font-medium">{{ user.displayName || 'Unknown User' }}</div>
+              <div class="font-medium">@{{ user.username }}</div>
+              <div v-if="user.displayName" class="text-sm text-gray-500">{{ user.displayName }}</div>
             </div>
             <button
               class="btn-ghost text-red-500 text-sm"

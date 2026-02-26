@@ -4,12 +4,17 @@ import { verifyFirebaseToken, jsonResponse, errorResponse, getCorsHeaders, getFi
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
+// Username validation regex: 3-30 chars, starts with letter, alphanumeric + underscores
+const USERNAME_REGEX = /^[a-zA-Z][a-zA-Z0-9_]{2,29}$/
+const RESERVED_USERNAMES = ['admin', 'administrator', 'root', 'system', 'support', 'help', 'info', 'sasquatsh', 'moderator', 'mod']
+
 // Transform database row to UserProfile
 function toUserProfile(row: Record<string, unknown>) {
   return {
     id: row.id as string,
     firebaseUid: row.firebase_uid as string,
     email: row.email as string,
+    username: row.username as string,
     displayName: row.display_name as string | null,
     avatarUrl: row.avatar_url as string | null,
     birthYear: row.birth_year as number | null,
@@ -27,11 +32,12 @@ function toUserProfile(row: Record<string, unknown>) {
   }
 }
 
-// Transform for public profile (limited info)
+// Transform for public profile (limited info - shows @username, not real name)
 function toPublicProfile(row: Record<string, unknown>) {
   return {
     id: row.id as string,
-    displayName: row.display_name as string | null,
+    username: row.username as string,
+    displayName: row.display_name as string | null, // Only shown to authorized viewers
     avatarUrl: row.avatar_url as string | null,
     homeCity: row.home_city as string | null,
     homeState: row.home_state as string | null,
@@ -101,7 +107,7 @@ Deno.serve(async (req) => {
 
     const { data: blockedUsers, error } = await supabase
       .from('users')
-      .select('id, display_name, avatar_url')
+      .select('id, username, display_name, avatar_url')
       .in('id', blockedIds)
 
     if (error) {
@@ -110,6 +116,7 @@ Deno.serve(async (req) => {
 
     return jsonResponse(blockedUsers.map(u => ({
       id: u.id,
+      username: u.username,
       displayName: u.display_name,
       avatarUrl: u.avatar_url,
     })))
@@ -192,6 +199,37 @@ Deno.serve(async (req) => {
 
     const updates: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
+    }
+
+    // Validate and update username if provided
+    if (body.username !== undefined) {
+      const username = body.username?.trim()
+
+      if (!username) {
+        return errorResponse('Username cannot be empty', 400)
+      }
+
+      if (!USERNAME_REGEX.test(username)) {
+        return errorResponse('Username must be 3-30 characters, start with a letter, and contain only letters, numbers, and underscores', 400)
+      }
+
+      if (RESERVED_USERNAMES.includes(username.toLowerCase())) {
+        return errorResponse('This username is reserved', 400)
+      }
+
+      // Check uniqueness (case-insensitive), excluding current user
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('id')
+        .ilike('username', username)
+        .neq('id', user.id)
+        .limit(1)
+
+      if (existingUser && existingUser.length > 0) {
+        return errorResponse('Username is already taken', 400)
+      }
+
+      updates.username = username
     }
 
     // Only update fields that are provided

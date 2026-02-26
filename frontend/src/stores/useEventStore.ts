@@ -86,7 +86,9 @@ async function loadEvent(id: string): Promise<Event | null> {
   loading.value = true
   error.value = null
   try {
-    currentEvent.value = await getEventApi(id)
+    const auth = useAuthStore()
+    const token = await auth.getIdToken()
+    currentEvent.value = await getEventApi(id, token ?? undefined)
     return currentEvent.value
   } catch (err) {
     console.error('Unable to load event', err)

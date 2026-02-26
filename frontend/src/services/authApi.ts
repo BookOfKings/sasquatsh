@@ -3,7 +3,32 @@ import type { User } from '@/types/user'
 const FUNCTIONS_URL = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-export async function getCurrentUser(idToken: string): Promise<User> {
+export interface UsernameCheckResult {
+  available: boolean
+  reason?: string
+}
+
+// Check if a username is available (no auth required)
+export async function checkUsernameAvailable(username: string): Promise<UsernameCheckResult> {
+  const response = await fetch(`${FUNCTIONS_URL}/check-username?username=${encodeURIComponent(username)}`, {
+    headers: {
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+  })
+
+  if (!response.ok) {
+    return { available: false, reason: 'Failed to check username' }
+  }
+
+  return response.json()
+}
+
+export interface SyncUserOptions {
+  username?: string
+  recaptchaToken?: string
+}
+
+export async function getCurrentUser(idToken: string, options?: SyncUserOptions): Promise<User> {
   const response = await fetch(`${FUNCTIONS_URL}/auth-sync`, {
     method: 'POST',
     headers: {
@@ -11,6 +36,7 @@ export async function getCurrentUser(idToken: string): Promise<User> {
       'X-Firebase-Token': idToken,
       'Content-Type': 'application/json',
     },
+    body: options ? JSON.stringify(options) : undefined,
   })
 
   if (!response.ok) {

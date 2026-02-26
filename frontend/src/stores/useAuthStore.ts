@@ -79,7 +79,9 @@ async function loginWithEmail(email: string, password: string): Promise<{ ok: bo
 async function signupWithEmail(
   email: string,
   password: string,
-  displayName: string
+  displayName: string,
+  username: string,
+  recaptchaToken?: string
 ): Promise<{ ok: boolean; message: string }> {
   isLoading.value = true
   error.value = null
@@ -92,13 +94,16 @@ async function signupWithEmail(
       await updateProfile(result.user, { displayName })
     }
 
-    // Wait for backend sync to complete
+    // Wait for backend sync to complete with username and recaptcha
     if (result.user) {
       try {
         const idToken = await result.user.getIdToken()
-        user.value = await getCurrentUser(idToken)
-      } catch (syncErr) {
+        user.value = await getCurrentUser(idToken, { username, recaptchaToken })
+      } catch (syncErr: any) {
         console.error('Failed to sync user with backend:', syncErr)
+        // If backend sync fails (e.g., username taken), delete the Firebase user
+        await result.user.delete()
+        return { ok: false, message: syncErr.message || 'Failed to create account' }
       }
     }
 
@@ -125,8 +130,13 @@ async function loginWithGoogle(): Promise<{ ok: boolean; message: string }> {
       try {
         const idToken = await result.user.getIdToken()
         user.value = await getCurrentUser(idToken)
-      } catch (syncErr) {
+      } catch (syncErr: any) {
         console.error('Failed to sync user with backend:', syncErr)
+        // Sign out of Firebase if backend sync fails
+        await signOut(auth)
+        const message = syncErr?.message || 'Failed to create account. Please try again.'
+        error.value = message
+        return { ok: false, message }
       }
     }
 

@@ -2,6 +2,7 @@ export interface UserProfile {
   id: string
   firebaseUid: string
   email: string
+  username: string
   displayName: string | null
   avatarUrl: string | null
   birthYear: number | null
@@ -23,6 +24,7 @@ export interface UserProfile {
 
 export interface BlockedUser {
   id: string
+  username: string
   displayName: string | null
   avatarUrl: string | null
 }
@@ -59,6 +61,7 @@ export interface UserStats {
 
 export interface PublicProfile {
   id: string
+  username: string
   displayName: string | null
   avatarUrl: string | null
   homeCity: string | null
@@ -70,6 +73,7 @@ export interface PublicProfile {
 }
 
 export interface UpdateProfileInput {
+  username?: string
   displayName?: string | null
   avatarUrl?: string | null
   birthYear?: number | null

@@ -40,8 +40,53 @@ Deno.serve(async (req) => {
   const eventId = url.searchParams.get('id')
   const type = url.searchParams.get('type')
 
-  // GET - List events
+  // GET - List events or single event
   if (req.method === 'GET') {
+    // Get single event by ID
+    if (eventId) {
+      const { data, error } = await supabase
+        .from('events')
+        .select(`
+          *,
+          host:users!host_user_id(id, display_name, avatar_url),
+          registrations:event_registrations(
+            id, user_id, status, registered_at,
+            user:users(id, display_name, avatar_url)
+          ),
+          items:event_items(
+            id, item_name, item_category, quantity_needed,
+            claimed_by_user_id, claimed_at,
+            claimed_by:users!claimed_by_user_id(display_name)
+          ),
+          games:event_games(
+            id, bgg_id, game_name, thumbnail_url,
+            min_players, max_players, playing_time,
+            is_primary, is_alternative
+          )
+        `)
+        .eq('id', eventId)
+        .single()
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return errorResponse('Event not found', 404)
+        }
+        return errorResponse(error.message, 500)
+      }
+
+      // Check access: public+published, or user is host, or user is registered
+      const isHost = data.host_user_id === user.id
+      const isPublicAndPublished = data.is_public && data.status === 'published'
+      const isRegistered = Array.isArray(data.registrations) &&
+        data.registrations.some((r: { user_id: string }) => r.user_id === user.id)
+
+      if (!isHost && !isPublicAndPublished && !isRegistered) {
+        return errorResponse('Event not found', 404)
+      }
+
+      return jsonResponse(transformEvent(data))
+    }
+
     // Browse public events (with blocked user filtering)
     if (type === 'browse') {
       const city = url.searchParams.get('city')
@@ -272,14 +317,19 @@ Deno.serve(async (req) => {
   if (req.method === 'DELETE') {
     if (!eventId) return errorResponse('Event ID required', 400)
 
-    // Verify ownership
+    // Verify ownership or admin status
     const { data: existing } = await supabase
       .from('events')
       .select('host_user_id')
       .eq('id', eventId)
       .single()
 
-    if (!existing || existing.host_user_id !== user.id) {
+    if (!existing) {
+      return errorResponse('Event not found', 404)
+    }
+
+    // Allow host or site admin to delete
+    if (existing.host_user_id !== user.id && !user.is_admin) {
       return errorResponse('Not authorized', 403)
     }
 

@@ -349,13 +349,13 @@ Deno.serve(async (req) => {
 
   // GET: Cache stats
   if (req.method === 'GET' && action === 'stats') {
-    const { data, error } = await supabase
+    const { count: totalCount } = await supabase
       .from('bgg_games_cache')
-      .select('bgg_id', { count: 'exact', head: true })
+      .select('*', { count: 'exact', head: true })
 
-    const { data: ranked } = await supabase
+    const { count: rankedCount } = await supabase
       .from('bgg_games_cache')
-      .select('bgg_id', { count: 'exact', head: true })
+      .select('*', { count: 'exact', head: true })
       .not('bgg_rank', 'is', null)
 
     const { data: oldestGame } = await supabase
@@ -366,8 +366,8 @@ Deno.serve(async (req) => {
       .single()
 
     return jsonResponse({
-      totalGames: data?.length ?? 0,
-      rankedGames: ranked?.length ?? 0,
+      totalGames: totalCount ?? 0,
+      rankedGames: rankedCount ?? 0,
       oldestCache: oldestGame?.cached_at ?? null,
     })
   }

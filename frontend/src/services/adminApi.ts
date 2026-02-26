@@ -3,6 +3,48 @@ import type { EventLocation } from '@/types/social'
 const FUNCTIONS_URL = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
+// ============ Admin Dashboard Types ============
+
+export interface AdminStats {
+  users: {
+    total: number
+    last7Days: number
+    last30Days: number
+  }
+  groups: {
+    total: number
+    public: number
+    private: number
+  }
+  events: {
+    total: number
+    upcoming: number
+  }
+  planningSessions: {
+    total: number
+    open: number
+  }
+  playerRequests: {
+    total: number
+    active: number
+  }
+  bggCache: {
+    total: number
+  }
+}
+
+export interface ServiceHealth {
+  name: string
+  status: 'healthy' | 'degraded' | 'unhealthy'
+  latencyMs?: number
+  message?: string
+}
+
+export interface AdminDashboardData {
+  stats: AdminStats
+  services: ServiceHealth[]
+}
+
 // Helper to make authenticated requests
 async function authenticatedRequest<T>(
   path: string,
@@ -145,5 +187,116 @@ export async function importGamesByRange(
   return authenticatedRequest<BggCacheImportResult & { nextStartId: number }>('/bgg-cache?action=import-range', token, {
     method: 'POST',
     body: JSON.stringify({ startId, endId, batchSize }),
+  })
+}
+
+// ============ Admin Dashboard ============
+
+// Get full dashboard data (stats + health)
+export async function getAdminDashboard(token: string): Promise<AdminDashboardData> {
+  return authenticatedRequest<AdminDashboardData>('/admin-stats', token)
+}
+
+// Get stats only
+export async function getAdminStats(token: string): Promise<{ stats: AdminStats }> {
+  return authenticatedRequest<{ stats: AdminStats }>('/admin-stats?action=stats', token)
+}
+
+// Get service health only
+export async function getServiceHealth(token: string): Promise<{ services: ServiceHealth[] }> {
+  return authenticatedRequest<{ services: ServiceHealth[] }>('/admin-stats?action=health', token)
+}
+
+// ============ User Management ============
+
+export interface AdminUser {
+  id: string
+  email: string
+  username: string
+  displayName: string | null
+  avatarUrl: string | null
+  isAdmin: boolean
+  isSuspended: boolean
+  suspensionReason: string | null
+  suspendedAt: string | null
+  createdAt: string
+}
+
+export interface AdminUserListResponse {
+  users: AdminUser[]
+  total: number
+  page: number
+  limit: number
+}
+
+// Get list of users (admin only)
+export async function getAdminUsers(
+  token: string,
+  options?: { search?: string; suspended?: boolean; page?: number; limit?: number }
+): Promise<AdminUserListResponse> {
+  const params = new URLSearchParams({ action: 'users' })
+  if (options?.search) params.set('search', options.search)
+  if (options?.suspended) params.set('suspended', 'true')
+  if (options?.page) params.set('page', options.page.toString())
+  if (options?.limit) params.set('limit', options.limit.toString())
+
+  return authenticatedRequest<AdminUserListResponse>(`/admin-stats?${params}`, token)
+}
+
+// Suspend a user (admin only)
+export async function suspendUser(token: string, userId: string, reason?: string): Promise<{ message: string }> {
+  return authenticatedRequest<{ message: string }>('/admin-stats?action=suspend-user', token, {
+    method: 'POST',
+    body: JSON.stringify({ userId, reason }),
+  })
+}
+
+// Unsuspend a user (admin only)
+export async function unsuspendUser(token: string, userId: string): Promise<{ message: string }> {
+  return authenticatedRequest<{ message: string }>('/admin-stats?action=unsuspend-user', token, {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
+  })
+}
+
+// ============ Group Management ============
+
+export interface AdminGroup {
+  id: string
+  name: string
+  slug: string
+  description: string | null
+  logoUrl: string | null
+  isPublic: boolean
+  groupType: string
+  memberCount: number
+  createdAt: string
+}
+
+export interface AdminGroupListResponse {
+  groups: AdminGroup[]
+  total: number
+  page: number
+  limit: number
+}
+
+// Get list of groups (admin only)
+export async function getAdminGroups(
+  token: string,
+  options?: { search?: string; page?: number; limit?: number }
+): Promise<AdminGroupListResponse> {
+  const params = new URLSearchParams({ action: 'groups' })
+  if (options?.search) params.set('search', options.search)
+  if (options?.page) params.set('page', options.page.toString())
+  if (options?.limit) params.set('limit', options.limit.toString())
+
+  return authenticatedRequest<AdminGroupListResponse>(`/admin-stats?${params}`, token)
+}
+
+// Delete a group (admin only)
+export async function deleteGroup(token: string, groupId: string): Promise<{ message: string }> {
+  return authenticatedRequest<{ message: string }>('/admin-stats?action=delete-group', token, {
+    method: 'POST',
+    body: JSON.stringify({ groupId }),
   })
 }

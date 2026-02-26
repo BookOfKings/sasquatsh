@@ -10,6 +10,7 @@ import {
   deletePlayerRequest,
   getEventLocations,
 } from '@/services/socialApi'
+import { getMyProfile } from '@/services/profileApi'
 import type { PlayerRequest, CreatePlayerRequestInput, EventLocation, PlayerRequestFilters } from '@/types/social'
 
 const router = useRouter()
@@ -24,6 +25,8 @@ const successMessage = ref('')
 const activeTab = ref<'browse' | 'mine'>('browse')
 const showCreateDialog = ref(false)
 const creating = ref(false)
+
+const filterMode = ref<'local' | 'event'>('local')
 
 const filters = reactive<PlayerRequestFilters>({
   city: '',
@@ -49,7 +52,12 @@ const form = reactive<CreatePlayerRequestInput>({
 
 const locationType = ref<'local' | 'event'>('local')
 
-const hasFilters = computed(() => filters.city || filters.state || filters.gameName || filters.playerCount || filters.eventLocationId)
+const hasFilters = computed(() => {
+  if (filterMode.value === 'event') {
+    return filters.gameName || filters.playerCount || filters.eventLocationId
+  }
+  return filters.city || filters.state || filters.gameName || filters.playerCount
+})
 
 onMounted(async () => {
   // Load event locations for filter dropdown
@@ -59,10 +67,23 @@ onMounted(async () => {
     console.error('Failed to load event locations:', err)
   }
 
-  await loadRequests()
+  // If authenticated, load user's location to set as default filter
   if (auth.isAuthenticated.value) {
+    try {
+      const token = await auth.getIdToken()
+      if (token) {
+        const profile = await getMyProfile(token)
+        // Default filters to user's home location
+        if (profile.homeCity) filters.city = profile.homeCity
+        if (profile.homeState) filters.state = profile.homeState
+      }
+    } catch (err) {
+      console.error('Failed to load user profile:', err)
+    }
     await loadMyRequests()
   }
+
+  await loadRequests()
 })
 
 async function loadRequests() {
@@ -73,16 +94,31 @@ async function loadRequests() {
     // Get token for blocked user filtering (if authenticated)
     const token = auth.isAuthenticated.value ? await auth.getIdToken() : undefined
 
-    // Build filters object
-    const activeFilters: PlayerRequestFilters | undefined = hasFilters.value
-      ? {
-          city: filters.city || undefined,
-          state: filters.state || undefined,
-          gameName: filters.gameName || undefined,
-          playerCount: filters.playerCount || undefined,
-          eventLocationId: filters.eventLocationId || undefined,
-        }
-      : undefined
+    // Build filters object based on filter mode
+    let activeFilters: PlayerRequestFilters | undefined = undefined
+
+    if (filterMode.value === 'event' && filters.eventLocationId) {
+      // Event mode - filter by event location
+      activeFilters = {
+        gameName: filters.gameName || undefined,
+        playerCount: filters.playerCount || undefined,
+        eventLocationId: filters.eventLocationId,
+      }
+    } else if (filterMode.value === 'local' && (filters.city || filters.state)) {
+      // Local mode - filter by city/state
+      activeFilters = {
+        city: filters.city || undefined,
+        state: filters.state || undefined,
+        gameName: filters.gameName || undefined,
+        playerCount: filters.playerCount || undefined,
+      }
+    } else if (filters.gameName || filters.playerCount) {
+      // Just game/player filters
+      activeFilters = {
+        gameName: filters.gameName || undefined,
+        playerCount: filters.playerCount || undefined,
+      }
+    }
 
     requests.value = await getPlayerRequests(activeFilters, token ?? undefined)
   } catch (err) {
@@ -107,12 +143,33 @@ function applyFilters() {
   loadRequests()
 }
 
-function clearFilters() {
-  filters.city = ''
-  filters.state = ''
+async function clearFilters() {
   filters.gameName = ''
   filters.playerCount = undefined
   filters.eventLocationId = ''
+  filterMode.value = 'local'
+
+  // Reset to user's home location if authenticated
+  if (auth.isAuthenticated.value) {
+    try {
+      const token = await auth.getIdToken()
+      if (token) {
+        const profile = await getMyProfile(token)
+        filters.city = profile.homeCity ?? ''
+        filters.state = profile.homeState ?? ''
+      } else {
+        filters.city = ''
+        filters.state = ''
+      }
+    } catch {
+      filters.city = ''
+      filters.state = ''
+    }
+  } else {
+    filters.city = ''
+    filters.state = ''
+  }
+
   loadRequests()
 }
 
@@ -273,7 +330,63 @@ function getTimeAgo(dateStr: string): string {
 
     <!-- Filters -->
     <div v-if="activeTab === 'browse'" class="card p-4 mb-6">
+      <!-- Filter Mode Toggle -->
+      <div class="flex gap-2 mb-4">
+        <button
+          type="button"
+          class="px-4 py-2 rounded-lg font-medium transition-colors"
+          :class="filterMode === 'local' ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+          @click="filterMode = 'local'; filters.eventLocationId = ''"
+        >
+          Local Area
+        </button>
+        <button
+          type="button"
+          class="px-4 py-2 rounded-lg font-medium transition-colors"
+          :class="filterMode === 'event' ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+          @click="filterMode = 'event'; filters.city = ''; filters.state = ''"
+        >
+          Gaming Event
+        </button>
+      </div>
+
       <div class="flex flex-wrap gap-4 items-end">
+        <!-- Local Area Filters -->
+        <template v-if="filterMode === 'local'">
+          <div class="flex-1 min-w-[120px]">
+            <label class="label">City</label>
+            <input
+              v-model="filters.city"
+              type="text"
+              class="input"
+              placeholder="City"
+            />
+          </div>
+          <div class="w-24">
+            <label class="label">State</label>
+            <input
+              v-model="filters.state"
+              type="text"
+              class="input"
+              placeholder="State"
+            />
+          </div>
+        </template>
+
+        <!-- Event Location Filter -->
+        <template v-if="filterMode === 'event'">
+          <div class="flex-1 min-w-[250px]">
+            <label class="label">Event</label>
+            <select v-model="filters.eventLocationId" class="input">
+              <option value="">Select an event...</option>
+              <option v-for="loc in eventLocations" :key="loc.id" :value="loc.id">
+                {{ loc.name }} ({{ loc.city }}, {{ loc.state }})
+              </option>
+            </select>
+          </div>
+        </template>
+
+        <!-- Common Filters -->
         <div class="flex-1 min-w-[150px]">
           <label class="label">Game</label>
           <input
@@ -290,36 +403,10 @@ function getTimeAgo(dateStr: string): string {
             <option v-for="n in 10" :key="n" :value="n">{{ n }}+</option>
           </select>
         </div>
-        <div class="flex-1 min-w-[200px]">
-          <label class="label">Event Location</label>
-          <select v-model="filters.eventLocationId" class="input">
-            <option value="">Any location</option>
-            <option v-for="loc in eventLocations" :key="loc.id" :value="loc.id">
-              {{ loc.name }} ({{ loc.city }}, {{ loc.state }})
-            </option>
-          </select>
-        </div>
-        <div class="flex-1 min-w-[120px]">
-          <label class="label">City</label>
-          <input
-            v-model="filters.city"
-            type="text"
-            class="input"
-            placeholder="City"
-          />
-        </div>
-        <div class="w-24">
-          <label class="label">State</label>
-          <input
-            v-model="filters.state"
-            type="text"
-            class="input"
-            placeholder="State"
-          />
-        </div>
+
         <div class="flex gap-2">
           <button class="btn-primary" @click="applyFilters">
-            Filter
+            Search
           </button>
           <button v-if="hasFilters" class="btn-ghost" @click="clearFilters">
             Clear

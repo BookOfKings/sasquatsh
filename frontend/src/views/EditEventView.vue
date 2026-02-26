@@ -1,63 +1,115 @@
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { reactive, ref, onMounted, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useEventStore } from '@/stores/useEventStore'
 import { useAuthStore } from '@/stores/useAuthStore'
-import { useGroupStore } from '@/stores/useGroupStore'
-import { addEventGame } from '@/services/bggApi'
 import GameSearch from '@/components/common/GameSearch.vue'
 import GameCard from '@/components/common/GameCard.vue'
-import type { CreateEventInput } from '@/types/events'
+import type { UpdateEventInput } from '@/types/events'
 import type { BggGame } from '@/types/bgg'
-import type { GroupSummary } from '@/types/groups'
 
 const router = useRouter()
+const route = useRoute()
 const eventStore = useEventStore()
 const authStore = useAuthStore()
-const groupStore = useGroupStore()
 
-// Groups where user is owner/admin (can create events for)
-const userGroups = ref<GroupSummary[]>([])
+const eventId = computed(() => route.params.id as string)
 
 // Selected games for this event
 const selectedGames = ref<BggGame[]>([])
 const gameSearchQuery = ref('')
 
 const loading = ref(false)
+const loadingEvent = ref(true)
 const errorMessage = ref('')
 const errors = reactive<Record<string, string>>({})
 
-const form = reactive<CreateEventInput>({
+const form = reactive<UpdateEventInput>({
   title: '',
-  description: '',
-  gameTitle: '',
-  gameCategory: undefined,
+  description: null,
+  gameTitle: null,
+  gameCategory: null,
   eventDate: '',
-  startTime: '19:00',
+  startTime: '',
   durationMinutes: 120,
   setupMinutes: 15,
-  addressLine1: '',
-  city: '',
-  state: '',
-  postalCode: '',
-  locationDetails: '',
-  difficultyLevel: undefined,
+  addressLine1: null,
+  city: null,
+  state: null,
+  postalCode: null,
+  locationDetails: null,
+  difficultyLevel: null,
   maxPlayers: 4,
   isPublic: true,
   isCharityEvent: false,
-  minAge: undefined,
+  minAge: null,
   status: 'published',
-  groupId: undefined,
 })
 
 onMounted(async () => {
-  // Load groups where user is owner/admin
-  await groupStore.loadMyGroups()
-  // Filter to only groups where user can create events
-  userGroups.value = groupStore.myGroups.value.filter(
-    g => g.userRole === 'owner' || g.userRole === 'admin'
-  )
+  await loadEvent()
 })
+
+async function loadEvent() {
+  loadingEvent.value = true
+  const event = await eventStore.loadEvent(eventId.value)
+
+  if (event) {
+    // Check if user is the host
+    if (event.hostUserId !== authStore.user.value?.id) {
+      errorMessage.value = 'You are not authorized to edit this event'
+      loadingEvent.value = false
+      return
+    }
+
+    // Populate form with existing data
+    form.title = event.title
+    form.description = event.description ?? null
+    form.gameTitle = event.gameTitle ?? null
+    form.gameCategory = event.gameCategory ?? null
+    form.eventDate = event.eventDate
+    form.startTime = event.startTime
+    form.durationMinutes = event.durationMinutes
+    form.setupMinutes = event.setupMinutes ?? 15
+    form.addressLine1 = event.addressLine1 ?? null
+    form.city = event.city ?? null
+    form.state = event.state ?? null
+    form.postalCode = event.postalCode ?? null
+    form.locationDetails = event.locationDetails ?? null
+    form.difficultyLevel = event.difficultyLevel ?? null
+    form.maxPlayers = event.maxPlayers
+    form.isPublic = event.isPublic
+    form.isCharityEvent = event.isCharityEvent
+    form.minAge = event.minAge ?? null
+    form.status = event.status
+
+    // Load existing games
+    if (event.games) {
+      selectedGames.value = event.games
+        .filter(g => g.bggId !== null)
+        .map(g => ({
+          bggId: g.bggId!,
+          name: g.gameName,
+          yearPublished: null,
+          thumbnailUrl: g.thumbnailUrl ?? null,
+          imageUrl: null,
+          minPlayers: g.minPlayers ?? null,
+          maxPlayers: g.maxPlayers ?? null,
+          minPlaytime: null,
+          maxPlaytime: null,
+          playingTime: g.playingTime ?? null,
+          weight: null,
+          description: null,
+          categories: [],
+          mechanics: [],
+        }))
+    }
+  } else {
+    errorMessage.value = 'Event not found'
+  }
+
+  loadingEvent.value = false
+}
 
 const difficultyOptions = [
   { title: 'None', value: '' },
@@ -87,6 +139,7 @@ const gameCategoryOptions = [
 const statusOptions = [
   { title: 'Draft', value: 'draft' },
   { title: 'Published', value: 'published' },
+  { title: 'Cancelled', value: 'cancelled' },
 ]
 
 function validate(): boolean {
@@ -98,7 +151,7 @@ function validate(): boolean {
 
   let valid = true
 
-  if (!form.title.trim()) {
+  if (!form.title?.trim()) {
     errors.title = 'Game night title is required'
     valid = false
   }
@@ -134,45 +187,23 @@ async function handleSubmit() {
 
   const submitData = {
     ...form,
-    gameCategory: form.gameCategory || undefined,
-    difficultyLevel: form.difficultyLevel || undefined,
+    gameCategory: form.gameCategory || null,
+    difficultyLevel: form.difficultyLevel || null,
   }
 
-  const createResult = await eventStore.createEvent(submitData)
+  const result = await eventStore.updateEvent(eventId.value, submitData)
 
-  if (createResult.ok && createResult.event) {
-    // Add selected games to the event
-    const token = await authStore.getIdToken()
-    if (token && selectedGames.value.length > 0) {
-      for (let i = 0; i < selectedGames.value.length; i++) {
-        const game = selectedGames.value[i]
-        if (!game) continue
-        try {
-          await addEventGame(token, createResult.event.id, {
-            bggId: game.bggId,
-            gameName: game.name,
-            thumbnailUrl: game.thumbnailUrl ?? undefined,
-            minPlayers: game.minPlayers ?? undefined,
-            maxPlayers: game.maxPlayers ?? undefined,
-            playingTime: game.playingTime ?? undefined,
-            isPrimary: i === 0, // First game is primary
-            isAlternative: i > 0, // Others are alternatives
-          })
-        } catch (err) {
-          console.error('Failed to add game:', err)
-        }
-      }
-    }
-    router.push(`/games/${createResult.event.id}`)
+  if (result.ok) {
+    router.push(`/games/${eventId.value}`)
   } else {
-    errorMessage.value = createResult.message
+    errorMessage.value = result.message
   }
 
   loading.value = false
 }
 
 function goBack() {
-  router.push('/games')
+  router.push(`/games/${eventId.value}`)
 }
 
 function handleGameSelect(game: BggGame) {
@@ -214,17 +245,26 @@ function setPrimaryGame(index: number) {
       <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
         <path d="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z"/>
       </svg>
-      Back to Games
+      Back to Event
     </button>
 
-    <div class="card">
+    <!-- Loading State -->
+    <div v-if="loadingEvent" class="text-center py-12">
+      <svg class="w-8 h-8 mx-auto text-primary-500 animate-spin" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+      </svg>
+      <p class="mt-4 text-gray-500">Loading event...</p>
+    </div>
+
+    <div v-else class="card">
       <!-- Header -->
       <div class="p-6 border-b border-gray-100">
         <h1 class="text-xl font-bold flex items-center gap-2">
           <svg class="w-6 h-6 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
+            <path d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
           </svg>
-          Create Game Night
+          Edit Game Night
         </h1>
       </div>
 
@@ -248,29 +288,6 @@ function setPrimaryGame(index: number) {
             <h3 class="font-semibold text-gray-900 mb-4">Basic Information</h3>
 
             <div class="space-y-4">
-              <!-- Group Selector -->
-              <div v-if="userGroups.length > 0">
-                <label for="groupId" class="label">Host for Group (optional)</label>
-                <select
-                  id="groupId"
-                  v-model="form.groupId"
-                  class="input"
-                  :disabled="loading"
-                >
-                  <option :value="undefined">No group - personal event</option>
-                  <option
-                    v-for="group in userGroups"
-                    :key="group.id"
-                    :value="group.id"
-                  >
-                    {{ group.name }}
-                  </option>
-                </select>
-                <p class="text-sm text-gray-500 mt-1">
-                  Group members will see this event on the group page.
-                </p>
-              </div>
-
               <div>
                 <label for="title" class="label">Game Night Title *</label>
                 <input
@@ -593,7 +610,7 @@ function setPrimaryGame(index: number) {
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
               </svg>
-              Create Game Night
+              Save Changes
             </button>
           </div>
         </form>

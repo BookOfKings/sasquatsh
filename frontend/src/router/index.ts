@@ -47,6 +47,12 @@ const routes: RouteRecordRaw[] = [
     name: 'game-detail',
     component: () => import('@/views/EventDetailView.vue'),
   },
+  {
+    path: '/games/:id/edit',
+    name: 'edit-game',
+    component: () => import('@/views/EditEventView.vue'),
+    meta: { requiresAuth: true },
+  },
   // Redirect old /events routes to /games for backwards compatibility
   {
     path: '/events',

@@ -194,7 +194,14 @@ export async function getPublicEvents(
   return (data ?? []).map(toEventSummary)
 }
 
-export async function getEvent(id: string): Promise<Event> {
+// Get event - authenticated (can see drafts if host/registered)
+export async function getEvent(id: string, token?: string): Promise<Event> {
+  // Use authenticated endpoint if token provided
+  if (token) {
+    return authenticatedRequest<Event>(`/events?id=${id}`, token)
+  }
+
+  // Fallback to direct query for public events
   const { data, error } = await supabase
     .from('events')
     .select(`

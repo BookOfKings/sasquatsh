@@ -6,6 +6,7 @@ interface DecodedToken {
   email?: string
   name?: string
   picture?: string
+  signInProvider?: string
 }
 
 interface FirebaseTokenPayload {
@@ -287,6 +288,7 @@ export async function verifyFirebaseToken(token: string): Promise<DecodedToken |
       email: payload.email,
       name: payload.name,
       picture: payload.picture,
+      signInProvider: payload.firebase?.sign_in_provider,
     }
   } catch {
     return null
