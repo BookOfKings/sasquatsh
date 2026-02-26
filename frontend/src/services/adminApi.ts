@@ -259,6 +259,34 @@ export async function unsuspendUser(token: string, userId: string): Promise<{ me
   })
 }
 
+// Update a user (admin only)
+export async function updateUser(
+  token: string,
+  userId: string,
+  data: { displayName?: string; username?: string; isAdmin?: boolean }
+): Promise<{ user: AdminUser; message: string }> {
+  return authenticatedRequest<{ user: AdminUser; message: string }>('/admin-stats?action=update-user', token, {
+    method: 'POST',
+    body: JSON.stringify({ userId, ...data }),
+  })
+}
+
+// Delete a user and all their data (admin only)
+export async function deleteUser(token: string, userId: string): Promise<{ message: string; deletedUser: { id: string; email: string; username: string } }> {
+  return authenticatedRequest<{ message: string; deletedUser: { id: string; email: string; username: string } }>('/admin-stats?action=delete-user', token, {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
+  })
+}
+
+// Send password reset email to a user (admin only)
+export async function sendPasswordReset(token: string, userId: string): Promise<{ message: string }> {
+  return authenticatedRequest<{ message: string }>('/admin-stats?action=send-password-reset', token, {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
+  })
+}
+
 // ============ Group Management ============
 
 export interface AdminGroup {
@@ -298,5 +326,139 @@ export async function deleteGroup(token: string, groupId: string): Promise<{ mes
   return authenticatedRequest<{ message: string }>('/admin-stats?action=delete-group', token, {
     method: 'POST',
     body: JSON.stringify({ groupId }),
+  })
+}
+
+// ============ Admin Notes ============
+
+export interface AdminNote {
+  id: string
+  title: string
+  content: string
+  category: string
+  isPinned: boolean
+  createdAt: string
+  updatedAt: string
+  createdBy: {
+    id: string
+    username: string
+    displayName: string | null
+  } | null
+}
+
+export interface AdminNotesResponse {
+  notes: AdminNote[]
+}
+
+// Get all notes
+export async function getAdminNotes(
+  token: string,
+  options?: { category?: string }
+): Promise<AdminNotesResponse> {
+  const params = new URLSearchParams({ action: 'notes' })
+  if (options?.category) params.set('category', options.category)
+
+  return authenticatedRequest<AdminNotesResponse>(`/admin-stats?${params}`, token)
+}
+
+// Create a note
+export async function createAdminNote(
+  token: string,
+  data: { title: string; content: string; category?: string }
+): Promise<{ note: AdminNote; message: string }> {
+  return authenticatedRequest<{ note: AdminNote; message: string }>('/admin-stats?action=create-note', token, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+// Update a note
+export async function updateAdminNote(
+  token: string,
+  noteId: string,
+  data: { title?: string; content?: string; category?: string; isPinned?: boolean }
+): Promise<{ note: AdminNote; message: string }> {
+  return authenticatedRequest<{ note: AdminNote; message: string }>('/admin-stats?action=update-note', token, {
+    method: 'POST',
+    body: JSON.stringify({ noteId, ...data }),
+  })
+}
+
+// Delete a note
+export async function deleteAdminNote(token: string, noteId: string): Promise<{ message: string }> {
+  return authenticatedRequest<{ message: string }>('/admin-stats?action=delete-note', token, {
+    method: 'POST',
+    body: JSON.stringify({ noteId }),
+  })
+}
+
+// ============ Admin Bugs ============
+
+export interface AdminBug {
+  id: string
+  title: string
+  description: string | null
+  stepsToReproduce: string | null
+  status: 'open' | 'in_progress' | 'resolved' | 'closed' | 'wont_fix'
+  priority: 'low' | 'medium' | 'high' | 'critical'
+  resolvedAt: string | null
+  createdAt: string
+  updatedAt: string
+  reportedBy: {
+    id: string
+    username: string
+    displayName: string | null
+  } | null
+  assignedTo: {
+    id: string
+    username: string
+    displayName: string | null
+  } | null
+}
+
+export interface AdminBugsResponse {
+  bugs: AdminBug[]
+}
+
+// Get all bugs
+export async function getAdminBugs(
+  token: string,
+  options?: { status?: string; priority?: string }
+): Promise<AdminBugsResponse> {
+  const params = new URLSearchParams({ action: 'bugs' })
+  if (options?.status) params.set('status', options.status)
+  if (options?.priority) params.set('priority', options.priority)
+
+  return authenticatedRequest<AdminBugsResponse>(`/admin-stats?${params}`, token)
+}
+
+// Create a bug
+export async function createAdminBug(
+  token: string,
+  data: { title: string; description?: string; stepsToReproduce?: string; priority?: string }
+): Promise<{ bug: AdminBug; message: string }> {
+  return authenticatedRequest<{ bug: AdminBug; message: string }>('/admin-stats?action=create-bug', token, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+// Update a bug
+export async function updateAdminBug(
+  token: string,
+  bugId: string,
+  data: { title?: string; description?: string; stepsToReproduce?: string; status?: string; priority?: string; assignedToUserId?: string | null }
+): Promise<{ bug: AdminBug; message: string }> {
+  return authenticatedRequest<{ bug: AdminBug; message: string }>('/admin-stats?action=update-bug', token, {
+    method: 'POST',
+    body: JSON.stringify({ bugId, ...data }),
+  })
+}
+
+// Delete a bug
+export async function deleteAdminBug(token: string, bugId: string): Promise<{ message: string }> {
+  return authenticatedRequest<{ message: string }>('/admin-stats?action=delete-bug', token, {
+    method: 'POST',
+    body: JSON.stringify({ bugId }),
   })
 }
