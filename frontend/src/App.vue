@@ -186,6 +186,9 @@ async function handleLogout() {
             <router-link to="/cookies" class="text-gray-600 hover:text-primary-500 transition-colors">
               Cookie Policy
             </router-link>
+            <router-link to="/contact" class="text-gray-600 hover:text-primary-500 transition-colors">
+              Contact Us
+            </router-link>
           </nav>
         </div>
       </div>

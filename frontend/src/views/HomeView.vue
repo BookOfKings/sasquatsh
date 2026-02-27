@@ -78,6 +78,15 @@ function goToCreateGame() {
         </div>
       </div>
 
+      <!-- Mission Statement -->
+      <div class="bg-gradient-to-r from-primary-50 to-secondary-50 rounded-xl p-4 mb-6">
+        <p class="text-gray-700 text-sm leading-relaxed">
+          Our mission is to bring board game lovers together. Whether you're hosting a casual game night
+          or looking for players nearby, Sasquatsh makes it easy to connect with fellow enthusiasts
+          and share your passion for tabletop gaming.
+        </p>
+      </div>
+
       <hr class="border-gray-200 mb-6" />
 
       <template v-if="auth.isAuthenticated.value">

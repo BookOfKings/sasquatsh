@@ -136,6 +136,11 @@ const routes: RouteRecordRaw[] = [
     name: 'cookies',
     component: () => import('@/views/CookiesView.vue'),
   },
+  {
+    path: '/contact',
+    name: 'contact',
+    component: () => import('@/views/ContactView.vue'),
+  },
   // Catch-all redirect to home
   {
     path: '/:pathMatch(.*)*',

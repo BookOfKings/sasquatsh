@@ -2,14 +2,17 @@
 import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { useEventStore } from '@/stores/useEventStore'
 import { getMyProfile, updateProfile, getBlockedUsers, unblockUser } from '@/services/profileApi'
 import { checkUsernameAvailable } from '@/services/authApi'
 import type { UserProfile, UpdateProfileInput, BlockedUser } from '@/types/profile'
 
 const router = useRouter()
 const auth = useAuthStore()
+const eventStore = useEventStore()
 
 const loading = ref(true)
+const loadingHistory = ref(true)
 const saving = ref(false)
 const profile = ref<UserProfile | null>(null)
 const blockedUsers = ref<BlockedUser[]>([])
@@ -125,10 +128,45 @@ const memberSince = computed(() => {
   return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 })
 
+// Get today's date for filtering
+const today = new Date().toISOString().split('T')[0] ?? ''
+
+// Past games (before today)
+const pastGames = computed(() => {
+  const hosted = eventStore.hostedEvents.value.filter(g => g.eventDate < today)
+  const registered = eventStore.myEvents.value.filter(g => g.eventDate < today)
+
+  // Combine and deduplicate (in case user hosts and also registered)
+  const allPast = [...hosted]
+  for (const event of registered) {
+    if (!allPast.find(e => e.id === event.id)) {
+      allPast.push(event)
+    }
+  }
+
+  // Sort by date descending (most recent first)
+  return allPast.sort((a, b) => b.eventDate.localeCompare(a.eventDate))
+})
+
 onMounted(async () => {
   await loadProfile()
-  await loadBlockedUsers()
+  await Promise.all([
+    loadBlockedUsers(),
+    loadGameHistory(),
+  ])
 })
+
+async function loadGameHistory() {
+  loadingHistory.value = true
+  try {
+    await Promise.all([
+      eventStore.loadMyEvents(),
+      eventStore.loadHostedEvents(),
+    ])
+  } finally {
+    loadingHistory.value = false
+  }
+}
 
 async function loadProfile() {
   loading.value = true
@@ -806,6 +844,56 @@ function goToGroup(slug: string) {
             </div>
             <span class="chip-success text-xs">{{ reg.status }}</span>
           </button>
+        </div>
+      </div>
+
+      <!-- Game History -->
+      <div class="card">
+        <div class="p-4 border-b border-gray-100">
+          <h3 class="font-semibold flex items-center gap-2">
+            <svg class="w-5 h-5 text-gray-500" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M13.5,8H12V13L16.28,15.54L17,14.33L13.5,12.25V8M13,3A9,9 0 0,0 4,12H1L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3"/>
+            </svg>
+            Game History
+          </h3>
+        </div>
+        <div v-if="loadingHistory" class="p-8 text-center">
+          <svg class="w-6 h-6 mx-auto text-gray-400 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+        </div>
+        <div v-else-if="pastGames.length > 0" class="divide-y divide-gray-100">
+          <button
+            v-for="game in pastGames.slice(0, 10)"
+            :key="game.id"
+            class="w-full flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors text-left"
+            @click="goToEvent(game.id)"
+          >
+            <div class="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+              <svg class="w-6 h-6 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="font-medium text-gray-700">{{ game.title }}</div>
+              <div class="text-sm text-gray-500">
+                {{ formatDate(game.eventDate) }}
+                <span v-if="game.city"> &bull; {{ game.city }}<span v-if="game.state">, {{ game.state }}</span></span>
+              </div>
+            </div>
+            <span class="text-xs text-gray-400">{{ game.gameTitle || '' }}</span>
+          </button>
+          <div v-if="pastGames.length > 10" class="p-4 text-center text-sm text-gray-500">
+            Showing most recent 10 of {{ pastGames.length }} games
+          </div>
+        </div>
+        <div v-else class="p-8 text-center">
+          <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
+          </svg>
+          <p class="text-gray-500">No game history yet.</p>
+          <p class="text-sm text-gray-400 mt-1">Your completed games will appear here.</p>
         </div>
       </div>
     </template>

@@ -11,11 +11,22 @@ const eventStore = useEventStore()
 const groupStore = useGroupStore()
 const router = useRouter()
 
-const myGames = ref<EventSummary[]>([])
-const hostedGames = ref<EventSummary[]>([])
+const allMyGames = ref<EventSummary[]>([])
+const allHostedGames = ref<EventSummary[]>([])
 const loadingMy = ref(true)
 const loadingHosted = ref(true)
 const loadingGroups = ref(true)
+
+// Get today's date for filtering
+const today = new Date().toISOString().split('T')[0] ?? ''
+
+// Filter to only upcoming games (today or future)
+const myGames = computed(() =>
+  allMyGames.value.filter(g => g.eventDate >= today)
+)
+const hostedGames = computed(() =>
+  allHostedGames.value.filter(g => g.eventDate >= today)
+)
 
 // Split groups into managed (owner/admin) and member-only
 const managedGroups = computed(() =>
@@ -28,12 +39,12 @@ const memberGroups = computed(() =>
 onMounted(async () => {
   // Load my registered games
   await eventStore.loadMyEvents()
-  myGames.value = eventStore.myEvents.value
+  allMyGames.value = eventStore.myEvents.value
   loadingMy.value = false
 
   // Load my hosted games
   await eventStore.loadHostedEvents()
-  hostedGames.value = eventStore.hostedEvents.value
+  allHostedGames.value = eventStore.hostedEvents.value
   loadingHosted.value = false
 
   // Load my groups
