@@ -55,6 +55,9 @@ Deno.serve(async (req) => {
   // GET - List active player requests (public)
   if (req.method === 'GET' && !requestId) {
     const eventId = url.searchParams.get('eventId')
+    const city = url.searchParams.get('city')
+    const state = url.searchParams.get('state')
+    const eventLocationId = url.searchParams.get('eventLocationId')
 
     // Get blocked user IDs if user is authenticated
     let blockedUserIds: string[] = []
@@ -76,7 +79,7 @@ Deno.serve(async (req) => {
       .select(`
         *,
         user:users(id, display_name, username, avatar_url),
-        event:events(id, title, game_title, event_date, start_time, city, state, address_line1, location_details)
+        event:events(id, title, game_title, event_date, start_time, city, state, address_line1, location_details, event_location_id)
       `)
       .eq('status', 'open')
       .eq('is_active', true)
@@ -96,11 +99,35 @@ Deno.serve(async (req) => {
 
     const { data, error } = await query
 
+    // Apply location filtering in-memory since we can't filter by joined table columns directly
+    let filteredData = data ?? []
+
+    if (city) {
+      filteredData = filteredData.filter(r => {
+        const event = r.event as Record<string, unknown> | null
+        return event?.city && String(event.city).toLowerCase().includes(city.toLowerCase())
+      })
+    }
+
+    if (state) {
+      filteredData = filteredData.filter(r => {
+        const event = r.event as Record<string, unknown> | null
+        return event?.state === state
+      })
+    }
+
+    if (eventLocationId) {
+      filteredData = filteredData.filter(r => {
+        const event = r.event as Record<string, unknown> | null
+        return event?.event_location_id === eventLocationId
+      })
+    }
+
     if (error) {
       return errorResponse(error.message, 500)
     }
 
-    return jsonResponse(data.map(toPlayerRequest))
+    return jsonResponse(filteredData.map(toPlayerRequest))
   }
 
   // All other operations require authentication

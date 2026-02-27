@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
 import {
@@ -11,7 +11,8 @@ import {
   deletePlayerRequest,
 } from '@/services/socialApi'
 import { getMyEvents } from '@/services/eventsApi'
-import type { PlayerRequest, CreatePlayerRequestInput } from '@/types/social'
+import { getMyProfile } from '@/services/profileApi'
+import type { PlayerRequest, CreatePlayerRequestInput, PlayerRequestFilters } from '@/types/social'
 import type { EventSummary } from '@/types/events'
 import D20Spinner from '@/components/common/D20Spinner.vue'
 
@@ -29,6 +30,13 @@ const showCreateDialog = ref(false)
 const creating = ref(false)
 const actionInProgress = ref<string | null>(null)
 
+// Location filter state
+const locationFilter = ref({
+  city: '',
+  state: '',
+})
+const filterApplied = ref(false)
+
 // Auto-refresh interval
 let refreshInterval: ReturnType<typeof setInterval> | null = null
 
@@ -44,7 +52,32 @@ const upcomingEvents = computed(() => {
   return myEvents.value.filter(e => e.eventDate >= today && e.status !== 'cancelled')
 })
 
+async function loadUserLocation() {
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+
+    const profile = await getMyProfile(token)
+    // Use active location if set, otherwise use home location
+    const city = profile.activeCity || profile.homeCity
+    const state = profile.activeState || profile.homeState
+
+    if (city) locationFilter.value.city = city
+    if (state) locationFilter.value.state = state
+    if (city || state) {
+      filterApplied.value = true
+    }
+  } catch (err) {
+    console.error('Failed to load user location:', err)
+  }
+}
+
 onMounted(async () => {
+  // Auto-populate location from user profile if authenticated
+  if (auth.isAuthenticated.value) {
+    await loadUserLocation()
+  }
+
   await loadRequests()
 
   if (auth.isAuthenticated.value) {
@@ -55,6 +88,14 @@ onMounted(async () => {
   refreshInterval = setInterval(() => {
     loadRequests()
   }, 30000)
+})
+
+// Watch for auth state changes to update location filter
+watch(() => auth.isAuthenticated.value, async (isAuth) => {
+  if (isAuth && !filterApplied.value) {
+    await loadUserLocation()
+    loadRequests()
+  }
 })
 
 onUnmounted(() => {
@@ -69,12 +110,27 @@ async function loadRequests() {
 
   try {
     const token = auth.isAuthenticated.value ? await auth.getIdToken() : undefined
-    requests.value = await getPlayerRequests(undefined, token ?? undefined)
+    const filters: PlayerRequestFilters = {}
+    if (locationFilter.value.city) filters.city = locationFilter.value.city
+    if (locationFilter.value.state) filters.state = locationFilter.value.state
+    requests.value = await getPlayerRequests(filters, token ?? undefined)
   } catch (err) {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to load requests'
   } finally {
     loading.value = false
   }
+}
+
+function clearLocationFilter() {
+  locationFilter.value.city = ''
+  locationFilter.value.state = ''
+  filterApplied.value = false
+  loadRequests()
+}
+
+function applyLocationFilter() {
+  filterApplied.value = !!(locationFilter.value.city || locationFilter.value.state)
+  loadRequests()
 }
 
 async function loadMyRequests() {
@@ -284,6 +340,49 @@ function getStatusBadge(status: string) {
           <strong>How it works:</strong> If someone bails on your game at the last minute, post a request here.
           Requests are visible for <strong>15 minutes</strong> to help you find fill-in players quickly.
         </div>
+      </div>
+    </div>
+
+    <!-- Location Filter -->
+    <div class="card p-4 mb-6">
+      <div class="flex flex-wrap items-center gap-3">
+        <div class="flex items-center gap-2 text-sm text-gray-600">
+          <svg class="w-5 h-5 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12,11.5A2.5,2.5 0 0,1 9.5,9A2.5,2.5 0 0,1 12,6.5A2.5,2.5 0 0,1 14.5,9A2.5,2.5 0 0,1 12,11.5M12,2A7,7 0 0,0 5,9C5,14.25 12,22 12,22C12,22 19,14.25 19,9A7,7 0 0,0 12,2Z"/>
+          </svg>
+          <span>Filter by location:</span>
+        </div>
+        <input
+          v-model="locationFilter.city"
+          type="text"
+          class="input text-sm py-1.5 w-32"
+          placeholder="City"
+          @keyup.enter="applyLocationFilter"
+        />
+        <input
+          v-model="locationFilter.state"
+          type="text"
+          class="input text-sm py-1.5 w-20"
+          placeholder="State"
+          maxlength="2"
+          @keyup.enter="applyLocationFilter"
+        />
+        <button
+          class="btn-primary text-sm py-1.5"
+          @click="applyLocationFilter"
+        >
+          Apply
+        </button>
+        <button
+          v-if="filterApplied"
+          class="btn-ghost text-sm py-1.5 text-gray-500"
+          @click="clearLocationFilter"
+        >
+          Clear
+        </button>
+        <span v-if="filterApplied && (locationFilter.city || locationFilter.state)" class="text-sm text-gray-500 ml-auto">
+          Showing requests near {{ [locationFilter.city, locationFilter.state].filter(Boolean).join(', ') }}
+        </span>
       </div>
     </div>
 

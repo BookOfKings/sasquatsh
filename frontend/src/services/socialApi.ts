@@ -85,6 +85,9 @@ export async function getPlayerRequests(
 ): Promise<PlayerRequest[]> {
   const params = new URLSearchParams()
   if (filters?.eventId) params.set('eventId', filters.eventId)
+  if (filters?.city) params.set('city', filters.city)
+  if (filters?.state) params.set('state', filters.state)
+  if (filters?.eventLocationId) params.set('eventLocationId', filters.eventLocationId)
 
   const url = `${FUNCTIONS_URL}/player-requests${params.toString() ? '?' + params.toString() : ''}`
 

@@ -389,44 +389,92 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 
 [functions.auth-sync]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/auth-sync/deno.json"
-# Uncomment to specify a custom file path to the entrypoint.
-# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/auth-sync/index.ts"
-# Specifies static files to be bundled with the function. Supports glob patterns.
-# For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/auth-sync/*.html" ]
 
 [functions.events]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/events/deno.json"
-# Uncomment to specify a custom file path to the entrypoint.
-# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/events/index.ts"
-# Specifies static files to be bundled with the function. Supports glob patterns.
-# For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/events/*.html" ]
 
 [functions.registrations]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/registrations/deno.json"
-# Uncomment to specify a custom file path to the entrypoint.
-# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/registrations/index.ts"
-# Specifies static files to be bundled with the function. Supports glob patterns.
-# For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/registrations/*.html" ]
 
 [functions.items]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/items/deno.json"
-# Uncomment to specify a custom file path to the entrypoint.
-# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/items/index.ts"
-# Specifies static files to be bundled with the function. Supports glob patterns.
-# For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/items/*.html" ]
+
+# The following functions use Firebase Auth (not Supabase Auth), so verify_jwt must be false
+# They handle their own authentication via X-Firebase-Token header
+
+[functions.groups]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/groups/index.ts"
+
+[functions.profile]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/profile/index.ts"
+
+[functions.planning]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/planning/index.ts"
+
+[functions.contact]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/contact/index.ts"
+
+[functions.bgg]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/bgg/index.ts"
+
+[functions.bgg-cache]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/bgg-cache/index.ts"
+
+[functions.check-username]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/check-username/index.ts"
+
+[functions.admin-stats]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/admin-stats/index.ts"
+
+[functions.player-requests]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/player-requests/index.ts"
+
+[functions.event-locations]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/event-locations/index.ts"
+
+[functions.event-games]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/event-games/index.ts"
+
+[functions.invitations]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/invitations/index.ts"
+
+[functions.stats]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/stats/index.ts"

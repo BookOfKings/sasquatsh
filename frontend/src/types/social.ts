@@ -71,6 +71,9 @@ export interface UpdatePlayerRequestInput {
 
 export interface PlayerRequestFilters {
   eventId?: string
+  city?: string
+  state?: string
+  eventLocationId?: string
 }
 
 export interface GameInvitation {
