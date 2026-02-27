@@ -48,7 +48,7 @@ function goToCreateGame() {
       </div>
 
       <h1 class="text-3xl font-bold text-primary-500 mb-2">Sasquatsh</h1>
-      <p class="text-lg text-gray-600 mb-4">Plan legendary game nights with your crew</p>
+      <p class="text-lg text-gray-600 mb-4">Plan legendary games with your crew</p>
 
       <!-- Stats Cards -->
       <div class="grid grid-cols-2 gap-4 mb-6">
@@ -57,7 +57,7 @@ function goToCreateGame() {
             <svg class="w-5 h-5 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
               <path d="M19,19H5V8H19M16,1V3H8V1H6V3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3H18V1"/>
             </svg>
-            <span class="text-sm font-medium text-primary-700">Tonight</span>
+            <span class="text-sm font-medium text-primary-700">Today</span>
           </div>
           <div v-if="statsLoading" class="h-8 bg-primary-100 rounded animate-pulse"></div>
           <div v-else class="text-2xl font-bold text-primary-600">
@@ -88,7 +88,7 @@ function goToCreateGame() {
           <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
             <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/>
           </svg>
-          Host a Game Night
+          Host a Game
         </button>
         <div class="grid grid-cols-2 gap-3">
           <button @click="goToDashboard" class="btn-outline">
@@ -108,7 +108,7 @@ function goToCreateGame() {
 
       <template v-else>
         <p class="text-gray-600 mb-6">
-          Create game nights, invite friends, and organize epic board game sessions.
+          Create games, invite friends, and organize epic board game sessions.
         </p>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">

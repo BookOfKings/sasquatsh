@@ -99,7 +99,7 @@ function validate(): boolean {
   let valid = true
 
   if (!form.title.trim()) {
-    errors.title = 'Game night title is required'
+    errors.title = 'Game title is required'
     valid = false
   }
 
@@ -224,7 +224,7 @@ function setPrimaryGame(index: number) {
           <svg class="w-6 h-6 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
             <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
           </svg>
-          Create Game Night
+          Host a Game
         </h1>
       </div>
 
@@ -272,7 +272,7 @@ function setPrimaryGame(index: number) {
               </div>
 
               <div>
-                <label for="title" class="label">Game Night Title *</label>
+                <label for="title" class="label">Game Title *</label>
                 <input
                   id="title"
                   v-model="form.title"
@@ -484,9 +484,9 @@ function setPrimaryGame(index: number) {
             </div>
           </div>
 
-          <!-- Game Night Settings -->
+          <!-- Game Settings -->
           <div>
-            <h3 class="font-semibold text-gray-900 mb-4">Game Night Settings</h3>
+            <h3 class="font-semibold text-gray-900 mb-4">Game Settings</h3>
 
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
@@ -593,7 +593,7 @@ function setPrimaryGame(index: number) {
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
               </svg>
-              Create Game Night
+              Host Game
             </button>
           </div>
         </form>

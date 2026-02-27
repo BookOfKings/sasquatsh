@@ -42,8 +42,10 @@ export interface PlayerRequest {
     gameTitle: string | null
     eventDate: string
     startTime: string
-    location: string | null
-    address: string | null
+    city: string | null
+    state: string | null
+    addressLine1: string | null
+    locationDetails: string | null
   } | null
   host: {
     id: string

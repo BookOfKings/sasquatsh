@@ -152,7 +152,7 @@ function validate(): boolean {
   let valid = true
 
   if (!form.title?.trim()) {
-    errors.title = 'Game night title is required'
+    errors.title = 'Game title is required'
     valid = false
   }
 
@@ -264,7 +264,7 @@ function setPrimaryGame(index: number) {
           <svg class="w-6 h-6 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
             <path d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
           </svg>
-          Edit Game Night
+          Edit Game
         </h1>
       </div>
 
@@ -289,7 +289,7 @@ function setPrimaryGame(index: number) {
 
             <div class="space-y-4">
               <div>
-                <label for="title" class="label">Game Night Title *</label>
+                <label for="title" class="label">Game Title *</label>
                 <input
                   id="title"
                   v-model="form.title"
@@ -501,9 +501,9 @@ function setPrimaryGame(index: number) {
             </div>
           </div>
 
-          <!-- Game Night Settings -->
+          <!-- Game Settings -->
           <div>
-            <h3 class="font-semibold text-gray-900 mb-4">Game Night Settings</h3>
+            <h3 class="font-semibold text-gray-900 mb-4">Game Settings</h3>
 
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>

@@ -326,7 +326,7 @@ function goToLogin() {
 
         <!-- Description -->
         <div v-if="event.description" class="mb-6">
-          <h3 class="font-semibold mb-2">About this game night</h3>
+          <h3 class="font-semibold mb-2">About this game</h3>
           <p class="text-gray-600">{{ event.description }}</p>
         </div>
 

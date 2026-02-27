@@ -183,7 +183,7 @@ function goToLogin() {
       <div class="text-center mb-6">
         <img src="/logo.png" alt="Sasquatsh" class="w-32 h-32 mx-auto" />
         <h1 class="text-xl font-bold text-primary-500 mt-2">Join Sasquatsh</h1>
-        <p class="text-sm text-gray-500">Start planning epic game nights</p>
+        <p class="text-sm text-gray-500">Start planning epic games</p>
       </div>
 
       <!-- Error Alert -->

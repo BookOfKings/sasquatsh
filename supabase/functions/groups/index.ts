@@ -741,6 +741,17 @@ Deno.serve(async (req) => {
         return errorResponse('Group name is required', 400)
       }
 
+      // Check if group name already exists (case-insensitive)
+      const { data: existingGroup } = await supabase
+        .from('groups')
+        .select('id, name')
+        .ilike('name', body.name.trim())
+        .single()
+
+      if (existingGroup) {
+        return errorResponse(`A group with the name "${existingGroup.name}" already exists`, 400)
+      }
+
       // Generate unique slug
       let baseSlug = generateSlug(body.name)
       let finalSlug = baseSlug

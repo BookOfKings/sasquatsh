@@ -114,8 +114,8 @@ function goToCreateGame() {
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900">Find Game Nights</h1>
-        <p class="text-gray-500">Discover game nights near you</p>
+        <h1 class="text-2xl font-bold text-gray-900">Find Games</h1>
+        <p class="text-gray-500">Discover games near you</p>
       </div>
 
       <button
@@ -126,7 +126,7 @@ function goToCreateGame() {
         <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
           <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/>
         </svg>
-        Host Game Night
+        Host a Game
       </button>
     </div>
 
@@ -142,7 +142,7 @@ function goToCreateGame() {
             v-model="searchText"
             type="text"
             class="input pl-10"
-            placeholder="Search game nights..."
+            placeholder="Search for games..."
           />
         </div>
 

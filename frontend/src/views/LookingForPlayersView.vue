@@ -379,8 +379,8 @@ function getStatusBadge(status: string) {
                     {{ formatDate(request.event.eventDate) }}
                     <span v-if="request.event?.startTime"> at {{ formatTime(request.event.startTime) }}</span>
                   </span>
-                  <span v-if="request.event?.location">
-                    {{ request.event.location }}
+                  <span v-if="request.event?.city || request.event?.locationDetails">
+                    {{ request.event.locationDetails || [request.event.city, request.event.state].filter(Boolean).join(', ') }}
                   </span>
                 </div>
               </div>
