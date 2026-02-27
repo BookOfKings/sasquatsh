@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
 import CookieConsent from '@/components/common/CookieConsent.vue'
+import D6Spinner from '@/components/common/D6Spinner.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -58,8 +59,23 @@ async function handleLogout() {
 
 <template>
   <div class="min-h-screen flex flex-col">
+    <!-- Background D6 dice -->
+    <div class="fixed inset-0 pointer-events-none overflow-hidden z-0">
+      <div class="absolute -top-10 -left-10">
+        <D6Spinner :size="200" :opacity="0.08" :duration="25" />
+      </div>
+      <div class="absolute top-1/4 -right-20">
+        <D6Spinner :size="150" :opacity="0.06" :duration="30" />
+      </div>
+      <div class="absolute bottom-20 left-1/4">
+        <D6Spinner :size="120" :opacity="0.05" :duration="35" />
+      </div>
+      <div class="absolute -bottom-10 right-1/3">
+        <D6Spinner :size="180" :opacity="0.07" :duration="22" />
+      </div>
+    </div>
     <!-- Navigation -->
-    <header v-if="showNavigation" class="bg-primary-500 text-white shadow-sm safe-top">
+    <header v-if="showNavigation" class="bg-primary-500 text-white shadow-sm safe-top relative z-10">
       <nav class="container-wide py-3">
         <div class="flex items-center justify-between">
           <!-- Logo -->
@@ -263,12 +279,12 @@ async function handleLogout() {
     <div v-if="userMenuOpen || mobileMenuOpen" class="fixed inset-0 z-40" @click="userMenuOpen = false; mobileMenuOpen = false"></div>
 
     <!-- Main Content -->
-    <main class="flex-1">
+    <main class="flex-1 relative z-10">
       <router-view />
     </main>
 
     <!-- Footer -->
-    <footer v-if="showNavigation" class="bg-gray-100 border-t border-gray-200 py-6">
+    <footer v-if="showNavigation" class="bg-gray-100 border-t border-gray-200 py-6 relative z-10">
       <div class="container-wide">
         <div class="flex flex-col md:flex-row items-center justify-between gap-4">
           <div class="flex items-center gap-2 text-gray-600">
