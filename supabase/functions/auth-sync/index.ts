@@ -4,43 +4,12 @@ import { verifyFirebaseToken, jsonResponse, errorResponse, getCorsHeaders, getFi
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const recaptchaSecretKey = Deno.env.get('RECAPTCHA_SECRET_KEY')
-const internalServiceKey = Deno.env.get('INTERNAL_SERVICE_KEY')
 
 // Username validation regex: 3-30 chars, starts with letter, alphanumeric + underscores
 const USERNAME_REGEX = /^[a-zA-Z][a-zA-Z0-9_]{2,29}$/
 
 // Reserved usernames
 const RESERVED_USERNAMES = ['admin', 'administrator', 'root', 'system', 'support', 'help', 'info', 'sasquatsh', 'moderator', 'mod']
-
-async function sendWelcomeEmail(email: string, displayName: string | null, username: string): Promise<void> {
-  if (!internalServiceKey) {
-    console.warn('INTERNAL_SERVICE_KEY not configured, skipping welcome email')
-    return
-  }
-
-  try {
-    const response = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Internal-Key': internalServiceKey,
-      },
-      body: JSON.stringify({
-        type: 'welcome',
-        to: email,
-        displayName: displayName || '',
-        username: username,
-      }),
-    })
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
-      console.error('Failed to send welcome email:', error)
-    }
-  } catch (err) {
-    console.error('Error sending welcome email:', err)
-  }
-}
 
 async function verifyRecaptcha(token: string): Promise<{ success: boolean; score?: number; error?: string }> {
   if (!recaptchaSecretKey) {
@@ -215,11 +184,6 @@ Deno.serve(async (req) => {
 
     if (error) {
       return errorResponse(error.message, 500)
-    }
-
-    // Send welcome email (non-blocking)
-    if (firebaseUser.email) {
-      sendWelcomeEmail(firebaseUser.email, firebaseUser.name || null, username)
     }
 
     return jsonResponse(transformUser(data))

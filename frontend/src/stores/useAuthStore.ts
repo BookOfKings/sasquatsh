@@ -7,6 +7,7 @@ import {
   signOut,
   onAuthStateChanged,
   updateProfile,
+  sendEmailVerification,
   type User as FirebaseUser,
 } from 'firebase/auth'
 import { auth } from '@/services/firebase'
@@ -105,9 +106,14 @@ async function signupWithEmail(
         await result.user.delete()
         return { ok: false, message: syncErr.message || 'Failed to create account' }
       }
+
+      // Send verification email (non-blocking)
+      sendEmailVerification(result.user).catch((err) => {
+        console.error('Failed to send verification email:', err)
+      })
     }
 
-    return { ok: true, message: 'Account created!' }
+    return { ok: true, message: 'Account created! Check your email to verify your account.' }
   } catch (err: any) {
     const message = getAuthErrorMessage(err.code)
     error.value = message
