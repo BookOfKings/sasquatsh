@@ -25,6 +25,10 @@ function toUserProfile(row: Record<string, unknown>) {
     activeCity: row.active_city as string | null,
     activeState: row.active_state as string | null,
     activeLocationExpiresAt: row.active_location_expires_at as string | null,
+    activeEventLocationId: row.active_event_location_id as string | null,
+    activeLocationHall: row.active_location_hall as string | null,
+    activeLocationRoom: row.active_location_room as string | null,
+    activeLocationTable: row.active_location_table as string | null,
     bio: row.bio as string | null,
     favoriteGames: row.favorite_games as string[] | null,
     preferredGameTypes: row.preferred_game_types as string[] | null,
@@ -249,6 +253,10 @@ Deno.serve(async (req) => {
     if (body.activeCity !== undefined) updates.active_city = body.activeCity?.trim() || null
     if (body.activeState !== undefined) updates.active_state = body.activeState?.trim() || null
     if (body.activeLocationExpiresAt !== undefined) updates.active_location_expires_at = body.activeLocationExpiresAt || null
+    if (body.activeEventLocationId !== undefined) updates.active_event_location_id = body.activeEventLocationId || null
+    if (body.activeLocationHall !== undefined) updates.active_location_hall = body.activeLocationHall?.trim() || null
+    if (body.activeLocationRoom !== undefined) updates.active_location_room = body.activeLocationRoom?.trim() || null
+    if (body.activeLocationTable !== undefined) updates.active_location_table = body.activeLocationTable?.trim() || null
 
     const { data, error } = await supabase
       .from('users')

@@ -13,6 +13,10 @@ export interface UserProfile {
   activeCity: string | null
   activeState: string | null
   activeLocationExpiresAt: string | null
+  activeEventLocationId: string | null
+  activeLocationHall: string | null
+  activeLocationRoom: string | null
+  activeLocationTable: string | null
   bio: string | null
   favoriteGames: string[] | null
   preferredGameTypes: string[] | null
@@ -87,6 +91,10 @@ export interface UpdateProfileInput {
   activeCity?: string | null
   activeState?: string | null
   activeLocationExpiresAt?: string | null
+  activeEventLocationId?: string | null
+  activeLocationHall?: string | null
+  activeLocationRoom?: string | null
+  activeLocationTable?: string | null
   bio?: string | null
   favoriteGames?: string[] | null
   preferredGameTypes?: string[] | null

@@ -7,9 +7,14 @@ import { useGroupStore } from '@/stores/useGroupStore'
 import { addEventGame } from '@/services/bggApi'
 import GameSearch from '@/components/common/GameSearch.vue'
 import GameCard from '@/components/common/GameCard.vue'
+import HotLocationsBar from '@/components/venues/HotLocationsBar.vue'
+import VenueSelector from '@/components/venues/VenueSelector.vue'
+import VenueDetailsFields from '@/components/venues/VenueDetailsFields.vue'
+import SubmitVenueModal from '@/components/venues/SubmitVenueModal.vue'
 import type { CreateEventInput } from '@/types/events'
 import type { BggGame } from '@/types/bgg'
 import type { GroupSummary } from '@/types/groups'
+import type { EventLocation } from '@/types/social'
 
 const router = useRouter()
 const eventStore = useEventStore()
@@ -22,6 +27,11 @@ const userGroups = ref<GroupSummary[]>([])
 // Selected games for this event
 const selectedGames = ref<BggGame[]>([])
 const gameSearchQuery = ref('')
+
+// Venue selection state
+const locationMode = ref<'venue' | 'custom'>('custom')
+const selectedVenue = ref<EventLocation | null>(null)
+const showVenueModal = ref(false)
 
 const loading = ref(false)
 const errorMessage = ref('')
@@ -41,6 +51,10 @@ const form = reactive<CreateEventInput>({
   state: '',
   postalCode: '',
   locationDetails: '',
+  eventLocationId: undefined,
+  venueHall: undefined,
+  venueRoom: undefined,
+  venueTable: undefined,
   difficultyLevel: undefined,
   maxPlayers: 4,
   isPublic: true,
@@ -204,6 +218,34 @@ function setPrimaryGame(index: number) {
   selectedGames.value.splice(index, 1)
   selectedGames.value.unshift(game)
   form.gameTitle = game.name
+}
+
+function handleVenueSelect(venue: EventLocation) {
+  selectedVenue.value = venue
+  form.eventLocationId = venue.id
+  form.city = venue.city
+  form.state = venue.state
+  locationMode.value = 'venue'
+}
+
+function handleVenueSelectorSelect(venue: EventLocation | null) {
+  if (venue) {
+    handleVenueSelect(venue)
+  } else {
+    clearVenueSelection()
+  }
+}
+
+function clearVenueSelection() {
+  selectedVenue.value = null
+  form.eventLocationId = undefined
+  form.venueHall = undefined
+  form.venueRoom = undefined
+  form.venueTable = undefined
+}
+
+function handleVenueSubmitted(venue: EventLocation) {
+  console.log('Venue submitted:', venue.name)
 }
 </script>
 
@@ -424,7 +466,87 @@ function setPrimaryGame(index: number) {
           <div>
             <h3 class="font-semibold text-gray-900 mb-4">Location</h3>
 
-            <div class="space-y-4">
+            <!-- Hot Locations Quick Select -->
+            <HotLocationsBar
+              :selected-id="form.eventLocationId"
+              @select="handleVenueSelect"
+            />
+
+            <!-- Location Mode Toggle -->
+            <div class="flex gap-4 mb-4">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  v-model="locationMode"
+                  value="venue"
+                  class="w-4 h-4 text-primary-500 focus:ring-primary-500"
+                  :disabled="loading"
+                />
+                <span class="text-sm text-gray-700">Select a venue</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  v-model="locationMode"
+                  value="custom"
+                  class="w-4 h-4 text-primary-500 focus:ring-primary-500"
+                  :disabled="loading"
+                  @change="clearVenueSelection"
+                />
+                <span class="text-sm text-gray-700">Enter custom address</span>
+              </label>
+            </div>
+
+            <!-- Venue Selection Mode -->
+            <div v-if="locationMode === 'venue'" class="space-y-4">
+              <div>
+                <label class="label">Select a Venue</label>
+                <VenueSelector
+                  :model-value="form.eventLocationId ?? null"
+                  :disabled="loading"
+                  @update:model-value="(v) => form.eventLocationId = v ?? undefined"
+                  @select="handleVenueSelectorSelect"
+                />
+                <div class="flex items-center gap-2 mt-2">
+                  <button
+                    type="button"
+                    class="text-sm text-primary-500 hover:text-primary-600"
+                    @click="showVenueModal = true"
+                  >
+                    + Submit a new venue
+                  </button>
+                </div>
+              </div>
+
+              <!-- Venue Details (Hall/Room/Table) when venue selected -->
+              <div v-if="selectedVenue">
+                <label class="label">Location Details (optional)</label>
+                <VenueDetailsFields
+                  :hall="form.venueHall"
+                  :room="form.venueRoom"
+                  :table="form.venueTable"
+                  :disabled="loading"
+                  @update:hall="(v) => form.venueHall = v ?? undefined"
+                  @update:room="(v) => form.venueRoom = v ?? undefined"
+                  @update:table="(v) => form.venueTable = v ?? undefined"
+                />
+              </div>
+
+              <div>
+                <label for="locationDetails" class="label">Additional Details</label>
+                <input
+                  id="locationDetails"
+                  v-model="form.locationDetails"
+                  type="text"
+                  class="input"
+                  placeholder="e.g., Meet at the registration desk"
+                  :disabled="loading"
+                />
+              </div>
+            </div>
+
+            <!-- Custom Address Mode -->
+            <div v-else class="space-y-4">
               <div>
                 <label for="addressLine1" class="label">Address</label>
                 <input
@@ -599,5 +721,12 @@ function setPrimaryGame(index: number) {
         </form>
       </div>
     </div>
+
+    <!-- Submit Venue Modal -->
+    <SubmitVenueModal
+      :visible="showVenueModal"
+      @close="showVenueModal = false"
+      @submitted="handleVenueSubmitted"
+    />
   </div>
 </template>

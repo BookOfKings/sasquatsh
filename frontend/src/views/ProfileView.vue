@@ -5,9 +5,15 @@ import { useAuthStore } from '@/stores/useAuthStore'
 import { useEventStore } from '@/stores/useEventStore'
 import { getMyProfile, updateProfile, getBlockedUsers, unblockUser } from '@/services/profileApi'
 import { checkUsernameAvailable } from '@/services/authApi'
+import { getLocationById } from '@/services/venuesApi'
 import type { UserProfile, UpdateProfileInput, BlockedUser } from '@/types/profile'
+import type { EventLocation } from '@/types/social'
 import D20Spinner from '@/components/common/D20Spinner.vue'
 import GameSearch from '@/components/common/GameSearch.vue'
+import HotLocationsBar from '@/components/venues/HotLocationsBar.vue'
+import VenueSelector from '@/components/venues/VenueSelector.vue'
+import VenueDetailsFields from '@/components/venues/VenueDetailsFields.vue'
+import SubmitVenueModal from '@/components/venues/SubmitVenueModal.vue'
 import type { BggGame } from '@/types/bgg'
 
 const router = useRouter()
@@ -31,6 +37,10 @@ const usernameError = ref('')
 let usernameCheckTimer: ReturnType<typeof setTimeout> | null = null
 const USERNAME_REGEX = /^[a-zA-Z][a-zA-Z0-9_]{2,29}$/
 
+// Venue modal state
+const showVenueModal = ref(false)
+const selectedVenue = ref<EventLocation | null>(null)
+
 const form = reactive<UpdateProfileInput>({
   username: '',
   displayName: '',
@@ -43,6 +53,10 @@ const form = reactive<UpdateProfileInput>({
   activeCity: '',
   activeState: '',
   activeLocationExpiresAt: '',
+  activeEventLocationId: undefined,
+  activeLocationHall: undefined,
+  activeLocationRoom: undefined,
+  activeLocationTable: undefined,
   bio: '',
   favoriteGames: [],
   preferredGameTypes: [],
@@ -224,7 +238,7 @@ async function handleUnblock(userId: string) {
   }
 }
 
-function populateForm() {
+async function populateForm() {
   if (!profile.value) return
   form.username = profile.value.username ?? ''
   form.displayName = profile.value.displayName ?? ''
@@ -237,12 +251,28 @@ function populateForm() {
   form.activeCity = profile.value.activeCity ?? ''
   form.activeState = profile.value.activeState ?? ''
   form.activeLocationExpiresAt = profile.value.activeLocationExpiresAt?.split('T')[0] ?? ''
+  form.activeEventLocationId = profile.value.activeEventLocationId ?? undefined
+  form.activeLocationHall = profile.value.activeLocationHall ?? undefined
+  form.activeLocationRoom = profile.value.activeLocationRoom ?? undefined
+  form.activeLocationTable = profile.value.activeLocationTable ?? undefined
   form.bio = profile.value.bio ?? ''
   form.favoriteGames = profile.value.favoriteGames ?? []
   form.preferredGameTypes = profile.value.preferredGameTypes ?? []
   // Reset username availability state
   usernameAvailable.value = true
   usernameError.value = ''
+
+  // Load venue details if set
+  if (profile.value.activeEventLocationId) {
+    try {
+      selectedVenue.value = await getLocationById(profile.value.activeEventLocationId)
+    } catch (err) {
+      console.error('Failed to load venue details:', err)
+      selectedVenue.value = null
+    }
+  } else {
+    selectedVenue.value = null
+  }
 }
 
 function startEditing() {
@@ -319,6 +349,43 @@ function toggleGameType(type: string) {
   } else {
     form.preferredGameTypes = [...current, type]
   }
+}
+
+function handleVenueSelect(venue: EventLocation) {
+  selectedVenue.value = venue
+  form.activeEventLocationId = venue.id
+  form.activeCity = venue.city
+  form.activeState = venue.state
+  // Set expiration to venue end date
+  form.activeLocationExpiresAt = venue.endDate
+}
+
+function handleVenueSelectorSelect(venue: EventLocation | null) {
+  if (venue) {
+    handleVenueSelect(venue)
+  } else {
+    clearVenueSelection()
+  }
+}
+
+function clearVenueSelection() {
+  selectedVenue.value = null
+  form.activeEventLocationId = undefined
+  form.activeLocationHall = undefined
+  form.activeLocationRoom = undefined
+  form.activeLocationTable = undefined
+}
+
+function clearActiveLocation() {
+  form.activeCity = ''
+  form.activeState = ''
+  form.activeLocationExpiresAt = ''
+  clearVenueSelection()
+}
+
+function handleVenueSubmitted(venue: EventLocation) {
+  // Could auto-select the submitted venue if approved
+  console.log('Venue submitted:', venue.name)
 }
 
 function formatDate(dateStr: string): string {
@@ -400,11 +467,20 @@ function goToGroup(slug: string) {
               </div>
 
               <!-- Active Location Badge -->
-              <div v-if="profile.activeCity || profile.activeState" class="flex items-center gap-1 mt-2 text-secondary-600">
+              <div v-if="profile.activeCity || profile.activeState || selectedVenue" class="flex items-center gap-1 mt-2 text-secondary-600">
                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M18.27,6C19.28,8.17 19.05,10.73 17.94,12.81C17,14.5 15.65,15.93 14.5,17.5C14,18.14 13.5,18.81 13,19.5L12,20.75L11,19.5C10.5,18.81 10,18.14 9.5,17.5C8.35,15.93 7,14.5 6.06,12.81C4.95,10.73 4.72,8.17 5.73,6C7.21,2.89 11.33,2.03 13.86,4.11C14.45,4.57 14.96,5.13 15.35,5.76C15.57,5.36 15.82,5 16.11,4.63C17.56,2.95 20.1,2.88 21.47,4.63C22.68,6.17 22.88,8.46 22.13,10.3C21.55,11.72 20.61,12.96 19.55,14.04C19.33,14.26 19.1,14.5 18.86,14.71C18.38,15.17 17.39,15.4 16.95,14.95C16.5,14.5 16.72,13.55 17.2,13.06C17.44,12.83 17.67,12.59 17.88,12.35C18.75,11.5 19.5,10.53 19.88,9.4C20.23,8.34 20.25,7.14 19.66,6.16C19.24,5.45 18.44,5.13 17.65,5.3C17,5.44 16.47,5.89 16.11,6.44C16.03,6.56 15.96,6.69 15.89,6.82L14.47,9.73L13.05,6.83C12.97,6.68 12.89,6.53 12.79,6.39C12.07,5.38 10.7,5 9.57,5.5C8.59,5.94 8,6.85 8,7.84C8,8.35 8.09,8.87 8.26,9.36C8.54,10.17 9,10.9 9.54,11.56C10,12.11 10.5,12.64 11,13.16L11.23,13.39C11.74,13.9 12.73,14.15 13.2,13.65C13.67,13.15 13.47,12.2 12.97,11.7L12.79,11.5C12.39,11.1 12,10.68 11.66,10.24C11.3,9.77 11,9.26 10.83,8.72C10.71,8.36 10.72,8 10.89,7.72C11.08,7.4 11.45,7.23 11.82,7.25C12.23,7.27 12.59,7.5 12.82,7.85L14.5,10.62L16.18,7.86C16.41,7.53 16.75,7.28 17.15,7.26H17.2Z"/>
                 </svg>
-                <span class="font-medium">Traveling:</span> {{ [profile.activeCity, profile.activeState].filter(Boolean).join(', ') }}
+                <span class="font-medium">Traveling:</span>
+                <template v-if="selectedVenue">
+                  {{ selectedVenue.name }}
+                  <span v-if="profile.activeLocationHall || profile.activeLocationRoom || profile.activeLocationTable" class="text-xs">
+                    ({{ [profile.activeLocationHall, profile.activeLocationRoom, profile.activeLocationTable].filter(Boolean).join(' / ') }})
+                  </span>
+                </template>
+                <template v-else>
+                  {{ [profile.activeCity, profile.activeState].filter(Boolean).join(', ') }}
+                </template>
                 <span v-if="profile.activeLocationExpiresAt" class="text-xs text-gray-500">(until {{ new Date(profile.activeLocationExpiresAt).toLocaleDateString() }})</span>
               </div>
             </div>
@@ -577,40 +653,84 @@ function goToGroup(slug: string) {
           <div>
             <h4 class="font-medium mb-1">Active Location</h4>
             <p class="text-sm text-gray-500 mb-3">Set a temporary location when traveling (e.g., attending a convention)</p>
-            <div class="grid grid-cols-12 gap-4">
-              <div class="col-span-5">
-                <label class="label">City</label>
-                <input
-                  v-model="form.activeCity"
-                  type="text"
-                  class="input"
-                  placeholder="Convention city"
-                />
-              </div>
-              <div class="col-span-4">
-                <label class="label">State</label>
-                <input
-                  v-model="form.activeState"
-                  type="text"
-                  class="input"
-                  placeholder="State"
-                />
-              </div>
-              <div class="col-span-3">
-                <label class="label">Until</label>
-                <input
-                  v-model="form.activeLocationExpiresAt"
-                  type="date"
-                  class="input"
-                  :min="today"
-                />
+
+            <!-- Hot Locations Quick Select -->
+            <HotLocationsBar
+              :selected-id="form.activeEventLocationId"
+              @select="handleVenueSelect"
+            />
+
+            <!-- Venue Selector -->
+            <div class="mb-4">
+              <label class="label">Select a Venue</label>
+              <VenueSelector
+                :model-value="form.activeEventLocationId ?? null"
+                @update:model-value="(v) => form.activeEventLocationId = v ?? undefined"
+                @select="handleVenueSelectorSelect"
+              />
+              <div class="flex items-center gap-2 mt-2">
+                <button
+                  type="button"
+                  class="text-sm text-primary-500 hover:text-primary-600"
+                  @click="showVenueModal = true"
+                >
+                  + Submit a new venue
+                </button>
               </div>
             </div>
+
+            <!-- Venue Details (Hall/Room/Table) when venue selected -->
+            <div v-if="selectedVenue" class="mb-4">
+              <label class="label">Location Details (optional)</label>
+              <VenueDetailsFields
+                :hall="form.activeLocationHall"
+                :room="form.activeLocationRoom"
+                :table="form.activeLocationTable"
+                @update:hall="(v) => form.activeLocationHall = v ?? undefined"
+                @update:room="(v) => form.activeLocationRoom = v ?? undefined"
+                @update:table="(v) => form.activeLocationTable = v ?? undefined"
+              />
+            </div>
+
+            <!-- Custom Location (City/State/Date) -->
+            <div v-if="!selectedVenue" class="border-t border-gray-200 pt-4 mt-4">
+              <p class="text-sm text-gray-500 mb-3">Or enter a custom location:</p>
+              <div class="grid grid-cols-12 gap-4">
+                <div class="col-span-5">
+                  <label class="label">City</label>
+                  <input
+                    v-model="form.activeCity"
+                    type="text"
+                    class="input"
+                    placeholder="Convention city"
+                  />
+                </div>
+                <div class="col-span-4">
+                  <label class="label">State</label>
+                  <input
+                    v-model="form.activeState"
+                    type="text"
+                    class="input"
+                    placeholder="State"
+                  />
+                </div>
+                <div class="col-span-3">
+                  <label class="label">Until</label>
+                  <input
+                    v-model="form.activeLocationExpiresAt"
+                    type="date"
+                    class="input"
+                    :min="today"
+                  />
+                </div>
+              </div>
+            </div>
+
             <button
-              v-if="form.activeCity || form.activeState"
+              v-if="form.activeCity || form.activeState || selectedVenue"
               type="button"
               class="text-sm text-red-500 hover:text-red-600 mt-2"
-              @click="form.activeCity = ''; form.activeState = ''; form.activeLocationExpiresAt = ''"
+              @click="clearActiveLocation"
             >
               Clear active location
             </button>
@@ -963,5 +1083,12 @@ function goToGroup(slug: string) {
         </div>
       </div>
     </template>
+
+    <!-- Submit Venue Modal -->
+    <SubmitVenueModal
+      :visible="showVenueModal"
+      @close="showVenueModal = false"
+      @submitted="handleVenueSubmitted"
+    />
   </div>
 </template>

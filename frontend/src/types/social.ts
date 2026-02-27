@@ -8,8 +8,11 @@ export interface EventLocation {
   startDate: string
   endDate: string
   status: 'pending' | 'approved' | 'rejected'
+  eventCount?: number
+  userCount?: number
   createdByUserId: string | null
   createdAt: string
+  updatedAt?: string
   createdBy?: {
     id: string
     displayName: string | null

@@ -391,7 +391,7 @@ Deno.serve(async (req) => {
       let query = supabase
         .from('admin_notes')
         .select(`
-          id, title, content, category, is_pinned, created_at, updated_at,
+          id, title, content, category, is_pinned, is_implemented, created_at, updated_at,
           creator:created_by_user_id(id, username, display_name)
         `)
 
@@ -414,6 +414,7 @@ Deno.serve(async (req) => {
           content: n.content,
           category: n.category,
           isPinned: n.is_pinned,
+          isImplemented: n.is_implemented,
           createdAt: n.created_at,
           updatedAt: n.updated_at,
           createdBy: n.creator ? {
@@ -805,7 +806,7 @@ Deno.serve(async (req) => {
 
     // Update note
     if (action === 'update-note') {
-      const { noteId, title, content, category, isPinned } = body
+      const { noteId, title, content, category, isPinned, isImplemented } = body
 
       if (!noteId) {
         return errorResponse('noteId required', 400)
@@ -816,6 +817,7 @@ Deno.serve(async (req) => {
       if (content !== undefined) updates.content = content.trim()
       if (category !== undefined) updates.category = category.trim()
       if (isPinned !== undefined) updates.is_pinned = isPinned
+      if (isImplemented !== undefined) updates.is_implemented = isImplemented
 
       const { data: note, error } = await supabase
         .from('admin_notes')

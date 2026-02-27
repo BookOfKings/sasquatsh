@@ -124,6 +124,25 @@ export async function deleteLocation(token: string, id: string): Promise<void> {
   })
 }
 
+// Get pending locations (admin only)
+export async function getPendingLocations(token: string): Promise<EventLocation[]> {
+  return authenticatedRequest<EventLocation[]>('/event-locations?status=pending', token)
+}
+
+// Approve location (admin only)
+export async function approveLocation(token: string, id: string): Promise<EventLocation> {
+  return authenticatedRequest<EventLocation>(`/event-locations?id=${id}&action=approve`, token, {
+    method: 'PUT',
+  })
+}
+
+// Reject location (admin only)
+export async function rejectLocation(token: string, id: string): Promise<EventLocation> {
+  return authenticatedRequest<EventLocation>(`/event-locations?id=${id}&action=reject`, token, {
+    method: 'PUT',
+  })
+}
+
 // Merge duplicate locations (admin only)
 // Keeps the first location and updates all player_requests to point to it
 export async function mergeLocations(
@@ -337,6 +356,7 @@ export interface AdminNote {
   content: string
   category: string
   isPinned: boolean
+  isImplemented: boolean
   createdAt: string
   updatedAt: string
   createdBy: {
@@ -376,7 +396,7 @@ export async function createAdminNote(
 export async function updateAdminNote(
   token: string,
   noteId: string,
-  data: { title?: string; content?: string; category?: string; isPinned?: boolean }
+  data: { title?: string; content?: string; category?: string; isPinned?: boolean; isImplemented?: boolean }
 ): Promise<{ note: AdminNote; message: string }> {
   return authenticatedRequest<{ note: AdminNote; message: string }>('/admin-stats?action=update-note', token, {
     method: 'POST',

@@ -70,6 +70,10 @@ export interface Event {
   state: string | null
   postalCode: string | null
   locationDetails: string | null
+  eventLocationId: string | null
+  venueHall: string | null
+  venueRoom: string | null
+  venueTable: string | null
   difficultyLevel: string | null
   maxPlayers: number
   confirmedCount: number
@@ -98,6 +102,10 @@ export interface CreateEventInput {
   state?: string
   postalCode?: string
   locationDetails?: string
+  eventLocationId?: string
+  venueHall?: string
+  venueRoom?: string
+  venueTable?: string
   difficultyLevel?: string
   maxPlayers?: number
   isPublic?: boolean
@@ -121,6 +129,10 @@ export interface UpdateEventInput {
   state: string | null
   postalCode: string | null
   locationDetails: string | null
+  eventLocationId: string | null
+  venueHall: string | null
+  venueRoom: string | null
+  venueTable: string | null
   difficultyLevel: string | null
   maxPlayers: number
   isPublic: boolean

@@ -3,10 +3,13 @@ import { ref, reactive, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/useAuthStore'
 import {
   getAllLocations,
+  getPendingLocations,
   createLocation,
   updateLocation,
   deleteLocation,
   mergeLocations,
+  approveLocation,
+  rejectLocation,
   getBggCacheStats,
   importPopularGames,
   importHotGames,
@@ -143,6 +146,11 @@ const form = reactive({
 // Merge mode
 const mergeMode = ref(false)
 const selectedForMerge = ref<string[]>([])
+
+// Pending locations
+const pendingLocations = ref<EventLocation[]>([])
+const approvingId = ref<string | null>(null)
+const rejectingId = ref<string | null>(null)
 
 onMounted(async () => {
   await loadDashboard()
@@ -558,6 +566,17 @@ async function handleTogglePin(note: AdminNote) {
   }
 }
 
+async function handleToggleImplemented(note: AdminNote) {
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    await updateAdminNote(token, note.id, { isImplemented: !note.isImplemented })
+    await loadNotes()
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to update note'
+  }
+}
+
 async function handleDeleteNote(note: AdminNote) {
   if (!confirm(`Delete note "${note.title}"?`)) return
 
@@ -710,11 +729,54 @@ async function loadLocations() {
     const token = await auth.getIdToken()
     if (!token) return
 
-    locations.value = await getAllLocations(token)
+    const [allLocations, pending] = await Promise.all([
+      getAllLocations(token),
+      getPendingLocations(token),
+    ])
+    locations.value = allLocations
+    pendingLocations.value = pending
   } catch (err) {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to load locations'
   } finally {
     loading.value = false
+  }
+}
+
+async function handleApprove(location: EventLocation) {
+  approvingId.value = location.id
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+
+    const approved = await approveLocation(token, location.id)
+    // Move from pending to main list
+    pendingLocations.value = pendingLocations.value.filter(l => l.id !== location.id)
+    locations.value.unshift(approved)
+    successMessage.value = `Approved "${location.name}"`
+    setTimeout(() => successMessage.value = '', 3000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to approve location'
+  } finally {
+    approvingId.value = null
+  }
+}
+
+async function handleReject(location: EventLocation) {
+  if (!confirm(`Reject "${location.name}"? This venue will not be available for users.`)) return
+
+  rejectingId.value = location.id
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+
+    await rejectLocation(token, location.id)
+    pendingLocations.value = pendingLocations.value.filter(l => l.id !== location.id)
+    successMessage.value = `Rejected "${location.name}"`
+    setTimeout(() => successMessage.value = '', 3000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to reject location'
+  } finally {
+    rejectingId.value = null
   }
 }
 
@@ -1442,7 +1504,10 @@ function isExpired(endDate: string): boolean {
             v-for="note in notes"
             :key="note.id"
             class="card p-4"
-            :class="{ 'ring-2 ring-yellow-400': note.isPinned }"
+            :class="{
+              'ring-2 ring-yellow-400': note.isPinned,
+              'bg-green-50': note.isImplemented
+            }"
           >
             <div class="flex items-start justify-between gap-4">
               <div class="flex-1">
@@ -1452,9 +1517,12 @@ function isExpired(endDate: string): boolean {
                       <path d="M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12Z"/>
                     </svg>
                   </span>
-                  <h3 class="font-semibold text-gray-900">{{ note.title }}</h3>
+                  <h3 class="font-semibold" :class="note.isImplemented ? 'text-green-700' : 'text-gray-900'">{{ note.title }}</h3>
                   <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
                     {{ note.category }}
+                  </span>
+                  <span v-if="note.isImplemented" class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                    Implemented
                   </span>
                 </div>
                 <p class="text-gray-600 whitespace-pre-wrap">{{ note.content }}</p>
@@ -1464,6 +1532,16 @@ function isExpired(endDate: string): boolean {
                 </p>
               </div>
               <div class="flex gap-2 flex-shrink-0">
+                <button
+                  class="btn-ghost text-sm"
+                  :class="note.isImplemented ? 'text-green-600' : 'text-gray-400'"
+                  @click="handleToggleImplemented(note)"
+                  :title="note.isImplemented ? 'Mark as not implemented' : 'Mark as implemented'"
+                >
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+                  </svg>
+                </button>
                 <button
                   class="btn-ghost text-gray-500 text-sm"
                   :class="{ 'text-yellow-500': note.isPinned }"
@@ -1665,7 +1743,12 @@ function isExpired(endDate: string): boolean {
     <!-- Locations Tab -->
     <div v-if="activeTab === 'locations'">
       <div class="flex items-center justify-between mb-6">
-        <p class="text-gray-500">Manage event locations for Looking For Players</p>
+        <div>
+          <p class="text-gray-500">Manage event locations for Looking For Players</p>
+          <p v-if="pendingLocations.length > 0" class="text-sm text-orange-600 font-medium mt-1">
+            {{ pendingLocations.length }} pending submission(s) need review
+          </p>
+        </div>
         <div class="flex gap-2">
           <button
             v-if="!mergeMode"
@@ -1706,6 +1789,68 @@ function isExpired(endDate: string): boolean {
       <p class="text-blue-800">
         <strong>Merge Mode:</strong> Select locations to merge. The first selected location will be kept, and all others will be deleted. Any LFP posts using the deleted locations will be updated to use the kept one.
       </p>
+    </div>
+
+    <!-- Pending Venues -->
+    <div v-if="pendingLocations.length > 0 && !mergeMode" class="mb-6">
+      <h3 class="text-lg font-semibold text-orange-600 mb-3 flex items-center gap-2">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M11,16.5L6.5,12L7.91,10.59L11,13.67L16.59,8.09L18,9.5L11,16.5Z"/>
+        </svg>
+        Pending Review ({{ pendingLocations.length }})
+      </h3>
+      <div class="space-y-3">
+        <div
+          v-for="location in pendingLocations"
+          :key="location.id"
+          class="card p-4 border-2 border-orange-200 bg-orange-50"
+        >
+          <div class="flex items-start gap-4">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <h4 class="font-semibold text-gray-900">{{ location.name }}</h4>
+                <span class="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">
+                  Pending
+                </span>
+              </div>
+              <p class="text-sm text-gray-600 mt-1">
+                {{ location.city }}, {{ location.state }}
+                <span v-if="location.venue"> &bull; {{ location.venue }}</span>
+              </p>
+              <p class="text-sm text-gray-500">
+                {{ formatDate(location.startDate) }} - {{ formatDate(location.endDate) }}
+              </p>
+              <p v-if="location.createdBy" class="text-xs text-gray-400 mt-1">
+                Submitted by {{ location.createdBy.displayName || 'User' }}
+              </p>
+            </div>
+            <div class="flex gap-2 flex-shrink-0">
+              <button
+                class="btn-primary text-sm py-1.5 px-3"
+                :disabled="approvingId === location.id || rejectingId === location.id"
+                @click="handleApprove(location)"
+              >
+                <svg v-if="approvingId === location.id" class="animate-spin -ml-1 mr-1 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                Approve
+              </button>
+              <button
+                class="btn-ghost text-red-600 text-sm py-1.5 px-3"
+                :disabled="approvingId === location.id || rejectingId === location.id"
+                @click="handleReject(location)"
+              >
+                <svg v-if="rejectingId === location.id" class="animate-spin -ml-1 mr-1 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                Reject
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Loading -->
@@ -1750,6 +1895,16 @@ function isExpired(endDate: string): boolean {
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2">
               <h3 class="font-semibold text-gray-900">{{ location.name }}</h3>
+              <span
+                class="text-xs px-2 py-0.5 rounded-full"
+                :class="{
+                  'bg-green-100 text-green-700': location.status === 'approved',
+                  'bg-orange-100 text-orange-700': location.status === 'pending',
+                  'bg-red-100 text-red-700': location.status === 'rejected',
+                }"
+              >
+                {{ location.status }}
+              </span>
               <span v-if="isExpired(location.endDate)" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
                 Expired
               </span>
@@ -1763,6 +1918,12 @@ function isExpired(endDate: string): boolean {
             </p>
             <p class="text-sm text-gray-500">
               {{ formatDate(location.startDate) }} - {{ formatDate(location.endDate) }}
+              <span v-if="location.eventCount" class="ml-2 text-primary-600">
+                ({{ location.eventCount }} event{{ location.eventCount === 1 ? '' : 's' }})
+              </span>
+              <span v-if="location.userCount" class="ml-2 text-secondary-600">
+                ({{ location.userCount }} user{{ location.userCount === 1 ? '' : 's' }})
+              </span>
             </p>
           </div>
 
