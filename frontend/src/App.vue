@@ -10,6 +10,19 @@ const route = useRoute()
 const auth = useAuthStore()
 const userMenuOpen = ref(false)
 const mobileMenuOpen = ref(false)
+const userMenuButton = ref<HTMLButtonElement | null>(null)
+const dropdownPosition = ref({ top: 0, right: 0 })
+
+async function toggleUserMenu() {
+  if (!userMenuOpen.value && userMenuButton.value) {
+    const rect = userMenuButton.value.getBoundingClientRect()
+    dropdownPosition.value = {
+      top: rect.bottom + 8,
+      right: window.innerWidth - rect.right
+    }
+  }
+  userMenuOpen.value = !userMenuOpen.value
+}
 
 const showNavigation = computed(() => {
   return !['login', 'signup'].includes(route.name as string)
@@ -75,7 +88,7 @@ async function handleLogout() {
       </div>
     </div>
     <!-- Navigation -->
-    <header v-if="showNavigation" class="bg-primary-500 text-white shadow-sm safe-top relative z-10">
+    <header v-if="showNavigation" class="bg-primary-500 text-white shadow-sm safe-top relative z-50">
       <nav class="container-wide py-3">
         <div class="flex items-center justify-between">
           <!-- Logo -->
@@ -120,7 +133,8 @@ async function handleLogout() {
               <!-- User Menu -->
               <div class="relative ml-2">
                 <button
-                  @click="userMenuOpen = !userMenuOpen"
+                  ref="userMenuButton"
+                  @click="toggleUserMenu"
                   class="flex items-center p-1 hover:bg-primary-600 rounded-full transition-colors"
                 >
                   <div class="w-8 h-8 rounded-full bg-secondary-500 flex items-center justify-center overflow-hidden">
@@ -135,40 +149,43 @@ async function handleLogout() {
                   </div>
                 </button>
 
-                <!-- Dropdown -->
-                <div
-                  v-if="userMenuOpen"
-                  class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-50"
-                >
-                  <button
-                    @click="goToProfile"
-                    class="w-full flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors"
+                <!-- Dropdown (teleported to body to escape stacking contexts) -->
+                <Teleport to="body">
+                  <div
+                    v-if="userMenuOpen"
+                    class="fixed w-48 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-[9999]"
+                    :style="{ top: dropdownPosition.top + 'px', right: dropdownPosition.right + 'px' }"
                   >
-                    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
-                    </svg>
-                    My Profile
-                  </button>
-                  <button
-                    @click="goToDashboard"
-                    class="w-full flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors"
-                  >
-                    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M13,3V9H21V3M13,21H21V11H13M3,21H11V15H3M3,13H11V3H3V13Z"/>
-                    </svg>
-                    Dashboard
-                  </button>
-                  <hr class="my-1 border-gray-100" />
-                  <button
-                    @click="handleLogout"
-                    class="w-full flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors"
-                  >
-                    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M16,17V14H9V10H16V7L21,12L16,17M14,2A2,2 0 0,1 16,4V6H14V4H5V20H14V18H16V20A2,2 0 0,1 14,22H5A2,2 0 0,1 3,20V4A2,2 0 0,1 5,2H14Z"/>
-                    </svg>
-                    Sign Out
-                  </button>
-                </div>
+                    <button
+                      @click="goToProfile"
+                      class="w-full flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
+                      </svg>
+                      My Profile
+                    </button>
+                    <button
+                      @click="goToDashboard"
+                      class="w-full flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M13,3V9H21V3M13,21H21V11H13M3,21H11V15H3M3,13H11V3H3V13Z"/>
+                      </svg>
+                      Dashboard
+                    </button>
+                    <hr class="my-1 border-gray-100" />
+                    <button
+                      @click="handleLogout"
+                      class="w-full flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M16,17V14H9V10H16V7L21,12L16,17M14,2A2,2 0 0,1 16,4V6H14V4H5V20H14V18H16V20A2,2 0 0,1 14,22H5A2,2 0 0,1 3,20V4A2,2 0 0,1 5,2H14Z"/>
+                      </svg>
+                      Sign Out
+                    </button>
+                  </div>
+                </Teleport>
               </div>
             </template>
 
@@ -275,11 +292,13 @@ async function handleLogout() {
       </nav>
     </header>
 
-    <!-- Click outside to close menus -->
-    <div v-if="userMenuOpen || mobileMenuOpen" class="fixed inset-0 z-40" @click="userMenuOpen = false; mobileMenuOpen = false"></div>
+    <!-- Click outside to close menus (teleported to body for proper stacking) -->
+    <Teleport to="body">
+      <div v-if="userMenuOpen || mobileMenuOpen" class="fixed inset-0 z-[9000]" @click="userMenuOpen = false; mobileMenuOpen = false"></div>
+    </Teleport>
 
     <!-- Main Content -->
-    <main class="flex-1 relative z-10">
+    <main class="flex-1 relative z-0">
       <router-view />
     </main>
 

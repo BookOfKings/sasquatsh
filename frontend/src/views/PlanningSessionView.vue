@@ -667,6 +667,12 @@ function getStatusBadgeClass(status: string) {
                     </svg>
                   </button>
                 </div>
+                <!-- Powered by BGG -->
+                <div class="flex items-center justify-end mt-1">
+                  <a href="https://boardgamegeek.com" target="_blank" rel="noopener noreferrer" class="hover:opacity-80 transition-opacity">
+                    <img src="/powered-by-bgg.svg" alt="Powered by BoardGameGeek" class="h-5" />
+                  </a>
+                </div>
                 <div v-if="searchingGames" class="mt-2 text-gray-500 text-sm">Searching...</div>
                 <div v-else-if="gameSearchResults.length > 0" class="mt-2 border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
                   <button
@@ -676,9 +682,18 @@ function getStatusBadgeClass(status: string) {
                     :disabled="addingGame"
                     @click="selectGameToSuggest(result)"
                   >
-                    <svg class="w-5 h-5 text-gray-400 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
-                    </svg>
+                    <!-- Game thumbnail -->
+                    <img
+                      v-if="result.thumbnailUrl"
+                      :src="result.thumbnailUrl"
+                      :alt="result.name"
+                      class="w-10 h-10 object-cover rounded flex-shrink-0 bg-gray-100"
+                    />
+                    <div v-else class="w-10 h-10 flex items-center justify-center bg-gray-100 rounded flex-shrink-0">
+                      <svg class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
+                      </svg>
+                    </div>
                     <div class="flex-1 min-w-0">
                       <div class="font-medium truncate">{{ result.name }}</div>
                       <div v-if="result.yearPublished" class="text-sm text-gray-500">{{ result.yearPublished }}</div>

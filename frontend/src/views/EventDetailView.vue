@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useEventStore } from '@/stores/useEventStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import ShareModal from '@/components/common/ShareModal.vue'
+import D20Spinner from '@/components/common/D20Spinner.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -161,10 +162,7 @@ function goToLogin() {
 
     <!-- Loading -->
     <div v-if="eventStore.loading.value" class="text-center py-12">
-      <svg class="w-8 h-8 mx-auto text-primary-500 animate-spin" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-      </svg>
+      <D20Spinner size="lg" class="mx-auto" />
       <p class="mt-4 text-gray-500">Loading event...</p>
     </div>
 

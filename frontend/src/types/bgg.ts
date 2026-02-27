@@ -2,6 +2,7 @@ export interface BggSearchResult {
   bggId: number
   name: string
   yearPublished: number | null
+  thumbnailUrl?: string | null
 }
 
 export interface BggGame {

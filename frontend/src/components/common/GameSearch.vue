@@ -108,8 +108,7 @@ function handleFocus() {
     </div>
 
     <!-- Powered by BGG attribution -->
-    <div class="flex items-center justify-end gap-1 mt-1">
-      <span class="text-xs text-gray-400">Powered by</span>
+    <div class="flex items-center justify-end mt-1">
       <a
         href="https://boardgamegeek.com"
         target="_blank"
@@ -117,9 +116,9 @@ function handleFocus() {
         class="flex items-center hover:opacity-80 transition-opacity"
       >
         <img
-          src="https://cf.geekdo-static.com/images/geekdo/bgg_cornerlogo.png"
-          alt="BoardGameGeek"
-          class="h-4"
+          src="/powered-by-bgg.svg"
+          alt="Powered by BoardGameGeek"
+          class="h-5"
         />
       </a>
     </div>
@@ -136,13 +135,26 @@ function handleFocus() {
         class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0"
         @click="selectGame(result)"
       >
-        <svg v-if="loadingGame === result.bggId" class="w-5 h-5 text-primary-500 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-        </svg>
-        <svg v-else class="w-5 h-5 text-gray-400 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
-        </svg>
+        <!-- Loading spinner -->
+        <div v-if="loadingGame === result.bggId" class="w-12 h-12 flex items-center justify-center flex-shrink-0">
+          <svg class="w-5 h-5 text-primary-500 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+        </div>
+        <!-- Game thumbnail -->
+        <img
+          v-else-if="result.thumbnailUrl"
+          :src="result.thumbnailUrl"
+          :alt="result.name"
+          class="w-12 h-12 object-cover rounded-lg flex-shrink-0 bg-gray-100"
+        />
+        <!-- Fallback dice icon -->
+        <div v-else class="w-12 h-12 flex items-center justify-center bg-gray-100 rounded-lg flex-shrink-0">
+          <svg class="w-6 h-6 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
+          </svg>
+        </div>
         <div class="flex-1 min-w-0">
           <div class="font-medium text-gray-900 truncate">{{ result.name }}</div>
           <div v-if="result.yearPublished" class="text-sm text-gray-500">{{ result.yearPublished }}</div>

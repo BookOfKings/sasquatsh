@@ -46,6 +46,7 @@
 
   #app {
     @apply min-h-screen;
+    isolation: isolate;
   }
 }
 

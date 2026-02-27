@@ -13,6 +13,7 @@ import {
 import { getMyEvents } from '@/services/eventsApi'
 import type { PlayerRequest, CreatePlayerRequestInput } from '@/types/social'
 import type { EventSummary } from '@/types/events'
+import D20Spinner from '@/components/common/D20Spinner.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -314,10 +315,7 @@ function getStatusBadge(status: string) {
 
     <!-- Loading -->
     <div v-if="loading" class="text-center py-12">
-      <svg class="w-8 h-8 mx-auto text-primary-500 animate-spin" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-      </svg>
+      <D20Spinner size="lg" class="mx-auto" />
     </div>
 
     <!-- Browse Tab -->
