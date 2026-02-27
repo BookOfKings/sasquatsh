@@ -5,6 +5,7 @@ import { useEventStore } from '@/stores/useEventStore'
 import { useGroupStore } from '@/stores/useGroupStore'
 import { useRouter } from 'vue-router'
 import type { EventSummary } from '@/types/events'
+import D20Spinner from '@/components/common/D20Spinner.vue'
 
 const auth = useAuthStore()
 const eventStore = useEventStore()
@@ -16,6 +17,9 @@ const allHostedGames = ref<EventSummary[]>([])
 const loadingMy = ref(true)
 const loadingHosted = ref(true)
 const loadingGroups = ref(true)
+
+// Check if initial page load is still in progress
+const isInitialLoading = computed(() => loadingMy.value && loadingHosted.value && loadingGroups.value)
 
 // Get today's date for filtering
 const today = new Date().toISOString().split('T')[0] ?? ''
@@ -87,7 +91,15 @@ function formatTime(timeStr: string | undefined) {
 </script>
 
 <template>
-  <div class="container-wide py-8">
+  <!-- Initial Loading State -->
+  <div v-if="isInitialLoading" class="container-wide py-8">
+    <div class="card p-12 flex flex-col items-center justify-center">
+      <D20Spinner size="xl" />
+      <p class="mt-4 text-gray-500">Loading your dashboard...</p>
+    </div>
+  </div>
+
+  <div v-else class="container-wide py-8">
     <div class="card p-6">
       <!-- Header -->
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">

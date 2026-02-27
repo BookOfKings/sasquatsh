@@ -157,4 +157,13 @@
   .alert-info {
     @apply p-4 rounded-lg flex items-start gap-3 bg-blue-50 text-blue-800 border border-blue-200;
   }
+
+  /* Safe area for notched phones (iPhone X+, etc.) */
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0);
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
 }

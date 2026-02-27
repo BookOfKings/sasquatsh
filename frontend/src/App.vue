@@ -8,6 +8,7 @@ const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 const userMenuOpen = ref(false)
+const mobileMenuOpen = ref(false)
 
 const showNavigation = computed(() => {
   return !['login', 'signup'].includes(route.name as string)
@@ -19,24 +20,29 @@ function goHome() {
 
 function goToGames() {
   router.push('/games')
+  mobileMenuOpen.value = false
 }
 
 function goToGroups() {
   router.push('/groups')
+  mobileMenuOpen.value = false
 }
 
 function goToLFP() {
   router.push('/looking-for-players')
+  mobileMenuOpen.value = false
 }
 
 function goToDashboard() {
   router.push('/dashboard')
   userMenuOpen.value = false
+  mobileMenuOpen.value = false
 }
 
 function goToProfile() {
   router.push('/profile')
   userMenuOpen.value = false
+  mobileMenuOpen.value = false
 }
 
 function goToLogin() {
@@ -53,7 +59,7 @@ async function handleLogout() {
 <template>
   <div class="min-h-screen flex flex-col">
     <!-- Navigation -->
-    <header v-if="showNavigation" class="bg-primary-500 text-white shadow-sm">
+    <header v-if="showNavigation" class="bg-primary-500 text-white shadow-sm safe-top">
       <nav class="container-wide py-3">
         <div class="flex items-center justify-between">
           <!-- Logo -->
@@ -61,11 +67,11 @@ async function handleLogout() {
             <button @click="goHome" class="p-2 hover:bg-primary-600 rounded-lg transition-colors">
               <img src="/logo-white.png" alt="Sasquatsh" class="w-8 h-8" />
             </button>
-            <span class="font-semibold text-lg cursor-pointer" @click="goHome">Sasquatsh</span>
+            <span class="font-semibold text-lg cursor-pointer hidden sm:inline" @click="goHome">Sasquatsh</span>
           </div>
 
-          <!-- Nav Links -->
-          <div class="flex items-center gap-2">
+          <!-- Desktop Nav Links (hidden on mobile) -->
+          <div class="hidden md:flex items-center gap-2">
             <button @click="goToGames" class="flex items-center gap-2 px-4 py-2 hover:bg-primary-600 rounded-lg transition-colors">
               <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
@@ -156,12 +162,105 @@ async function handleLogout() {
               </button>
             </template>
           </div>
+
+          <!-- Mobile Menu Button & User Avatar -->
+          <div class="flex md:hidden items-center gap-2">
+            <template v-if="auth.isAuthenticated.value">
+              <button
+                @click="goToProfile"
+                class="p-1 hover:bg-primary-600 rounded-full transition-colors"
+              >
+                <div class="w-8 h-8 rounded-full bg-secondary-500 flex items-center justify-center overflow-hidden">
+                  <img
+                    v-if="auth.user.value?.avatarUrl"
+                    :src="auth.user.value.avatarUrl"
+                    class="w-full h-full object-cover"
+                  />
+                  <svg v-else class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
+                  </svg>
+                </div>
+              </button>
+            </template>
+
+            <button
+              @click="mobileMenuOpen = !mobileMenuOpen"
+              class="p-2 hover:bg-primary-600 rounded-lg transition-colors"
+            >
+              <svg v-if="!mobileMenuOpen" class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z"/>
+              </svg>
+              <svg v-else class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Mobile Menu -->
+        <div v-if="mobileMenuOpen" class="md:hidden mt-4 pb-2 border-t border-primary-400 pt-4">
+          <div class="flex flex-col gap-1">
+            <button @click="goToGames" class="flex items-center gap-3 px-4 py-3 hover:bg-primary-600 rounded-lg transition-colors text-left">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
+              </svg>
+              Games
+            </button>
+
+            <button @click="goToGroups" class="flex items-center gap-3 px-4 py-3 hover:bg-primary-600 rounded-lg transition-colors text-left">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12,5.5A3.5,3.5 0 0,1 15.5,9A3.5,3.5 0 0,1 12,12.5A3.5,3.5 0 0,1 8.5,9A3.5,3.5 0 0,1 12,5.5M5,8C5.56,8 6.08,8.15 6.53,8.42C6.38,9.85 6.8,11.27 7.66,12.38C7.16,13.34 6.16,14 5,14A3,3 0 0,1 2,11A3,3 0 0,1 5,8M19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14C17.84,14 16.84,13.34 16.34,12.38C17.2,11.27 17.62,9.85 17.47,8.42C17.92,8.15 18.44,8 19,8M5.5,18.25C5.5,16.18 8.41,14.5 12,14.5C15.59,14.5 18.5,16.18 18.5,18.25V20H5.5V18.25Z"/>
+              </svg>
+              Groups
+            </button>
+
+            <button @click="goToLFP" class="flex items-center gap-3 px-4 py-3 hover:bg-primary-600 rounded-lg transition-colors text-left">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M15.5,12C18,12 20,14 20,16.5C20,17.38 19.75,18.21 19.31,18.9L22.39,22L21,23.39L17.88,20.32C17.19,20.75 16.37,21 15.5,21C13,21 11,19 11,16.5C11,14 13,12 15.5,12M15.5,14A2.5,2.5 0 0,0 13,16.5A2.5,2.5 0 0,0 15.5,19A2.5,2.5 0 0,0 18,16.5A2.5,2.5 0 0,0 15.5,14M10,4A4,4 0 0,1 14,8C14,8.91 13.69,9.75 13.18,10.43C12.32,10.75 11.55,11.26 10.91,11.9L10,12A4,4 0 0,1 6,8A4,4 0 0,1 10,4M2,18V16C2,13.88 5.31,12.14 9.5,12C9.18,12.78 9,13.62 9,14.5C9,16.21 9.68,17.77 10.79,18.93L10,19H2V18Z"/>
+              </svg>
+              Looking for Players
+            </button>
+
+            <template v-if="auth.isAuthenticated.value">
+              <button @click="goToDashboard" class="flex items-center gap-3 px-4 py-3 hover:bg-primary-600 rounded-lg transition-colors text-left">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M13,3V9H21V3M13,21H21V11H13M3,21H11V15H3M3,13H11V3H3V13Z"/>
+                </svg>
+                Dashboard
+              </button>
+
+              <button @click="goToProfile" class="flex items-center gap-3 px-4 py-3 hover:bg-primary-600 rounded-lg transition-colors text-left">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
+                </svg>
+                My Profile
+              </button>
+
+              <hr class="border-primary-400 my-2" />
+
+              <button @click="handleLogout" class="flex items-center gap-3 px-4 py-3 hover:bg-primary-600 rounded-lg transition-colors text-left text-red-200">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M16,17V14H9V10H16V7L21,12L16,17M14,2A2,2 0 0,1 16,4V6H14V4H5V20H14V18H16V20A2,2 0 0,1 14,22H5A2,2 0 0,1 3,20V4A2,2 0 0,1 5,2H14Z"/>
+                </svg>
+                Sign Out
+              </button>
+            </template>
+
+            <template v-else>
+              <button @click="goToLogin" class="flex items-center gap-3 px-4 py-3 bg-white text-primary-500 rounded-lg transition-colors text-left font-medium">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M10,17V14H3V10H10V7L15,12L10,17M10,2H19A2,2 0 0,1 21,4V20A2,2 0 0,1 19,22H10A2,2 0 0,1 8,20V18H10V20H19V4H10V6H8V4A2,2 0 0,1 10,2Z"/>
+                </svg>
+                Sign In
+              </button>
+            </template>
+          </div>
         </div>
       </nav>
     </header>
 
-    <!-- Click outside to close menu -->
-    <div v-if="userMenuOpen" class="fixed inset-0 z-40" @click="userMenuOpen = false"></div>
+    <!-- Click outside to close menus -->
+    <div v-if="userMenuOpen || mobileMenuOpen" class="fixed inset-0 z-40" @click="userMenuOpen = false; mobileMenuOpen = false"></div>
 
     <!-- Main Content -->
     <main class="flex-1">
