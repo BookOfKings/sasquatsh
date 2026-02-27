@@ -478,3 +478,8 @@ entrypoint = "./functions/invitations/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/stats/index.ts"
+
+[functions.send-email]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/send-email/index.ts"
