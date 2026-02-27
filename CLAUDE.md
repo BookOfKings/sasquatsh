@@ -167,3 +167,22 @@ npx supabase db push
 1. Deploy Edge Functions with `npx supabase functions deploy`
 2. Apply migrations with `npx supabase db push` (if any new migrations)
 3. Build and deploy frontend with `cd frontend && npm run build && npx firebase deploy --only hosting`
+
+## Session Notes - February 26, 2026
+
+### D20 Loading Spinner
+- Added a 3D CSS icosahedron D20 spinner component (`D20Spinner.vue`)
+- Uses pure CSS 3D transforms to create a 20-sided die with numbers on each face
+- Adapted from https://codepen.io/jkneb/pen/feCvg
+- Supports sizes: `sm`, `md`, `lg`, `xl`
+- Supports colors: `primary`, `white`, `gray`
+- Admin page now uses D20 spinner with 3 second minimum display time
+
+### BGG Integration Improvements
+- Added BGG API token configuration
+- BGG search results are now cached in `bgg_games_cache` table for faster searches
+- Added "Powered by BGG" logo attribution to GameSearch component (required by BGG API terms)
+
+### Profile Enhancements
+- Added game history tracking for played games
+- Location field updates

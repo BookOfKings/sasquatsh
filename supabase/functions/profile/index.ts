@@ -22,6 +22,9 @@ function toUserProfile(row: Record<string, unknown>) {
     homeCity: row.home_city as string | null,
     homeState: row.home_state as string | null,
     homePostalCode: row.home_postal_code as string | null,
+    activeCity: row.active_city as string | null,
+    activeState: row.active_state as string | null,
+    activeLocationExpiresAt: row.active_location_expires_at as string | null,
     bio: row.bio as string | null,
     favoriteGames: row.favorite_games as string[] | null,
     preferredGameTypes: row.preferred_game_types as string[] | null,
@@ -243,6 +246,9 @@ Deno.serve(async (req) => {
     if (body.bio !== undefined) updates.bio = body.bio?.trim() || null
     if (body.favoriteGames !== undefined) updates.favorite_games = body.favoriteGames || null
     if (body.preferredGameTypes !== undefined) updates.preferred_game_types = body.preferredGameTypes || null
+    if (body.activeCity !== undefined) updates.active_city = body.activeCity?.trim() || null
+    if (body.activeState !== undefined) updates.active_state = body.activeState?.trim() || null
+    if (body.activeLocationExpiresAt !== undefined) updates.active_location_expires_at = body.activeLocationExpiresAt || null
 
     const { data, error } = await supabase
       .from('users')

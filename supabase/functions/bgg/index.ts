@@ -314,6 +314,41 @@ async function saveToCache(supabase: ReturnType<typeof createClient>, game: BggG
     })
 }
 
+// Cache search results (basic info only - full details fetched when user selects)
+async function cacheSearchResults(supabase: ReturnType<typeof createClient>, results: BggSearchResult[]): Promise<void> {
+  // Only insert games that don't already exist (don't overwrite full details with partial data)
+  const bggIds = results.map(r => r.bggId)
+
+  // Check which games already exist
+  const { data: existing } = await supabase
+    .from('bgg_games_cache')
+    .select('bgg_id')
+    .in('bgg_id', bggIds)
+
+  const existingIds = new Set(existing?.map(e => e.bgg_id) || [])
+
+  // Filter to only new games
+  const newGames = results.filter(r => !existingIds.has(r.bggId))
+
+  if (newGames.length === 0) return
+
+  // Insert basic info for new games
+  const { error } = await supabase
+    .from('bgg_games_cache')
+    .insert(newGames.map(game => ({
+      bgg_id: game.bggId,
+      name: game.name,
+      year_published: game.yearPublished,
+      cached_at: new Date().toISOString(),
+    })))
+
+  if (error) {
+    console.error('Failed to cache search results:', error)
+  } else {
+    console.log(`Cached ${newGames.length} new games from search`)
+  }
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -357,6 +392,13 @@ Deno.serve(async (req) => {
 
       const xml = await response.text()
       const results = parseSearchResults(xml)
+
+      // Cache the search results for future queries (fire and forget)
+      if (results.length > 0) {
+        cacheSearchResults(supabase, results).catch(err => {
+          console.error('Failed to cache search results:', err)
+        })
+      }
 
       // Limit to 20 results
       return jsonResponse(results.slice(0, 20))

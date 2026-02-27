@@ -10,6 +10,9 @@ export interface UserProfile {
   homeCity: string | null
   homeState: string | null
   homePostalCode: string | null
+  activeCity: string | null
+  activeState: string | null
+  activeLocationExpiresAt: string | null
   bio: string | null
   favoriteGames: string[] | null
   preferredGameTypes: string[] | null
@@ -81,6 +84,9 @@ export interface UpdateProfileInput {
   homeCity?: string | null
   homeState?: string | null
   homePostalCode?: string | null
+  activeCity?: string | null
+  activeState?: string | null
+  activeLocationExpiresAt?: string | null
   bio?: string | null
   favoriteGames?: string[] | null
   preferredGameTypes?: string[] | null

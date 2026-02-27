@@ -107,6 +107,23 @@ function handleFocus() {
       </div>
     </div>
 
+    <!-- Powered by BGG attribution -->
+    <div class="flex items-center justify-end gap-1 mt-1">
+      <span class="text-xs text-gray-400">Powered by</span>
+      <a
+        href="https://boardgamegeek.com"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="flex items-center hover:opacity-80 transition-opacity"
+      >
+        <img
+          src="https://cf.geekdo-static.com/images/geekdo/bgg_cornerlogo.png"
+          alt="BoardGameGeek"
+          class="h-4"
+        />
+      </a>
+    </div>
+
     <!-- Dropdown -->
     <div
       v-if="showDropdown"

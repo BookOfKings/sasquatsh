@@ -31,8 +31,23 @@ import {
 } from '@/services/adminApi'
 import type { EventLocation } from '@/types/social'
 import type { BggCacheStats, AdminStats, ServiceHealth, AdminUser, AdminGroup, AdminNote, AdminBug } from '@/services/adminApi'
+import D20Spinner from '@/components/common/D20Spinner.vue'
 
 const auth = useAuthStore()
+
+// Minimum time to show loading spinner (in ms) so users can admire the D20
+const MIN_LOADING_TIME = 3000
+
+// Helper to ensure minimum loading time
+function withMinLoadingTime<T>(promise: Promise<T>, startTime: number): Promise<T> {
+  return promise.then(async (result) => {
+    const elapsed = Date.now() - startTime
+    if (elapsed < MIN_LOADING_TIME) {
+      await new Promise(resolve => setTimeout(resolve, MIN_LOADING_TIME - elapsed))
+    }
+    return result
+  })
+}
 
 const activeTab = ref<'dashboard' | 'users' | 'groups' | 'notes' | 'bugs' | 'locations' | 'bggCache'>('dashboard')
 
@@ -137,16 +152,21 @@ onMounted(async () => {
 
 async function loadDashboard() {
   dashboardLoading.value = true
+  const startTime = Date.now()
   try {
     const token = await auth.getIdToken()
     if (!token) return
-    const data = await getAdminDashboard(token)
+    const data = await withMinLoadingTime(getAdminDashboard(token), startTime)
     dashboardStats.value = data.stats
     serviceHealth.value = data.services
     lastRefresh.value = new Date()
   } catch (err) {
     console.error('Failed to load dashboard:', err)
   } finally {
+    const elapsed = Date.now() - startTime
+    if (elapsed < MIN_LOADING_TIME) {
+      await new Promise(resolve => setTimeout(resolve, MIN_LOADING_TIME - elapsed))
+    }
     dashboardLoading.value = false
   }
 }
@@ -247,6 +267,7 @@ function formatCacheDate(dateStr: string | null): string {
 async function loadUsers() {
   usersLoading.value = true
   errorMessage.value = ''
+  const startTime = Date.now()
   try {
     const token = await auth.getIdToken()
     if (!token) return
@@ -261,6 +282,10 @@ async function loadUsers() {
   } catch (err) {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to load users'
   } finally {
+    const elapsed = Date.now() - startTime
+    if (elapsed < MIN_LOADING_TIME) {
+      await new Promise(resolve => setTimeout(resolve, MIN_LOADING_TIME - elapsed))
+    }
     usersLoading.value = false
   }
 }
@@ -397,6 +422,7 @@ function handleUserSearch() {
 async function loadGroups() {
   groupsLoading.value = true
   errorMessage.value = ''
+  const startTime = Date.now()
   try {
     const token = await auth.getIdToken()
     if (!token) return
@@ -410,6 +436,10 @@ async function loadGroups() {
   } catch (err) {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to load groups'
   } finally {
+    const elapsed = Date.now() - startTime
+    if (elapsed < MIN_LOADING_TIME) {
+      await new Promise(resolve => setTimeout(resolve, MIN_LOADING_TIME - elapsed))
+    }
     groupsLoading.value = false
   }
 }
@@ -447,6 +477,7 @@ function handleGroupSearch() {
 async function loadNotes() {
   notesLoading.value = true
   errorMessage.value = ''
+  const startTime = Date.now()
   try {
     const token = await auth.getIdToken()
     if (!token) return
@@ -455,6 +486,10 @@ async function loadNotes() {
   } catch (err) {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to load notes'
   } finally {
+    const elapsed = Date.now() - startTime
+    if (elapsed < MIN_LOADING_TIME) {
+      await new Promise(resolve => setTimeout(resolve, MIN_LOADING_TIME - elapsed))
+    }
     notesLoading.value = false
   }
 }
@@ -547,6 +582,7 @@ async function handleDeleteNote(note: AdminNote) {
 async function loadBugs() {
   bugsLoading.value = true
   errorMessage.value = ''
+  const startTime = Date.now()
   try {
     const token = await auth.getIdToken()
     if (!token) return
@@ -558,6 +594,10 @@ async function loadBugs() {
   } catch (err) {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to load bugs'
   } finally {
+    const elapsed = Date.now() - startTime
+    if (elapsed < MIN_LOADING_TIME) {
+      await new Promise(resolve => setTimeout(resolve, MIN_LOADING_TIME - elapsed))
+    }
     bugsLoading.value = false
   }
 }
@@ -904,10 +944,7 @@ function isExpired(endDate: string): boolean {
     <div v-if="activeTab === 'dashboard'">
       <!-- Loading State -->
       <div v-if="dashboardLoading" class="text-center py-12">
-        <svg class="w-8 h-8 mx-auto text-primary-500 animate-spin" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-        </svg>
+        <D20Spinner size="lg" class="mx-auto" />
       </div>
 
       <template v-else>
@@ -1103,10 +1140,7 @@ function isExpired(endDate: string): boolean {
 
       <!-- Loading -->
       <div v-if="usersLoading" class="text-center py-12">
-        <svg class="w-8 h-8 mx-auto text-primary-500 animate-spin" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-        </svg>
+        <D20Spinner size="lg" class="mx-auto" />
       </div>
 
       <!-- User List -->
@@ -1281,10 +1315,7 @@ function isExpired(endDate: string): boolean {
 
       <!-- Loading -->
       <div v-if="groupsLoading" class="text-center py-12">
-        <svg class="w-8 h-8 mx-auto text-primary-500 animate-spin" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-        </svg>
+        <D20Spinner size="lg" class="mx-auto" />
       </div>
 
       <!-- Group List -->
@@ -1397,10 +1428,7 @@ function isExpired(endDate: string): boolean {
 
       <!-- Loading -->
       <div v-if="notesLoading" class="text-center py-12">
-        <svg class="w-8 h-8 mx-auto text-primary-500 animate-spin" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-        </svg>
+        <D20Spinner size="lg" class="mx-auto" />
       </div>
 
       <template v-else>
@@ -1493,10 +1521,7 @@ function isExpired(endDate: string): boolean {
 
       <!-- Loading -->
       <div v-if="bugsLoading" class="text-center py-12">
-        <svg class="w-8 h-8 mx-auto text-primary-500 animate-spin" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-        </svg>
+        <D20Spinner size="lg" class="mx-auto" />
       </div>
 
       <template v-else>
@@ -1569,10 +1594,7 @@ function isExpired(endDate: string): boolean {
 
         <!-- Stats -->
         <div v-if="cacheLoading" class="text-center py-4">
-          <svg class="w-6 h-6 mx-auto text-primary-500 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-          </svg>
+          <D20Spinner size="md" class="mx-auto" />
         </div>
         <div v-else-if="cacheStats" class="grid grid-cols-3 gap-4 mb-6">
           <div class="bg-gray-50 rounded-lg p-4 text-center">
