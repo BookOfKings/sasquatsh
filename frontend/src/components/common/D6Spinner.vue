@@ -1,11 +1,29 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps<{
   size?: number  // Size in pixels (default 100)
   opacity?: number  // Opacity 0-1 (default 0.15)
   duration?: number  // Animation duration in seconds (default 20)
 }>()
+
+// Check if on mobile phone (not tablet) - phones are typically < 640px wide
+const isMobilePhone = ref(false)
+
+function checkMobile() {
+  // Check both width and if it's a touch device with small screen
+  // Tablets are typically 768px+ in at least one dimension
+  isMobilePhone.value = window.innerWidth < 640 && window.innerHeight < 900
+}
+
+onMounted(() => {
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile)
+})
 
 const size = computed(() => props.size || 100)
 const opacity = computed(() => props.opacity || 0.15)
@@ -39,7 +57,8 @@ const pipSize = computed(() => Math.max(8, size.value * 0.12))
 </script>
 
 <template>
-  <div class="d6-container" :style="containerStyle">
+  <!-- Don't render on mobile phones to prevent performance issues -->
+  <div v-if="!isMobilePhone" class="d6-container" :style="containerStyle">
     <div class="d6-cube" :style="cubeStyle">
       <!-- Face 1 (front) -->
       <div
