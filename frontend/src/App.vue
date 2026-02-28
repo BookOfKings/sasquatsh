@@ -292,10 +292,17 @@ async function handleLogout() {
       </nav>
     </header>
 
-    <!-- Click outside to close menus (teleported to body for proper stacking) -->
+    <!-- Click outside to close user dropdown (teleported to body for proper stacking) -->
     <Teleport to="body">
-      <div v-if="userMenuOpen || mobileMenuOpen" class="fixed inset-0 z-[9000]" @click="userMenuOpen = false; mobileMenuOpen = false"></div>
+      <div v-if="userMenuOpen" class="fixed inset-0 z-[9000]" @click="userMenuOpen = false"></div>
     </Teleport>
+
+    <!-- Mobile menu backdrop - closes menu when clicking outside -->
+    <div
+      v-if="mobileMenuOpen"
+      class="fixed inset-0 z-40 md:hidden"
+      @click="mobileMenuOpen = false"
+    ></div>
 
     <!-- Main Content -->
     <main class="flex-1 relative z-0">
