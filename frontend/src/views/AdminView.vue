@@ -134,13 +134,18 @@ const deletingBugId = ref<string | null>(null)
 const showDialog = ref(false)
 const editingLocation = ref<EventLocation | null>(null)
 const saving = ref(false)
+type LocationType = 'temporary' | 'permanent' | 'recurring'
+const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
 const form = reactive({
   name: '',
   city: '',
   state: '',
   venue: '',
+  locationType: 'temporary' as LocationType,
   startDate: '',
   endDate: '',
+  recurringDays: [] as number[],
 })
 
 // Merge mode
@@ -786,8 +791,10 @@ function openCreateDialog() {
   form.city = ''
   form.state = ''
   form.venue = ''
+  form.locationType = 'temporary'
   form.startDate = ''
   form.endDate = ''
+  form.recurringDays = []
   showDialog.value = true
 }
 
@@ -797,14 +804,44 @@ function openEditDialog(location: EventLocation) {
   form.city = location.city
   form.state = location.state
   form.venue = location.venue || ''
-  form.startDate = location.startDate
-  form.endDate = location.endDate
+  // Determine location type from data
+  if (location.isPermanent) {
+    form.locationType = 'permanent'
+  } else if (location.recurringDays && location.recurringDays.length > 0) {
+    form.locationType = 'recurring'
+  } else {
+    form.locationType = 'temporary'
+  }
+  form.startDate = location.startDate || ''
+  form.endDate = location.endDate || ''
+  form.recurringDays = location.recurringDays ? [...location.recurringDays] : []
   showDialog.value = true
 }
 
+function toggleRecurringDay(day: number) {
+  const idx = form.recurringDays.indexOf(day)
+  if (idx >= 0) {
+    form.recurringDays.splice(idx, 1)
+  } else {
+    form.recurringDays.push(day)
+    form.recurringDays.sort((a, b) => a - b)
+  }
+}
+
 async function handleSave() {
-  if (!form.name.trim() || !form.city.trim() || !form.state.trim() || !form.startDate || !form.endDate) {
-    errorMessage.value = 'Name, city, state, and dates are required'
+  // Basic validation
+  if (!form.name.trim() || !form.city.trim() || !form.state.trim()) {
+    errorMessage.value = 'Name, city, and state are required'
+    return
+  }
+
+  // Type-specific validation
+  if (form.locationType === 'temporary' && (!form.startDate || !form.endDate)) {
+    errorMessage.value = 'Start and end dates are required for temporary locations'
+    return
+  }
+  if (form.locationType === 'recurring' && form.recurringDays.length === 0) {
+    errorMessage.value = 'Select at least one recurring day'
     return
   }
 
@@ -815,29 +852,26 @@ async function handleSave() {
     const token = await auth.getIdToken()
     if (!token) return
 
+    const payload = {
+      name: form.name.trim(),
+      city: form.city.trim(),
+      state: form.state.trim(),
+      venue: form.venue.trim() || undefined,
+      isPermanent: form.locationType === 'permanent',
+      recurringDays: form.locationType === 'recurring' ? form.recurringDays : null,
+      startDate: form.locationType === 'temporary' ? form.startDate : null,
+      endDate: form.locationType === 'temporary' ? form.endDate : null,
+    }
+
     if (editingLocation.value) {
       // Update existing
-      const updated = await updateLocation(token, editingLocation.value.id, {
-        name: form.name.trim(),
-        city: form.city.trim(),
-        state: form.state.trim(),
-        venue: form.venue.trim() || undefined,
-        startDate: form.startDate,
-        endDate: form.endDate,
-      })
+      const updated = await updateLocation(token, editingLocation.value.id, payload)
       const index = locations.value.findIndex(l => l.id === updated.id)
       if (index >= 0) locations.value[index] = updated
       successMessage.value = 'Location updated'
     } else {
       // Create new
-      const created = await createLocation(token, {
-        name: form.name.trim(),
-        city: form.city.trim(),
-        state: form.state.trim(),
-        venue: form.venue.trim() || undefined,
-        startDate: form.startDate,
-        endDate: form.endDate,
-      })
+      const created = await createLocation(token, payload)
       locations.value.unshift(created)
       successMessage.value = 'Location created'
     }
@@ -907,7 +941,8 @@ async function handleMerge() {
   }
 }
 
-function formatDate(dateStr: string): string {
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return 'N/A'
   const date = new Date(dateStr + 'T00:00:00')
   return date.toLocaleDateString('en-US', {
     month: 'short',
@@ -916,8 +951,23 @@ function formatDate(dateStr: string): string {
   })
 }
 
-function isExpired(endDate: string): boolean {
-  return new Date(endDate) < new Date()
+function isLocationExpired(location: EventLocation): boolean {
+  // Permanent locations never expire
+  if (location.isPermanent) return false
+  // Recurring locations never expire
+  if (location.recurringDays && location.recurringDays.length > 0) return false
+  // No end date means not expired
+  if (!location.endDate) return false
+  return new Date(location.endDate) < new Date()
+}
+
+function getLocationTypeLabel(location: EventLocation): string {
+  if (location.isPermanent) return 'Permanent'
+  if (location.recurringDays && location.recurringDays.length > 0) {
+    const days = location.recurringDays.map(d => dayNames[d]).join(', ')
+    return `Recurring: ${days}`
+  }
+  return 'Event'
 }
 </script>
 
@@ -1818,7 +1868,15 @@ function isExpired(endDate: string): boolean {
                 <span v-if="location.venue"> &bull; {{ location.venue }}</span>
               </p>
               <p class="text-sm text-gray-500">
-                {{ formatDate(location.startDate) }} - {{ formatDate(location.endDate) }}
+                <template v-if="location.isPermanent">
+                  <span class="text-emerald-600 font-medium">Permanent Location</span>
+                </template>
+                <template v-else-if="location.recurringDays && location.recurringDays.length > 0">
+                  <span class="text-blue-600 font-medium">{{ getLocationTypeLabel(location) }}</span>
+                </template>
+                <template v-else>
+                  {{ formatDate(location.startDate) }} - {{ formatDate(location.endDate) }}
+                </template>
               </p>
               <p v-if="location.createdBy" class="text-xs text-gray-400 mt-1">
                 Submitted by {{ location.createdBy.displayName || 'User' }}
@@ -1877,7 +1935,7 @@ function isExpired(endDate: string): boolean {
           :key="location.id"
           class="card p-4 flex items-center gap-4"
           :class="{
-            'opacity-50': isExpired(location.endDate),
+            'opacity-50': isLocationExpired(location),
             'ring-2 ring-primary-500': selectedForMerge.includes(location.id),
           }"
         >
@@ -1905,8 +1963,14 @@ function isExpired(endDate: string): boolean {
               >
                 {{ location.status }}
               </span>
-              <span v-if="isExpired(location.endDate)" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+              <span v-if="isLocationExpired(location)" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
                 Expired
+              </span>
+              <span v-if="location.isPermanent" class="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                Permanent
+              </span>
+              <span v-else-if="location.recurringDays && location.recurringDays.length > 0" class="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                Recurring
               </span>
               <span v-if="selectedForMerge[0] === location.id" class="text-xs px-2 py-0.5 rounded-full bg-primary-100 text-primary-700">
                 Keep this one
@@ -1917,7 +1981,18 @@ function isExpired(endDate: string): boolean {
               <span v-if="location.venue"> &bull; {{ location.venue }}</span>
             </p>
             <p class="text-sm text-gray-500">
-              {{ formatDate(location.startDate) }} - {{ formatDate(location.endDate) }}
+              <template v-if="location.isPermanent">
+                Always available
+              </template>
+              <template v-else-if="location.recurringDays && location.recurringDays.length > 0">
+                {{ getLocationTypeLabel(location) }}
+              </template>
+              <template v-else-if="location.startDate && location.endDate">
+                {{ formatDate(location.startDate) }} - {{ formatDate(location.endDate) }}
+              </template>
+              <template v-else>
+                No dates set
+              </template>
               <span v-if="location.eventCount" class="ml-2 text-primary-600">
                 ({{ location.eventCount }} event{{ location.eventCount === 1 ? '' : 's' }})
               </span>
@@ -1955,13 +2030,50 @@ function isExpired(endDate: string): boolean {
         </h3>
 
         <div class="space-y-4">
+          <!-- Location Type -->
           <div>
-            <label class="label">Event Name *</label>
+            <label class="label">Location Type *</label>
+            <div class="flex gap-2">
+              <button
+                type="button"
+                class="flex-1 px-3 py-2 text-sm rounded-lg border transition-colors"
+                :class="form.locationType === 'temporary'
+                  ? 'bg-emerald-100 border-emerald-500 text-emerald-700'
+                  : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'"
+                @click="form.locationType = 'temporary'"
+              >
+                Event/Convention
+              </button>
+              <button
+                type="button"
+                class="flex-1 px-3 py-2 text-sm rounded-lg border transition-colors"
+                :class="form.locationType === 'permanent'
+                  ? 'bg-emerald-100 border-emerald-500 text-emerald-700'
+                  : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'"
+                @click="form.locationType = 'permanent'"
+              >
+                Permanent
+              </button>
+              <button
+                type="button"
+                class="flex-1 px-3 py-2 text-sm rounded-lg border transition-colors"
+                :class="form.locationType === 'recurring'
+                  ? 'bg-emerald-100 border-emerald-500 text-emerald-700'
+                  : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'"
+                @click="form.locationType = 'recurring'"
+              >
+                Recurring
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label class="label">{{ form.locationType === 'temporary' ? 'Event Name' : 'Location Name' }} *</label>
             <input
               v-model="form.name"
               type="text"
               class="input"
-              placeholder="e.g., Dice Tower West 2026"
+              :placeholder="form.locationType === 'temporary' ? 'e.g., Dice Tower West 2026' : 'e.g., Dragon\'s Lair Comics'"
             />
           </div>
 
@@ -1987,7 +2099,7 @@ function isExpired(endDate: string): boolean {
           </div>
 
           <div>
-            <label class="label">Venue</label>
+            <label class="label">Venue/Building</label>
             <input
               v-model="form.venue"
               type="text"
@@ -1996,7 +2108,8 @@ function isExpired(endDate: string): boolean {
             />
           </div>
 
-          <div class="grid grid-cols-2 gap-4">
+          <!-- Dates (only for temporary) -->
+          <div v-if="form.locationType === 'temporary'" class="grid grid-cols-2 gap-4">
             <div>
               <label class="label">Start Date *</label>
               <input
@@ -2010,8 +2123,28 @@ function isExpired(endDate: string): boolean {
               <input
                 v-model="form.endDate"
                 type="date"
-              class="input"
+                class="input"
+                :min="form.startDate"
               />
+            </div>
+          </div>
+
+          <!-- Recurring Days (only for recurring) -->
+          <div v-if="form.locationType === 'recurring'">
+            <label class="label">Game Night Days *</label>
+            <div class="flex gap-1">
+              <button
+                v-for="(name, idx) in dayNames"
+                :key="idx"
+                type="button"
+                class="w-10 h-10 rounded-lg text-sm font-medium transition-colors"
+                :class="form.recurringDays.includes(idx)
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                @click="toggleRecurringDay(idx)"
+              >
+                {{ name }}
+              </button>
             </div>
           </div>
         </div>

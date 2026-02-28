@@ -95,8 +95,10 @@ export async function createLocation(
     city: string
     state: string
     venue?: string
-    startDate: string
-    endDate: string
+    startDate?: string | null
+    endDate?: string | null
+    isPermanent?: boolean
+    recurringDays?: number[] | null
   }
 ): Promise<EventLocation> {
   return authenticatedRequest<EventLocation>('/event-locations', token, {

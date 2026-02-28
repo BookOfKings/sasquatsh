@@ -30,6 +30,19 @@ function selectLocation(location: EventLocation) {
   emit('select', location)
 }
 
+const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+function getLocationLabel(location: EventLocation): string {
+  if (location.isPermanent) return 'Always open'
+  if (location.recurringDays && location.recurringDays.length > 0) {
+    return location.recurringDays.map(d => dayNames[d]).join(', ')
+  }
+  if (location.startDate && location.endDate) {
+    return formatDateRange(location.startDate, location.endDate)
+  }
+  return ''
+}
+
 function formatDateRange(start: string, end: string): string {
   const startDate = new Date(start)
   const endDate = new Date(end)
@@ -62,7 +75,7 @@ function formatDateRange(start: string, end: string): string {
         @click="selectLocation(location)"
       >
         <span class="font-medium">{{ location.name }}</span>
-        <span class="text-xs opacity-75">{{ formatDateRange(location.startDate, location.endDate) }}</span>
+        <span class="text-xs opacity-75">{{ getLocationLabel(location) }}</span>
         <span v-if="location.eventCount && location.eventCount > 0" class="bg-primary-500 text-white text-xs px-1.5 rounded-full">
           {{ location.eventCount }}
         </span>

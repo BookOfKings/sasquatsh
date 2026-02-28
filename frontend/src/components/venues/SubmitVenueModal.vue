@@ -19,20 +19,35 @@ const loading = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
 
+type LocationType = 'temporary' | 'permanent' | 'recurring'
+
 const form = ref({
   name: '',
   city: '',
   state: '',
   venue: '',
+  locationType: 'temporary' as LocationType,
   startDate: '',
   endDate: '',
+  recurringDays: [] as number[],
 })
 
+const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
 const isFormValid = computed(() => {
+  const hasBasicInfo = form.value.name.trim() && form.value.city.trim() && form.value.state.trim()
+
+  if (form.value.locationType === 'permanent') {
+    return hasBasicInfo
+  }
+
+  if (form.value.locationType === 'recurring') {
+    return hasBasicInfo && form.value.recurringDays.length > 0
+  }
+
+  // Temporary - requires dates
   return (
-    form.value.name.trim() &&
-    form.value.city.trim() &&
-    form.value.state.trim() &&
+    hasBasicInfo &&
     form.value.startDate &&
     form.value.endDate &&
     new Date(form.value.endDate) >= new Date(form.value.startDate)
@@ -47,13 +62,25 @@ watch(() => props.visible, (visible) => {
       city: '',
       state: '',
       venue: '',
+      locationType: 'temporary',
       startDate: '',
       endDate: '',
+      recurringDays: [],
     }
     errorMessage.value = ''
     successMessage.value = ''
   }
 })
+
+function toggleDay(day: number) {
+  const idx = form.value.recurringDays.indexOf(day)
+  if (idx >= 0) {
+    form.value.recurringDays.splice(idx, 1)
+  } else {
+    form.value.recurringDays.push(day)
+    form.value.recurringDays.sort((a, b) => a - b)
+  }
+}
 
 async function handleSubmit() {
   if (!isFormValid.value) return
@@ -74,8 +101,10 @@ async function handleSubmit() {
       city: form.value.city.trim(),
       state: form.value.state.trim(),
       venue: form.value.venue.trim() || undefined,
-      startDate: form.value.startDate,
-      endDate: form.value.endDate,
+      isPermanent: form.value.locationType === 'permanent',
+      recurringDays: form.value.locationType === 'recurring' ? form.value.recurringDays : undefined,
+      startDate: form.value.locationType === 'temporary' ? form.value.startDate : undefined,
+      endDate: form.value.locationType === 'temporary' ? form.value.endDate : undefined,
     })
 
     successMessage.value = 'Venue submitted for approval!'
@@ -133,14 +162,64 @@ const usStates = [
       </div>
 
       <form v-if="!successMessage" @submit.prevent="handleSubmit" class="space-y-4">
+        <!-- Location Type -->
+        <div>
+          <label class="label">Location Type *</label>
+          <div class="flex gap-2">
+            <button
+              type="button"
+              class="flex-1 px-3 py-2 text-sm rounded-lg border transition-colors"
+              :class="form.locationType === 'temporary'
+                ? 'bg-emerald-100 border-emerald-500 text-emerald-700'
+                : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'"
+              @click="form.locationType = 'temporary'"
+            >
+              Event/Convention
+            </button>
+            <button
+              type="button"
+              class="flex-1 px-3 py-2 text-sm rounded-lg border transition-colors"
+              :class="form.locationType === 'permanent'
+                ? 'bg-emerald-100 border-emerald-500 text-emerald-700'
+                : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'"
+              @click="form.locationType = 'permanent'"
+            >
+              Permanent
+            </button>
+            <button
+              type="button"
+              class="flex-1 px-3 py-2 text-sm rounded-lg border transition-colors"
+              :class="form.locationType === 'recurring'
+                ? 'bg-emerald-100 border-emerald-500 text-emerald-700'
+                : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'"
+              @click="form.locationType = 'recurring'"
+            >
+              Recurring
+            </button>
+          </div>
+          <p class="text-xs text-gray-500 mt-1">
+            <template v-if="form.locationType === 'temporary'">
+              One-time events like conventions or expos with specific dates
+            </template>
+            <template v-else-if="form.locationType === 'permanent'">
+              Game stores or venues that are always available
+            </template>
+            <template v-else>
+              Venues with regular game nights on specific days of the week
+            </template>
+          </p>
+        </div>
+
         <!-- Venue Name -->
         <div>
-          <label class="label">Event/Convention Name *</label>
+          <label class="label">
+            {{ form.locationType === 'temporary' ? 'Event/Convention Name' : 'Location Name' }} *
+          </label>
           <input
             v-model="form.name"
             type="text"
             class="input"
-            placeholder="e.g., Dice Tower West 2026"
+            :placeholder="form.locationType === 'temporary' ? 'e.g., Dice Tower West 2026' : 'e.g., Dragon\'s Lair Comics & Games'"
             required
             maxlength="200"
           />
@@ -148,12 +227,12 @@ const usStates = [
 
         <!-- Venue (optional) -->
         <div>
-          <label class="label">Venue/Location Name</label>
+          <label class="label">Venue/Building Name</label>
           <input
             v-model="form.venue"
             type="text"
             class="input"
-            placeholder="e.g., Westgate Las Vegas Resort"
+            :placeholder="form.locationType === 'temporary' ? 'e.g., Westgate Las Vegas Resort' : 'e.g., Northgate Mall'"
             maxlength="200"
           />
         </div>
@@ -182,8 +261,8 @@ const usStates = [
           </div>
         </div>
 
-        <!-- Dates -->
-        <div class="grid grid-cols-2 gap-4">
+        <!-- Dates (only for temporary) -->
+        <div v-if="form.locationType === 'temporary'" class="grid grid-cols-2 gap-4">
           <div>
             <label class="label">Start Date *</label>
             <input
@@ -203,6 +282,28 @@ const usStates = [
               :min="form.startDate"
             />
           </div>
+        </div>
+
+        <!-- Recurring Days (only for recurring) -->
+        <div v-if="form.locationType === 'recurring'">
+          <label class="label">Game Night Days *</label>
+          <div class="flex gap-1">
+            <button
+              v-for="(name, idx) in dayNames"
+              :key="idx"
+              type="button"
+              class="w-10 h-10 rounded-lg text-sm font-medium transition-colors"
+              :class="form.recurringDays.includes(idx)
+                ? 'bg-emerald-500 text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+              @click="toggleDay(idx)"
+            >
+              {{ name }}
+            </button>
+          </div>
+          <p v-if="form.recurringDays.length === 0" class="text-xs text-red-500 mt-1">
+            Select at least one day
+          </p>
         </div>
 
         <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">

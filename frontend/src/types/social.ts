@@ -5,8 +5,10 @@ export interface EventLocation {
   city: string
   state: string
   venue: string | null
-  startDate: string
-  endDate: string
+  startDate: string | null
+  endDate: string | null
+  isPermanent: boolean
+  recurringDays: number[] | null  // 0=Sunday, 1=Monday, ..., 6=Saturday
   status: 'pending' | 'approved' | 'rejected'
   eventCount?: number
   userCount?: number
@@ -24,8 +26,10 @@ export interface CreateEventLocationInput {
   city: string
   state: string
   venue?: string
-  startDate: string
-  endDate: string
+  startDate?: string | null
+  endDate?: string | null
+  isPermanent?: boolean
+  recurringDays?: number[] | null
 }
 
 // Player Request - Host needs players for their event (someone bailed)

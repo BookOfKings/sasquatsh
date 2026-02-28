@@ -12,13 +12,28 @@ const emit = defineEmits<{
   (e: 'delete', id: string): void
 }>()
 
-function formatDate(dateStr: string): string {
+const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return 'N/A'
   const date = new Date(dateStr + 'T00:00:00')
   return date.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
   })
+}
+
+function getLocationSchedule(location: { isPermanent?: boolean; recurringDays?: number[] | null; startDate: string | null; endDate: string | null }): string {
+  if (location.isPermanent) return 'Always available'
+  if (location.recurringDays && location.recurringDays.length > 0) {
+    const days = location.recurringDays.map(d => dayNames[d]).join(', ')
+    return `Recurring: ${days}`
+  }
+  if (location.startDate && location.endDate) {
+    return `${formatDate(location.startDate)} - ${formatDate(location.endDate)}`
+  }
+  return 'No schedule set'
 }
 
 function getStatusClass(status: string): string {
@@ -51,7 +66,7 @@ function getStatusClass(status: string): string {
           <span v-if="location.venue"> &bull; {{ location.venue }}</span>
         </p>
         <p class="text-sm text-gray-500">
-          {{ formatDate(location.startDate) }} - {{ formatDate(location.endDate) }}
+          {{ getLocationSchedule(location) }}
         </p>
       </div>
 

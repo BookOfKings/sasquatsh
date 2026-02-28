@@ -12,8 +12,10 @@ function toEventLocation(row: Record<string, unknown>) {
     city: row.city as string,
     state: row.state as string,
     venue: row.venue as string | null,
-    startDate: row.start_date as string,
-    endDate: row.end_date as string,
+    startDate: row.start_date as string | null,
+    endDate: row.end_date as string | null,
+    isPermanent: row.is_permanent as boolean,
+    recurringDays: row.recurring_days as number[] | null,
     status: row.status as string,
     eventCount: (row.event_count as number) ?? 0,
     userCount: (row.user_count as number) ?? 0,
@@ -100,13 +102,15 @@ Deno.serve(async (req) => {
     }
 
     // Public: List active, approved locations
+    // Includes permanent locations, recurring locations, and dated locations that haven't expired
     const today = new Date().toISOString().split('T')[0]
     const { data, error } = await supabase
       .from('event_locations')
       .select('*')
       .eq('status', 'approved')
-      .gte('end_date', today)
-      .order('start_date', { ascending: true })
+      .or(`is_permanent.eq.true,end_date.gte.${today},end_date.is.null`)
+      .order('is_permanent', { ascending: false })
+      .order('start_date', { ascending: true, nullsFirst: false })
 
     if (error) {
       return errorResponse(error.message, 500)
@@ -217,16 +221,30 @@ Deno.serve(async (req) => {
     if (!body.state?.trim()) {
       return errorResponse('State is required', 400)
     }
-    if (!body.startDate) {
-      return errorResponse('Start date is required', 400)
-    }
-    if (!body.endDate) {
-      return errorResponse('End date is required', 400)
+
+    const isPermanent = body.isPermanent === true
+    const recurringDays = Array.isArray(body.recurringDays) ? body.recurringDays : null
+
+    // Validate recurring days if provided
+    if (recurringDays && recurringDays.length > 0) {
+      const validDays = recurringDays.every((d: number) => Number.isInteger(d) && d >= 0 && d <= 6)
+      if (!validDays) {
+        return errorResponse('Recurring days must be integers from 0 (Sunday) to 6 (Saturday)', 400)
+      }
     }
 
-    // Check end date is after start date
-    if (new Date(body.endDate) < new Date(body.startDate)) {
-      return errorResponse('End date must be after start date', 400)
+    // For non-permanent locations, dates are required
+    if (!isPermanent && !recurringDays?.length) {
+      if (!body.startDate) {
+        return errorResponse('Start date is required for temporary locations', 400)
+      }
+      if (!body.endDate) {
+        return errorResponse('End date is required for temporary locations', 400)
+      }
+      // Check end date is on or after start date (same day is valid)
+      if (new Date(body.endDate) < new Date(body.startDate)) {
+        return errorResponse('End date must be on or after start date', 400)
+      }
     }
 
     const normalizedName = normalizeName(body.name)
@@ -242,8 +260,10 @@ Deno.serve(async (req) => {
         city: body.city.trim(),
         state: body.state.trim(),
         venue: body.venue?.trim() || null,
-        start_date: body.startDate,
-        end_date: body.endDate,
+        start_date: body.startDate || null,
+        end_date: body.endDate || null,
+        is_permanent: isPermanent,
+        recurring_days: recurringDays,
         status,
         created_by_user_id: user.id,
       })
@@ -328,8 +348,19 @@ Deno.serve(async (req) => {
     if (body.city !== undefined) updates.city = body.city.trim()
     if (body.state !== undefined) updates.state = body.state.trim()
     if (body.venue !== undefined) updates.venue = body.venue?.trim() || null
-    if (body.startDate !== undefined) updates.start_date = body.startDate
-    if (body.endDate !== undefined) updates.end_date = body.endDate
+    if (body.startDate !== undefined) updates.start_date = body.startDate || null
+    if (body.endDate !== undefined) updates.end_date = body.endDate || null
+    if (body.isPermanent !== undefined) updates.is_permanent = body.isPermanent
+    if (body.recurringDays !== undefined) {
+      // Validate recurring days
+      if (body.recurringDays && body.recurringDays.length > 0) {
+        const validDays = body.recurringDays.every((d: number) => Number.isInteger(d) && d >= 0 && d <= 6)
+        if (!validDays) {
+          return errorResponse('Recurring days must be integers from 0 (Sunday) to 6 (Saturday)', 400)
+        }
+      }
+      updates.recurring_days = body.recurringDays || null
+    }
     if (body.status !== undefined) updates.status = body.status
 
     const { data, error } = await supabase

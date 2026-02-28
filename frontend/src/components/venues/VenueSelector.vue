@@ -69,6 +69,19 @@ function handleBlur() {
   }, 200)
 }
 
+const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+function getLocationSchedule(location: EventLocation): string {
+  if (location.isPermanent) return 'Always open'
+  if (location.recurringDays && location.recurringDays.length > 0) {
+    return location.recurringDays.map(d => dayNames[d]).join(', ')
+  }
+  if (location.startDate && location.endDate) {
+    return formatDateRange(location.startDate, location.endDate)
+  }
+  return ''
+}
+
 function formatDateRange(start: string, end: string): string {
   const startDate = new Date(start)
   const endDate = new Date(end)
@@ -89,7 +102,7 @@ function formatDateRange(start: string, end: string): string {
         <div class="font-medium text-primary-900">{{ selectedLocation.name }}</div>
         <div class="text-sm text-primary-700">
           {{ selectedLocation.city }}, {{ selectedLocation.state }}
-          <span class="text-primary-500">{{ formatDateRange(selectedLocation.startDate, selectedLocation.endDate) }}</span>
+          <span class="text-primary-500">{{ getLocationSchedule(selectedLocation) }}</span>
         </div>
       </div>
       <button
@@ -151,7 +164,7 @@ function formatDateRange(start: string, end: string): string {
           <div class="text-sm text-gray-500">
             {{ location.city }}, {{ location.state }}
             <span class="mx-1">-</span>
-            <span class="text-gray-400">{{ formatDateRange(location.startDate, location.endDate) }}</span>
+            <span class="text-gray-400">{{ getLocationSchedule(location) }}</span>
           </div>
         </div>
         <div v-if="location.eventCount && location.eventCount > 0" class="flex items-center gap-1 text-xs text-gray-500">
