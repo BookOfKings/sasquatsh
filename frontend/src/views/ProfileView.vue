@@ -3,7 +3,7 @@ import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useEventStore } from '@/stores/useEventStore'
-import { getMyProfile, updateProfile, getBlockedUsers, unblockUser } from '@/services/profileApi'
+import { getMyProfile, updateProfile, getBlockedUsers, unblockUser, uploadAvatar, deleteAvatar } from '@/services/profileApi'
 import { checkUsernameAvailable } from '@/services/authApi'
 import { getLocationById } from '@/services/venuesApi'
 import type { UserProfile, UpdateProfileInput, BlockedUser } from '@/types/profile'
@@ -40,6 +40,12 @@ const USERNAME_REGEX = /^[a-zA-Z][a-zA-Z0-9_]{2,29}$/
 // Venue modal state
 const showVenueModal = ref(false)
 const selectedVenue = ref<EventLocation | null>(null)
+
+// Avatar upload state
+const avatarUploading = ref(false)
+const avatarDeleting = ref(false)
+const avatarError = ref('')
+const avatarFileInput = ref<HTMLInputElement | null>(null)
 
 const form = reactive<UpdateProfileInput>({
   username: '',
@@ -235,6 +241,73 @@ async function handleUnblock(userId: string) {
     }, 3000)
   } catch (err) {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to unblock user'
+  }
+}
+
+function triggerAvatarUpload() {
+  avatarFileInput.value?.click()
+}
+
+async function handleAvatarUpload(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  // Validate file type
+  const allowedTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
+  if (!allowedTypes.includes(file.type)) {
+    avatarError.value = 'Please select a PNG, JPEG, WebP, or GIF image'
+    return
+  }
+
+  // Validate file size (2MB)
+  if (file.size > 2 * 1024 * 1024) {
+    avatarError.value = 'Image must be smaller than 2MB'
+    return
+  }
+
+  avatarUploading.value = true
+  avatarError.value = ''
+
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+
+    const result = await uploadAvatar(token, file)
+    if (profile.value) {
+      profile.value.avatarUrl = result.avatarUrl
+    }
+    successMessage.value = 'Avatar updated!'
+    setTimeout(() => { successMessage.value = '' }, 3000)
+  } catch (err) {
+    avatarError.value = err instanceof Error ? err.message : 'Failed to upload avatar'
+  } finally {
+    avatarUploading.value = false
+    // Reset input so same file can be selected again
+    input.value = ''
+  }
+}
+
+async function handleAvatarDelete() {
+  if (!confirm('Remove your avatar?')) return
+
+  avatarDeleting.value = true
+  avatarError.value = ''
+
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+
+    await deleteAvatar(token)
+    if (profile.value) {
+      profile.value.avatarUrl = null
+    }
+    successMessage.value = 'Avatar removed'
+    setTimeout(() => { successMessage.value = '' }, 3000)
+  } catch (err) {
+    avatarError.value = err instanceof Error ? err.message : 'Failed to remove avatar'
+  } finally {
+    avatarDeleting.value = false
   }
 }
 
@@ -440,16 +513,50 @@ function goToGroup(slug: string) {
       <div class="card mb-6">
         <div class="p-6">
           <div class="flex items-start gap-4">
-            <!-- Avatar -->
-            <div class="w-20 h-20 rounded-full bg-primary-500 flex items-center justify-center overflow-hidden flex-shrink-0">
-              <img
-                v-if="profile.avatarUrl"
-                :src="profile.avatarUrl"
-                class="w-full h-full object-cover"
+            <!-- Avatar with upload button -->
+            <div class="relative flex-shrink-0">
+              <div
+                class="w-20 h-20 rounded-full bg-primary-500 flex items-center justify-center overflow-hidden cursor-pointer group"
+                @click="triggerAvatarUpload"
+              >
+                <img
+                  v-if="profile.avatarUrl"
+                  :src="profile.avatarUrl"
+                  class="w-full h-full object-cover"
+                />
+                <svg v-else class="w-10 h-10 text-white" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
+                </svg>
+                <!-- Upload overlay -->
+                <div class="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
+                  <svg v-if="avatarUploading" class="w-6 h-6 text-white animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                  </svg>
+                  <svg v-else class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M9,16V10H5L12,3L19,10H15V16H9M5,20V18H19V20H5Z"/>
+                  </svg>
+                </div>
+              </div>
+              <!-- Delete button (shows when avatar exists) -->
+              <button
+                v-if="profile.avatarUrl && !avatarUploading && !avatarDeleting"
+                class="absolute -bottom-1 -right-1 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white hover:bg-red-600 transition-colors"
+                title="Remove avatar"
+                @click.stop="handleAvatarDelete"
+              >
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
+                </svg>
+              </button>
+              <!-- Hidden file input -->
+              <input
+                ref="avatarFileInput"
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                class="hidden"
+                @change="handleAvatarUpload"
               />
-              <svg v-else class="w-10 h-10 text-white" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
-              </svg>
             </div>
 
             <!-- Info -->
@@ -580,13 +687,8 @@ function goToGroup(slug: string) {
               <p class="text-xs text-gray-500 mt-1">Visible to group members and event hosts</p>
             </div>
             <div>
-              <label class="label">Avatar URL</label>
-              <input
-                v-model="form.avatarUrl"
-                type="url"
-                class="input"
-                placeholder="https://..."
-              />
+              <label class="label">Avatar</label>
+              <p class="text-sm text-gray-500">Click your avatar above to upload a new picture (PNG, JPEG, WebP, or GIF, max 2MB)</p>
             </div>
           </div>
 

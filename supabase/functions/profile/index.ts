@@ -272,12 +272,133 @@ Deno.serve(async (req) => {
     return jsonResponse(toUserProfile(data))
   }
 
-  // POST - Block/Unblock user actions
+  // POST - Avatar upload or Block/Unblock user actions
   if (req.method === 'POST') {
+    // Handle avatar upload
+    if (action === 'upload-avatar') {
+      const contentType = req.headers.get('content-type') || ''
+
+      if (!contentType.includes('multipart/form-data')) {
+        return errorResponse('Content-Type must be multipart/form-data', 400)
+      }
+
+      try {
+        const formData = await req.formData()
+        const file = formData.get('avatar') as File | null
+
+        if (!file) {
+          return errorResponse('No avatar file provided', 400)
+        }
+
+        // Validate file type
+        const allowedTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
+        if (!allowedTypes.includes(file.type)) {
+          return errorResponse('Invalid file type. Allowed: PNG, JPEG, WebP, GIF', 400)
+        }
+
+        // Validate file size (2MB max)
+        if (file.size > 2 * 1024 * 1024) {
+          return errorResponse('File too large. Maximum size is 2MB', 400)
+        }
+
+        // Generate file path: {user_id}/avatar.{extension}
+        const extension = file.type.split('/')[1]
+        const filePath = `${user.id}/avatar.${extension}`
+
+        // Delete existing avatars for this user (any extension)
+        const { data: existingFiles } = await supabase.storage
+          .from('avatars')
+          .list(user.id)
+
+        if (existingFiles && existingFiles.length > 0) {
+          const filesToDelete = existingFiles.map(f => `${user.id}/${f.name}`)
+          await supabase.storage.from('avatars').remove(filesToDelete)
+        }
+
+        // Upload new avatar
+        const arrayBuffer = await file.arrayBuffer()
+        const { error: uploadError } = await supabase.storage
+          .from('avatars')
+          .upload(filePath, arrayBuffer, {
+            contentType: file.type,
+            upsert: true,
+          })
+
+        if (uploadError) {
+          console.error('Avatar upload error:', uploadError)
+          return errorResponse('Failed to upload avatar', 500)
+        }
+
+        // Get public URL
+        const { data: urlData } = supabase.storage
+          .from('avatars')
+          .getPublicUrl(filePath)
+
+        const avatarUrl = urlData.publicUrl
+
+        // Update user's avatar_url in database
+        const { data, error: updateError } = await supabase
+          .from('users')
+          .update({
+            avatar_url: avatarUrl,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', user.id)
+          .select()
+          .single()
+
+        if (updateError) {
+          return errorResponse(updateError.message, 500)
+        }
+
+        return jsonResponse({
+          message: 'Avatar uploaded successfully',
+          avatarUrl,
+          user: toUserProfile(data),
+        })
+      } catch (err) {
+        console.error('Avatar upload error:', err)
+        return errorResponse('Failed to process avatar upload', 500)
+      }
+    }
+
+    // Handle avatar deletion
+    if (action === 'delete-avatar') {
+      // Delete existing avatars for this user
+      const { data: existingFiles } = await supabase.storage
+        .from('avatars')
+        .list(user.id)
+
+      if (existingFiles && existingFiles.length > 0) {
+        const filesToDelete = existingFiles.map(f => `${user.id}/${f.name}`)
+        await supabase.storage.from('avatars').remove(filesToDelete)
+      }
+
+      // Update user's avatar_url to null
+      const { data, error } = await supabase
+        .from('users')
+        .update({
+          avatar_url: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', user.id)
+        .select()
+        .single()
+
+      if (error) {
+        return errorResponse(error.message, 500)
+      }
+
+      return jsonResponse({
+        message: 'Avatar deleted',
+        user: toUserProfile(data),
+      })
+    }
+
     const targetUserId = url.searchParams.get('userId')
 
     if (!targetUserId) {
-      return errorResponse('userId parameter required', 400)
+      return errorResponse('userId parameter required for block/unblock', 400)
     }
 
     if (targetUserId === user.id) {

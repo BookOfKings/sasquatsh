@@ -96,3 +96,49 @@ export async function unblockUser(
     { method: 'POST' }
   )
 }
+
+// ============ Avatar Management ============
+
+// Upload avatar image
+export async function uploadAvatar(
+  token: string,
+  file: File
+): Promise<{ message: string; avatarUrl: string; user: UserProfile }> {
+  const formData = new FormData()
+  formData.append('avatar', file)
+
+  const response = await fetch(`${FUNCTIONS_URL}/profile?action=upload-avatar`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'X-Firebase-Token': token,
+      // Don't set Content-Type - browser will set it with boundary for multipart
+    },
+    body: formData,
+  })
+
+  if (!response.ok) {
+    let message = response.statusText
+    try {
+      const data = await response.json()
+      if (data?.error) message = data.error
+      if (data?.message) message = data.message
+    } catch {
+      // no JSON body
+    }
+    throw new Error(message)
+  }
+
+  return response.json()
+}
+
+// Delete avatar image
+export async function deleteAvatar(
+  token: string
+): Promise<{ message: string; user: UserProfile }> {
+  return authenticatedRequest<{ message: string; user: UserProfile }>(
+    '/profile?action=delete-avatar',
+    token,
+    { method: 'POST' }
+  )
+}
