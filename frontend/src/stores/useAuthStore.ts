@@ -162,6 +162,23 @@ async function logout(): Promise<void> {
   user.value = null
 }
 
+async function refreshUser(): Promise<void> {
+  if (firebaseUser.value) {
+    try {
+      const idToken = await firebaseUser.value.getIdToken()
+      user.value = await getCurrentUser(idToken)
+    } catch (err) {
+      console.error('Failed to refresh user data:', err)
+    }
+  }
+}
+
+function updateUserData(updates: Partial<User>): void {
+  if (user.value) {
+    user.value = { ...user.value, ...updates }
+  }
+}
+
 async function getIdToken(): Promise<string | null> {
   return firebaseUser.value?.getIdToken() ?? null
 }
@@ -207,5 +224,7 @@ export function useAuthStore() {
     loginWithGoogle,
     logout,
     getIdToken,
+    refreshUser,
+    updateUserData,
   }
 }

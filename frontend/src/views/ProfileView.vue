@@ -277,6 +277,8 @@ async function handleAvatarUpload(event: Event) {
     if (profile.value) {
       profile.value.avatarUrl = result.avatarUrl
     }
+    // Update auth store so header shows new avatar
+    auth.updateUserData({ avatarUrl: result.avatarUrl })
     successMessage.value = 'Avatar updated!'
     setTimeout(() => { successMessage.value = '' }, 3000)
   } catch (err) {
@@ -302,6 +304,8 @@ async function handleAvatarDelete() {
     if (profile.value) {
       profile.value.avatarUrl = null
     }
+    // Update auth store so header removes avatar
+    auth.updateUserData({ avatarUrl: undefined })
     successMessage.value = 'Avatar removed'
     setTimeout(() => { successMessage.value = '' }, 3000)
   } catch (err) {
