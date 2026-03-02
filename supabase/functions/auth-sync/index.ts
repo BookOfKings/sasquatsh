@@ -100,12 +100,14 @@ Deno.serve(async (req) => {
 
     if (existingUser) {
       // Update last seen and return existing user
+      // Don't overwrite avatar_url if user has uploaded their own avatar
       const { data, error } = await supabase
         .from('users')
         .update({
           updated_at: new Date().toISOString(),
           display_name: firebaseUser.name || existingUser.display_name,
-          avatar_url: firebaseUser.picture || existingUser.avatar_url,
+          // Only set avatar from Firebase if user doesn't have one
+          avatar_url: existingUser.avatar_url || firebaseUser.picture,
         })
         .eq('firebase_uid', firebaseUser.uid)
         .select()

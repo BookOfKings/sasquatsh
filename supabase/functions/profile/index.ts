@@ -329,12 +329,12 @@ Deno.serve(async (req) => {
           return errorResponse('Failed to upload avatar', 500)
         }
 
-        // Get public URL
+        // Get public URL with cache-busting timestamp
         const { data: urlData } = supabase.storage
           .from('avatars')
           .getPublicUrl(filePath)
 
-        const avatarUrl = urlData.publicUrl
+        const avatarUrl = `${urlData.publicUrl}?t=${Date.now()}`
 
         // Update user's avatar_url in database
         const { data, error: updateError } = await supabase
