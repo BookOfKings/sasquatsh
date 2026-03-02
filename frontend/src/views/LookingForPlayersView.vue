@@ -12,9 +12,12 @@ import {
 } from '@/services/socialApi'
 import { getMyEvents } from '@/services/eventsApi'
 import { getMyProfile } from '@/services/profileApi'
-import type { PlayerRequest, CreatePlayerRequestInput, PlayerRequestFilters } from '@/types/social'
+import type { PlayerRequest, CreatePlayerRequestInput, PlayerRequestFilters, EventLocation } from '@/types/social'
 import type { EventSummary } from '@/types/events'
 import D20Spinner from '@/components/common/D20Spinner.vue'
+import HotLocationsBar from '@/components/venues/HotLocationsBar.vue'
+import VenueDetailsFields from '@/components/venues/VenueDetailsFields.vue'
+import SubmitVenueModal from '@/components/venues/SubmitVenueModal.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -34,8 +37,14 @@ const actionInProgress = ref<string | null>(null)
 const locationFilter = ref({
   city: '',
   state: '',
+  eventLocationId: null as string | null,
+  hall: null as string | null,
+  room: null as string | null,
+  table: null as string | null,
 })
+const selectedVenue = ref<EventLocation | null>(null)
 const filterApplied = ref(false)
+const showSubmitVenueModal = ref(false)
 
 // Auto-refresh interval
 let refreshInterval: ReturnType<typeof setInterval> | null = null
@@ -113,6 +122,7 @@ async function loadRequests() {
     const filters: PlayerRequestFilters = {}
     if (locationFilter.value.city) filters.city = locationFilter.value.city
     if (locationFilter.value.state) filters.state = locationFilter.value.state
+    if (locationFilter.value.eventLocationId) filters.eventLocationId = locationFilter.value.eventLocationId
     requests.value = await getPlayerRequests(filters, token ?? undefined)
   } catch (err) {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to load requests'
@@ -121,15 +131,40 @@ async function loadRequests() {
   }
 }
 
+function handleVenueSelect(venue: EventLocation) {
+  selectedVenue.value = venue
+  locationFilter.value.eventLocationId = venue.id
+  locationFilter.value.city = venue.city
+  locationFilter.value.state = venue.state
+  locationFilter.value.hall = null
+  locationFilter.value.room = null
+  locationFilter.value.table = null
+  filterApplied.value = true
+  loadRequests()
+}
+
+function clearVenueSelection() {
+  selectedVenue.value = null
+  locationFilter.value.eventLocationId = null
+  locationFilter.value.hall = null
+  locationFilter.value.room = null
+  locationFilter.value.table = null
+}
+
 function clearLocationFilter() {
   locationFilter.value.city = ''
   locationFilter.value.state = ''
+  locationFilter.value.eventLocationId = null
+  locationFilter.value.hall = null
+  locationFilter.value.room = null
+  locationFilter.value.table = null
+  selectedVenue.value = null
   filterApplied.value = false
   loadRequests()
 }
 
 function applyLocationFilter() {
-  filterApplied.value = !!(locationFilter.value.city || locationFilter.value.state)
+  filterApplied.value = !!(locationFilter.value.city || locationFilter.value.state || locationFilter.value.eventLocationId)
   loadRequests()
 }
 
@@ -341,6 +376,49 @@ function getStatusBadge(status: string) {
           Requests are visible for <strong>15 minutes</strong> to help you find fill-in players quickly.
         </div>
       </div>
+    </div>
+
+    <!-- Hot Locations -->
+    <HotLocationsBar
+      :selected-id="locationFilter.eventLocationId"
+      @select="handleVenueSelect"
+    />
+
+    <!-- Selected Venue Details -->
+    <div v-if="selectedVenue" class="card p-4 mb-4 bg-primary-50 border-primary-200">
+      <div class="flex items-center justify-between mb-3">
+        <div>
+          <div class="font-semibold text-primary-900">{{ selectedVenue.name }}</div>
+          <div class="text-sm text-primary-700">{{ selectedVenue.city }}, {{ selectedVenue.state }}</div>
+        </div>
+        <button
+          class="btn-ghost text-primary-600 text-sm"
+          @click="clearVenueSelection"
+        >
+          Change
+        </button>
+      </div>
+      <div class="text-sm text-primary-700 mb-3">
+        Optionally specify where you are within the venue:
+      </div>
+      <VenueDetailsFields
+        :hall="locationFilter.hall"
+        :room="locationFilter.room"
+        :table="locationFilter.table"
+        @update:hall="locationFilter.hall = $event"
+        @update:room="locationFilter.room = $event"
+        @update:table="locationFilter.table = $event"
+      />
+    </div>
+
+    <!-- Submit Venue Link (when no venue selected) -->
+    <div v-if="!selectedVenue" class="text-center mb-4">
+      <button
+        class="text-sm text-primary-600 hover:text-primary-700 underline"
+        @click="showSubmitVenueModal = true"
+      >
+        Don't see your convention? Submit a new venue
+      </button>
     </div>
 
     <!-- Location Filter -->
@@ -643,5 +721,12 @@ function getStatusBadge(status: string) {
         </div>
       </div>
     </div>
+
+    <!-- Submit Venue Modal -->
+    <SubmitVenueModal
+      :visible="showSubmitVenueModal"
+      @close="showSubmitVenueModal = false"
+      @submitted="(venue) => { showSubmitVenueModal = false; handleVenueSelect(venue) }"
+    />
   </div>
 </template>
