@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test'
+import { loadTestData } from './test-utils'
 
 /**
  * Comprehensive E2E Tests for Events (Games) functionality
@@ -8,6 +9,7 @@ import { test, expect, Page } from '@playwright/test'
  * - TEST_USER_EMAIL and TEST_USER_PASSWORD environment variables must be set
  * - The test user account must exist in the system
  * - Backend API must be running
+ * - Global setup has created test event and group
  */
 
 // Helper function to login
@@ -56,18 +58,12 @@ test.describe('Events - Unauthenticated', () => {
   })
 
   test('should be able to view a public event detail page', async ({ page }) => {
-    // First go to games list
-    await page.goto('/games')
+    // Use the test event created during global setup
+    const testData = loadTestData()
 
-    // Check if there are any event cards to click
-    const eventCards = page.locator('.card').first()
-    const hasCards = await eventCards.isVisible().catch(() => false)
-
-    if (hasCards) {
-      // Click on the first event card if available
-      await eventCards.click()
-      // Should navigate to event detail
-      await expect(page).toHaveURL(/\/games\//)
+    if (testData?.eventSlug) {
+      // Navigate directly to the test event
+      await page.goto(`/games/${testData.eventSlug}`)
 
       // Should show event details or login prompt
       const eventTitle = page.locator('h1')
@@ -76,6 +72,16 @@ test.describe('Events - Unauthenticated', () => {
       const hasLoginPrompt = await loginPrompt.isVisible().catch(() => false)
 
       expect(hasTitle || hasLoginPrompt).toBeTruthy()
+    } else {
+      // Fallback: try to find an event in the list
+      await page.goto('/games')
+      const eventCards = page.locator('.card').first()
+      const hasCards = await eventCards.isVisible().catch(() => false)
+
+      if (hasCards) {
+        await eventCards.click()
+        await expect(page).toHaveURL(/\/games\//)
+      }
     }
   })
 
@@ -137,18 +143,28 @@ test.describe('Events - Authenticated', () => {
     })
 
     test('should navigate to event detail when clicking an event', async ({ page }) => {
-      await page.goto('/games')
+      // Use the test event created during global setup
+      const testData = loadTestData()
 
-      // Wait for events to load
-      await page.waitForTimeout(1000)
-
-      // Try to click on an event card
-      const eventCard = page.locator('.card').first()
-      const hasCards = await eventCard.isVisible().catch(() => false)
-
-      if (hasCards) {
-        await eventCard.click()
+      if (testData?.eventSlug) {
+        // Navigate directly to the test event
+        await page.goto(`/games/${testData.eventSlug}`)
         await expect(page).toHaveURL(/\/games\/[a-zA-Z0-9-]+/)
+
+        // Should show event title
+        await expect(page.locator('h1')).toBeVisible()
+      } else {
+        // Fallback: try to find an event in the list
+        await page.goto('/games')
+        await page.waitForTimeout(1000)
+
+        const eventCard = page.locator('.card').first()
+        const hasCards = await eventCard.isVisible().catch(() => false)
+
+        if (hasCards) {
+          await eventCard.click()
+          await expect(page).toHaveURL(/\/games\/[a-zA-Z0-9-]+/)
+        }
       }
     })
   })
@@ -286,59 +302,73 @@ test.describe('Events - Authenticated', () => {
     })
 
     test('should be able to register for an event', async ({ page }) => {
-      await page.goto('/games')
+      // Use the test event created during global setup
+      const testData = loadTestData()
 
-      // Wait for events to load
-      await page.waitForTimeout(1000)
+      if (testData?.eventSlug) {
+        // Navigate directly to the test event
+        await page.goto(`/games/${testData.eventSlug}`)
+        await page.waitForURL(/\/games\//)
+      } else {
+        // Fallback: try to find an event in the list
+        await page.goto('/games')
+        await page.waitForTimeout(1000)
 
-      // Find an event card and click it
-      const eventCard = page.locator('.card').first()
-      const hasCards = await eventCard.isVisible().catch(() => false)
+        const eventCard = page.locator('.card').first()
+        const hasCards = await eventCard.isVisible().catch(() => false)
 
-      if (hasCards) {
+        if (!hasCards) return // Skip if no events
         await eventCard.click()
         await page.waitForURL(/\/games\//)
+      }
 
-        // Check for Join Game or Cancel Registration button
-        const joinButton = page.getByRole('button', { name: /join game/i })
-        const cancelButton = page.getByRole('button', { name: /cancel registration/i })
-        const gameFullText = page.getByText(/game is full/i)
+      // Check for Join Game or Cancel Registration button
+      const joinButton = page.getByRole('button', { name: /join game/i })
+      const cancelButton = page.getByRole('button', { name: /cancel registration/i })
+      const gameFullText = page.getByText(/game is full/i)
 
-        const hasJoinButton = await joinButton.isVisible().catch(() => false)
-        const hasCancelButton = await cancelButton.isVisible().catch(() => false)
-        const isGameFull = await gameFullText.isVisible().catch(() => false)
+      const hasJoinButton = await joinButton.isVisible().catch(() => false)
+      const hasCancelButton = await cancelButton.isVisible().catch(() => false)
+      const isGameFull = await gameFullText.isVisible().catch(() => false)
 
-        // One of these states should be true (unless viewing own event)
-        const isHostedByUser = await page.getByRole('button', { name: /edit/i }).isVisible().catch(() => false)
+      // One of these states should be true (unless viewing own event)
+      const isHostedByUser = await page.getByRole('button', { name: /edit/i }).isVisible().catch(() => false)
 
-        if (!isHostedByUser) {
-          expect(hasJoinButton || hasCancelButton || isGameFull).toBeTruthy()
-        }
+      if (!isHostedByUser) {
+        expect(hasJoinButton || hasCancelButton || isGameFull).toBeTruthy()
       }
     })
 
     test('should be able to share an event', async ({ page }) => {
-      await page.goto('/games')
+      // Use the test event created during global setup
+      const testData = loadTestData()
 
-      await page.waitForTimeout(1000)
+      if (testData?.eventSlug) {
+        // Navigate directly to the test event
+        await page.goto(`/games/${testData.eventSlug}`)
+        await page.waitForURL(/\/games\//)
+      } else {
+        // Fallback: try to find an event in the list
+        await page.goto('/games')
+        await page.waitForTimeout(1000)
 
-      const eventCard = page.locator('.card').first()
-      const hasCards = await eventCard.isVisible().catch(() => false)
+        const eventCard = page.locator('.card').first()
+        const hasCards = await eventCard.isVisible().catch(() => false)
 
-      if (hasCards) {
+        if (!hasCards) return // Skip if no events
         await eventCard.click()
         await page.waitForURL(/\/games\//)
+      }
 
-        // Find and click Share button
-        const shareButton = page.getByRole('button', { name: /share/i })
-        const hasShareButton = await shareButton.isVisible().catch(() => false)
+      // Find and click Share button
+      const shareButton = page.getByRole('button', { name: /share/i })
+      const hasShareButton = await shareButton.isVisible().catch(() => false)
 
-        if (hasShareButton) {
-          await shareButton.click()
+      if (hasShareButton) {
+        await shareButton.click()
 
-          // Share modal should appear
-          await expect(page.getByText(/share|copy link/i)).toBeVisible()
-        }
+        // Share modal should appear
+        await expect(page.getByText(/share|copy link/i)).toBeVisible()
       }
     })
   })

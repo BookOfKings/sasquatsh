@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test'
+import { loadTestData } from './test-utils'
 
 /**
  * Comprehensive E2E Tests for Groups functionality
@@ -8,6 +9,7 @@ import { test, expect, Page } from '@playwright/test'
  * - TEST_USER_EMAIL and TEST_USER_PASSWORD environment variables must be set
  * - The test user account must exist in the system
  * - Backend API must be running
+ * - Global setup has created test event and group
  */
 
 // Helper function to login
@@ -57,19 +59,12 @@ test.describe('Groups - Unauthenticated', () => {
   })
 
   test('should be able to view a public group', async ({ page }) => {
-    await page.goto('/groups')
+    // Use the test group created during global setup
+    const testData = loadTestData()
 
-    // Wait for groups to load
-    await page.waitForTimeout(1000)
-
-    // Try to click on a group card
-    const groupCard = page.locator('.card').first()
-    const hasCards = await groupCard.isVisible().catch(() => false)
-
-    if (hasCards) {
-      await groupCard.click()
-      // Should navigate to group detail
-      await expect(page).toHaveURL(/\/groups\//)
+    if (testData?.groupSlug) {
+      // Navigate directly to the test group
+      await page.goto(`/groups/${testData.groupSlug}`)
 
       // Should show group name or sign in prompt
       const groupName = page.locator('h1')
@@ -79,6 +74,18 @@ test.describe('Groups - Unauthenticated', () => {
       const hasSignInPrompt = await signInPrompt.isVisible().catch(() => false)
 
       expect(hasName || hasSignInPrompt).toBeTruthy()
+    } else {
+      // Fallback: try to find a group in the list
+      await page.goto('/groups')
+      await page.waitForTimeout(1000)
+
+      const groupCard = page.locator('.card').first()
+      const hasCards = await groupCard.isVisible().catch(() => false)
+
+      if (hasCards) {
+        await groupCard.click()
+        await expect(page).toHaveURL(/\/groups\//)
+      }
     }
   })
 
@@ -150,16 +157,28 @@ test.describe('Groups - Authenticated', () => {
     })
 
     test('should navigate to group detail when clicking a group', async ({ page }) => {
-      await page.goto('/groups')
+      // Use the test group created during global setup
+      const testData = loadTestData()
 
-      await page.waitForTimeout(1000)
-
-      const groupCard = page.locator('.card').first()
-      const hasCards = await groupCard.isVisible().catch(() => false)
-
-      if (hasCards) {
-        await groupCard.click()
+      if (testData?.groupSlug) {
+        // Navigate directly to the test group
+        await page.goto(`/groups/${testData.groupSlug}`)
         await expect(page).toHaveURL(/\/groups\/[a-zA-Z0-9-]+/)
+
+        // Should show group title
+        await expect(page.locator('h1')).toBeVisible()
+      } else {
+        // Fallback: try to find a group in the list
+        await page.goto('/groups')
+        await page.waitForTimeout(1000)
+
+        const groupCard = page.locator('.card').first()
+        const hasCards = await groupCard.isVisible().catch(() => false)
+
+        if (hasCards) {
+          await groupCard.click()
+          await expect(page).toHaveURL(/\/groups\/[a-zA-Z0-9-]+/)
+        }
       }
     })
   })
@@ -253,55 +272,70 @@ test.describe('Groups - Authenticated', () => {
 
   test.describe('Group Detail & Actions', () => {
     test('should show group details', async ({ page }) => {
-      await page.goto('/groups')
+      // Use the test group created during global setup
+      const testData = loadTestData()
 
-      await page.waitForTimeout(1000)
+      if (testData?.groupSlug) {
+        // Navigate directly to the test group
+        await page.goto(`/groups/${testData.groupSlug}`)
+      } else {
+        // Fallback: try to find a group in the list
+        await page.goto('/groups')
+        await page.waitForTimeout(1000)
 
-      const groupCard = page.locator('.card').first()
-      const hasCards = await groupCard.isVisible().catch(() => false)
+        const groupCard = page.locator('.card').first()
+        const hasCards = await groupCard.isVisible().catch(() => false)
 
-      if (hasCards) {
+        if (!hasCards) return // Skip if no groups
         await groupCard.click()
-        await page.waitForURL(/\/groups\//)
-
-        // Should show group info
-        const groupTitle = page.locator('h1')
-        await expect(groupTitle).toBeVisible()
-
-        // Should show member count
-        const memberCount = page.getByText(/\d+ members?/i)
-        const hasMemberCount = await memberCount.isVisible().catch(() => false)
-        expect(hasMemberCount).toBeTruthy()
       }
+
+      await page.waitForURL(/\/groups\//)
+
+      // Should show group info
+      const groupTitle = page.locator('h1')
+      await expect(groupTitle).toBeVisible()
+
+      // Should show member count
+      const memberCount = page.getByText(/\d+ members?/i)
+      const hasMemberCount = await memberCount.isVisible().catch(() => false)
+      expect(hasMemberCount).toBeTruthy()
     })
 
     test('should show join button for non-members of open groups', async ({ page }) => {
-      await page.goto('/groups')
+      // Use the test group created during global setup
+      const testData = loadTestData()
 
-      await page.waitForTimeout(1000)
+      if (testData?.groupSlug) {
+        // Navigate directly to the test group
+        await page.goto(`/groups/${testData.groupSlug}`)
+      } else {
+        // Fallback: try to find a group in the list
+        await page.goto('/groups')
+        await page.waitForTimeout(1000)
 
-      // Find a group and navigate to it
-      const groupCard = page.locator('.card').first()
-      const hasCards = await groupCard.isVisible().catch(() => false)
+        const groupCard = page.locator('.card').first()
+        const hasCards = await groupCard.isVisible().catch(() => false)
 
-      if (hasCards) {
+        if (!hasCards) return // Skip if no groups
         await groupCard.click()
-        await page.waitForURL(/\/groups\//)
-
-        // Check for join actions based on membership status
-        const joinButton = page.getByRole('button', { name: /join group/i })
-        const requestButton = page.getByRole('button', { name: /request to join/i })
-        const leaveButton = page.getByRole('button', { name: /leave group/i })
-        const inviteOnlyText = page.getByText(/invitation required/i)
-
-        const hasJoinButton = await joinButton.isVisible().catch(() => false)
-        const hasRequestButton = await requestButton.isVisible().catch(() => false)
-        const hasLeaveButton = await leaveButton.isVisible().catch(() => false)
-        const hasInviteOnly = await inviteOnlyText.isVisible().catch(() => false)
-
-        // One of these should be visible
-        expect(hasJoinButton || hasRequestButton || hasLeaveButton || hasInviteOnly).toBeTruthy()
       }
+
+      await page.waitForURL(/\/groups\//)
+
+      // Check for join actions based on membership status
+      const joinButton = page.getByRole('button', { name: /join group/i })
+      const requestButton = page.getByRole('button', { name: /request to join/i })
+      const leaveButton = page.getByRole('button', { name: /leave group/i })
+      const inviteOnlyText = page.getByText(/invitation required/i)
+
+      const hasJoinButton = await joinButton.isVisible().catch(() => false)
+      const hasRequestButton = await requestButton.isVisible().catch(() => false)
+      const hasLeaveButton = await leaveButton.isVisible().catch(() => false)
+      const hasInviteOnly = await inviteOnlyText.isVisible().catch(() => false)
+
+      // One of these should be visible
+      expect(hasJoinButton || hasRequestButton || hasLeaveButton || hasInviteOnly).toBeTruthy()
     })
   })
 

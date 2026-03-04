@@ -1,4 +1,8 @@
 import { defineConfig, devices } from '@playwright/test'
+import { config } from 'dotenv'
+
+// Load .env file for test credentials
+config()
 
 /**
  * Playwright E2E Test Configuration
@@ -8,8 +12,9 @@ export default defineConfig({
   // Test directory
   testDir: './e2e',
 
-  // Global setup
+  // Global setup and teardown
   globalSetup: './e2e/global-setup.ts',
+  globalTeardown: './e2e/global-teardown.ts',
 
   // Run tests in parallel
   fullyParallel: true,
@@ -20,8 +25,8 @@ export default defineConfig({
   // Retry on CI only
   retries: process.env.CI ? 2 : 0,
 
-  // Opt out of parallel tests on CI
-  workers: process.env.CI ? 1 : undefined,
+  // Limit workers to avoid Firebase auth rate limits
+  workers: process.env.CI ? 1 : 4,
 
   // Reporter to use
   reporter: [
