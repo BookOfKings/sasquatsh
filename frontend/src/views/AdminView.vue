@@ -14,6 +14,7 @@ import {
   importPopularGames,
   importHotGames,
   refreshStaleCache,
+  refreshBggThumbnails,
   getAdminDashboard,
   getAdminUsers,
   suspendUser,
@@ -327,6 +328,22 @@ async function handleRefreshStale() {
     setTimeout(() => successMessage.value = '', 5000)
   } catch (err) {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to refresh cache'
+  } finally {
+    cacheImporting.value = false
+  }
+}
+
+async function handleRefreshThumbnails() {
+  cacheImporting.value = true
+  errorMessage.value = ''
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    const result = await refreshBggThumbnails(token)
+    successMessage.value = result.message
+    setTimeout(() => successMessage.value = '', 5000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to refresh thumbnails'
   } finally {
     cacheImporting.value = false
   }
@@ -2573,6 +2590,20 @@ function getLocationTypeLabel(location: EventLocation): string {
               @click="handleRefreshStale"
             >
               Refresh Stale
+            </button>
+          </div>
+
+          <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <div>
+              <div class="font-medium text-gray-900">Refresh Game Thumbnails</div>
+              <div class="text-sm text-gray-600">Fetches missing thumbnails for event games from BGG</div>
+            </div>
+            <button
+              class="btn-outline"
+              :disabled="cacheImporting"
+              @click="handleRefreshThumbnails"
+            >
+              Refresh Thumbnails
             </button>
           </div>
         </div>

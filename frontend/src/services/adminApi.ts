@@ -198,6 +198,13 @@ export async function refreshStaleCache(token: string): Promise<BggCacheImportRe
   })
 }
 
+// Refresh BGG thumbnails for event games missing them
+export async function refreshBggThumbnails(token: string): Promise<{ message: string; refreshed: number; total: number; errors?: string[] }> {
+  return authenticatedRequest<{ message: string; refreshed: number; total: number; errors?: string[] }>('/admin-stats?action=refresh-bgg-cache', token, {
+    method: 'POST',
+  })
+}
+
 // Import games by ID range
 export async function importGamesByRange(
   token: string,

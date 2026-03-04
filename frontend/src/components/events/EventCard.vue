@@ -89,17 +89,34 @@ function getPlayerProgress(confirmed: number, max: number): number {
     class="card-hover p-4 cursor-pointer"
     @click="emit('click', event)"
   >
-    <!-- Header with avatar -->
+    <!-- Header with game thumbnail and host avatar -->
     <div class="flex items-start gap-3 mb-3">
-      <div class="w-12 h-12 rounded-full bg-primary-500 flex items-center justify-center overflow-hidden flex-shrink-0">
-        <img
-          v-if="event.host?.avatarUrl"
-          :src="event.host.avatarUrl"
-          class="w-full h-full object-cover"
-        />
-        <svg v-else class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
-        </svg>
+      <!-- Game thumbnail with host avatar overlay -->
+      <div class="relative w-14 h-14 flex-shrink-0">
+        <!-- Game thumbnail (or fallback) -->
+        <div class="w-14 h-14 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden">
+          <img
+            v-if="event.primaryGameThumbnail"
+            :src="event.primaryGameThumbnail"
+            :alt="event.gameTitle || 'Game'"
+            class="w-full h-full object-cover"
+          />
+          <svg v-else class="w-7 h-7 text-gray-300" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
+          </svg>
+        </div>
+        <!-- Host avatar overlay -->
+        <div class="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center overflow-hidden ring-2 ring-white">
+          <img
+            v-if="event.host?.avatarUrl"
+            :src="event.host.avatarUrl"
+            :alt="event.host?.displayName || 'Host'"
+            class="w-full h-full object-cover"
+          />
+          <svg v-else class="w-3 h-3 text-white" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
+          </svg>
+        </div>
       </div>
       <div class="flex-1 min-w-0">
         <h3 class="font-semibold text-gray-900 truncate">{{ event.title }}</h3>

@@ -104,7 +104,8 @@ Deno.serve(async (req) => {
           duration_minutes, city, state, difficulty_level, max_players, host_is_playing,
           is_public, is_charity_event, min_age, status, host_user_id,
           host:users!host_user_id(id, display_name, avatar_url),
-          registrations:event_registrations(count)
+          registrations:event_registrations(count),
+          games:event_games(thumbnail_url, is_primary)
         `)
         .eq('is_public', true)
         .eq('status', 'published')
@@ -157,7 +158,8 @@ Deno.serve(async (req) => {
           duration_minutes, city, state, difficulty_level, max_players, host_is_playing,
           is_public, is_charity_event, min_age, status,
           host:users!host_user_id(id, display_name, avatar_url),
-          registrations:event_registrations(count)
+          registrations:event_registrations(count),
+          games:event_games(thumbnail_url, is_primary)
         `)
         .eq('host_user_id', user.id)
         .order('event_date', { ascending: true })
@@ -176,7 +178,8 @@ Deno.serve(async (req) => {
             duration_minutes, city, state, difficulty_level, max_players, host_is_playing,
             is_public, is_charity_event, min_age, status,
             host:users!host_user_id(id, display_name, avatar_url),
-            registrations:event_registrations(count)
+            registrations:event_registrations(count),
+            games:event_games(thumbnail_url, is_primary)
           )
         `)
         .eq('user_id', user.id)
@@ -393,6 +396,12 @@ Deno.serve(async (req) => {
 })
 
 function transformEventSummary(row: Record<string, unknown>) {
+  // Find the primary game's thumbnail, or fall back to any game's thumbnail
+  const games = row.games as { thumbnail_url: string | null; is_primary: boolean }[] | null
+  const primaryGame = games?.find(g => g.is_primary)
+  const anyGameWithThumbnail = games?.find(g => g.thumbnail_url)
+  const primaryGameThumbnail = primaryGame?.thumbnail_url || anyGameWithThumbnail?.thumbnail_url || null
+
   return {
     id: row.id,
     title: row.title,
@@ -412,6 +421,7 @@ function transformEventSummary(row: Record<string, unknown>) {
     isCharityEvent: row.is_charity_event,
     minAge: row.min_age,
     status: row.status,
+    primaryGameThumbnail,
     host: row.host
       ? {
           id: (row.host as Record<string, unknown>).id,

@@ -1538,6 +1538,83 @@ Deno.serve(async (req) => {
       return jsonResponse({ message: `Ad "${ad.name}" deleted` })
     }
 
+    // Refresh BGG cache - fetch missing thumbnails from BGG API
+    if (action === 'refresh-bgg-cache') {
+      const BGG_API_BASE = 'https://boardgamegeek.com/xmlapi2'
+
+      // Get all bgg_ids from event_games that have NULL thumbnail but have a bgg_id
+      const { data: gamesNeedingThumbnails } = await supabase
+        .from('event_games')
+        .select('bgg_id')
+        .not('bgg_id', 'is', null)
+        .is('thumbnail_url', null)
+
+      if (!gamesNeedingThumbnails || gamesNeedingThumbnails.length === 0) {
+        return jsonResponse({ message: 'No games need thumbnail refresh', refreshed: 0 })
+      }
+
+      // Get unique bgg_ids
+      const uniqueBggIds = [...new Set(gamesNeedingThumbnails.map(g => g.bgg_id))]
+      let refreshedCount = 0
+      const errors: string[] = []
+
+      for (const bggId of uniqueBggIds) {
+        try {
+          // Fetch from BGG API
+          const headers: Record<string, string> = {}
+          if (bggApiToken) {
+            headers['Authorization'] = `Bearer ${bggApiToken}`
+          }
+
+          const response = await fetch(`${BGG_API_BASE}/thing?id=${bggId}`, { headers })
+
+          if (!response.ok) {
+            errors.push(`BGG API error for ${bggId}: ${response.status}`)
+            continue
+          }
+
+          const xml = await response.text()
+
+          // Parse thumbnail URL from XML
+          const thumbnailMatch = xml.match(/<thumbnail>([^<]+)<\/thumbnail>/)
+          const imageMatch = xml.match(/<image>([^<]+)<\/image>/)
+          const thumbnailUrl = thumbnailMatch?.[1]?.trim() || null
+          const imageUrl = imageMatch?.[1]?.trim() || null
+
+          if (!thumbnailUrl) {
+            errors.push(`No thumbnail found for bgg_id ${bggId}`)
+            continue
+          }
+
+          // Update bgg_games_cache
+          await supabase
+            .from('bgg_games_cache')
+            .update({ thumbnail_url: thumbnailUrl, image_url: imageUrl })
+            .eq('bgg_id', bggId)
+
+          // Update event_games
+          await supabase
+            .from('event_games')
+            .update({ thumbnail_url: thumbnailUrl })
+            .eq('bgg_id', bggId)
+
+          refreshedCount++
+
+          // Small delay to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 500))
+        } catch (err) {
+          errors.push(`Error refreshing ${bggId}: ${err}`)
+        }
+      }
+
+      return jsonResponse({
+        message: `Refreshed ${refreshedCount} of ${uniqueBggIds.length} games`,
+        refreshed: refreshedCount,
+        total: uniqueBggIds.length,
+        errors: errors.length > 0 ? errors : undefined,
+      })
+    }
+
     return errorResponse('Unknown action', 400)
   }
 

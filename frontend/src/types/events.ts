@@ -23,6 +23,7 @@ export interface EventSummary {
   isCharityEvent: boolean
   minAge: number | null
   status: string
+  primaryGameThumbnail: string | null
   host: UserSummary | null
 }
 

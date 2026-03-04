@@ -50,6 +50,12 @@ async function authenticatedRequest<T>(
 
 // Transform database row to EventSummary
 function toEventSummary(row: Record<string, unknown>): EventSummary {
+  // Find the primary game's thumbnail
+  const games = row.games as { thumbnail_url: string | null; is_primary: boolean }[] | null
+  const primaryGame = games?.find(g => g.is_primary)
+  const anyGameWithThumbnail = games?.find(g => g.thumbnail_url)
+  const primaryGameThumbnail = primaryGame?.thumbnail_url || anyGameWithThumbnail?.thumbnail_url || null
+
   return {
     id: row.id as string,
     title: row.title as string,
@@ -69,6 +75,7 @@ function toEventSummary(row: Record<string, unknown>): EventSummary {
     isCharityEvent: row.is_charity_event as boolean,
     minAge: row.min_age as number | null,
     status: row.status as string,
+    primaryGameThumbnail,
     host: row.host
       ? {
           id: (row.host as Record<string, unknown>).id as string,
@@ -167,7 +174,8 @@ export async function getPublicEvents(
       duration_minutes, city, state, difficulty_level, max_players,
       is_public, is_charity_event, min_age, status,
       host:users!host_user_id(id, display_name, avatar_url),
-      registrations:event_registrations(count)
+      registrations:event_registrations(count),
+      games:event_games(thumbnail_url, is_primary)
     `)
     .eq('is_public', true)
     .eq('status', 'published')
