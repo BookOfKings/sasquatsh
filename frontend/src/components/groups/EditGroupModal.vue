@@ -3,6 +3,7 @@ import { ref, reactive, computed } from 'vue'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { updateGroup } from '@/services/groupsApi'
 import { uploadImage } from '@/services/firebase'
+import { compressLogo } from '@/utils/imageUtils'
 import type { Group, GroupType, JoinPolicy } from '@/types/groups'
 
 const props = defineProps<{
@@ -103,8 +104,18 @@ async function handleSave() {
     // Upload new logo if selected
     if (logoFile.value) {
       uploadingLogo.value = true
-      const path = `groups/${props.group.id}/logo-${Date.now()}`
-      logoUrl = await uploadImage(logoFile.value, path)
+      try {
+        // Compress logo before upload for better performance
+        const compressedFile = await compressLogo(logoFile.value)
+        console.log(`Compressed logo from ${(logoFile.value.size / 1024).toFixed(0)}KB to ${(compressedFile.size / 1024).toFixed(0)}KB`)
+
+        const path = `groups/${props.group.id}/logo-${Date.now()}`
+        logoUrl = await uploadImage(compressedFile, path)
+      } catch (err) {
+        console.warn('Logo compression failed, uploading original:', err)
+        const path = `groups/${props.group.id}/logo-${Date.now()}`
+        logoUrl = await uploadImage(logoFile.value, path)
+      }
       uploadingLogo.value = false
     }
 
