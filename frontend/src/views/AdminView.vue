@@ -1667,6 +1667,123 @@ function getLocationTypeLabel(location: EventLocation): string {
               </div>
             </div>
           </div>
+
+          <!-- Subscription & Revenue Section -->
+          <div v-if="dashboardStats" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+            <!-- Subscription Tiers -->
+            <div class="card p-4">
+              <h3 class="font-semibold mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z"/>
+                </svg>
+                Subscription Tiers
+              </h3>
+              <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <span class="w-3 h-3 rounded-full bg-gray-400"></span>
+                    <span class="text-sm">Free</span>
+                  </div>
+                  <span class="font-bold">{{ dashboardStats.users.byTier?.free ?? 0 }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <span class="w-3 h-3 rounded-full bg-blue-500"></span>
+                    <span class="text-sm">Basic ($7.99/mo)</span>
+                  </div>
+                  <span class="font-bold text-blue-600">{{ dashboardStats.users.byTier?.basic ?? 0 }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <span class="w-3 h-3 rounded-full bg-purple-500"></span>
+                    <span class="text-sm">Pro ($14.99/mo)</span>
+                  </div>
+                  <span class="font-bold text-purple-600">{{ dashboardStats.users.byTier?.pro ?? 0 }}</span>
+                </div>
+              </div>
+              <!-- Visual bar chart -->
+              <div class="mt-4 pt-4 border-t border-gray-100">
+                <div class="flex h-4 rounded-full overflow-hidden bg-gray-100">
+                  <div
+                    class="bg-gray-400 transition-all"
+                    :style="{ width: `${(dashboardStats.users.byTier?.free ?? 0) / dashboardStats.users.total * 100}%` }"
+                  ></div>
+                  <div
+                    class="bg-blue-500 transition-all"
+                    :style="{ width: `${(dashboardStats.users.byTier?.basic ?? 0) / dashboardStats.users.total * 100}%` }"
+                  ></div>
+                  <div
+                    class="bg-purple-500 transition-all"
+                    :style="{ width: `${(dashboardStats.users.byTier?.pro ?? 0) / dashboardStats.users.total * 100}%` }"
+                  ></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Projected Revenue -->
+            <div class="card p-4">
+              <h3 class="font-semibold mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-green-500" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M5,6H23V18H5V6M14,9A3,3 0 0,1 17,12A3,3 0 0,1 14,15A3,3 0 0,1 11,12A3,3 0 0,1 14,9M9,8A2,2 0 0,1 7,10V14A2,2 0 0,1 9,16H19A2,2 0 0,1 21,14V10A2,2 0 0,1 19,8H9M1,10H3V20H19V22H1V10Z"/>
+                </svg>
+                Projected Monthly Revenue
+              </h3>
+              <div class="text-center py-4">
+                <div class="text-4xl font-bold text-green-600">
+                  ${{ dashboardStats.revenue?.projectedMonthly?.toFixed(2) ?? '0.00' }}
+                </div>
+                <div class="text-sm text-gray-500 mt-1">per month</div>
+              </div>
+              <div class="border-t border-gray-100 pt-4 space-y-2 text-sm">
+                <div class="flex justify-between">
+                  <span class="text-gray-600">Basic ({{ dashboardStats.revenue?.basicCount ?? 0 }} x $7.99)</span>
+                  <span class="font-medium">${{ ((dashboardStats.revenue?.basicCount ?? 0) * 7.99).toFixed(2) }}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-gray-600">Pro ({{ dashboardStats.revenue?.proCount ?? 0 }} x $14.99)</span>
+                  <span class="font-medium">${{ ((dashboardStats.revenue?.proCount ?? 0) * 14.99).toFixed(2) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Popular Games Section -->
+          <div v-if="dashboardStats?.popularGames && dashboardStats.popularGames.length > 0" class="mt-6">
+            <h3 class="font-semibold mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-orange-500" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
+              </svg>
+              Popular Games (Top 10)
+            </h3>
+            <div class="card divide-y divide-gray-100">
+              <div
+                v-for="(game, index) in dashboardStats?.popularGames"
+                :key="game.name"
+                class="p-3 flex items-center gap-3"
+              >
+                <span class="text-lg font-bold text-gray-400 w-6">{{ index + 1 }}</span>
+                <img
+                  v-if="game.thumbnailUrl"
+                  :src="game.thumbnailUrl"
+                  :alt="game.name"
+                  class="w-10 h-10 rounded object-cover"
+                />
+                <div v-else class="w-10 h-10 rounded bg-gray-200 flex items-center justify-center">
+                  <svg class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5Z"/>
+                  </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="font-medium truncate">{{ game.name }}</div>
+                  <div v-if="game.bggId" class="text-xs text-gray-500">BGG ID: {{ game.bggId }}</div>
+                </div>
+                <div class="text-right">
+                  <div class="font-bold text-primary-600">{{ game.count }}</div>
+                  <div class="text-xs text-gray-500">event{{ game.count !== 1 ? 's' : '' }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Service Health Section -->

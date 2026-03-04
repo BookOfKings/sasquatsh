@@ -17,6 +17,16 @@ interface AdminStats {
     total: number
     last7Days: number
     last30Days: number
+    byTier: {
+      free: number
+      basic: number
+      pro: number
+    }
+  }
+  revenue: {
+    projectedMonthly: number
+    basicCount: number
+    proCount: number
   }
   groups: {
     total: number
@@ -38,6 +48,12 @@ interface AdminStats {
   bggCache: {
     total: number
   }
+  popularGames: {
+    name: string
+    bggId: number | null
+    count: number
+    thumbnailUrl: string | null
+  }[]
 }
 
 async function getStats(supabase: ReturnType<typeof createClient>): Promise<AdminStats> {
@@ -45,11 +61,17 @@ async function getStats(supabase: ReturnType<typeof createClient>): Promise<Admi
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
 
+  // Pricing constants
+  const BASIC_PRICE = 7.99
+  const PRO_PRICE = 14.99
+
   // Run all queries in parallel for performance
   const [
     usersTotal,
     usersLast7,
     usersLast30,
+    usersBasicTier,
+    usersProTier,
     groupsTotal,
     groupsPublic,
     eventsTotal,
@@ -59,11 +81,18 @@ async function getStats(supabase: ReturnType<typeof createClient>): Promise<Admi
     requestsTotal,
     requestsActive,
     bggCacheTotal,
+    popularGamesResult,
   ] = await Promise.all([
     // Users
     supabase.from('users').select('*', { count: 'exact', head: true }),
     supabase.from('users').select('*', { count: 'exact', head: true }).gte('created_at', sevenDaysAgo),
     supabase.from('users').select('*', { count: 'exact', head: true }).gte('created_at', thirtyDaysAgo),
+    // Count users with basic tier (either direct or override)
+    supabase.from('users').select('*', { count: 'exact', head: true })
+      .or('subscription_tier.eq.basic,subscription_override_tier.eq.basic'),
+    // Count users with pro tier (either direct or override)
+    supabase.from('users').select('*', { count: 'exact', head: true })
+      .or('subscription_tier.eq.pro,subscription_override_tier.eq.pro'),
 
     // Groups
     supabase.from('groups').select('*', { count: 'exact', head: true }),
@@ -83,13 +112,46 @@ async function getStats(supabase: ReturnType<typeof createClient>): Promise<Admi
 
     // BGG Cache
     supabase.from('bgg_games_cache').select('*', { count: 'exact', head: true }),
+
+    // Popular games - aggregate by game name from event_games
+    supabase.rpc('get_popular_games', { limit_count: 10 }).catch(() => ({ data: null })),
   ])
+
+  // Calculate tier counts
+  const basicCount = usersBasicTier.count ?? 0
+  const proCount = usersProTier.count ?? 0
+  const totalUsers = usersTotal.count ?? 0
+  const freeCount = totalUsers - basicCount - proCount
+
+  // Calculate projected monthly revenue
+  const projectedMonthly = (basicCount * BASIC_PRICE) + (proCount * PRO_PRICE)
+
+  // Format popular games result
+  let popularGames: AdminStats['popularGames'] = []
+  if (popularGamesResult.data && Array.isArray(popularGamesResult.data)) {
+    popularGames = popularGamesResult.data.map((g: { game_name: string; bgg_id: number | null; usage_count: number; thumbnail_url: string | null }) => ({
+      name: g.game_name,
+      bggId: g.bgg_id,
+      count: g.usage_count,
+      thumbnailUrl: g.thumbnail_url,
+    }))
+  }
 
   return {
     users: {
-      total: usersTotal.count ?? 0,
+      total: totalUsers,
       last7Days: usersLast7.count ?? 0,
       last30Days: usersLast30.count ?? 0,
+      byTier: {
+        free: freeCount,
+        basic: basicCount,
+        pro: proCount,
+      },
+    },
+    revenue: {
+      projectedMonthly: Math.round(projectedMonthly * 100) / 100,
+      basicCount,
+      proCount,
     },
     groups: {
       total: groupsTotal.count ?? 0,
@@ -111,6 +173,7 @@ async function getStats(supabase: ReturnType<typeof createClient>): Promise<Admi
     bggCache: {
       total: bggCacheTotal.count ?? 0,
     },
+    popularGames,
   }
 }
 

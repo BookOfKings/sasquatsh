@@ -5,11 +5,28 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 // ============ Admin Dashboard Types ============
 
+export interface PopularGame {
+  name: string
+  bggId: number | null
+  count: number
+  thumbnailUrl: string | null
+}
+
 export interface AdminStats {
   users: {
     total: number
     last7Days: number
     last30Days: number
+    byTier: {
+      free: number
+      basic: number
+      pro: number
+    }
+  }
+  revenue: {
+    projectedMonthly: number
+    basicCount: number
+    proCount: number
   }
   groups: {
     total: number
@@ -31,6 +48,7 @@ export interface AdminStats {
   bggCache: {
     total: number
   }
+  popularGames: PopularGame[]
 }
 
 export interface ServiceHealth {
