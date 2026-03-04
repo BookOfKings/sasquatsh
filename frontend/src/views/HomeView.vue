@@ -88,24 +88,6 @@ function goToPricing() {
         </div>
       </div>
 
-      <!-- Upgrade CTA for free tier users (under game counter) -->
-      <div v-if="auth.isAuthenticated.value && isFreeTier" class="bg-gradient-to-r from-primary-50 to-purple-50 border border-primary-200 rounded-xl p-4 mb-6">
-        <div class="flex items-center gap-4">
-          <div class="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
-            <svg class="w-5 h-5 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z"/>
-            </svg>
-          </div>
-          <div class="flex-1 min-w-0">
-            <p class="font-medium text-gray-900 text-sm">Unlock more features</p>
-            <p class="text-xs text-gray-600">Host multiple games, create more groups, and access planning tools.</p>
-          </div>
-          <button @click="goToPricing" class="btn-primary text-sm whitespace-nowrap">
-            Upgrade
-          </button>
-        </div>
-      </div>
-
       <!-- Mission Statement -->
       <div class="bg-gradient-to-r from-primary-50 to-secondary-50 rounded-xl p-4 mb-6">
         <p class="text-gray-700 text-sm leading-relaxed">
@@ -140,6 +122,24 @@ function goToPricing() {
             </svg>
             Browse
           </button>
+        </div>
+
+        <!-- Upgrade CTA for free tier users -->
+        <div v-if="isFreeTier" class="bg-gradient-to-r from-primary-50 to-purple-50 border border-primary-200 rounded-xl p-4 mt-4">
+          <div class="flex items-center gap-4">
+            <div class="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z"/>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="font-medium text-gray-900 text-sm">Unlock more features</p>
+              <p class="text-xs text-gray-600">Host multiple games, create more groups, and access planning tools.</p>
+            </div>
+            <button @click="goToPricing" class="btn-primary text-sm whitespace-nowrap">
+              Upgrade
+            </button>
+          </div>
         </div>
       </template>
 
