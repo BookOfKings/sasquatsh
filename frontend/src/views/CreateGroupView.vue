@@ -1,15 +1,32 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGroupStore } from '@/stores/useGroupStore'
+import { useAuthStore } from '@/stores/useAuthStore'
+import UpgradePrompt from '@/components/billing/UpgradePrompt.vue'
+import { TIER_LIMITS, type SubscriptionTier } from '@/config/subscriptionLimits'
+import { getEffectiveTier } from '@/types/user'
 import type { CreateGroupInput, GroupType, JoinPolicy } from '@/types/groups'
 
 const router = useRouter()
 const groupStore = useGroupStore()
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const errorMessage = ref('')
 const errors = reactive<Record<string, string>>({})
+
+// Tier limit checking
+const showUpgradePrompt = ref(false)
+const ownedGroupCount = ref(0)
+
+const currentTier = computed((): SubscriptionTier => {
+  if (!authStore.user.value) return 'free'
+  return getEffectiveTier(authStore.user.value)
+})
+
+const groupLimit = computed(() => TIER_LIMITS[currentTier.value].maxGroups)
+const isAtLimit = computed(() => ownedGroupCount.value >= groupLimit.value)
 
 const form = reactive<CreateGroupInput>({
   name: '',
@@ -32,6 +49,19 @@ const joinPolicyOptions: { title: string; value: JoinPolicy; description: string
   { title: 'Request to Join', value: 'request', description: 'Members must be approved by admins' },
   { title: 'Invitation Only', value: 'invite_only', description: 'Only people with an invite link can join' },
 ]
+
+onMounted(async () => {
+  // Load user's groups to check owned group count
+  await groupStore.loadMyGroups()
+  ownedGroupCount.value = groupStore.myGroups.value.filter(
+    g => g.userRole === 'owner'
+  ).length
+
+  // Show upgrade prompt immediately if already at limit
+  if (isAtLimit.value) {
+    showUpgradePrompt.value = true
+  }
+})
 
 function validate(): boolean {
   errors.name = ''
@@ -57,6 +87,17 @@ async function handleSubmit() {
   if (result.ok && result.group) {
     router.push(`/groups/${result.group.slug}`)
   } else {
+    // Check if this is a tier limit error
+    try {
+      const errorData = JSON.parse(result.message)
+      if (errorData.code === 'TIER_LIMIT_REACHED') {
+        ownedGroupCount.value = errorData.currentCount
+        showUpgradePrompt.value = true
+        return
+      }
+    } catch {
+      // Not a JSON error, show as-is
+    }
     errorMessage.value = result.message
   }
 
@@ -251,5 +292,15 @@ function goBack() {
         </form>
       </div>
     </div>
+
+    <!-- Upgrade Prompt -->
+    <UpgradePrompt
+      :visible="showUpgradePrompt"
+      :current-tier="currentTier"
+      limit-type="groups"
+      :current-count="ownedGroupCount"
+      :limit="groupLimit"
+      @close="showUpgradePrompt = false"
+    />
   </div>
 </template>

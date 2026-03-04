@@ -240,6 +240,15 @@ export interface AdminUser {
   isSuspended: boolean
   suspensionReason: string | null
   suspendedAt: string | null
+  accountStatus: 'active' | 'suspended' | 'banned'
+  bannedAt: string | null
+  banReason: string | null
+  subscriptionTier: 'free' | 'basic' | 'pro' | 'premium'
+  subscriptionOverrideTier: 'free' | 'basic' | 'pro' | 'premium' | null
+  subscriptionOverrideReason: string | null
+  subscriptionStatus: 'active' | 'past_due' | 'canceled' | 'incomplete' | null
+  subscriptionExpiresAt: string | null
+  effectiveTier: 'free' | 'basic' | 'pro' | 'premium'
   createdAt: string
 }
 
@@ -253,11 +262,12 @@ export interface AdminUserListResponse {
 // Get list of users (admin only)
 export async function getAdminUsers(
   token: string,
-  options?: { search?: string; suspended?: boolean; page?: number; limit?: number }
+  options?: { search?: string; suspended?: boolean; banned?: boolean; page?: number; limit?: number }
 ): Promise<AdminUserListResponse> {
   const params = new URLSearchParams({ action: 'users' })
   if (options?.search) params.set('search', options.search)
   if (options?.suspended) params.set('suspended', 'true')
+  if (options?.banned) params.set('banned', 'true')
   if (options?.page) params.set('page', options.page.toString())
   if (options?.limit) params.set('limit', options.limit.toString())
 
@@ -277,6 +287,35 @@ export async function unsuspendUser(token: string, userId: string): Promise<{ me
   return authenticatedRequest<{ message: string }>('/admin-stats?action=unsuspend-user', token, {
     method: 'POST',
     body: JSON.stringify({ userId }),
+  })
+}
+
+// Ban a user permanently (admin only)
+export async function banUser(token: string, userId: string, reason?: string): Promise<{ message: string }> {
+  return authenticatedRequest<{ message: string }>('/admin-stats?action=ban-user', token, {
+    method: 'POST',
+    body: JSON.stringify({ userId, reason }),
+  })
+}
+
+// Unban a user (admin only)
+export async function unbanUser(token: string, userId: string): Promise<{ message: string }> {
+  return authenticatedRequest<{ message: string }>('/admin-stats?action=unban-user', token, {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
+  })
+}
+
+// Set user subscription tier override (admin only)
+export async function setUserTier(
+  token: string,
+  userId: string,
+  tier: 'free' | 'basic' | 'pro' | 'premium' | null,
+  reason?: string
+): Promise<{ message: string; effectiveTier: string }> {
+  return authenticatedRequest<{ message: string; effectiveTier: string }>('/admin-stats?action=set-tier', token, {
+    method: 'POST',
+    body: JSON.stringify({ userId, tier, reason }),
   })
 }
 
@@ -347,6 +386,66 @@ export async function deleteGroup(token: string, groupId: string): Promise<{ mes
   return authenticatedRequest<{ message: string }>('/admin-stats?action=delete-group', token, {
     method: 'POST',
     body: JSON.stringify({ groupId }),
+  })
+}
+
+// Get group members (admin only)
+export interface AdminGroupMember {
+  id: string
+  userId: string
+  username: string
+  displayName: string | null
+  email: string
+  avatarUrl: string | null
+  role: 'owner' | 'admin' | 'member'
+  joinedAt: string
+}
+
+export async function getGroupMembers(
+  token: string,
+  groupId: string
+): Promise<{ members: AdminGroupMember[] }> {
+  return authenticatedRequest<{ members: AdminGroupMember[] }>(
+    `/admin-stats?action=group-members&groupId=${groupId}`,
+    token
+  )
+}
+
+// Add member to group (admin only)
+export async function addGroupMember(
+  token: string,
+  groupId: string,
+  userId: string,
+  role: 'owner' | 'admin' | 'member' = 'member'
+): Promise<{ message: string }> {
+  return authenticatedRequest<{ message: string }>('/admin-stats?action=add-group-member', token, {
+    method: 'POST',
+    body: JSON.stringify({ groupId, userId, role }),
+  })
+}
+
+// Remove member from group (admin only)
+export async function removeGroupMember(
+  token: string,
+  groupId: string,
+  userId: string
+): Promise<{ message: string }> {
+  return authenticatedRequest<{ message: string }>('/admin-stats?action=remove-group-member', token, {
+    method: 'POST',
+    body: JSON.stringify({ groupId, userId }),
+  })
+}
+
+// Change member role (admin only)
+export async function changeGroupMemberRole(
+  token: string,
+  groupId: string,
+  userId: string,
+  role: 'owner' | 'admin' | 'member'
+): Promise<{ message: string }> {
+  return authenticatedRequest<{ message: string }>('/admin-stats?action=change-member-role', token, {
+    method: 'POST',
+    body: JSON.stringify({ groupId, userId, role }),
   })
 }
 

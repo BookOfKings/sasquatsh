@@ -39,7 +39,7 @@ onMounted(async () => {
 })
 
 async function loadPlanningSessions() {
-  if (!group.value) return
+  if (!group.value || !isMember.value) return
   loadingPlans.value = true
   try {
     const token = await auth.getIdToken()
@@ -56,6 +56,7 @@ async function loadPlanningSessions() {
 watch(() => auth.isAuthenticated.value, async (isAuth) => {
   if (isAuth && group.value) {
     await groupStore.loadGroupMembers(group.value.id)
+    // loadPlanningSessions checks isMember internally
     await loadPlanningSessions()
   }
 })

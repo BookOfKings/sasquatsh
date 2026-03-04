@@ -23,10 +23,10 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-  // Get the user from database including blocked users
+  // Get the user from database including blocked users and subscription info
   const { data: user, error: userError } = await supabase
     .from('users')
-    .select('id, blocked_user_ids')
+    .select('id, blocked_user_ids, subscription_tier, subscription_override_tier, is_admin')
     .eq('firebase_uid', firebaseUser.uid)
     .single()
 
@@ -197,6 +197,41 @@ Deno.serve(async (req) => {
   // POST - Create event
   if (req.method === 'POST') {
     const body = await req.json()
+
+    // Check subscription tier limits for event creation
+    const effectiveTier = user.subscription_override_tier || user.subscription_tier || 'free'
+    const tierLimits: Record<string, number> = {
+      free: 1,
+      basic: 5,
+      pro: 10,
+      premium: Infinity,
+    }
+    const maxActiveEvents = tierLimits[effectiveTier] ?? 1
+
+    // Count user's active events (upcoming, not past)
+    const today = new Date().toISOString().split('T')[0]
+    const { count: activeEventCount, error: countError } = await supabase
+      .from('events')
+      .select('id', { count: 'exact', head: true })
+      .eq('host_user_id', user.id)
+      .gte('event_date', today)
+
+    if (countError) {
+      return errorResponse('Failed to check event limits', 500)
+    }
+
+    if ((activeEventCount ?? 0) >= maxActiveEvents) {
+      return errorResponse(
+        JSON.stringify({
+          code: 'TIER_LIMIT_REACHED',
+          message: `You have reached your limit of ${maxActiveEvents} active game${maxActiveEvents === 1 ? '' : 's'}. Upgrade your plan to host more games.`,
+          currentCount: activeEventCount,
+          limit: maxActiveEvents,
+          tier: effectiveTier,
+        }),
+        403
+      )
+    }
 
     // If groupId is provided, verify the user is owner/admin of that group
     if (body.groupId) {

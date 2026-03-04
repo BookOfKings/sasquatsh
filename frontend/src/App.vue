@@ -2,6 +2,8 @@
 import { computed, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { getEffectiveTier } from '@/types/user'
+import { TIER_NAMES } from '@/config/subscriptionLimits'
 import CookieConsent from '@/components/common/CookieConsent.vue'
 import D6Spinner from '@/components/common/D6Spinner.vue'
 
@@ -12,6 +14,20 @@ const userMenuOpen = ref(false)
 const mobileMenuOpen = ref(false)
 const userMenuButton = ref<HTMLButtonElement | null>(null)
 const dropdownPosition = ref({ top: 0, right: 0 })
+
+// User's subscription tier
+const userTier = computed(() => {
+  if (!auth.user.value) return 'free'
+  return getEffectiveTier(auth.user.value)
+})
+
+const tierDisplayName = computed(() => TIER_NAMES[userTier.value] || 'Free')
+
+const isFreeTier = computed(() => userTier.value === 'free')
+
+// Admins have full access, so don't show upgrade prompts to them
+const isAdmin = computed(() => auth.user.value?.isAdmin ?? false)
+const showUpgradePrompt = computed(() => isFreeTier.value && !isAdmin.value)
 
 async function toggleUserMenu() {
   if (!userMenuOpen.value && userMenuButton.value) {
@@ -61,6 +77,12 @@ function goToProfile() {
 
 function goToLogin() {
   router.push('/login')
+}
+
+function goToPricing() {
+  router.push('/pricing')
+  userMenuOpen.value = false
+  mobileMenuOpen.value = false
 }
 
 async function handleLogout() {
@@ -130,6 +152,28 @@ async function handleLogout() {
                 Dashboard
               </button>
 
+              <!-- Plan Badge with Upgrade -->
+              <div class="flex items-center gap-1 ml-2">
+                <span
+                  class="px-2 py-1 text-xs font-medium rounded-full"
+                  :class="{
+                    'bg-gray-200 text-gray-600': userTier === 'free',
+                    'bg-blue-100 text-blue-700': userTier === 'basic',
+                    'bg-purple-100 text-purple-700': userTier === 'pro',
+                    'bg-yellow-100 text-yellow-700': userTier === 'premium',
+                  }"
+                >
+                  {{ tierDisplayName }}
+                </span>
+                <button
+                  v-if="showUpgradePrompt"
+                  @click="goToPricing"
+                  class="text-xs text-white/80 hover:text-white underline"
+                >
+                  Upgrade
+                </button>
+              </div>
+
               <!-- User Menu -->
               <div class="relative ml-2">
                 <button
@@ -173,6 +217,34 @@ async function handleLogout() {
                         <path d="M13,3V9H21V3M13,21H21V11H13M3,21H11V15H3M3,13H11V3H3V13Z"/>
                       </svg>
                       Dashboard
+                    </button>
+                    <hr class="my-1 border-gray-100" />
+                    <!-- Plan Info -->
+                    <div class="px-4 py-2">
+                      <div class="flex items-center justify-between">
+                        <span class="text-xs text-gray-500">Plan:</span>
+                        <span
+                          class="text-xs font-medium px-2 py-0.5 rounded-full"
+                          :class="{
+                            'bg-gray-100 text-gray-600': userTier === 'free',
+                            'bg-blue-100 text-blue-700': userTier === 'basic',
+                            'bg-purple-100 text-purple-700': userTier === 'pro',
+                            'bg-yellow-100 text-yellow-700': userTier === 'premium',
+                          }"
+                        >
+                          {{ tierDisplayName }}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      v-if="showUpgradePrompt"
+                      @click="goToPricing"
+                      class="w-full flex items-center gap-3 px-4 py-2 text-primary-600 hover:bg-primary-50 transition-colors"
+                    >
+                      <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M16,6L18.29,8.29L13.41,13.17L9.41,9.17L2,16.59L3.41,18L9.41,12L13.41,16L19.71,9.71L22,12V6H16Z"/>
+                      </svg>
+                      Upgrade Plan
                     </button>
                     <hr class="my-1 border-gray-100" />
                     <button
@@ -267,6 +339,33 @@ async function handleLogout() {
                   <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
                 </svg>
                 My Profile
+              </button>
+
+              <!-- Plan info in mobile menu -->
+              <div class="flex items-center justify-between px-4 py-2 text-white/80">
+                <span class="text-sm">Your plan:</span>
+                <span
+                  class="text-xs font-medium px-2 py-0.5 rounded-full"
+                  :class="{
+                    'bg-white/20': userTier === 'free',
+                    'bg-blue-400/30': userTier === 'basic',
+                    'bg-purple-400/30': userTier === 'pro',
+                    'bg-yellow-400/30': userTier === 'premium',
+                  }"
+                >
+                  {{ tierDisplayName }}
+                </span>
+              </div>
+
+              <button
+                v-if="showUpgradePrompt"
+                @click="goToPricing"
+                class="flex items-center gap-3 px-4 py-3 bg-secondary-500 hover:bg-secondary-600 rounded-lg transition-colors text-left font-medium"
+              >
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M16,6L18.29,8.29L13.41,13.17L9.41,9.17L2,16.59L3.41,18L9.41,12L13.41,16L19.71,9.71L22,12V6H16Z"/>
+                </svg>
+                Upgrade Plan
               </button>
 
               <hr class="border-primary-400 my-2" />

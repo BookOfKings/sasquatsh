@@ -18,11 +18,18 @@ import {
   getAdminUsers,
   suspendUser,
   unsuspendUser,
+  banUser,
+  unbanUser,
+  setUserTier,
   updateUser,
   deleteUser,
   sendPasswordReset,
   getAdminGroups,
   deleteGroup,
+  getGroupMembers,
+  addGroupMember,
+  removeGroupMember,
+  changeGroupMemberRole,
   getAdminNotes,
   createAdminNote,
   updateAdminNote,
@@ -33,7 +40,7 @@ import {
   deleteAdminBug,
 } from '@/services/adminApi'
 import type { EventLocation } from '@/types/social'
-import type { BggCacheStats, AdminStats, ServiceHealth, AdminUser, AdminGroup, AdminNote, AdminBug } from '@/services/adminApi'
+import type { BggCacheStats, AdminStats, ServiceHealth, AdminUser, AdminGroup, AdminGroupMember, AdminNote, AdminBug } from '@/services/adminApi'
 import D20Spinner from '@/components/common/D20Spinner.vue'
 
 const auth = useAuthStore()
@@ -87,10 +94,28 @@ const userEditForm = reactive({
   displayName: '',
   username: '',
   isAdmin: false,
+  tier: 'free' as 'free' | 'basic' | 'pro' | 'premium',
+  tierReason: '',
 })
 const savingUser = ref(false)
 const deletingUserId = ref<string | null>(null)
 const sendingPasswordReset = ref<string | null>(null)
+
+// Ban management
+const showBanDialog = ref(false)
+const userToBan = ref<AdminUser | null>(null)
+const banReason = ref('')
+const banningUserId = ref<string | null>(null)
+const showBannedOnly = ref(false)
+
+// Tier management
+const showTierDialog = ref(false)
+const userToSetTier = ref<AdminUser | null>(null)
+const tierForm = reactive({
+  tier: 'free' as 'free' | 'basic' | 'pro' | 'premium',
+  reason: '',
+})
+const settingTierId = ref<string | null>(null)
 
 // Group management state
 const groups = ref<AdminGroup[]>([])
@@ -99,6 +124,19 @@ const groupsPage = ref(1)
 const groupsLoading = ref(false)
 const groupSearch = ref('')
 const deletingGroupId = ref<string | null>(null)
+
+// Group member management
+const showMembersDialog = ref(false)
+const selectedGroup = ref<AdminGroup | null>(null)
+const groupMembers = ref<AdminGroupMember[]>([])
+const membersLoading = ref(false)
+const removingMemberId = ref<string | null>(null)
+const showAddMemberDialog = ref(false)
+const addMemberSearch = ref('')
+const addMemberResults = ref<AdminUser[]>([])
+const addMemberSearching = ref(false)
+const addingMemberId = ref<string | null>(null)
+const changingRoleId = ref<string | null>(null)
 
 // Notes state
 const notes = ref<AdminNote[]>([])
@@ -287,6 +325,7 @@ async function loadUsers() {
     const result = await getAdminUsers(token, {
       search: userSearch.value || undefined,
       suspended: showSuspendedOnly.value || undefined,
+      banned: showBannedOnly.value || undefined,
       page: usersPage.value,
       limit: 20,
     })
@@ -353,6 +392,8 @@ function openUserEditDialog(user: AdminUser) {
   userEditForm.displayName = user.displayName || ''
   userEditForm.username = user.username
   userEditForm.isAdmin = user.isAdmin
+  userEditForm.tier = user.subscriptionOverrideTier || user.subscriptionTier || 'free'
+  userEditForm.tierReason = user.subscriptionOverrideReason || ''
   showUserEditDialog.value = true
 }
 
@@ -368,11 +409,22 @@ async function handleSaveUser() {
   try {
     const token = await auth.getIdToken()
     if (!token) return
+
+    // Update basic user info
     await updateUser(token, editingUser.value.id, {
       displayName: userEditForm.displayName.trim() || undefined,
       username: userEditForm.username.trim(),
       isAdmin: userEditForm.isAdmin,
     })
+
+    // Check if tier changed and update if needed
+    const currentTier = editingUser.value.subscriptionOverrideTier || editingUser.value.subscriptionTier || 'free'
+    if (userEditForm.tier !== currentTier) {
+      // If setting to free, we're removing the override (pass null)
+      const newTier = userEditForm.tier === 'free' ? null : userEditForm.tier
+      await setUserTier(token, editingUser.value.id, newTier, userEditForm.tierReason || undefined)
+    }
+
     successMessage.value = `User @${userEditForm.username} updated`
     showUserEditDialog.value = false
     await loadUsers()
@@ -419,6 +471,95 @@ async function handleSendPasswordReset(user: AdminUser) {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to send password reset'
   } finally {
     sendingPasswordReset.value = null
+  }
+}
+
+// Ban management functions
+function openBanDialog(user: AdminUser) {
+  userToBan.value = user
+  banReason.value = ''
+  showBanDialog.value = true
+}
+
+async function handleBanUser() {
+  if (!userToBan.value) return
+
+  banningUserId.value = userToBan.value.id
+  errorMessage.value = ''
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    const result = await banUser(token, userToBan.value.id, banReason.value || undefined)
+    successMessage.value = result.message
+    showBanDialog.value = false
+    await loadUsers()
+    setTimeout(() => successMessage.value = '', 3000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to ban user'
+  } finally {
+    banningUserId.value = null
+  }
+}
+
+async function handleUnbanUser(user: AdminUser) {
+  if (!confirm(`Unban @${user.username}?\n\nThis will restore their account access.`)) return
+
+  banningUserId.value = user.id
+  errorMessage.value = ''
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    const result = await unbanUser(token, user.id)
+    successMessage.value = result.message
+    await loadUsers()
+    setTimeout(() => successMessage.value = '', 3000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to unban user'
+  } finally {
+    banningUserId.value = null
+  }
+}
+
+// Tier management functions
+function openTierDialog(user: AdminUser) {
+  userToSetTier.value = user
+  tierForm.tier = user.subscriptionOverrideTier || user.subscriptionTier || 'free'
+  tierForm.reason = user.subscriptionOverrideReason || ''
+  showTierDialog.value = true
+}
+
+async function handleSetTier() {
+  if (!userToSetTier.value) return
+
+  settingTierId.value = userToSetTier.value.id
+  errorMessage.value = ''
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    // If setting to free, we're removing the override
+    const tier = tierForm.tier === 'free' ? null : tierForm.tier
+    const result = await setUserTier(token, userToSetTier.value.id, tier, tierForm.reason || undefined)
+    successMessage.value = result.message
+    showTierDialog.value = false
+    await loadUsers()
+    setTimeout(() => successMessage.value = '', 3000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to set tier'
+  } finally {
+    settingTierId.value = null
+  }
+}
+
+function getTierBadgeClass(tier: string): string {
+  switch (tier) {
+    case 'premium':
+      return 'bg-yellow-100 text-yellow-800'
+    case 'pro':
+      return 'bg-purple-100 text-purple-800'
+    case 'basic':
+      return 'bg-blue-100 text-blue-800'
+    default:
+      return 'bg-gray-100 text-gray-600'
   }
 }
 
@@ -483,6 +624,138 @@ function handleGroupSearch() {
     groupsPage.value = 1
     loadGroups()
   }, 300)
+}
+
+// ============ Group Member Functions ============
+
+async function openMembersDialog(group: AdminGroup) {
+  selectedGroup.value = group
+  showMembersDialog.value = true
+  await loadGroupMembers(group.id)
+}
+
+async function loadGroupMembers(groupId: string) {
+  membersLoading.value = true
+  errorMessage.value = ''
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    const result = await getGroupMembers(token, groupId)
+    groupMembers.value = result.members
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to load members'
+  } finally {
+    membersLoading.value = false
+  }
+}
+
+async function handleRemoveMember(member: AdminGroupMember) {
+  if (!selectedGroup.value) return
+  if (!confirm(`Remove @${member.username || member.displayName || 'this user'} from "${selectedGroup.value.name}"?`)) return
+
+  removingMemberId.value = member.userId
+  errorMessage.value = ''
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    await removeGroupMember(token, selectedGroup.value.id, member.userId)
+    successMessage.value = `Member removed from group`
+    await loadGroupMembers(selectedGroup.value.id)
+    // Update member count in the groups list
+    const groupIndex = groups.value.findIndex(g => g.id === selectedGroup.value?.id)
+    if (groupIndex >= 0 && groups.value[groupIndex]) {
+      groups.value[groupIndex]!.memberCount--
+    }
+    setTimeout(() => successMessage.value = '', 3000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to remove member'
+  } finally {
+    removingMemberId.value = null
+  }
+}
+
+async function handleChangeRole(member: AdminGroupMember, newRole: 'owner' | 'admin' | 'member') {
+  if (!selectedGroup.value) return
+
+  changingRoleId.value = member.userId
+  errorMessage.value = ''
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    await changeGroupMemberRole(token, selectedGroup.value.id, member.userId, newRole)
+    successMessage.value = `Role changed to ${newRole}`
+    await loadGroupMembers(selectedGroup.value.id)
+    setTimeout(() => successMessage.value = '', 3000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to change role'
+  } finally {
+    changingRoleId.value = null
+  }
+}
+
+function openAddMemberDialog() {
+  showAddMemberDialog.value = true
+  addMemberSearch.value = ''
+  addMemberResults.value = []
+}
+
+let addMemberSearchTimeout: ReturnType<typeof setTimeout> | null = null
+async function handleAddMemberSearch() {
+  if (addMemberSearchTimeout) clearTimeout(addMemberSearchTimeout)
+  if (!addMemberSearch.value.trim()) {
+    addMemberResults.value = []
+    return
+  }
+  addMemberSearchTimeout = setTimeout(async () => {
+    addMemberSearching.value = true
+    try {
+      const token = await auth.getIdToken()
+      if (!token) return
+      const result = await getAdminUsers(token, { search: addMemberSearch.value, limit: 10 })
+      // Filter out users who are already members
+      const memberIds = new Set(groupMembers.value.map(m => m.userId))
+      addMemberResults.value = result.users.filter(u => !memberIds.has(u.id))
+    } catch (err) {
+      console.error('Failed to search users:', err)
+    } finally {
+      addMemberSearching.value = false
+    }
+  }, 300)
+}
+
+async function handleAddMember(user: AdminUser) {
+  if (!selectedGroup.value) return
+
+  addingMemberId.value = user.id
+  errorMessage.value = ''
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    await addGroupMember(token, selectedGroup.value.id, user.id, 'member')
+    successMessage.value = `@${user.username} added to group`
+    showAddMemberDialog.value = false
+    addMemberSearch.value = ''
+    addMemberResults.value = []
+    await loadGroupMembers(selectedGroup.value.id)
+    // Update member count in the groups list
+    const groupIndex = groups.value.findIndex(g => g.id === selectedGroup.value?.id)
+    if (groupIndex >= 0 && groups.value[groupIndex]) {
+      groups.value[groupIndex]!.memberCount++
+    }
+    setTimeout(() => successMessage.value = '', 3000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to add member'
+  } finally {
+    addingMemberId.value = null
+  }
+}
+
+function getRoleBadgeClass(role: string) {
+  switch (role) {
+    case 'owner': return 'bg-purple-100 text-purple-800'
+    case 'admin': return 'bg-blue-100 text-blue-800'
+    default: return 'bg-gray-100 text-gray-800'
+  }
 }
 
 // ============ Notes Functions ============
@@ -1247,6 +1520,15 @@ function getLocationTypeLabel(location: EventLocation): string {
             />
             <span>Suspended only</span>
           </label>
+          <label class="flex items-center gap-2 text-sm">
+            <input
+              v-model="showBannedOnly"
+              type="checkbox"
+              class="w-4 h-4 rounded border-gray-300 text-red-500 focus:ring-red-500"
+              @change="usersPage = 1; loadUsers()"
+            />
+            <span>Banned only</span>
+          </label>
         </div>
       </div>
 
@@ -1270,7 +1552,10 @@ function getLocationTypeLabel(location: EventLocation): string {
             v-for="user in users"
             :key="user.id"
             class="card p-4 flex items-center gap-4"
-            :class="{ 'bg-red-50 border-red-200': user.isSuspended }"
+            :class="{
+              'bg-red-50 border-red-200': user.accountStatus === 'banned',
+              'bg-orange-50 border-orange-200': user.isSuspended && user.accountStatus !== 'banned'
+            }"
           >
             <!-- Avatar -->
             <div class="flex-shrink-0">
@@ -1290,7 +1575,7 @@ function getLocationTypeLabel(location: EventLocation): string {
 
             <!-- User info -->
             <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2 flex-wrap">
                 <span class="font-medium text-gray-900">
                   {{ user.displayName || user.username }}
                 </span>
@@ -1298,13 +1583,37 @@ function getLocationTypeLabel(location: EventLocation): string {
                 <span v-if="user.isAdmin" class="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
                   Admin
                 </span>
-                <span v-if="user.isSuspended" class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                <!-- Account Status Badge -->
+                <span
+                  v-if="user.accountStatus === 'banned'"
+                  class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700"
+                >
+                  Banned
+                </span>
+                <span
+                  v-else-if="user.isSuspended"
+                  class="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700"
+                >
                   Suspended
+                </span>
+                <!-- Tier Badge -->
+                <span
+                  class="text-xs px-2 py-0.5 rounded-full"
+                  :class="getTierBadgeClass(user.effectiveTier)"
+                >
+                  {{ user.effectiveTier }}
+                  <span v-if="user.subscriptionOverrideTier" class="opacity-75">(override)</span>
                 </span>
               </div>
               <p class="text-sm text-gray-500 truncate">{{ user.email }}</p>
-              <p v-if="user.isSuspended && user.suspensionReason" class="text-sm text-red-600 mt-1">
-                Reason: {{ user.suspensionReason }}
+              <p v-if="user.accountStatus === 'banned' && user.banReason" class="text-sm text-red-600 mt-1">
+                Ban reason: {{ user.banReason }}
+              </p>
+              <p v-else-if="user.isSuspended && user.suspensionReason" class="text-sm text-orange-600 mt-1">
+                Suspension reason: {{ user.suspensionReason }}
+              </p>
+              <p v-if="user.subscriptionOverrideReason" class="text-sm text-blue-600 mt-1">
+                Tier override: {{ user.subscriptionOverrideReason }}
               </p>
             </div>
 
@@ -1314,7 +1623,7 @@ function getLocationTypeLabel(location: EventLocation): string {
             </div>
 
             <!-- Actions -->
-            <div class="flex-shrink-0 flex gap-1">
+            <div class="flex-shrink-0 flex gap-1 flex-wrap">
               <!-- Edit button -->
               <button
                 class="btn-ghost text-gray-600 text-sm"
@@ -1326,9 +1635,25 @@ function getLocationTypeLabel(location: EventLocation): string {
                 </svg>
               </button>
 
-              <!-- Password Reset button -->
+              <!-- Set Tier button -->
               <button
                 class="btn-ghost text-blue-600 text-sm"
+                title="Set subscription tier"
+                :disabled="settingTierId === user.id"
+                @click="openTierDialog(user)"
+              >
+                <svg v-if="settingTierId === user.id" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                <svg v-else class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M16,6L18.29,8.29L13.41,13.17L9.41,9.17L2,16.59L3.41,18L9.41,12L13.41,16L19.71,9.71L22,12V6H16Z"/>
+                </svg>
+              </button>
+
+              <!-- Password Reset button -->
+              <button
+                class="btn-ghost text-gray-600 text-sm"
                 title="Send password reset email"
                 :disabled="sendingPasswordReset === user.id"
                 @click="handleSendPasswordReset(user)"
@@ -1342,9 +1667,9 @@ function getLocationTypeLabel(location: EventLocation): string {
                 </svg>
               </button>
 
-              <!-- Suspend/Unsuspend button -->
+              <!-- Suspend/Unsuspend button (only if not banned) -->
               <button
-                v-if="user.isSuspended"
+                v-if="user.isSuspended && user.accountStatus !== 'banned'"
                 class="btn-ghost text-green-600 text-sm"
                 title="Unsuspend user"
                 :disabled="suspendingUserId === user.id"
@@ -1359,9 +1684,9 @@ function getLocationTypeLabel(location: EventLocation): string {
                 </svg>
               </button>
               <button
-                v-else-if="!user.isAdmin"
+                v-else-if="!user.isAdmin && user.accountStatus !== 'banned'"
                 class="btn-ghost text-yellow-600 text-sm"
-                title="Suspend user"
+                title="Suspend user (temporary)"
                 :disabled="suspendingUserId === user.id"
                 @click="openSuspendDialog(user)"
               >
@@ -1370,10 +1695,38 @@ function getLocationTypeLabel(location: EventLocation): string {
                 </svg>
               </button>
 
+              <!-- Ban/Unban button -->
+              <button
+                v-if="user.accountStatus === 'banned'"
+                class="btn-ghost text-green-600 text-sm"
+                title="Unban user"
+                :disabled="banningUserId === user.id"
+                @click="handleUnbanUser(user)"
+              >
+                <svg v-if="banningUserId === user.id" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                <svg v-else class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8m3.59-13L12 10.59 8.41 7 7 8.41 10.59 12 7 15.59 8.41 17 12 13.41 15.59 17 17 15.59 13.41 12 17 8.41"/>
+                </svg>
+              </button>
+              <button
+                v-else-if="!user.isAdmin"
+                class="btn-ghost text-red-600 text-sm"
+                title="Ban user (permanent)"
+                :disabled="banningUserId === user.id"
+                @click="openBanDialog(user)"
+              >
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12,2C17.5,2 22,6.5 22,12C22,17.5 17.5,22 12,22C6.5,22 2,17.5 2,12C2,6.5 6.5,2 12,2M12,4C7.58,4 4,7.58 4,12C4,13.85 4.63,15.55 5.68,16.91L16.91,5.68C15.55,4.63 13.85,4 12,4M12,20C16.42,20 20,16.42 20,12C20,10.15 19.37,8.45 18.32,7.09L7.09,18.32C8.45,19.37 10.15,20 12,20Z"/>
+                </svg>
+              </button>
+
               <!-- Delete button -->
               <button
                 v-if="!user.isAdmin"
-                class="btn-ghost text-red-600 text-sm"
+                class="btn-ghost text-red-800 text-sm"
                 title="Delete user and all data"
                 :disabled="deletingUserId === user.id"
                 @click="handleDeleteUser(user)"
@@ -1487,7 +1840,16 @@ function getLocationTypeLabel(location: EventLocation): string {
             </div>
 
             <!-- Actions -->
-            <div class="flex-shrink-0">
+            <div class="flex-shrink-0 flex gap-2">
+              <button
+                class="btn-ghost text-blue-600 text-sm"
+                @click="openMembersDialog(group)"
+              >
+                <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M16,13C15.71,13 15.38,13 15.03,13.05C16.19,13.89 17,15 17,16.5V19H23V16.5C23,14.17 18.33,13 16,13M8,13C5.67,13 1,14.17 1,16.5V19H15V16.5C15,14.17 10.33,13 8,13M8,11A3,3 0 0,0 11,8A3,3 0 0,0 8,5A3,3 0 0,0 5,8A3,3 0 0,0 8,11M16,11A3,3 0 0,0 19,8A3,3 0 0,0 16,5A3,3 0 0,0 13,8A3,3 0 0,0 16,11Z"/>
+                </svg>
+                Members
+              </button>
               <button
                 class="btn-ghost text-red-600 text-sm"
                 :disabled="deletingGroupId === group.id"
@@ -2200,6 +2562,98 @@ function getLocationTypeLabel(location: EventLocation): string {
       </div>
     </div>
 
+    <!-- Ban User Dialog -->
+    <div v-if="showBanDialog" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div class="fixed inset-0 bg-black/50" @click="showBanDialog = false"></div>
+      <div class="card p-6 w-full max-w-md relative z-10">
+        <h3 class="text-lg font-semibold mb-4 text-red-600">Permanently Ban User</h3>
+
+        <p class="text-gray-600 mb-4">
+          Are you sure you want to <strong>permanently ban</strong> <strong>@{{ userToBan?.username }}</strong>?
+          This will prevent them from accessing their account permanently.
+        </p>
+
+        <div class="bg-red-50 border border-red-200 rounded p-3 mb-4 text-sm text-red-700">
+          <strong>Warning:</strong> This action is different from suspension. Bans are permanent and should be used for serious violations.
+        </div>
+
+        <div class="mb-4">
+          <label class="label">Reason (recommended)</label>
+          <textarea
+            v-model="banReason"
+            class="input h-24 resize-none"
+            placeholder="Enter a reason for the ban..."
+          ></textarea>
+        </div>
+
+        <div class="flex justify-end gap-3">
+          <button class="btn-ghost" @click="showBanDialog = false" :disabled="banningUserId !== null">
+            Cancel
+          </button>
+          <button class="btn-primary bg-red-600 hover:bg-red-700" @click="handleBanUser" :disabled="banningUserId !== null">
+            <svg v-if="banningUserId !== null" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            Ban User Permanently
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Set Tier Dialog -->
+    <div v-if="showTierDialog" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div class="fixed inset-0 bg-black/50" @click="showTierDialog = false"></div>
+      <div class="card p-6 w-full max-w-md relative z-10">
+        <h3 class="text-lg font-semibold mb-4">Set Subscription Tier</h3>
+
+        <p class="text-gray-600 mb-4">
+          Set subscription tier for <strong>@{{ userToSetTier?.username }}</strong>.
+          This creates an override that bypasses their actual subscription.
+        </p>
+
+        <div class="space-y-4 mb-6">
+          <div>
+            <label class="label">Tier</label>
+            <select v-model="tierForm.tier" class="input">
+              <option value="free">Free (remove override)</option>
+              <option value="basic">Basic ($7.99 value)</option>
+              <option value="pro">Pro ($14.99 value)</option>
+              <option value="premium">Premium (all features)</option>
+            </select>
+            <p class="text-sm text-gray-500 mt-1">
+              Current: {{ userToSetTier?.subscriptionTier || 'free' }}
+              <span v-if="userToSetTier?.subscriptionOverrideTier">
+                (override: {{ userToSetTier.subscriptionOverrideTier }})
+              </span>
+            </p>
+          </div>
+
+          <div>
+            <label class="label">Reason</label>
+            <textarea
+              v-model="tierForm.reason"
+              class="input h-20 resize-none"
+              placeholder="e.g., Beta tester, Community contributor, Support case #123"
+            ></textarea>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-3">
+          <button class="btn-ghost" @click="showTierDialog = false" :disabled="settingTierId !== null">
+            Cancel
+          </button>
+          <button class="btn-primary" @click="handleSetTier" :disabled="settingTierId !== null">
+            <svg v-if="settingTierId !== null" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            {{ tierForm.tier === 'free' ? 'Remove Override' : 'Set Tier' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Note Dialog -->
     <div v-if="showNoteDialog" class="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div class="fixed inset-0 bg-black/50" @click="showNoteDialog = false"></div>
@@ -2385,6 +2839,37 @@ function getLocationTypeLabel(location: EventLocation): string {
               <span>Admin privileges</span>
             </label>
           </div>
+
+          <!-- Subscription Tier Section -->
+          <div class="border-t border-gray-200 pt-4 mt-4">
+            <h4 class="font-medium text-gray-900 mb-3">Subscription Tier</h4>
+            <div class="space-y-3">
+              <div>
+                <label class="label">Tier (free from payment)</label>
+                <select v-model="userEditForm.tier" class="input">
+                  <option value="free">Free</option>
+                  <option value="basic">Basic ($7.99 value)</option>
+                  <option value="pro">Pro ($14.99 value)</option>
+                  <option value="premium">Premium (all features)</option>
+                </select>
+                <p class="text-xs text-gray-500 mt-1">
+                  Actual subscription: {{ editingUser?.subscriptionTier || 'free' }}
+                  <span v-if="editingUser?.subscriptionOverrideTier" class="text-blue-600">
+                    (current override: {{ editingUser.subscriptionOverrideTier }})
+                  </span>
+                </p>
+              </div>
+              <div v-if="userEditForm.tier !== 'free'">
+                <label class="label">Override Reason</label>
+                <input
+                  v-model="userEditForm.tierReason"
+                  type="text"
+                  class="input"
+                  placeholder="e.g., Beta tester, Support case, Promo"
+                />
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="flex justify-end gap-3 mt-6">
@@ -2397,6 +2882,175 @@ function getLocationTypeLabel(location: EventLocation): string {
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
             </svg>
             Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Group Members Dialog -->
+    <div v-if="showMembersDialog" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div class="fixed inset-0 bg-black/50" @click="showMembersDialog = false"></div>
+      <div class="card p-6 w-full max-w-2xl relative z-10 max-h-[80vh] flex flex-col">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold">
+            Members of "{{ selectedGroup?.name }}"
+          </h3>
+          <button
+            class="btn-primary text-sm"
+            @click="openAddMemberDialog"
+          >
+            <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z"/>
+            </svg>
+            Add Member
+          </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto">
+          <div v-if="membersLoading" class="flex justify-center py-8">
+            <D20Spinner size="lg" />
+          </div>
+
+          <div v-else-if="groupMembers.length === 0" class="text-center py-8 text-gray-500">
+            No members in this group
+          </div>
+
+          <div v-else class="space-y-2">
+            <div
+              v-for="member in groupMembers"
+              :key="member.id"
+              class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
+            >
+              <!-- Avatar -->
+              <div class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                <img
+                  v-if="member.avatarUrl"
+                  :src="member.avatarUrl"
+                  class="w-full h-full object-cover"
+                />
+                <span v-else class="text-gray-500 font-medium">
+                  {{ (member.displayName || member.username || '?').charAt(0).toUpperCase() }}
+                </span>
+              </div>
+
+              <!-- Info -->
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="font-medium">{{ member.displayName || member.username }}</span>
+                  <span class="text-gray-500 text-sm">@{{ member.username }}</span>
+                  <span :class="['text-xs px-2 py-0.5 rounded-full', getRoleBadgeClass(member.role)]">
+                    {{ member.role }}
+                  </span>
+                </div>
+                <p class="text-sm text-gray-500 truncate">{{ member.email }}</p>
+              </div>
+
+              <!-- Actions -->
+              <div class="flex items-center gap-2 flex-shrink-0">
+                <!-- Role dropdown -->
+                <select
+                  :value="member.role"
+                  :disabled="changingRoleId === member.userId"
+                  class="text-sm border border-gray-300 rounded px-2 py-1"
+                  @change="handleChangeRole(member, ($event.target as HTMLSelectElement).value as 'owner' | 'admin' | 'member')"
+                >
+                  <option value="member">Member</option>
+                  <option value="admin">Admin</option>
+                  <option value="owner">Owner</option>
+                </select>
+
+                <!-- Remove button -->
+                <button
+                  class="btn-ghost text-red-600 text-sm p-1"
+                  :disabled="removingMemberId === member.userId"
+                  title="Remove from group"
+                  @click="handleRemoveMember(member)"
+                >
+                  <svg v-if="removingMemberId === member.userId" class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                  </svg>
+                  <svg v-else class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-end mt-4 pt-4 border-t">
+          <button class="btn-ghost" @click="showMembersDialog = false">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Member Dialog -->
+    <div v-if="showAddMemberDialog" class="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div class="fixed inset-0 bg-black/50" @click="showAddMemberDialog = false"></div>
+      <div class="card p-6 w-full max-w-md relative z-10">
+        <h3 class="text-lg font-semibold mb-4">Add Member</h3>
+
+        <div class="mb-4">
+          <label class="label">Search Users</label>
+          <input
+            v-model="addMemberSearch"
+            type="text"
+            class="input"
+            placeholder="Search by email, username, or name..."
+            @input="handleAddMemberSearch"
+          />
+        </div>
+
+        <div class="max-h-64 overflow-y-auto">
+          <div v-if="addMemberSearching" class="text-center py-4">
+            <D20Spinner size="sm" />
+          </div>
+
+          <div v-else-if="addMemberSearch && addMemberResults.length === 0" class="text-center py-4 text-gray-500">
+            No users found
+          </div>
+
+          <div v-else class="space-y-2">
+            <button
+              v-for="user in addMemberResults"
+              :key="user.id"
+              class="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 text-left"
+              :disabled="addingMemberId === user.id"
+              @click="handleAddMember(user)"
+            >
+              <div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                <img
+                  v-if="user.avatarUrl"
+                  :src="user.avatarUrl"
+                  class="w-full h-full object-cover"
+                />
+                <span v-else class="text-gray-500 text-sm font-medium">
+                  {{ (user.displayName || user.username || '?').charAt(0).toUpperCase() }}
+                </span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="font-medium">{{ user.displayName || user.username }}</div>
+                <div class="text-sm text-gray-500">@{{ user.username }} &bull; {{ user.email }}</div>
+              </div>
+              <div v-if="addingMemberId === user.id">
+                <svg class="animate-spin h-4 w-4 text-primary-500" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+              </div>
+              <svg v-else class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="flex justify-end mt-4 pt-4 border-t">
+          <button class="btn-ghost" @click="showAddMemberDialog = false">
+            Cancel
           </button>
         </div>
       </div>

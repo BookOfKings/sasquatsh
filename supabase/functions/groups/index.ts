@@ -418,10 +418,10 @@ Deno.serve(async (req) => {
     return errorResponse('Invalid Firebase token', 401)
   }
 
-  // Get the user from database
+  // Get the user from database including subscription info
   const { data: user, error: userError } = await supabase
     .from('users')
-    .select('id')
+    .select('id, subscription_tier, subscription_override_tier')
     .eq('firebase_uid', firebaseUser.uid)
     .single()
 
@@ -739,6 +739,40 @@ Deno.serve(async (req) => {
 
       if (!body.name?.trim()) {
         return errorResponse('Group name is required', 400)
+      }
+
+      // Check subscription tier limits for group creation
+      const effectiveTier = user.subscription_override_tier || user.subscription_tier || 'free'
+      const tierLimits: Record<string, number> = {
+        free: 1,
+        basic: 5,
+        pro: 10,
+        premium: Infinity,
+      }
+      const maxGroups = tierLimits[effectiveTier] ?? 1
+
+      // Count user's groups where they are the owner
+      const { count: groupCount, error: countError } = await supabase
+        .from('group_memberships')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('role', 'owner')
+
+      if (countError) {
+        return errorResponse('Failed to check group limits', 500)
+      }
+
+      if ((groupCount ?? 0) >= maxGroups) {
+        return errorResponse(
+          JSON.stringify({
+            code: 'TIER_LIMIT_REACHED',
+            message: `You have reached your limit of ${maxGroups} group${maxGroups === 1 ? '' : 's'}. Upgrade your plan to create more groups.`,
+            currentCount: groupCount,
+            limit: maxGroups,
+            tier: effectiveTier,
+          }),
+          403
+        )
       }
 
       // Check if group name already exists (case-insensitive)

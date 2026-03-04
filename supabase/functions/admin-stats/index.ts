@@ -297,19 +297,30 @@ Deno.serve(async (req) => {
     if (action === 'users') {
       const search = url.searchParams.get('search') || ''
       const showSuspended = url.searchParams.get('suspended') === 'true'
+      const showBanned = url.searchParams.get('banned') === 'true'
       const page = parseInt(url.searchParams.get('page') || '1')
       const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 100)
       const offset = (page - 1) * limit
 
       let query = supabase
         .from('users')
-        .select('id, email, username, display_name, avatar_url, is_admin, is_suspended, suspension_reason, suspended_at, created_at', { count: 'exact' })
+        .select(`
+          id, email, username, display_name, avatar_url, is_admin,
+          is_suspended, suspension_reason, suspended_at,
+          account_status, banned_at, ban_reason,
+          subscription_tier, subscription_override_tier, subscription_override_reason,
+          subscription_status, subscription_expires_at,
+          created_at
+        `, { count: 'exact' })
 
       if (search) {
         query = query.or(`email.ilike.%${search}%,username.ilike.%${search}%,display_name.ilike.%${search}%`)
       }
       if (showSuspended) {
         query = query.eq('is_suspended', true)
+      }
+      if (showBanned) {
+        query = query.eq('account_status', 'banned')
       }
 
       const { data: users, count, error } = await query
@@ -331,6 +342,15 @@ Deno.serve(async (req) => {
           isSuspended: u.is_suspended,
           suspensionReason: u.suspension_reason,
           suspendedAt: u.suspended_at,
+          accountStatus: u.account_status || 'active',
+          bannedAt: u.banned_at,
+          banReason: u.ban_reason,
+          subscriptionTier: u.subscription_tier || 'free',
+          subscriptionOverrideTier: u.subscription_override_tier,
+          subscriptionOverrideReason: u.subscription_override_reason,
+          subscriptionStatus: u.subscription_status,
+          subscriptionExpiresAt: u.subscription_expires_at,
+          effectiveTier: u.subscription_override_tier || u.subscription_tier || 'free',
           createdAt: u.created_at,
         })),
         total: count ?? 0,
@@ -381,6 +401,41 @@ Deno.serve(async (req) => {
         total: count ?? 0,
         page,
         limit,
+      })
+    }
+
+    // Get group members (admin)
+    if (action === 'group-members') {
+      const groupId = url.searchParams.get('groupId')
+      if (!groupId) {
+        return errorResponse('groupId is required', 400)
+      }
+
+      const { data: members, error } = await supabase
+        .from('group_memberships')
+        .select(`
+          id, role, joined_at,
+          user:user_id(id, username, display_name, email, avatar_url)
+        `)
+        .eq('group_id', groupId)
+        .order('role', { ascending: true })
+        .order('joined_at', { ascending: true })
+
+      if (error) {
+        return errorResponse(error.message, 500)
+      }
+
+      return jsonResponse({
+        members: members?.map(m => ({
+          id: m.id,
+          userId: (m.user as { id: string }).id,
+          username: (m.user as { username: string }).username,
+          displayName: (m.user as { display_name: string | null }).display_name,
+          email: (m.user as { email: string }).email,
+          avatarUrl: (m.user as { avatar_url: string | null }).avatar_url,
+          role: m.role,
+          joinedAt: m.joined_at,
+        })) || [],
       })
     }
 
@@ -564,6 +619,179 @@ Deno.serve(async (req) => {
       }
 
       return jsonResponse({ message: 'User unsuspended' })
+    }
+
+    // Ban user (permanent)
+    if (action === 'ban-user') {
+      const userId = body.userId as string
+      const reason = body.reason as string
+
+      if (!userId) {
+        return errorResponse('userId required', 400)
+      }
+
+      // Can't ban yourself
+      if (userId === adminUser.id) {
+        return errorResponse('Cannot ban yourself', 400)
+      }
+
+      // Can't ban other admins
+      const { data: targetUser } = await supabase
+        .from('users')
+        .select('is_admin, username, email')
+        .eq('id', userId)
+        .single()
+
+      if (!targetUser) {
+        return errorResponse('User not found', 404)
+      }
+
+      if (targetUser.is_admin) {
+        return errorResponse('Cannot ban admin users', 400)
+      }
+
+      const { error } = await supabase
+        .from('users')
+        .update({
+          account_status: 'banned',
+          banned_at: new Date().toISOString(),
+          banned_by_user_id: adminUser.id,
+          ban_reason: reason || null,
+          // Also suspend them
+          is_suspended: true,
+          suspension_reason: reason ? `Banned: ${reason}` : 'Permanently banned',
+          suspended_at: new Date().toISOString(),
+          suspended_by_user_id: adminUser.id,
+        })
+        .eq('id', userId)
+
+      if (error) {
+        return errorResponse(error.message, 500)
+      }
+
+      // Log the event
+      await supabase.from('subscription_events').insert({
+        user_id: userId,
+        event_type: 'account_banned',
+        notes: reason ? `Banned by admin: ${reason}` : 'Banned by admin',
+        admin_user_id: adminUser.id,
+      })
+
+      return jsonResponse({ message: `User ${targetUser.username || targetUser.email} has been banned` })
+    }
+
+    // Unban user
+    if (action === 'unban-user') {
+      const userId = body.userId as string
+
+      if (!userId) {
+        return errorResponse('userId required', 400)
+      }
+
+      const { data: targetUser } = await supabase
+        .from('users')
+        .select('username, email, account_status')
+        .eq('id', userId)
+        .single()
+
+      if (!targetUser) {
+        return errorResponse('User not found', 404)
+      }
+
+      if (targetUser.account_status !== 'banned') {
+        return errorResponse('User is not banned', 400)
+      }
+
+      const { error } = await supabase
+        .from('users')
+        .update({
+          account_status: 'active',
+          banned_at: null,
+          banned_by_user_id: null,
+          ban_reason: null,
+          // Also unsuspend them
+          is_suspended: false,
+          suspension_reason: null,
+          suspended_at: null,
+          suspended_by_user_id: null,
+        })
+        .eq('id', userId)
+
+      if (error) {
+        return errorResponse(error.message, 500)
+      }
+
+      // Log the event
+      await supabase.from('subscription_events').insert({
+        user_id: userId,
+        event_type: 'account_unbanned',
+        notes: 'Unbanned by admin',
+        admin_user_id: adminUser.id,
+      })
+
+      return jsonResponse({ message: `User ${targetUser.username || targetUser.email} has been unbanned` })
+    }
+
+    // Set subscription tier override (grant tier without payment)
+    if (action === 'set-tier') {
+      const userId = body.userId as string
+      const tier = body.tier as string
+      const reason = body.reason as string
+
+      if (!userId) {
+        return errorResponse('userId required', 400)
+      }
+
+      const validTiers = ['free', 'basic', 'pro', 'premium', null]
+      if (!validTiers.includes(tier)) {
+        return errorResponse('Invalid tier. Must be free, basic, pro, premium, or null to remove override', 400)
+      }
+
+      const { data: targetUser } = await supabase
+        .from('users')
+        .select('username, email, subscription_tier, subscription_override_tier')
+        .eq('id', userId)
+        .single()
+
+      if (!targetUser) {
+        return errorResponse('User not found', 404)
+      }
+
+      const oldTier = targetUser.subscription_override_tier || targetUser.subscription_tier || 'free'
+      const newTier = tier || targetUser.subscription_tier || 'free'
+
+      // If tier is null or 'free', remove the override
+      const overrideTier = tier === 'free' || tier === null ? null : tier
+
+      const { error } = await supabase
+        .from('users')
+        .update({
+          subscription_override_tier: overrideTier,
+          subscription_override_reason: overrideTier ? (reason || 'Set by admin') : null,
+          subscription_override_by_user_id: overrideTier ? adminUser.id : null,
+        })
+        .eq('id', userId)
+
+      if (error) {
+        return errorResponse(error.message, 500)
+      }
+
+      // Log the event
+      await supabase.from('subscription_events').insert({
+        user_id: userId,
+        event_type: 'admin_tier_override',
+        old_tier: oldTier,
+        new_tier: newTier,
+        notes: reason || (overrideTier ? `Admin set tier to ${tier}` : 'Admin removed tier override'),
+        admin_user_id: adminUser.id,
+      })
+
+      return jsonResponse({
+        message: overrideTier
+          ? `User ${targetUser.username || targetUser.email} tier set to ${tier}`
+          : `User ${targetUser.username || targetUser.email} tier override removed`,
+        effectiveTier: overrideTier || targetUser.subscription_tier || 'free',
+      })
     }
 
     // Update user (admin edit)
@@ -774,6 +1002,152 @@ Deno.serve(async (req) => {
       }
 
       return jsonResponse({ message: `Group "${group.name}" deleted` })
+    }
+
+    // Add member to group (admin)
+    if (action === 'add-group-member') {
+      const { groupId, userId, role = 'member' } = body
+
+      if (!groupId || !userId) {
+        return errorResponse('groupId and userId are required', 400)
+      }
+
+      // Verify group exists
+      const { data: group } = await supabase
+        .from('groups')
+        .select('id, name')
+        .eq('id', groupId)
+        .single()
+
+      if (!group) {
+        return errorResponse('Group not found', 404)
+      }
+
+      // Verify user exists
+      const { data: targetUser } = await supabase
+        .from('users')
+        .select('id, username')
+        .eq('id', userId)
+        .single()
+
+      if (!targetUser) {
+        return errorResponse('User not found', 404)
+      }
+
+      // Check if already a member
+      const { data: existing } = await supabase
+        .from('group_memberships')
+        .select('id')
+        .eq('group_id', groupId)
+        .eq('user_id', userId)
+        .single()
+
+      if (existing) {
+        return errorResponse('User is already a member of this group', 400)
+      }
+
+      // Add member
+      const { error } = await supabase
+        .from('group_memberships')
+        .insert({
+          group_id: groupId,
+          user_id: userId,
+          role: role,
+        })
+
+      if (error) {
+        return errorResponse(error.message, 500)
+      }
+
+      return jsonResponse({ message: `User @${targetUser.username} added to group "${group.name}"` })
+    }
+
+    // Remove member from group (admin)
+    if (action === 'remove-group-member') {
+      const { groupId, userId } = body
+
+      if (!groupId || !userId) {
+        return errorResponse('groupId and userId are required', 400)
+      }
+
+      // Verify group exists
+      const { data: group } = await supabase
+        .from('groups')
+        .select('id, name, created_by_user_id')
+        .eq('id', groupId)
+        .single()
+
+      if (!group) {
+        return errorResponse('Group not found', 404)
+      }
+
+      // Verify membership exists
+      const { data: membership } = await supabase
+        .from('group_memberships')
+        .select('id, role, user:user_id(username)')
+        .eq('group_id', groupId)
+        .eq('user_id', userId)
+        .single()
+
+      if (!membership) {
+        return errorResponse('User is not a member of this group', 404)
+      }
+
+      // Prevent removing owner unless they are also the creator - need to transfer ownership first
+      if ((membership.role === 'owner') && group.created_by_user_id === userId) {
+        return errorResponse('Cannot remove the group owner. Transfer ownership first.', 400)
+      }
+
+      // Remove member
+      const { error } = await supabase
+        .from('group_memberships')
+        .delete()
+        .eq('id', membership.id)
+
+      if (error) {
+        return errorResponse(error.message, 500)
+      }
+
+      const username = (membership.user as { username: string })?.username || 'Unknown'
+      return jsonResponse({ message: `User @${username} removed from group "${group.name}"` })
+    }
+
+    // Change member role (admin)
+    if (action === 'change-member-role') {
+      const { groupId, userId, role } = body
+
+      if (!groupId || !userId || !role) {
+        return errorResponse('groupId, userId, and role are required', 400)
+      }
+
+      if (!['owner', 'admin', 'member'].includes(role)) {
+        return errorResponse('Invalid role. Must be owner, admin, or member', 400)
+      }
+
+      // Verify membership exists
+      const { data: membership } = await supabase
+        .from('group_memberships')
+        .select('id, role, user:user_id(username)')
+        .eq('group_id', groupId)
+        .eq('user_id', userId)
+        .single()
+
+      if (!membership) {
+        return errorResponse('User is not a member of this group', 404)
+      }
+
+      // Update role
+      const { error } = await supabase
+        .from('group_memberships')
+        .update({ role })
+        .eq('id', membership.id)
+
+      if (error) {
+        return errorResponse(error.message, 500)
+      }
+
+      const username = (membership.user as { username: string })?.username || 'Unknown'
+      return jsonResponse({ message: `User @${username} role changed to ${role}` })
     }
 
     // ============ Notes ============

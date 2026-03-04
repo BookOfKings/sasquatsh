@@ -114,6 +114,18 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/AdminView.vue'),
     meta: { requiresAuth: true, requiresAdmin: true },
   },
+  // Pricing & Billing
+  {
+    path: '/pricing',
+    name: 'pricing',
+    component: () => import('@/views/PricingView.vue'),
+  },
+  {
+    path: '/billing',
+    name: 'billing',
+    component: () => import('@/views/BillingView.vue'),
+    meta: { requiresAuth: true },
+  },
   // Invitations
   {
     path: '/invite/:code',

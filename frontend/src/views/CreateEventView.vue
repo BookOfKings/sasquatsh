@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
+import { reactive, ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useEventStore } from '@/stores/useEventStore'
 import { useAuthStore } from '@/stores/useAuthStore'
@@ -11,6 +11,9 @@ import HotLocationsBar from '@/components/venues/HotLocationsBar.vue'
 import VenueSelector from '@/components/venues/VenueSelector.vue'
 import VenueDetailsFields from '@/components/venues/VenueDetailsFields.vue'
 import SubmitVenueModal from '@/components/venues/SubmitVenueModal.vue'
+import UpgradePrompt from '@/components/billing/UpgradePrompt.vue'
+import { TIER_LIMITS, type SubscriptionTier } from '@/config/subscriptionLimits'
+import { getEffectiveTier } from '@/types/user'
 import type { CreateEventInput } from '@/types/events'
 import type { BggGame } from '@/types/bgg'
 import type { GroupSummary } from '@/types/groups'
@@ -36,6 +39,18 @@ const showVenueModal = ref(false)
 const loading = ref(false)
 const errorMessage = ref('')
 const errors = reactive<Record<string, string>>({})
+
+// Tier limit checking
+const showUpgradePrompt = ref(false)
+const activeEventCount = ref(0)
+
+const currentTier = computed((): SubscriptionTier => {
+  if (!authStore.user.value) return 'free'
+  return getEffectiveTier(authStore.user.value)
+})
+
+const eventLimit = computed(() => TIER_LIMITS[currentTier.value].gamesPerEvent)
+const isAtLimit = computed(() => activeEventCount.value >= eventLimit.value)
 
 const form = reactive<CreateEventInput>({
   title: '',
@@ -71,6 +86,19 @@ onMounted(async () => {
   userGroups.value = groupStore.myGroups.value.filter(
     g => g.userRole === 'owner' || g.userRole === 'admin'
   )
+
+  // Load hosted events to check current count
+  await eventStore.loadHostedEvents()
+  // Count active (upcoming) events
+  const today = new Date().toISOString().split('T')[0] ?? ''
+  activeEventCount.value = eventStore.hostedEvents.value.filter(
+    e => e.eventDate >= today
+  ).length
+
+  // Show upgrade prompt immediately if already at limit
+  if (isAtLimit.value) {
+    showUpgradePrompt.value = true
+  }
 })
 
 const difficultyOptions = [
@@ -179,6 +207,17 @@ async function handleSubmit() {
     }
     router.push(`/games/${createResult.event.id}`)
   } else {
+    // Check if this is a tier limit error
+    try {
+      const errorData = JSON.parse(createResult.message)
+      if (errorData.code === 'TIER_LIMIT_REACHED') {
+        activeEventCount.value = errorData.currentCount
+        showUpgradePrompt.value = true
+        return
+      }
+    } catch {
+      // Not a JSON error, show as-is
+    }
     errorMessage.value = createResult.message
   }
 
@@ -727,6 +766,16 @@ function handleVenueSubmitted(venue: EventLocation) {
       :visible="showVenueModal"
       @close="showVenueModal = false"
       @submitted="handleVenueSubmitted"
+    />
+
+    <!-- Upgrade Prompt -->
+    <UpgradePrompt
+      :visible="showUpgradePrompt"
+      :current-tier="currentTier"
+      limit-type="games"
+      :current-count="activeEventCount"
+      :limit="eventLimit"
+      @close="showUpgradePrompt = false"
     />
   </div>
 </template>

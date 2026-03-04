@@ -15,6 +15,8 @@ import VenueSelector from '@/components/venues/VenueSelector.vue'
 import VenueDetailsFields from '@/components/venues/VenueDetailsFields.vue'
 import SubmitVenueModal from '@/components/venues/SubmitVenueModal.vue'
 import type { BggGame } from '@/types/bgg'
+import { TIER_NAMES, type SubscriptionTier } from '@/config/subscriptionLimits'
+import { getEffectiveTier } from '@/types/user'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -153,6 +155,24 @@ const memberSince = computed(() => {
   const date = new Date(profile.value.createdAt)
   return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 })
+
+const currentTier = computed((): SubscriptionTier => {
+  if (!auth.user.value) return 'free'
+  return getEffectiveTier(auth.user.value)
+})
+
+function getTierColor(tier: SubscriptionTier): string {
+  switch (tier) {
+    case 'pro':
+      return 'bg-purple-100 text-purple-800 border-purple-200'
+    case 'basic':
+      return 'bg-blue-100 text-blue-800 border-blue-200'
+    case 'premium':
+      return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+    default:
+      return 'bg-gray-100 text-gray-800 border-gray-200'
+  }
+}
 
 // Get today's date for filtering
 const today = new Date().toISOString().split('T')[0] ?? ''
@@ -1102,6 +1122,48 @@ function goToGroup(slug: string) {
           </svg>
           <p class="text-gray-500">You haven't blocked anyone.</p>
           <p class="text-sm text-gray-400 mt-1">Blocked users won't appear in your LFP or Games feeds.</p>
+        </div>
+      </div>
+
+      <!-- Billing & Subscription -->
+      <div class="card mb-6">
+        <div class="p-4 border-b border-gray-100">
+          <h3 class="font-semibold flex items-center gap-2">
+            <svg class="w-5 h-5 text-green-500" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M20,8H4V6H20M20,18H4V12H20M20,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V6C22,4.89 21.1,4 20,4Z"/>
+            </svg>
+            Subscription
+          </h3>
+        </div>
+        <div class="p-4">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <span
+                class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border"
+                :class="getTierColor(currentTier)"
+              >
+                {{ TIER_NAMES[currentTier] }}
+              </span>
+              <span v-if="auth.user.value?.subscriptionOverrideTier" class="text-sm text-gray-500">
+                (Complimentary)
+              </span>
+            </div>
+            <div class="flex items-center gap-2">
+              <router-link
+                v-if="currentTier === 'free'"
+                to="/pricing"
+                class="btn-primary text-sm"
+              >
+                Upgrade
+              </router-link>
+              <router-link
+                to="/billing"
+                class="btn-outline text-sm"
+              >
+                {{ currentTier === 'free' ? 'View Plans' : 'Manage' }}
+              </router-link>
+            </div>
+          </div>
         </div>
       </div>
 
