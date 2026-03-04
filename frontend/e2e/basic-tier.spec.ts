@@ -12,9 +12,9 @@ import { test, expect, Page } from '@playwright/test'
  * - Items feature disabled
  * - No ads
  *
- * Prerequisites:
- * - TEST_BASIC_USER_EMAIL and TEST_BASIC_USER_PASSWORD environment variables must be set
- * - The test user must have basic tier subscription
+ * NOTE: Firebase Auth uses IndexedDB for token storage, which Playwright's
+ * storageState doesn't capture. So we use manual login in tests.
+ * To minimize rate limits, consider running fewer tests or adding delays.
  */
 
 const BASIC_EMAIL = process.env.TEST_BASIC_USER_EMAIL || 'testbasicaccount@sasquatsh.com'
@@ -46,11 +46,8 @@ test.describe('Basic Tier - Authentication', () => {
   test('should login successfully with basic user credentials', async ({ page }) => {
     await loginBasicUser(page)
 
-    // Should be logged in and redirected
+    // Should be logged in (not on login page)
     await expect(page).not.toHaveURL(/\/login/)
-
-    // Wait for page to load
-    await page.waitForTimeout(1000)
 
     // Check for logged-in indicators: Dashboard button or Basic tier badge in nav
     const dashboardButton = page.getByRole('button', { name: /dashboard/i })
@@ -65,9 +62,6 @@ test.describe('Basic Tier - Authentication', () => {
 
   test('should show basic tier badge in navigation', async ({ page }) => {
     await loginBasicUser(page)
-
-    // Wait for login to complete and page to load
-    await page.waitForTimeout(1000)
 
     // Basic tier badge should be visible in the navigation (look for the badge specifically)
     const tierBadge = page.locator('nav').getByText('Basic', { exact: true })
@@ -346,7 +340,8 @@ test.describe('Basic Tier - Event Creation Flow', () => {
 
     // Should navigate to event detail OR show limit reached modal
     const url = page.url()
-    const isOnDetailPage = /\/games\/[a-zA-Z0-9-]+$/.test(url)
+    // Check for detail page (UUID pattern) but exclude /create
+    const isOnDetailPage = /\/games\/[a-zA-Z0-9-]+$/.test(url) && !url.includes('/create')
     const limitModal = page.getByText(/limit reached|game limit/i)
     const hasLimitModal = await limitModal.isVisible().catch(() => false)
 

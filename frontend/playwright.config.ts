@@ -1,8 +1,19 @@
 import { defineConfig, devices } from '@playwright/test'
 import { config } from 'dotenv'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
 // Load .env file for test credentials
 config()
+
+// ES module compatible __dirname
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+// Auth storage state paths
+const STORAGE_STATE_DIR = path.join(__dirname, 'playwright/.auth')
+const MAIN_USER_AUTH = path.join(STORAGE_STATE_DIR, 'main-user.json')
+const BASIC_USER_AUTH = path.join(STORAGE_STATE_DIR, 'basic-user.json')
 
 /**
  * Playwright E2E Test Configuration
@@ -49,30 +60,59 @@ export default defineConfig({
     video: 'on-first-retry',
   },
 
-  // Configure projects for major browsers
+  // Configure projects
   projects: [
-    // Desktop browsers
+    // === AUTH SETUP (runs first, once) ===
+    {
+      name: 'setup',
+      testMatch: /auth\.setup\.ts/,
+    },
+
+    // === CHROMIUM PROJECTS ===
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+      dependencies: ['setup'],
+      testIgnore: /basic-tier\.spec\.ts/,
     },
+    {
+      name: 'chromium-basic-tier',
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: BASIC_USER_AUTH,
+      },
+      dependencies: ['setup'],
+      testMatch: /basic-tier\.spec\.ts/,
+    },
+
+    // === FIREFOX PROJECTS ===
     {
       name: 'firefox',
       use: { ...devices['Desktop Firefox'] },
+      dependencies: ['setup'],
+      testIgnore: /basic-tier\.spec\.ts/,
     },
+
+    // === WEBKIT PROJECTS ===
     {
       name: 'webkit',
       use: { ...devices['Desktop Safari'] },
+      dependencies: ['setup'],
+      testIgnore: /basic-tier\.spec\.ts/,
     },
 
-    // Mobile viewports
+    // === MOBILE PROJECTS ===
     {
       name: 'mobile-chrome',
       use: { ...devices['Pixel 5'] },
+      dependencies: ['setup'],
+      testIgnore: /basic-tier\.spec\.ts/,
     },
     {
       name: 'mobile-safari',
       use: { ...devices['iPhone 12'] },
+      dependencies: ['setup'],
+      testIgnore: /basic-tier\.spec\.ts/,
     },
   ],
 
