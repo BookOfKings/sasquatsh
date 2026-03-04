@@ -4,6 +4,50 @@ Work sessions organized newest to oldest.
 
 ---
 
+## 2026-03-03 - SendGrid Email Integration
+
+### Work Completed
+
+1. **SendGrid Email Service**
+   - Created shared email utility (`_shared/email.ts`) with SendGrid API integration
+   - Beautiful HTML email templates for invitations and contact notifications
+   - Plain text fallbacks for all emails
+
+2. **Invitation Emails**
+   - When creating an invitation with an email address, recipient gets styled email
+   - Includes event title, host name, date/time, location
+   - "Join the Game" CTA button with invite link
+
+3. **Contact Form Notifications**
+   - Admin receives email notification at ray@sasquatsh.com when contact form submitted
+   - Includes sender name, email, subject, and full message
+   - Reply-to link for easy response
+
+4. **Home Page CTA Repositioned**
+   - Moved upgrade CTA under Dashboard/Browse buttons for free tier users
+
+### Secrets Configured
+
+- `SENDGRID_API_KEY` - SendGrid API key for sending emails
+- `ADMIN_EMAIL` - Contact form notifications recipient
+- `APP_URL` - Base URL for invite links
+
+### Files Created
+
+| File | Description |
+|------|-------------|
+| `supabase/functions/_shared/email.ts` | SendGrid email utility and templates |
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `supabase/functions/invitations/index.ts` | Added email sending on invite creation |
+| `supabase/functions/contact/index.ts` | Added admin notification emails |
+| `frontend/src/views/HomeView.vue` | Moved upgrade CTA position |
+
+---
+
 ## 2026-03-03 - Bug Fixes, Time Zones, Home Page Tiers, Self-Hosted Ads System
 
 ### Work Completed
