@@ -168,21 +168,71 @@ npx supabase db push
 2. Apply migrations with `npx supabase db push` (if any new migrations)
 3. Build and deploy frontend with `cd frontend && npm run build && npx firebase deploy --only hosting`
 
-## Session Notes - February 26, 2026
+## Project Oracle Integration
 
-### D20 Loading Spinner
-- Added a 3D CSS icosahedron D20 spinner component (`D20Spinner.vue`)
-- Uses pure CSS 3D transforms to create a 20-sided die with numbers on each face
-- Adapted from https://codepen.io/jkneb/pen/feCvg
-- Supports sizes: `sm`, `md`, `lg`, `xl`
-- Supports colors: `primary`, `white`, `gray`
-- Admin page now uses D20 spinner with 3 second minimum display time
+This project uses Project Oracle (MCP) for session tracking and project management.
+**Project ID: 1** - Sasquatsh
 
-### BGG Integration Improvements
-- Added BGG API token configuration
-- BGG search results are now cached in `bgg_games_cache` table for faster searches
-- Added "Powered by BGG" logo attribution to GameSearch component (required by BGG API terms)
+### Session Workflow
 
-### Profile Enhancements
-- Added game history tracking for played games
-- Location field updates
+#### Starting a Session
+1. Call `get_notes(project_id=1, limit=5)` to get recent context
+2. Review recent notes to understand current state and what was done before
+
+#### During Work
+- Use `update_task(task_id, status="in_progress")` when starting a task
+- Use `update_task(task_id, status="done")` when completing a task
+- Use `add_link()` when discovering useful resources or API endpoints
+
+#### Ending a Session
+Add a session note with `add_note()`:
+- **Title**: "Session: [Date] - [Brief Summary]"
+- **Type**: "general"
+- **Content**: Include:
+  - What was accomplished
+  - Current state of work
+  - Any blockers or issues
+  - Next steps for future sessions
+
+### Available MCP Tools
+
+#### Context & Query
+- `list_projects()` - List all projects
+- `get_project(project_id=1)` - Get full project with all data
+- `get_notes(project_id=1, limit=N)` - Get recent notes for quick context
+
+#### Notes (replaces SESSION.md)
+- `add_note(project_id, title, content, note_type)` - Log session/progress
+- `update_note(note_id, ...)` - Update existing note
+- `delete_note(note_id)` - Remove note
+
+#### Tasks
+- `create_task(project_id, title, description, priority)`
+- `update_task(task_id, status, ...)` - status: todo/in_progress/done/blocked
+- `delete_task(task_id)`
+
+#### Links & Resources
+- `add_link(project_id, url, title, link_type)` - link_type: documentation/api/credential_ref/design/repo/other
+- `delete_link(link_id)`
+
+#### Costs
+- `add_cost(project_id, description, amount, cost_type, category)`
+- `update_cost(cost_id, ...)`
+- `delete_cost(cost_id)`
+
+#### Milestones
+- `add_milestone(project_id, title, target_date)`
+- `complete_milestone(milestone_id)`
+- `delete_milestone(milestone_id)`
+
+#### Secrets
+- `get_secrets(project_id)` - Get all secrets for project
+- `add_secret(project_id, name, value, secret_type, description)` - Store API key, password, token, etc.
+- `get_secret(secret_id)` - Get specific secret
+- `update_secret(secret_id, ...)` - Update secret
+- `delete_secret(secret_id)` - Delete secret
+
+### Important
+- Do NOT use local SESSION.md files - all session data goes to Project Oracle
+- Always check recent notes at session start for context
+- Log meaningful progress notes, not every small change
