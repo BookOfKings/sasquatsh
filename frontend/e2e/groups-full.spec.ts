@@ -34,6 +34,8 @@ async function loginIfNeeded(page: Page, email: string, password: string) {
   await page.getByRole('button', { name: /sign in/i }).click()
   // Wait for redirect after successful login
   await page.waitForURL(/\/(dashboard|home|games)?$/, { timeout: 15000 })
+  // Delay to avoid Firebase rate limits
+  await page.waitForTimeout(2000)
 }
 
 // Helper to generate a unique group name for testing

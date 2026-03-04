@@ -32,6 +32,8 @@ async function loginIfNeeded(page: Page, email: string, password: string) {
   await page.locator('#password').fill(password)
   await page.getByRole('button', { name: /sign in/i }).click()
   await page.waitForURL(/\/(dashboard|home|games)?$/, { timeout: 15000 })
+  // Delay to avoid Firebase rate limits
+  await page.waitForTimeout(2000)
 }
 
 // Helper to generate a unique event title for testing
