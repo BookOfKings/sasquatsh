@@ -41,6 +41,8 @@ import {
 } from '@/services/adminApi'
 import type { EventLocation } from '@/types/social'
 import type { BggCacheStats, AdminStats, ServiceHealth, AdminUser, AdminGroup, AdminGroupMember, AdminNote, AdminBug } from '@/services/adminApi'
+import { getAllAds, getAdStats, createAd, updateAd, deleteAd, toggleAdActive } from '@/services/adsApi'
+import type { Ad, AdStats, CreateAdInput } from '@/services/adsApi'
 import D20Spinner from '@/components/common/D20Spinner.vue'
 
 const auth = useAuthStore()
@@ -59,7 +61,7 @@ function withMinLoadingTime<T>(promise: Promise<T>, startTime: number): Promise<
   })
 }
 
-const activeTab = ref<'dashboard' | 'users' | 'groups' | 'notes' | 'bugs' | 'locations' | 'bggCache'>('dashboard')
+const activeTab = ref<'dashboard' | 'users' | 'groups' | 'notes' | 'bugs' | 'ads' | 'locations' | 'bggCache'>('dashboard')
 
 // Dashboard state
 const dashboardLoading = ref(false)
@@ -167,6 +169,34 @@ const bugForm = reactive({
 })
 const savingBug = ref(false)
 const deletingBugId = ref<string | null>(null)
+
+// Ads state
+const ads = ref<Ad[]>([])
+const adStats = ref<AdStats[]>([])
+const adsLoading = ref(false)
+const showAdDialog = ref(false)
+const editingAd = ref<Ad | null>(null)
+const adForm = reactive({
+  name: '',
+  advertiserName: '',
+  adType: 'banner' as 'banner' | 'sidebar' | 'featured',
+  placement: 'general' as 'general' | 'dashboard' | 'events' | 'groups',
+  imageUrl: '',
+  title: '',
+  description: '',
+  linkUrl: '',
+  targetCity: '',
+  targetState: '',
+  startDate: '',
+  endDate: '',
+  isActive: true,
+  isHouseAd: false,
+  priority: 0,
+})
+const savingAd = ref(false)
+const deletingAdId = ref<string | null>(null)
+const togglingAdId = ref<string | null>(null)
+const showAdStats = ref(false)
 
 // Create/Edit dialog
 const showDialog = ref(false)
@@ -999,6 +1029,160 @@ function getStatusColor(status: string): string {
   }
 }
 
+// ============ Ads Functions ============
+
+async function loadAds() {
+  adsLoading.value = true
+  errorMessage.value = ''
+  const startTime = Date.now()
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    const [adsResult, statsResult] = await Promise.all([
+      getAllAds(token),
+      getAdStats(token),
+    ])
+    ads.value = adsResult
+    adStats.value = statsResult
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to load ads'
+  } finally {
+    const elapsed = Date.now() - startTime
+    if (elapsed < MIN_LOADING_TIME) {
+      await new Promise(resolve => setTimeout(resolve, MIN_LOADING_TIME - elapsed))
+    }
+    adsLoading.value = false
+  }
+}
+
+function openAdDialog(ad?: Ad) {
+  editingAd.value = ad || null
+  if (ad) {
+    adForm.name = ad.name
+    adForm.advertiserName = ad.advertiserName || ''
+    adForm.adType = ad.adType as 'banner' | 'sidebar' | 'featured'
+    adForm.placement = ad.placement as 'general' | 'dashboard' | 'events' | 'groups'
+    adForm.imageUrl = ad.imageUrl || ''
+    adForm.title = ad.title || ''
+    adForm.description = ad.description || ''
+    adForm.linkUrl = ad.linkUrl
+    adForm.targetCity = ad.targetCity || ''
+    adForm.targetState = ad.targetState || ''
+    adForm.startDate = ad.startDate?.split('T')[0] || ''
+    adForm.endDate = ad.endDate?.split('T')[0] || ''
+    adForm.isActive = ad.isActive
+    adForm.isHouseAd = ad.isHouseAd
+    adForm.priority = ad.priority
+  } else {
+    adForm.name = ''
+    adForm.advertiserName = ''
+    adForm.adType = 'banner'
+    adForm.placement = 'general'
+    adForm.imageUrl = ''
+    adForm.title = ''
+    adForm.description = ''
+    adForm.linkUrl = ''
+    adForm.targetCity = ''
+    adForm.targetState = ''
+    adForm.startDate = ''
+    adForm.endDate = ''
+    adForm.isActive = true
+    adForm.isHouseAd = false
+    adForm.priority = 0
+  }
+  showAdDialog.value = true
+}
+
+async function handleSaveAd() {
+  if (!adForm.name.trim()) {
+    errorMessage.value = 'Ad name is required'
+    return
+  }
+  if (!adForm.linkUrl.trim()) {
+    errorMessage.value = 'Link URL is required'
+    return
+  }
+
+  savingAd.value = true
+  errorMessage.value = ''
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+
+    const data: CreateAdInput = {
+      name: adForm.name.trim(),
+      advertiserName: adForm.advertiserName.trim() || undefined,
+      adType: adForm.adType,
+      placement: adForm.placement,
+      imageUrl: adForm.imageUrl.trim() || undefined,
+      title: adForm.title.trim() || undefined,
+      description: adForm.description.trim() || undefined,
+      linkUrl: adForm.linkUrl.trim(),
+      targetCity: adForm.targetCity.trim() || undefined,
+      targetState: adForm.targetState.trim() || undefined,
+      startDate: adForm.startDate || undefined,
+      endDate: adForm.endDate || undefined,
+      isActive: adForm.isActive,
+      isHouseAd: adForm.isHouseAd,
+      priority: adForm.priority,
+    }
+
+    if (editingAd.value) {
+      await updateAd(token, editingAd.value.id, data)
+      successMessage.value = 'Ad updated'
+    } else {
+      await createAd(token, data)
+      successMessage.value = 'Ad created'
+    }
+
+    showAdDialog.value = false
+    await loadAds()
+    setTimeout(() => successMessage.value = '', 3000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to save ad'
+  } finally {
+    savingAd.value = false
+  }
+}
+
+async function handleDeleteAd(ad: Ad) {
+  if (!confirm(`Delete ad "${ad.name}"?`)) return
+
+  deletingAdId.value = ad.id
+  errorMessage.value = ''
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    await deleteAd(token, ad.id)
+    successMessage.value = 'Ad deleted'
+    await loadAds()
+    setTimeout(() => successMessage.value = '', 3000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to delete ad'
+  } finally {
+    deletingAdId.value = null
+  }
+}
+
+async function handleToggleAdActive(ad: Ad) {
+  togglingAdId.value = ad.id
+  errorMessage.value = ''
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    await toggleAdActive(token, ad.id, !ad.isActive)
+    await loadAds()
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to toggle ad status'
+  } finally {
+    togglingAdId.value = null
+  }
+}
+
+function getAdStatsById(adId: string): AdStats | undefined {
+  return adStats.value.find(s => s.id === adId)
+}
+
 async function loadLocations() {
   loading.value = true
   errorMessage.value = ''
@@ -1296,6 +1480,15 @@ function getLocationTypeLabel(location: EventLocation): string {
         @click="activeTab = 'bugs'; loadBugs()"
       >
         Bugs
+      </button>
+      <button
+        class="px-4 py-2 text-sm font-medium transition-colors -mb-px"
+        :class="activeTab === 'ads'
+          ? 'text-primary-600 border-b-2 border-primary-500'
+          : 'text-gray-500 hover:text-gray-700'"
+        @click="activeTab = 'ads'; loadAds()"
+      >
+        Ads
       </button>
       <button
         class="px-4 py-2 text-sm font-medium transition-colors -mb-px"
@@ -2072,6 +2265,240 @@ function getLocationTypeLabel(location: EventLocation): string {
           </div>
         </div>
       </template>
+    </div>
+
+    <!-- Ads Tab -->
+    <div v-if="activeTab === 'ads'">
+      <div class="flex items-center justify-between mb-6">
+        <div class="flex gap-4 items-center">
+          <label class="flex items-center gap-2 text-sm text-gray-600">
+            <input type="checkbox" v-model="showAdStats" class="rounded border-gray-300">
+            Show Stats
+          </label>
+        </div>
+        <button class="btn-primary" @click="openAdDialog()">
+          <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/>
+          </svg>
+          Create Ad
+        </button>
+      </div>
+
+      <!-- Loading -->
+      <div v-if="adsLoading" class="text-center py-12">
+        <D20Spinner size="lg" class="mx-auto" />
+      </div>
+
+      <template v-else>
+        <div v-if="ads.length === 0" class="text-center py-12 text-gray-500">
+          <p class="text-lg font-medium">No ads yet</p>
+          <p>Create your first ad to get started.</p>
+        </div>
+
+        <div v-else class="space-y-4">
+          <div
+            v-for="ad in ads"
+            :key="ad.id"
+            class="card p-4"
+            :class="{ 'opacity-60': !ad.isActive }"
+          >
+            <div class="flex items-start justify-between gap-4">
+              <div class="flex gap-4 flex-1">
+                <!-- Ad Image Preview -->
+                <div v-if="ad.imageUrl" class="w-16 h-16 rounded overflow-hidden flex-shrink-0 bg-gray-100">
+                  <img :src="ad.imageUrl" :alt="ad.name" class="w-full h-full object-cover" />
+                </div>
+                <div v-else class="w-16 h-16 rounded flex-shrink-0 bg-gray-100 flex items-center justify-center">
+                  <svg class="w-8 h-8 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19,19H5V5H19M19,3H5A2,2 0 0,0 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5A2,2 0 0,0 19,3M13.96,12.29L11.21,15.83L9.25,13.47L6.5,17H17.5L13.96,12.29Z"/>
+                  </svg>
+                </div>
+
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2 mb-1 flex-wrap">
+                    <h3 class="font-semibold text-gray-900">{{ ad.name }}</h3>
+                    <span
+                      class="text-xs px-2 py-0.5 rounded-full"
+                      :class="ad.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'"
+                    >
+                      {{ ad.isActive ? 'Active' : 'Inactive' }}
+                    </span>
+                    <span
+                      v-if="ad.isHouseAd"
+                      class="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800"
+                    >
+                      House Ad
+                    </span>
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                      {{ ad.placement }}
+                    </span>
+                  </div>
+                  <p v-if="ad.title" class="text-gray-700 font-medium">{{ ad.title }}</p>
+                  <p v-if="ad.description" class="text-sm text-gray-600 line-clamp-2">{{ ad.description }}</p>
+                  <p v-if="ad.advertiserName" class="text-xs text-gray-500 mt-1">
+                    Advertiser: {{ ad.advertiserName }}
+                  </p>
+                  <div class="flex items-center gap-4 mt-2 text-xs text-gray-400">
+                    <span v-if="ad.startDate || ad.endDate">
+                      {{ ad.startDate ? new Date(ad.startDate).toLocaleDateString() : 'Always' }}
+                      -
+                      {{ ad.endDate ? new Date(ad.endDate).toLocaleDateString() : 'Forever' }}
+                    </span>
+                    <span>Priority: {{ ad.priority }}</span>
+                    <a :href="ad.linkUrl" target="_blank" class="text-primary-500 hover:underline truncate max-w-xs">
+                      {{ ad.linkUrl }}
+                    </a>
+                  </div>
+                  <!-- Stats -->
+                  <div v-if="showAdStats" class="mt-2 flex items-center gap-4 text-sm">
+                    <span class="text-gray-600">
+                      <strong>{{ getAdStatsById(ad.id)?.impressionCount || 0 }}</strong> impressions
+                    </span>
+                    <span class="text-gray-600">
+                      <strong>{{ getAdStatsById(ad.id)?.clickCount || 0 }}</strong> clicks
+                    </span>
+                    <span class="text-gray-600">
+                      <strong>{{ getAdStatsById(ad.id)?.ctrPercent || 0 }}%</strong> CTR
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div class="flex gap-2 flex-shrink-0">
+                <button
+                  class="btn-ghost text-sm"
+                  :class="ad.isActive ? 'text-yellow-600' : 'text-green-600'"
+                  :disabled="togglingAdId === ad.id"
+                  @click="handleToggleAdActive(ad)"
+                >
+                  {{ ad.isActive ? 'Deactivate' : 'Activate' }}
+                </button>
+                <button class="btn-ghost text-gray-600 text-sm" @click="openAdDialog(ad)">
+                  Edit
+                </button>
+                <button
+                  class="btn-ghost text-red-600 text-sm"
+                  :disabled="deletingAdId === ad.id"
+                  @click="handleDeleteAd(ad)"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- Ad Create/Edit Dialog -->
+    <div v-if="showAdDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="showAdDialog = false">
+      <div class="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
+        <h2 class="text-xl font-semibold mb-4">
+          {{ editingAd ? 'Edit Ad' : 'Create Ad' }}
+        </h2>
+
+        <div class="grid grid-cols-2 gap-4">
+          <!-- Name -->
+          <div class="col-span-2">
+            <label class="block text-sm font-medium mb-1">Internal Name *</label>
+            <input v-model="adForm.name" type="text" class="input" placeholder="e.g., Summer Promo Banner">
+          </div>
+
+          <!-- Advertiser Name -->
+          <div>
+            <label class="block text-sm font-medium mb-1">Advertiser Name</label>
+            <input v-model="adForm.advertiserName" type="text" class="input" placeholder="Leave empty for self-promo">
+          </div>
+
+          <!-- House Ad -->
+          <div class="flex items-center gap-2 pt-6">
+            <input v-model="adForm.isHouseAd" type="checkbox" id="isHouseAd" class="rounded border-gray-300">
+            <label for="isHouseAd" class="text-sm">House Ad (self-promotion)</label>
+          </div>
+
+          <!-- Title -->
+          <div class="col-span-2">
+            <label class="block text-sm font-medium mb-1">Ad Title</label>
+            <input v-model="adForm.title" type="text" class="input" placeholder="Catchy headline for the ad">
+          </div>
+
+          <!-- Description -->
+          <div class="col-span-2">
+            <label class="block text-sm font-medium mb-1">Description</label>
+            <textarea v-model="adForm.description" class="input" rows="2" placeholder="Short description (max 255 chars)"></textarea>
+          </div>
+
+          <!-- Link URL -->
+          <div class="col-span-2">
+            <label class="block text-sm font-medium mb-1">Link URL *</label>
+            <input v-model="adForm.linkUrl" type="url" class="input" placeholder="https://... or /pricing">
+          </div>
+
+          <!-- Image URL -->
+          <div class="col-span-2">
+            <label class="block text-sm font-medium mb-1">Image URL</label>
+            <input v-model="adForm.imageUrl" type="url" class="input" placeholder="https://... (optional)">
+          </div>
+
+          <!-- Ad Type -->
+          <div>
+            <label class="block text-sm font-medium mb-1">Ad Type</label>
+            <select v-model="adForm.adType" class="input">
+              <option value="banner">Banner</option>
+              <option value="sidebar">Sidebar</option>
+              <option value="featured">Featured</option>
+            </select>
+          </div>
+
+          <!-- Placement -->
+          <div>
+            <label class="block text-sm font-medium mb-1">Placement</label>
+            <select v-model="adForm.placement" class="input">
+              <option value="general">General (all pages)</option>
+              <option value="dashboard">Dashboard</option>
+              <option value="events">Events</option>
+              <option value="groups">Groups</option>
+            </select>
+          </div>
+
+          <!-- Targeting -->
+          <div>
+            <label class="block text-sm font-medium mb-1">Target City</label>
+            <input v-model="adForm.targetCity" type="text" class="input" placeholder="Optional">
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Target State</label>
+            <input v-model="adForm.targetState" type="text" class="input" placeholder="Optional">
+          </div>
+
+          <!-- Scheduling -->
+          <div>
+            <label class="block text-sm font-medium mb-1">Start Date</label>
+            <input v-model="adForm.startDate" type="date" class="input">
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">End Date</label>
+            <input v-model="adForm.endDate" type="date" class="input">
+          </div>
+
+          <!-- Priority & Active -->
+          <div>
+            <label class="block text-sm font-medium mb-1">Priority</label>
+            <input v-model.number="adForm.priority" type="number" class="input" min="0" max="100">
+            <p class="text-xs text-gray-500 mt-1">Higher = shown more often</p>
+          </div>
+          <div class="flex items-center gap-2 pt-6">
+            <input v-model="adForm.isActive" type="checkbox" id="isActive" class="rounded border-gray-300">
+            <label for="isActive" class="text-sm">Active</label>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-3 mt-6">
+          <button class="btn-outline" @click="showAdDialog = false">Cancel</button>
+          <button class="btn-primary" :disabled="savingAd" @click="handleSaveAd">
+            {{ savingAd ? 'Saving...' : (editingAd ? 'Save Changes' : 'Create Ad') }}
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- BGG Cache Tab -->

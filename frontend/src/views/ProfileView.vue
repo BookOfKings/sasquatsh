@@ -65,10 +65,26 @@ const form = reactive<UpdateProfileInput>({
   activeLocationHall: undefined,
   activeLocationRoom: undefined,
   activeLocationTable: undefined,
+  timezone: 'America/New_York',
   bio: '',
   favoriteGames: [],
   preferredGameTypes: [],
 })
+
+// Common US timezone options
+const timezoneOptions = [
+  { value: 'America/New_York', label: 'Eastern Time (ET)' },
+  { value: 'America/Chicago', label: 'Central Time (CT)' },
+  { value: 'America/Denver', label: 'Mountain Time (MT)' },
+  { value: 'America/Phoenix', label: 'Arizona (no DST)' },
+  { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
+  { value: 'America/Anchorage', label: 'Alaska Time (AKT)' },
+  { value: 'Pacific/Honolulu', label: 'Hawaii Time (HT)' },
+  { value: 'Europe/London', label: 'UK (GMT/BST)' },
+  { value: 'Europe/Paris', label: 'Central Europe (CET)' },
+  { value: 'Asia/Tokyo', label: 'Japan (JST)' },
+  { value: 'Australia/Sydney', label: 'Sydney (AEST)' },
+]
 
 // Watch username changes for availability checking
 watch(() => form.username, (newUsername) => {
@@ -352,6 +368,7 @@ async function populateForm() {
   form.activeLocationHall = profile.value.activeLocationHall ?? undefined
   form.activeLocationRoom = profile.value.activeLocationRoom ?? undefined
   form.activeLocationTable = profile.value.activeLocationTable ?? undefined
+  form.timezone = profile.value.timezone ?? 'America/New_York'
   form.bio = profile.value.bio ?? ''
   form.favoriteGames = profile.value.favoriteGames ?? []
   form.preferredGameTypes = profile.value.preferredGameTypes ?? []
@@ -728,6 +745,15 @@ function goToGroup(slug: string) {
                 placeholder="e.g. 1990"
               />
               <p class="text-sm text-gray-500 mt-1">Used to check age requirements for game nights</p>
+            </div>
+            <div>
+              <label class="label">Time Zone</label>
+              <select v-model="form.timezone" class="input">
+                <option v-for="tz in timezoneOptions" :key="tz.value" :value="tz.value">
+                  {{ tz.label }}
+                </option>
+              </select>
+              <p class="text-sm text-gray-500 mt-1">Used to display event times correctly</p>
             </div>
           </div>
 

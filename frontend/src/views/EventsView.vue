@@ -3,7 +3,9 @@ import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useEventStore } from '@/stores/useEventStore'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { getMyProfile } from '@/services/profileApi'
 import EventList from '@/components/events/EventList.vue'
+import AdBanner from '@/components/ads/AdBanner.vue'
 import type { EventSummary, EventSearchFilter } from '@/types/events'
 
 const router = useRouter()
@@ -96,8 +98,25 @@ watch(searchText, () => {
   }, 400)
 })
 
-onMounted(() => {
-  eventStore.loadPublicEvents()
+onMounted(async () => {
+  // If user is logged in, default to their profile location
+  if (auth.isAuthenticated.value) {
+    try {
+      const token = await auth.getIdToken()
+      if (token) {
+        const profile = await getMyProfile(token)
+        // Use active location if set, otherwise fall back to home location
+        const defaultCity = profile.activeCity || profile.homeCity
+        const defaultState = profile.activeState || profile.homeState
+        if (defaultCity) city.value = defaultCity
+        if (defaultState) state.value = defaultState
+      }
+    } catch (err) {
+      console.error('Failed to load profile for location defaults:', err)
+    }
+  }
+  // Load events with location filter (if set)
+  eventStore.loadPublicEvents(buildFilter())
 })
 
 function handleSelectEvent(event: EventSummary) {
@@ -280,5 +299,8 @@ function goToCreateGame() {
       empty-text="No games found. Try adjusting your filters or be the first to host one!"
       @select="handleSelectEvent"
     />
+
+    <!-- Ad Banner for free tier users -->
+    <AdBanner placement="events" />
   </div>
 </template>

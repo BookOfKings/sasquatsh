@@ -6,6 +6,7 @@ import { useGroupStore } from '@/stores/useGroupStore'
 import { useRouter } from 'vue-router'
 import type { EventSummary } from '@/types/events'
 import D20Spinner from '@/components/common/D20Spinner.vue'
+import AdBanner from '@/components/ads/AdBanner.vue'
 
 const auth = useAuthStore()
 const eventStore = useEventStore()
@@ -379,5 +380,8 @@ function formatTime(timeStr: string | undefined) {
         </button>
       </div>
     </div>
+
+    <!-- Ad Banner for free tier users -->
+    <AdBanner placement="dashboard" />
   </div>
 </template>

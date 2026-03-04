@@ -481,6 +481,70 @@ Deno.serve(async (req) => {
       })
     }
 
+    // ============ Ads ============
+
+    // List all ads
+    if (action === 'ads') {
+      const { data: ads, error } = await supabase
+        .from('ads')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        return errorResponse(error.message, 500)
+      }
+
+      return jsonResponse({
+        ads: ads?.map(a => ({
+          id: a.id,
+          name: a.name,
+          advertiserName: a.advertiser_name,
+          adType: a.ad_type,
+          placement: a.placement,
+          imageUrl: a.image_url,
+          title: a.title,
+          description: a.description,
+          linkUrl: a.link_url,
+          targetCity: a.target_city,
+          targetState: a.target_state,
+          startDate: a.start_date,
+          endDate: a.end_date,
+          isActive: a.is_active,
+          isHouseAd: a.is_house_ad,
+          priority: a.priority,
+          createdAt: a.created_at,
+          updatedAt: a.updated_at,
+        })),
+      })
+    }
+
+    // Get ad stats
+    if (action === 'ad-stats') {
+      const { data: stats, error } = await supabase
+        .from('ad_stats')
+        .select('*')
+        .order('impression_count', { ascending: false })
+
+      if (error) {
+        return errorResponse(error.message, 500)
+      }
+
+      return jsonResponse({
+        stats: stats?.map(s => ({
+          id: s.id,
+          name: s.name,
+          advertiserName: s.advertiser_name,
+          isHouseAd: s.is_house_ad,
+          isActive: s.is_active,
+          startDate: s.start_date,
+          endDate: s.end_date,
+          impressionCount: s.impression_count,
+          clickCount: s.click_count,
+          ctrPercent: s.ctr_percent,
+        })),
+      })
+    }
+
     // List bugs
     if (action === 'bugs') {
       const status = url.searchParams.get('status') || ''
@@ -1309,6 +1373,169 @@ Deno.serve(async (req) => {
       }
 
       return jsonResponse({ message: 'Bug deleted' })
+    }
+
+    // ============ Ads ============
+
+    // Create ad
+    if (action === 'create-ad') {
+      const {
+        name, advertiserName, adType, placement, imageUrl, title,
+        description, linkUrl, targetCity, targetState, startDate,
+        endDate, isActive, isHouseAd, priority
+      } = body
+
+      if (!name?.trim()) {
+        return errorResponse('Name is required', 400)
+      }
+      if (!linkUrl?.trim()) {
+        return errorResponse('Link URL is required', 400)
+      }
+
+      const { data: ad, error } = await supabase
+        .from('ads')
+        .insert({
+          name: name.trim(),
+          advertiser_name: advertiserName?.trim() || null,
+          ad_type: adType || 'banner',
+          placement: placement || 'general',
+          image_url: imageUrl?.trim() || null,
+          title: title?.trim() || null,
+          description: description?.trim() || null,
+          link_url: linkUrl.trim(),
+          target_city: targetCity?.trim() || null,
+          target_state: targetState?.trim() || null,
+          start_date: startDate || null,
+          end_date: endDate || null,
+          is_active: isActive ?? true,
+          is_house_ad: isHouseAd ?? false,
+          priority: priority ?? 0,
+        })
+        .select()
+        .single()
+
+      if (error) {
+        return errorResponse(error.message, 500)
+      }
+
+      return jsonResponse({
+        ad: {
+          id: ad.id,
+          name: ad.name,
+          advertiserName: ad.advertiser_name,
+          adType: ad.ad_type,
+          placement: ad.placement,
+          imageUrl: ad.image_url,
+          title: ad.title,
+          description: ad.description,
+          linkUrl: ad.link_url,
+          targetCity: ad.target_city,
+          targetState: ad.target_state,
+          startDate: ad.start_date,
+          endDate: ad.end_date,
+          isActive: ad.is_active,
+          isHouseAd: ad.is_house_ad,
+          priority: ad.priority,
+          createdAt: ad.created_at,
+          updatedAt: ad.updated_at,
+        },
+        message: 'Ad created',
+      })
+    }
+
+    // Update ad
+    if (action === 'update-ad') {
+      const {
+        adId, name, advertiserName, adType, placement, imageUrl, title,
+        description, linkUrl, targetCity, targetState, startDate,
+        endDate, isActive, isHouseAd, priority
+      } = body
+
+      if (!adId) {
+        return errorResponse('adId required', 400)
+      }
+
+      const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
+      if (name !== undefined) updates.name = name.trim()
+      if (advertiserName !== undefined) updates.advertiser_name = advertiserName?.trim() || null
+      if (adType !== undefined) updates.ad_type = adType
+      if (placement !== undefined) updates.placement = placement
+      if (imageUrl !== undefined) updates.image_url = imageUrl?.trim() || null
+      if (title !== undefined) updates.title = title?.trim() || null
+      if (description !== undefined) updates.description = description?.trim() || null
+      if (linkUrl !== undefined) updates.link_url = linkUrl.trim()
+      if (targetCity !== undefined) updates.target_city = targetCity?.trim() || null
+      if (targetState !== undefined) updates.target_state = targetState?.trim() || null
+      if (startDate !== undefined) updates.start_date = startDate || null
+      if (endDate !== undefined) updates.end_date = endDate || null
+      if (isActive !== undefined) updates.is_active = isActive
+      if (isHouseAd !== undefined) updates.is_house_ad = isHouseAd
+      if (priority !== undefined) updates.priority = priority
+
+      const { data: ad, error } = await supabase
+        .from('ads')
+        .update(updates)
+        .eq('id', adId)
+        .select()
+        .single()
+
+      if (error) {
+        return errorResponse(error.message, 500)
+      }
+
+      return jsonResponse({
+        ad: {
+          id: ad.id,
+          name: ad.name,
+          advertiserName: ad.advertiser_name,
+          adType: ad.ad_type,
+          placement: ad.placement,
+          imageUrl: ad.image_url,
+          title: ad.title,
+          description: ad.description,
+          linkUrl: ad.link_url,
+          targetCity: ad.target_city,
+          targetState: ad.target_state,
+          startDate: ad.start_date,
+          endDate: ad.end_date,
+          isActive: ad.is_active,
+          isHouseAd: ad.is_house_ad,
+          priority: ad.priority,
+          createdAt: ad.created_at,
+          updatedAt: ad.updated_at,
+        },
+        message: 'Ad updated',
+      })
+    }
+
+    // Delete ad
+    if (action === 'delete-ad') {
+      const { adId } = body
+
+      if (!adId) {
+        return errorResponse('adId required', 400)
+      }
+
+      const { data: ad } = await supabase
+        .from('ads')
+        .select('name')
+        .eq('id', adId)
+        .single()
+
+      if (!ad) {
+        return errorResponse('Ad not found', 404)
+      }
+
+      const { error } = await supabase
+        .from('ads')
+        .delete()
+        .eq('id', adId)
+
+      if (error) {
+        return errorResponse(error.message, 500)
+      }
+
+      return jsonResponse({ message: `Ad "${ad.name}" deleted` })
     }
 
     return errorResponse('Unknown action', 400)

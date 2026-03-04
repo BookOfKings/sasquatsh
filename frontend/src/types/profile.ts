@@ -17,6 +17,7 @@ export interface UserProfile {
   activeLocationHall: string | null
   activeLocationRoom: string | null
   activeLocationTable: string | null
+  timezone: string | null
   bio: string | null
   favoriteGames: string[] | null
   preferredGameTypes: string[] | null
@@ -95,6 +96,7 @@ export interface UpdateProfileInput {
   activeLocationHall?: string | null
   activeLocationRoom?: string | null
   activeLocationTable?: string | null
+  timezone?: string | null
   bio?: string | null
   favoriteGames?: string[] | null
   preferredGameTypes?: string[] | null

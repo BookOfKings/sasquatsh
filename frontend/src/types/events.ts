@@ -11,11 +11,13 @@ export interface EventSummary {
   gameCategory: string | null
   eventDate: string
   startTime: string
+  timezone: string | null
   durationMinutes: number
   city: string | null
   state: string | null
   difficultyLevel: string | null
   maxPlayers: number
+  hostIsPlaying: boolean
   confirmedCount: number
   isPublic: boolean
   isCharityEvent: boolean
@@ -63,6 +65,7 @@ export interface Event {
   gameCategory: string | null
   eventDate: string
   startTime: string
+  timezone: string | null
   durationMinutes: number
   setupMinutes: number
   addressLine1: string | null
@@ -76,6 +79,7 @@ export interface Event {
   venueTable: string | null
   difficultyLevel: string | null
   maxPlayers: number
+  hostIsPlaying: boolean
   confirmedCount: number
   isPublic: boolean
   isCharityEvent: boolean
@@ -95,6 +99,7 @@ export interface CreateEventInput {
   gameCategory?: string
   eventDate: string
   startTime: string
+  timezone?: string
   durationMinutes?: number
   setupMinutes?: number
   addressLine1?: string
@@ -108,6 +113,7 @@ export interface CreateEventInput {
   venueTable?: string
   difficultyLevel?: string
   maxPlayers?: number
+  hostIsPlaying?: boolean
   isPublic?: boolean
   isCharityEvent?: boolean
   minAge?: number
@@ -122,6 +128,7 @@ export interface UpdateEventInput {
   gameCategory: string | null
   eventDate: string
   startTime: string
+  timezone: string | null
   durationMinutes: number
   setupMinutes: number
   addressLine1: string | null
@@ -135,6 +142,7 @@ export interface UpdateEventInput {
   venueTable: string | null
   difficultyLevel: string | null
   maxPlayers: number
+  hostIsPlaying: boolean
   isPublic: boolean
   isCharityEvent: boolean
   minAge: number | null

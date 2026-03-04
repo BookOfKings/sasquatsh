@@ -1,9 +1,24 @@
 <script setup lang="ts">
-import { reactive, ref, onMounted, computed } from 'vue'
+import { reactive, ref, onMounted, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useEventStore } from '@/stores/useEventStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { getLocationById } from '@/services/venuesApi'
+
+// Timezone options
+const timezoneOptions = [
+  { value: 'America/New_York', label: 'Eastern Time (ET)' },
+  { value: 'America/Chicago', label: 'Central Time (CT)' },
+  { value: 'America/Denver', label: 'Mountain Time (MT)' },
+  { value: 'America/Phoenix', label: 'Arizona (no DST)' },
+  { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
+  { value: 'America/Anchorage', label: 'Alaska Time (AKT)' },
+  { value: 'Pacific/Honolulu', label: 'Hawaii Time (HT)' },
+  { value: 'Europe/London', label: 'UK (GMT/BST)' },
+  { value: 'Europe/Paris', label: 'Central Europe (CET)' },
+  { value: 'Asia/Tokyo', label: 'Japan (JST)' },
+  { value: 'Australia/Sydney', label: 'Sydney (AEST)' },
+]
 import GameSearch from '@/components/common/GameSearch.vue'
 import GameCard from '@/components/common/GameCard.vue'
 import HotLocationsBar from '@/components/venues/HotLocationsBar.vue'
@@ -42,6 +57,7 @@ const form = reactive<UpdateEventInput>({
   gameCategory: null,
   eventDate: '',
   startTime: '',
+  timezone: null,
   durationMinutes: 120,
   setupMinutes: 15,
   addressLine1: null,
@@ -55,6 +71,7 @@ const form = reactive<UpdateEventInput>({
   venueTable: null,
   difficultyLevel: null,
   maxPlayers: 4,
+  hostIsPlaying: true,
   isPublic: true,
   isCharityEvent: false,
   minAge: null,
@@ -84,6 +101,7 @@ async function loadEvent() {
     form.gameCategory = event.gameCategory ?? null
     form.eventDate = event.eventDate
     form.startTime = event.startTime
+    form.timezone = event.timezone ?? null
     form.durationMinutes = event.durationMinutes
     form.setupMinutes = event.setupMinutes ?? 15
     form.addressLine1 = event.addressLine1 ?? null
@@ -97,6 +115,7 @@ async function loadEvent() {
     form.venueTable = event.venueTable ?? null
     form.difficultyLevel = event.difficultyLevel ?? null
     form.maxPlayers = event.maxPlayers
+    form.hostIsPlaying = event.hostIsPlaying ?? true
     form.isPublic = event.isPublic
     form.isCharityEvent = event.isCharityEvent
     form.minAge = event.minAge ?? null
@@ -141,6 +160,13 @@ async function loadEvent() {
 
   loadingEvent.value = false
 }
+
+// When a venue is selected, use its timezone if available
+watch(selectedVenue, (venue) => {
+  if (venue?.timezone) {
+    form.timezone = venue.timezone
+  }
+})
 
 const difficultyOptions = [
   { title: 'None', value: '' },
@@ -441,7 +467,7 @@ function handleVenueSubmitted(venue: EventLocation) {
           <div>
             <h3 class="font-semibold text-gray-900 mb-4">Date & Time</h3>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label for="eventDate" class="label">Date *</label>
                 <input
@@ -465,6 +491,19 @@ function handleVenueSubmitted(venue: EventLocation) {
                   :disabled="loading"
                 />
                 <p v-if="errors.startTime" class="text-sm text-red-500 mt-1">{{ errors.startTime }}</p>
+              </div>
+              <div>
+                <label for="timezone" class="label">Time Zone</label>
+                <select
+                  id="timezone"
+                  v-model="form.timezone"
+                  class="input"
+                  :disabled="loading"
+                >
+                  <option v-for="tz in timezoneOptions" :key="tz.value" :value="tz.value">
+                    {{ tz.label }}
+                  </option>
+                </select>
               </div>
             </div>
 
@@ -657,6 +696,23 @@ function handleVenueSubmitted(venue: EventLocation) {
                   :disabled="loading"
                 />
                 <p v-if="errors.maxPlayers" class="text-sm text-red-500 mt-1">{{ errors.maxPlayers }}</p>
+                <p class="text-sm text-gray-500 mt-1">
+                  {{ form.hostIsPlaying ? `${form.maxPlayers - 1} spots for others` : `${form.maxPlayers} spots (you're not playing)` }}
+                </p>
+              </div>
+              <div class="flex items-center">
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    v-model="form.hostIsPlaying"
+                    class="w-5 h-5 rounded text-primary-500 border-gray-300 focus:ring-primary-500"
+                    :disabled="loading"
+                  />
+                  <div>
+                    <span class="label">I am playing</span>
+                    <p class="text-sm text-gray-500">Include yourself as a player</p>
+                  </div>
+                </label>
               </div>
               <div>
                 <label for="minAge" class="label">Minimum Age</label>

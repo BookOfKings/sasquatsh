@@ -2,6 +2,8 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { getEffectiveTier } from '@/types/user'
+import { hasFeature } from '@/config/subscriptionLimits'
 import {
   getPlanningSession,
   respondToPlanningSession,
@@ -65,6 +67,13 @@ const sessionId = computed(() => route.params.id as string)
 const isCreator = computed(() => {
   if (!session.value || !auth.user.value) return false
   return session.value.createdByUserId === auth.user.value.id
+})
+
+// Check if user can use items feature (Pro+ only)
+const canUseItems = computed(() => {
+  if (!auth.user.value) return false
+  const tier = getEffectiveTier(auth.user.value)
+  return hasFeature(tier, 'items')
 })
 
 const currentUserInvitee = computed(() => {
@@ -720,8 +729,8 @@ function getStatusBadgeClass(status: string) {
               </div>
             </div>
 
-            <!-- Items to Bring Section -->
-            <div class="mb-6 pt-6 border-t border-gray-200">
+            <!-- Items to Bring Section (Pro+ feature) -->
+            <div v-if="canUseItems" class="mb-6 pt-6 border-t border-gray-200">
               <h3 class="font-medium text-gray-700 mb-3 flex items-center gap-2">
                 <svg class="w-5 h-5 text-green-500" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M20,6H16V4C16,2.89 15.11,2 14,2H10C8.89,2 8,2.89 8,4V6H4C2.89,6 2,6.89 2,8V19C2,20.11 2.89,21 4,21H20C21.11,21 22,20.11 22,19V8C22,6.89 21.11,6 20,6M10,4H14V6H10V4Z"/>

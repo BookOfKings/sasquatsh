@@ -4,6 +4,87 @@ Work sessions organized newest to oldest.
 
 ---
 
+## 2026-03-03 - Bug Fixes, Time Zones, Home Page Tiers, Self-Hosted Ads System
+
+### Work Completed
+
+1. **Bug Fixes (all 6 open bugs resolved)**
+   - Bug #1: Free accounts can add items - Already fixed via items feature gating
+   - Bug #2: Games page defaults to profile location - Added profile loading to EventsView
+   - Bug #3: "I am playing" toggle - Added `hostIsPlaying` field to events
+   - Bug #4: LFP only shows active games - Changed to time-based filtering (upcoming games)
+   - Bug #5: Create sitemap - Created `sitemap.xml` and `robots.txt`
+   - Bug #6: Image upload slow - Added client-side image compression before upload
+
+2. **Time Zone Support**
+   - Added `timezone` column to users, events, and event_locations tables
+   - Added timezone dropdown to Create/Edit Event forms
+   - Defaults to user's profile timezone
+   - Updates to venue timezone when selecting a venue
+   - Set all existing users to `America/Phoenix` (MST)
+
+3. **Home Page Subscription Tiers**
+   - Added tier comparison section for non-authenticated users
+   - Shows Free/Basic ($7.99)/Pro ($14.99) with feature lists
+   - Added upgrade CTA banner for free tier authenticated users
+
+4. **Self-Hosted Advertising System**
+   - Created `ads`, `ad_impressions`, `ad_clicks` tables with `ad_stats` view
+   - Created ads edge function for serving and tracking ads
+   - Created `AdBanner.vue` component (shows only to free tier users)
+   - Created `adsApi.ts` admin service for CRUD operations
+   - Added full ads management to Admin panel with stats
+   - Added ad placements to Dashboard, Events, and Groups pages
+   - Initial house ads for "Upgrade to Basic" and "Upgrade to Pro"
+
+### Files Created
+
+| File | Description |
+|------|-------------|
+| `frontend/public/sitemap.xml` | SEO sitemap |
+| `frontend/public/robots.txt` | Robots configuration |
+| `frontend/src/components/ads/AdBanner.vue` | Ad display component |
+| `frontend/src/services/adsApi.ts` | Admin ads API service |
+| `supabase/functions/ads/index.ts` | Public ads API |
+| `supabase/migrations/031_host_is_playing.sql` | Host playing field |
+| `supabase/migrations/032_timezones.sql` | Timezone columns |
+| `supabase/migrations/033_set_mst_timezone.sql` | Set MST timezone |
+| `supabase/migrations/034_set_phoenix_timezone.sql` | Set Phoenix timezone |
+| `supabase/migrations/035_ads_system.sql` | Ads database schema |
+| `supabase/migrations/036_mark_ads_implemented.sql` | Mark ads note complete |
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/views/AdminView.vue` | Added ads management tab |
+| `frontend/src/views/CreateEventView.vue` | Added timezone field, profile default |
+| `frontend/src/views/EditEventView.vue` | Added timezone field, venue watch |
+| `frontend/src/views/EventsView.vue` | Profile location default, ad placement |
+| `frontend/src/views/DashboardView.vue` | Added ad placement |
+| `frontend/src/views/GroupsView.vue` | Added ad placement |
+| `frontend/src/views/HomeView.vue` | Added tier comparison section |
+| `frontend/src/views/ProfileView.vue` | Added timezone field |
+| `frontend/src/views/LookingForPlayersView.vue` | Time-based filtering |
+| `frontend/src/views/EventDetailView.vue` | Show host playing status |
+| `frontend/src/views/PlanningSessionView.vue` | Show host playing in attendees |
+| `frontend/src/types/events.ts` | Added hostIsPlaying, timezone fields |
+| `frontend/src/types/profile.ts` | Added timezone field |
+| `frontend/src/services/profileApi.ts` | Added image compression |
+| `frontend/src/services/eventsApi.ts` | Added timezone to DTOs |
+| `supabase/functions/admin-stats/index.ts` | Added ads CRUD endpoints |
+| `supabase/functions/events/index.ts` | Added hostIsPlaying support |
+| `supabase/functions/profile/index.ts` | Added timezone support |
+
+### Ads System Details
+
+- **Tracking**: Impressions deduplicated by IP hash (1-hour window), clicks tracked individually
+- **Targeting**: Supports city/state targeting, date scheduling, priority weighting
+- **Admin UI**: Full CRUD with stats (impressions, clicks, CTR)
+- **House Ads**: Initial self-promo ads for tier upgrades
+
+---
+
 ## 2026-03-02 - E2E Testing, Header Plan Badge, Admin Enhancements
 
 ### Work Completed

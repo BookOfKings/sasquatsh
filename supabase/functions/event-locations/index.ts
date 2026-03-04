@@ -12,6 +12,7 @@ function toEventLocation(row: Record<string, unknown>) {
     city: row.city as string,
     state: row.state as string,
     venue: row.venue as string | null,
+    timezone: row.timezone as string | null,
     startDate: row.start_date as string | null,
     endDate: row.end_date as string | null,
     isPermanent: row.is_permanent as boolean,

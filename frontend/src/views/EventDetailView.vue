@@ -3,6 +3,8 @@ import { onMounted, computed, ref, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useEventStore } from '@/stores/useEventStore'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { getEffectiveTier } from '@/types/user'
+import { hasFeature } from '@/config/subscriptionLimits'
 import ShareModal from '@/components/common/ShareModal.vue'
 import D20Spinner from '@/components/common/D20Spinner.vue'
 
@@ -37,6 +39,13 @@ const isRegistered = computed(() => {
 const spotsLeft = computed(() => {
   if (!event.value) return 0
   return event.value.maxPlayers - event.value.confirmedCount
+})
+
+// Check if user can see/use items feature (Pro+ only)
+const canUseItems = computed(() => {
+  if (!auth.user.value) return false
+  const tier = getEffectiveTier(auth.user.value)
+  return hasFeature(tier, 'items')
 })
 
 onMounted(() => {
@@ -440,8 +449,8 @@ function goToLogin() {
         </div>
       </div>
 
-      <!-- Items to Bring -->
-      <div class="card">
+      <!-- Items to Bring (Pro+ feature) -->
+      <div v-if="canUseItems" class="card">
         <div class="p-4 border-b border-gray-100 flex items-center justify-between">
           <h2 class="font-semibold flex items-center gap-2">
             <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">

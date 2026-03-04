@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useGroupStore } from '@/stores/useGroupStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import GroupCard from '@/components/groups/GroupCard.vue'
+import AdBanner from '@/components/ads/AdBanner.vue'
 import type { GroupSummary, GroupSearchFilter } from '@/types/groups'
 
 const router = useRouter()
@@ -221,6 +222,9 @@ function goToCreateGroup() {
         @click="handleSelectGroup"
       />
     </div>
+
+    <!-- Ad Banner for free tier users -->
+    <AdBanner placement="groups" />
 
     <!-- Empty State -->
     <div v-else-if="!groupStore.loading.value" class="text-center py-12">

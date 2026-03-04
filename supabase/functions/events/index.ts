@@ -101,7 +101,7 @@ Deno.serve(async (req) => {
         .from('events')
         .select(`
           id, title, game_title, game_category, event_date, start_time,
-          duration_minutes, city, state, difficulty_level, max_players,
+          duration_minutes, city, state, difficulty_level, max_players, host_is_playing,
           is_public, is_charity_event, min_age, status, host_user_id,
           host:users!host_user_id(id, display_name, avatar_url),
           registrations:event_registrations(count)
@@ -154,7 +154,7 @@ Deno.serve(async (req) => {
         .from('events')
         .select(`
           id, title, game_title, game_category, event_date, start_time,
-          duration_minutes, city, state, difficulty_level, max_players,
+          duration_minutes, city, state, difficulty_level, max_players, host_is_playing,
           is_public, is_charity_event, min_age, status,
           host:users!host_user_id(id, display_name, avatar_url),
           registrations:event_registrations(count)
@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
         .select(`
           event:events(
             id, title, game_title, game_category, event_date, start_time,
-            duration_minutes, city, state, difficulty_level, max_players,
+            duration_minutes, city, state, difficulty_level, max_players, host_is_playing,
             is_public, is_charity_event, min_age, status,
             host:users!host_user_id(id, display_name, avatar_url),
             registrations:event_registrations(count)
@@ -258,6 +258,7 @@ Deno.serve(async (req) => {
         game_category: body.gameCategory,
         event_date: body.eventDate,
         start_time: body.startTime,
+        timezone: body.timezone || 'America/New_York',
         duration_minutes: body.durationMinutes ?? 120,
         setup_minutes: body.setupMinutes ?? 15,
         address_line1: body.addressLine1,
@@ -271,6 +272,7 @@ Deno.serve(async (req) => {
         venue_table: body.venueTable || null,
         difficulty_level: body.difficultyLevel,
         max_players: body.maxPlayers ?? 4,
+        host_is_playing: body.hostIsPlaying ?? true,
         is_public: body.isPublic ?? true,
         is_charity_event: body.isCharityEvent ?? false,
         min_age: body.minAge ?? null,
@@ -312,6 +314,7 @@ Deno.serve(async (req) => {
         game_category: body.gameCategory,
         event_date: body.eventDate,
         start_time: body.startTime,
+        timezone: body.timezone,
         duration_minutes: body.durationMinutes,
         setup_minutes: body.setupMinutes,
         address_line1: body.addressLine1,
@@ -325,6 +328,7 @@ Deno.serve(async (req) => {
         venue_table: body.venueTable || null,
         difficulty_level: body.difficultyLevel,
         max_players: body.maxPlayers,
+        host_is_playing: body.hostIsPlaying,
         is_public: body.isPublic,
         is_charity_event: body.isCharityEvent,
         min_age: body.minAge,
@@ -396,11 +400,13 @@ function transformEventSummary(row: Record<string, unknown>) {
     gameCategory: row.game_category,
     eventDate: row.event_date,
     startTime: row.start_time,
+    timezone: row.timezone,
     durationMinutes: row.duration_minutes,
     city: row.city,
     state: row.state,
     difficultyLevel: row.difficulty_level,
     maxPlayers: row.max_players,
+    hostIsPlaying: row.host_is_playing ?? true,
     confirmedCount: (row.registrations as { count: number }[])?.[0]?.count ?? 0,
     isPublic: row.is_public,
     isCharityEvent: row.is_charity_event,
@@ -426,6 +432,7 @@ function transformEvent(row: Record<string, unknown>) {
     gameCategory: row.game_category,
     eventDate: row.event_date,
     startTime: row.start_time,
+    timezone: row.timezone,
     durationMinutes: row.duration_minutes,
     setupMinutes: row.setup_minutes,
     addressLine1: row.address_line1,
@@ -439,6 +446,7 @@ function transformEvent(row: Record<string, unknown>) {
     venueTable: row.venue_table,
     difficultyLevel: row.difficulty_level,
     maxPlayers: row.max_players,
+    hostIsPlaying: row.host_is_playing ?? true,
     confirmedCount: Array.isArray(row.registrations) ? row.registrations.length : 0,
     isPublic: row.is_public,
     isCharityEvent: row.is_charity_event,

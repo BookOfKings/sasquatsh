@@ -55,11 +55,30 @@ const form = ref<CreatePlayerRequestInput>({
   playerCountNeeded: 1,
 })
 
-// Filter to only show events that are today or in the future
-const upcomingEvents = computed(() => {
-  const today = new Date().toISOString().split('T')[0] ?? ''
-  return myEvents.value.filter(e => e.eventDate >= today && e.status !== 'cancelled')
+// Filter to only show events that are currently active (happening right now)
+const activeEvents = computed(() => {
+  const now = new Date()
+  const today = now.toISOString().split('T')[0] ?? ''
+  const currentTime = now.toTimeString().slice(0, 5) // HH:MM format
+
+  return myEvents.value.filter(e => {
+    if (e.status === 'cancelled') return false
+    if (e.eventDate !== today) return false
+
+    // Check if current time is within the event's time window
+    const [startHour, startMin] = e.startTime.split(':').map(Number)
+    const startMinutes = (startHour || 0) * 60 + (startMin || 0)
+    const endMinutes = startMinutes + e.durationMinutes
+
+    const [currentHour, currentMin] = currentTime.split(':').map(Number)
+    const currentMinutes = (currentHour || 0) * 60 + (currentMin || 0)
+
+    // Allow creating LFP from 30 minutes before start until end of event
+    return currentMinutes >= startMinutes - 30 && currentMinutes <= endMinutes
+  })
 })
+
+const canCreateRequest = computed(() => activeEvents.value.length > 0)
 
 async function loadUserLocation() {
   try {
@@ -196,13 +215,13 @@ function openCreateDialog() {
     return
   }
 
-  if (upcomingEvents.value.length === 0) {
-    errorMessage.value = 'You need to create an event first before requesting players'
+  if (activeEvents.value.length === 0) {
+    errorMessage.value = 'You can only request players when you have a game happening right now. Create and host a game first!'
     return
   }
 
   form.value = {
-    eventId: upcomingEvents.value[0]?.id || '',
+    eventId: activeEvents.value[0]?.id || '',
     description: '',
     playerCountNeeded: 1,
   }
@@ -357,7 +376,12 @@ function getStatusBadge(status: string) {
         <h1 class="text-2xl font-bold">Need Players?</h1>
         <p class="text-gray-500">Urgent requests from hosts who need fill-in players</p>
       </div>
-      <button class="btn-primary" @click="openCreateDialog">
+      <button
+        class="btn-primary"
+        :disabled="auth.isAuthenticated.value && !canCreateRequest"
+        :title="auth.isAuthenticated.value && !canCreateRequest ? 'You can only request players during an active game' : ''"
+        @click="openCreateDialog"
+      >
         <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
           <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/>
         </svg>
@@ -670,14 +694,14 @@ function getStatusBadge(status: string) {
             <label class="label">Select Event *</label>
             <select v-model="form.eventId" class="input">
               <option value="">Choose an event...</option>
-              <option v-for="event in upcomingEvents" :key="event.id" :value="event.id">
+              <option v-for="event in activeEvents" :key="event.id" :value="event.id">
                 {{ event.title }} - {{ formatDate(event.eventDate) }}
                 <template v-if="event.gameTitle"> ({{ event.gameTitle }})</template>
               </option>
             </select>
-            <p v-if="upcomingEvents.length === 0" class="text-sm text-amber-600 mt-1">
-              You need to create an event first.
-              <router-link to="/games/new" class="underline">Create an event</router-link>
+            <p v-if="activeEvents.length === 0" class="text-sm text-amber-600 mt-1">
+              You can only request players during an active game (happening now).
+              <router-link to="/games/new" class="underline">Host a game</router-link> and come back when it starts!
             </p>
           </div>
 

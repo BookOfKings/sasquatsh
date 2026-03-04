@@ -1,14 +1,20 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useRouter } from 'vue-router'
 import { getStats, type Stats } from '@/services/statsApi'
+import { getEffectiveTier } from '@/types/user'
 
 const auth = useAuthStore()
 const router = useRouter()
 
 const stats = ref<Stats>({ gamesToday: 0, gamesEver: 0 })
 const statsLoading = ref(true)
+
+const isFreeTier = computed(() => {
+  if (!auth.user.value) return true
+  return getEffectiveTier(auth.user.value) === 'free'
+})
 
 onMounted(async () => {
   try {
@@ -36,6 +42,10 @@ function goToGames() {
 
 function goToCreateGame() {
   router.push('/games/create')
+}
+
+function goToPricing() {
+  router.push('/pricing')
 }
 </script>
 
@@ -125,7 +135,7 @@ function goToCreateGame() {
             <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
               <path d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z"/>
             </svg>
-            Get Started
+            Get Started Free
           </button>
           <button @click="goToLogin" class="btn-outline">
             <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
@@ -144,6 +154,149 @@ function goToCreateGame() {
           Browse public games
         </button>
       </template>
+    </div>
+
+    <!-- Subscription Tiers Section (shown to non-authenticated users) -->
+    <div v-if="!auth.isAuthenticated.value" class="card p-6 max-w-4xl w-full mt-6">
+      <h2 class="text-xl font-bold text-center mb-2">Choose Your Plan</h2>
+      <p class="text-gray-600 text-center mb-6">Start free and upgrade when you need more features</p>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <!-- Free Tier -->
+        <div class="border border-gray-200 rounded-xl p-4 hover:border-primary-300 transition-colors">
+          <div class="text-center mb-4">
+            <h3 class="font-bold text-lg">Free</h3>
+            <div class="text-3xl font-bold text-primary-500">$0</div>
+            <div class="text-sm text-gray-500">forever</div>
+          </div>
+          <ul class="space-y-2 text-sm mb-4">
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-green-500 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+              </svg>
+              Host 1 game per event
+            </li>
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-green-500 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+              </svg>
+              Create 1 group
+            </li>
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-green-500 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+              </svg>
+              Join unlimited events
+            </li>
+          </ul>
+          <button @click="goToSignup" class="btn-outline w-full text-sm">
+            Get Started
+          </button>
+        </div>
+
+        <!-- Basic Tier -->
+        <div class="border-2 border-primary-500 rounded-xl p-4 relative bg-primary-50/30">
+          <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary-500 text-white text-xs px-3 py-1 rounded-full">
+            Popular
+          </div>
+          <div class="text-center mb-4">
+            <h3 class="font-bold text-lg">Basic</h3>
+            <div class="text-3xl font-bold text-primary-500">$7.99</div>
+            <div class="text-sm text-gray-500">per month</div>
+          </div>
+          <ul class="space-y-2 text-sm mb-4">
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-green-500 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+              </svg>
+              Up to 5 games per event
+            </li>
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-green-500 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+              </svg>
+              Create up to 5 groups
+            </li>
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-green-500 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+              </svg>
+              Game night planning
+            </li>
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-green-500 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+              </svg>
+              No ads
+            </li>
+          </ul>
+          <button @click="goToSignup" class="btn-primary w-full text-sm">
+            Start Free Trial
+          </button>
+        </div>
+
+        <!-- Pro Tier -->
+        <div class="border border-gray-200 rounded-xl p-4 hover:border-purple-300 transition-colors bg-gradient-to-b from-purple-50/50 to-transparent">
+          <div class="text-center mb-4">
+            <h3 class="font-bold text-lg text-purple-700">Pro</h3>
+            <div class="text-3xl font-bold text-purple-600">$14.99</div>
+            <div class="text-sm text-gray-500">per month</div>
+          </div>
+          <ul class="space-y-2 text-sm mb-4">
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-green-500 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+              </svg>
+              Up to 10 games per event
+            </li>
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-green-500 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+              </svg>
+              Create up to 10 groups
+            </li>
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-green-500 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+              </svg>
+              Items to bring lists
+            </li>
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-green-500 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+              </svg>
+              Priority support
+            </li>
+          </ul>
+          <button @click="goToSignup" class="btn-outline w-full text-sm border-purple-300 text-purple-700 hover:bg-purple-50">
+            Start Free Trial
+          </button>
+        </div>
+      </div>
+
+      <p class="text-center text-sm text-gray-500 mt-4">
+        <button @click="goToPricing" class="text-primary-500 hover:underline">
+          View full plan comparison
+        </button>
+      </p>
+    </div>
+
+    <!-- Upgrade CTA for free tier users -->
+    <div v-else-if="isFreeTier" class="card p-4 max-w-lg w-full mt-6 bg-gradient-to-r from-primary-50 to-purple-50 border-primary-200">
+      <div class="flex items-center gap-4">
+        <div class="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
+          <svg class="w-6 h-6 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z"/>
+          </svg>
+        </div>
+        <div class="flex-1">
+          <p class="font-medium text-gray-900">Unlock more features</p>
+          <p class="text-sm text-gray-600">Host multiple games, create more groups, and access planning tools.</p>
+        </div>
+        <button @click="goToPricing" class="btn-primary text-sm whitespace-nowrap">
+          Upgrade
+        </button>
+      </div>
     </div>
   </div>
 </template>

@@ -5,6 +5,7 @@ export interface EventLocation {
   city: string
   state: string
   venue: string | null
+  timezone: string | null
   startDate: string | null
   endDate: string | null
   isPermanent: boolean
