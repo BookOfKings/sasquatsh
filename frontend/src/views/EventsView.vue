@@ -20,6 +20,18 @@ const state = ref('')
 const gameCategory = ref<string | null>(null)
 const difficulty = ref<string | null>(null)
 
+// Nearby search state
+const nearbyEnabled = ref(false)
+const userPostalCode = ref<string | null>(null)
+const radiusMiles = ref(25)
+
+const radiusOptions = [
+  { label: '10 miles', value: 10 },
+  { label: '25 miles', value: 25 },
+  { label: '50 miles', value: 50 },
+  { label: '100 miles', value: 100 },
+]
+
 const gameCategoryOptions = [
   { title: 'All Categories', value: null },
   { title: 'Strategy', value: 'strategy' },
@@ -48,8 +60,17 @@ const difficultyOptions = [
 function buildFilter(): EventSearchFilter | undefined {
   const filter: EventSearchFilter = {}
   if (searchText.value.trim()) filter.search = searchText.value.trim()
-  if (city.value.trim()) filter.city = city.value.trim()
-  if (state.value.trim()) filter.state = state.value.trim()
+
+  // Use nearby search if enabled and user has postal code
+  if (nearbyEnabled.value && userPostalCode.value) {
+    filter.nearbyZip = userPostalCode.value
+    filter.radiusMiles = radiusMiles.value
+  } else {
+    // Otherwise use city/state text filtering
+    if (city.value.trim()) filter.city = city.value.trim()
+    if (state.value.trim()) filter.state = state.value.trim()
+  }
+
   if (gameCategory.value) filter.gameCategory = gameCategory.value as EventSearchFilter['gameCategory']
   if (difficulty.value) filter.difficulty = difficulty.value as EventSearchFilter['difficulty']
 
@@ -66,18 +87,37 @@ function clearFilters() {
   state.value = ''
   gameCategory.value = null
   difficulty.value = null
+  nearbyEnabled.value = false
   applyFilters()
 }
 
 const hasActiveFilters = () => {
-  return searchText.value || city.value || state.value || gameCategory.value || difficulty.value
+  return searchText.value || city.value || state.value || gameCategory.value || difficulty.value || nearbyEnabled.value
+}
+
+function toggleNearby() {
+  if (!userPostalCode.value) {
+    // Can't enable nearby without a postal code
+    return
+  }
+  nearbyEnabled.value = !nearbyEnabled.value
+  if (nearbyEnabled.value) {
+    // Clear city/state when using nearby
+    city.value = ''
+    state.value = ''
+  }
+  applyFilters()
 }
 
 const activeFilterChips = () => {
   const chips: string[] = []
   if (searchText.value) chips.push(`"${searchText.value}"`)
-  if (city.value) chips.push(`City: ${city.value}`)
-  if (state.value) chips.push(`State: ${state.value}`)
+  if (nearbyEnabled.value && userPostalCode.value) {
+    chips.push(`Within ${radiusMiles.value} miles`)
+  } else {
+    if (city.value) chips.push(`City: ${city.value}`)
+    if (state.value) chips.push(`State: ${state.value}`)
+  }
   if (gameCategory.value) {
     const cat = gameCategoryOptions.find(o => o.value === gameCategory.value)
     if (cat) chips.push(cat.title)
@@ -105,11 +145,21 @@ onMounted(async () => {
       const token = await auth.getIdToken()
       if (token) {
         const profile = await getMyProfile(token)
+        // Store postal code for nearby search
+        userPostalCode.value = profile.homePostalCode || null
+
         // Use active location if set, otherwise fall back to home location
         const defaultCity = profile.activeCity || profile.homeCity
         const defaultState = profile.activeState || profile.homeState
         if (defaultCity) city.value = defaultCity
         if (defaultState) state.value = defaultState
+
+        // If user has a postal code, enable nearby by default
+        if (userPostalCode.value) {
+          nearbyEnabled.value = true
+          city.value = ''
+          state.value = ''
+        }
       }
     } catch (err) {
       console.error('Failed to load profile for location defaults:', err)
@@ -153,7 +203,7 @@ function goToCreateGame() {
     <div class="card p-4 mb-6">
       <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
         <!-- Search -->
-        <div class="md:col-span-5 relative">
+        <div class="md:col-span-4 relative">
           <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
             <path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"/>
           </svg>
@@ -165,8 +215,39 @@ function goToCreateGame() {
           />
         </div>
 
-        <!-- City -->
-        <div class="md:col-span-3 relative">
+        <!-- Nearby toggle (only show if user has postal code) -->
+        <div v-if="userPostalCode" class="md:col-span-2">
+          <button
+            class="btn w-full"
+            :class="nearbyEnabled ? 'bg-primary-500 text-white hover:bg-primary-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+            @click="toggleNearby"
+          >
+            <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12,6A6,6 0 0,0 6,12A6,6 0 0,0 12,18A6,6 0 0,0 18,12A6,6 0 0,0 12,6M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8Z"/>
+            </svg>
+            Nearby
+          </button>
+        </div>
+
+        <!-- Radius selector (show when nearby is enabled) -->
+        <div v-if="nearbyEnabled && userPostalCode" class="md:col-span-2">
+          <select
+            v-model="radiusMiles"
+            class="input"
+            @change="applyFilters"
+          >
+            <option
+              v-for="option in radiusOptions"
+              :key="option.value"
+              :value="option.value"
+            >
+              {{ option.label }}
+            </option>
+          </select>
+        </div>
+
+        <!-- City (hide when nearby is enabled) -->
+        <div v-if="!nearbyEnabled" class="md:col-span-2 relative">
           <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12,11.5A2.5,2.5 0 0,1 9.5,9A2.5,2.5 0 0,1 12,6.5A2.5,2.5 0 0,1 14.5,9A2.5,2.5 0 0,1 12,11.5M12,2A7,7 0 0,0 5,9C5,14.25 12,22 12,22C12,22 19,14.25 19,9A7,7 0 0,0 12,2Z"/>
           </svg>
@@ -180,8 +261,8 @@ function goToCreateGame() {
           />
         </div>
 
-        <!-- State -->
-        <div class="md:col-span-2">
+        <!-- State (hide when nearby is enabled) -->
+        <div v-if="!nearbyEnabled" class="md:col-span-2">
           <input
             v-model="state"
             type="text"

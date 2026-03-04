@@ -210,6 +210,26 @@ export async function getPublicEvents(
   return (data ?? []).map(toEventSummary)
 }
 
+// Browse events with authentication (supports radius search and blocked user filtering)
+export async function browseEvents(
+  token: string,
+  filter?: EventSearchFilter
+): Promise<EventSummary[]> {
+  const params = new URLSearchParams({ type: 'browse' })
+
+  if (filter?.city) params.append('city', filter.city)
+  if (filter?.state) params.append('state', filter.state)
+  if (filter?.gameCategory) params.append('gameCategory', filter.gameCategory)
+  if (filter?.difficulty) params.append('difficulty', filter.difficulty)
+  if (filter?.dateFrom) params.append('dateFrom', filter.dateFrom)
+  if (filter?.dateTo) params.append('dateTo', filter.dateTo)
+  if (filter?.search) params.append('search', filter.search)
+  if (filter?.nearbyZip) params.append('nearbyZip', filter.nearbyZip)
+  if (filter?.radiusMiles) params.append('radiusMiles', String(filter.radiusMiles))
+
+  return authenticatedRequest<EventSummary[]>(`/events?${params.toString()}`, token)
+}
+
 // Get event - authenticated (can see drafts if host/registered)
 export async function getEvent(id: string, token?: string): Promise<Event> {
   // Use authenticated endpoint if token provided

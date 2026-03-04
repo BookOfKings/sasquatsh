@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import {
   getPublicEvents,
+  browseEvents,
   getEvent as getEventApi,
   getMyEvents,
   getHostedEvents,
@@ -39,7 +40,21 @@ async function loadPublicEvents(filter?: EventSearchFilter): Promise<void> {
   loading.value = true
   error.value = null
   try {
-    publicEvents.value = await getPublicEvents(filter)
+    const auth = useAuthStore()
+    const token = await auth.getIdToken()
+
+    // Use authenticated browse endpoint when:
+    // 1. User is logged in (for blocked user filtering), OR
+    // 2. Radius search is requested (requires RPC call)
+    if (token && (filter?.nearbyZip || filter?.radiusMiles)) {
+      publicEvents.value = await browseEvents(token, filter)
+    } else if (token) {
+      // Use authenticated endpoint for blocked user filtering
+      publicEvents.value = await browseEvents(token, filter)
+    } else {
+      // Fall back to public endpoint for anonymous users
+      publicEvents.value = await getPublicEvents(filter)
+    }
   } catch (err) {
     console.error('Unable to load events', err)
     error.value = err instanceof Error ? err.message : 'Unable to load events'

@@ -96,12 +96,26 @@ Deno.serve(async (req) => {
       const dateFrom = url.searchParams.get('dateFrom')
       const dateTo = url.searchParams.get('dateTo')
       const search = url.searchParams.get('search')
+      const nearbyZip = url.searchParams.get('nearbyZip')
+      const radiusMiles = url.searchParams.get('radiusMiles')
+
+      // If radius search is requested, get list of zip codes within radius
+      let nearbyZipCodes: string[] | null = null
+      if (nearbyZip && radiusMiles) {
+        const radius = parseInt(radiusMiles, 10) || 25
+        const { data: zipsData } = await supabase
+          .rpc('get_zips_within_radius', { center_zip: nearbyZip, radius_miles: radius })
+
+        if (zipsData && zipsData.length > 0) {
+          nearbyZipCodes = zipsData.map((z: { zip: string }) => z.zip)
+        }
+      }
 
       let query = supabase
         .from('events')
         .select(`
           id, title, game_title, game_category, event_date, start_time,
-          duration_minutes, city, state, difficulty_level, max_players, host_is_playing,
+          duration_minutes, city, state, postal_code, difficulty_level, max_players, host_is_playing,
           is_public, is_charity_event, min_age, status, host_user_id,
           host:users!host_user_id(id, display_name, avatar_url),
           registrations:event_registrations(count),
@@ -117,9 +131,16 @@ Deno.serve(async (req) => {
         query = query.not('host_user_id', 'in', `(${blockedUserIds.join(',')})`)
       }
 
-      // Apply filters
-      if (city) query = query.ilike('city', `%${city}%`)
-      if (state) query = query.eq('state', state)
+      // Apply radius filter if we have nearby zip codes
+      if (nearbyZipCodes && nearbyZipCodes.length > 0) {
+        query = query.in('postal_code', nearbyZipCodes)
+      }
+
+      // Apply other filters (city/state only if not using radius search)
+      if (!nearbyZipCodes) {
+        if (city) query = query.ilike('city', `%${city}%`)
+        if (state) query = query.eq('state', state)
+      }
       if (gameCategory) query = query.eq('game_category', gameCategory)
       if (difficulty) query = query.eq('difficulty_level', difficulty)
       if (dateFrom) query = query.gte('event_date', dateFrom)

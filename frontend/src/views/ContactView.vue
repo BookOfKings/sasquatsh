@@ -213,16 +213,6 @@ function resetForm() {
         </button>
       </form>
 
-      <!-- Additional Contact Info -->
-      <div class="mt-8 pt-6 border-t border-gray-200">
-        <p class="text-center text-sm text-gray-500">
-          You can also reach us on
-          <a href="https://github.com/BookOfKings/sasquatsh" target="_blank" rel="noopener noreferrer" class="text-primary-600 hover:underline">
-            GitHub
-          </a>
-          for technical issues and feature requests.
-        </p>
-      </div>
     </div>
   </div>
 </template>

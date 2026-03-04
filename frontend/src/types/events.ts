@@ -183,4 +183,6 @@ export interface EventSearchFilter {
   difficulty?: DifficultyLevel
   dateFrom?: string
   dateTo?: string
+  nearbyZip?: string
+  radiusMiles?: number
 }
