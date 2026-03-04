@@ -1,8 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { verifyFirebaseToken, jsonResponse, errorResponse, getCorsHeaders, getFirebaseToken } from '../_shared/firebase.ts'
+import { sendEmail, invitationEmail } from '../_shared/email.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const APP_URL = Deno.env.get('APP_URL') || 'https://sasquatsh.web.app'
 
 // Generate a random invite code
 function generateInviteCode(): string {
@@ -255,6 +257,53 @@ Deno.serve(async (req) => {
 
     if (error) {
       return errorResponse(error.message, 500)
+    }
+
+    // Send email if an email address was provided
+    if (body.email?.trim()) {
+      const event = data.event as Record<string, unknown>
+      const host = event?.host as Record<string, unknown>
+      const inviteUrl = `${APP_URL}/invite/${inviteCode}`
+
+      // Format date and time
+      const eventDate = new Date(event.event_date as string + 'T00:00:00')
+      const formattedDate = eventDate.toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      })
+
+      const startTime = event.start_time as string
+      let formattedTime = ''
+      if (startTime) {
+        const [hours, minutes] = startTime.split(':')
+        const hour = parseInt(hours)
+        const ampm = hour >= 12 ? 'PM' : 'AM'
+        const hour12 = hour % 12 || 12
+        formattedTime = `${hour12}:${minutes} ${ampm}`
+      }
+
+      const location = [event.city, event.state].filter(Boolean).join(', ') || 'Location TBD'
+
+      const emailContent = invitationEmail({
+        eventTitle: event.title as string,
+        hostName: (host?.display_name as string) || 'A friend',
+        eventDate: formattedDate,
+        eventTime: formattedTime || 'Time TBD',
+        location,
+        inviteUrl,
+      })
+
+      // Send async - don't block the response
+      sendEmail({
+        to: body.email.trim(),
+        ...emailContent,
+      }).then(result => {
+        if (!result.success) {
+          console.error('Failed to send invitation email:', result.error)
+        }
+      })
     }
 
     return jsonResponse(toInvitation(data), 201)

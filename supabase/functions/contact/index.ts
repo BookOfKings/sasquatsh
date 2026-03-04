@@ -1,8 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { jsonResponse, errorResponse, getCorsHeaders } from '../_shared/firebase.ts'
+import { sendEmail, contactNotificationEmail } from '../_shared/email.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const ADMIN_EMAIL = Deno.env.get('ADMIN_EMAIL') || 'admin@sasquatsh.com'
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -63,6 +65,23 @@ Deno.serve(async (req) => {
       console.error('Failed to save contact submission:', error)
       return errorResponse('Failed to send message. Please try again.', 500)
     }
+
+    // Send notification email to admin
+    const emailContent = contactNotificationEmail({
+      name: name.trim(),
+      email: email.trim(),
+      subject: subject.trim(),
+      message: message.trim(),
+    })
+
+    sendEmail({
+      to: ADMIN_EMAIL,
+      ...emailContent,
+    }).then(result => {
+      if (!result.success) {
+        console.error('Failed to send contact notification email:', result.error)
+      }
+    })
 
     return jsonResponse({ message: 'Message sent successfully' }, 201)
   } catch (err) {
