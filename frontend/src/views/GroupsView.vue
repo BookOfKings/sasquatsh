@@ -223,9 +223,6 @@ function goToCreateGroup() {
       />
     </div>
 
-    <!-- Ad Banner for free tier users -->
-    <AdBanner placement="groups" />
-
     <!-- Empty State -->
     <div v-else-if="!groupStore.loading.value" class="text-center py-12">
       <svg class="w-16 h-16 mx-auto text-gray-300 mb-4" viewBox="0 0 24 24" fill="currentColor">
@@ -235,5 +232,8 @@ function goToCreateGroup() {
         No groups found. Try adjusting your filters or create a new group!
       </p>
     </div>
+
+    <!-- Ad Banner for free tier users -->
+    <AdBanner placement="groups" />
   </div>
 </template>
