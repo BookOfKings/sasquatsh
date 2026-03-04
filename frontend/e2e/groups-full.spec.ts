@@ -10,10 +10,24 @@ import { loadTestData } from './test-utils'
  * - The test user account must exist in the system
  * - Backend API must be running
  * - Global setup has created test event and group
+ *
+ * NOTE: Uses serial mode to reduce Firebase login rate limits.
+ * Tests share the same browser context when run serially.
  */
 
-// Helper function to login
-async function login(page: Page, email: string, password: string) {
+// Helper function to login (checks if already logged in first)
+async function loginIfNeeded(page: Page, email: string, password: string) {
+  // Navigate to a page to check auth status
+  await page.goto('/groups')
+
+  // Check if already logged in (dashboard button visible in nav)
+  const dashboardButton = page.getByRole('button', { name: /dashboard/i })
+  const isLoggedIn = await dashboardButton.isVisible({ timeout: 2000 }).catch(() => false)
+
+  if (isLoggedIn) {
+    return // Already logged in
+  }
+
   await page.goto('/login')
   await page.locator('#email').fill(email)
   await page.locator('#password').fill(password)
@@ -109,6 +123,9 @@ test.describe('Groups - Unauthenticated', () => {
 })
 
 test.describe('Groups - Authenticated', () => {
+  // Run tests serially to share auth state and reduce Firebase rate limits
+  test.describe.configure({ mode: 'serial' })
+
   // Skip if credentials not provided
   test.skip(
     !process.env.TEST_USER_EMAIL || !process.env.TEST_USER_PASSWORD,
@@ -116,8 +133,8 @@ test.describe('Groups - Authenticated', () => {
   )
 
   test.beforeEach(async ({ page }) => {
-    // Login before each test
-    await login(page, process.env.TEST_USER_EMAIL!, process.env.TEST_USER_PASSWORD!)
+    // Login if not already logged in (reduces Firebase auth API calls)
+    await loginIfNeeded(page, process.env.TEST_USER_EMAIL!, process.env.TEST_USER_PASSWORD!)
   })
 
   test.describe('View Groups', () => {

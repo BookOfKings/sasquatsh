@@ -9,10 +9,24 @@ import { test, expect, Page } from '@playwright/test'
  * - The test user account must exist in the system
  * - Backend API must be running
  * - BoardGameGeek API must be accessible
+ *
+ * NOTE: Uses serial mode to reduce Firebase login rate limits.
+ * Tests share the same browser context when run serially.
  */
 
-// Helper function to login
-async function login(page: Page, email: string, password: string) {
+// Helper function to login (checks if already logged in first)
+async function loginIfNeeded(page: Page, email: string, password: string) {
+  // Navigate to a page to check auth status
+  await page.goto('/games')
+
+  // Check if already logged in (dashboard button visible in nav)
+  const dashboardButton = page.getByRole('button', { name: /dashboard/i })
+  const isLoggedIn = await dashboardButton.isVisible({ timeout: 2000 }).catch(() => false)
+
+  if (isLoggedIn) {
+    return // Already logged in
+  }
+
   await page.goto('/login')
   await page.locator('#email').fill(email)
   await page.locator('#password').fill(password)
@@ -85,13 +99,17 @@ test.describe('Games Management - Unauthenticated', () => {
 })
 
 test.describe('Games Management - Authenticated', () => {
+  // Run tests serially to share auth state and reduce Firebase rate limits
+  test.describe.configure({ mode: 'serial' })
+
   test.skip(
     !process.env.TEST_USER_EMAIL || !process.env.TEST_USER_PASSWORD,
     'Skipping authenticated tests - set TEST_USER_EMAIL and TEST_USER_PASSWORD'
   )
 
   test.beforeEach(async ({ page }) => {
-    await login(page, process.env.TEST_USER_EMAIL!, process.env.TEST_USER_PASSWORD!)
+    // Login if not already logged in (reduces Firebase auth API calls)
+    await loginIfNeeded(page, process.env.TEST_USER_EMAIL!, process.env.TEST_USER_PASSWORD!)
   })
 
   test.describe('Add Games to Event', () => {
