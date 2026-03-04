@@ -31,7 +31,7 @@ const isValid = computed(() => {
     form.title.trim() &&
     form.responseDeadline &&
     form.selectedMemberIds.size > 0 &&
-    form.proposedDates.filter(d => d.date).length >= 2
+    form.proposedDates.filter(d => d.date).length >= 1
   )
 })
 
@@ -271,7 +271,7 @@ function formatDate(dateStr: string): string {
         <!-- Propose Dates -->
         <div class="card p-6">
           <h2 class="font-semibold mb-4">Propose Dates *</h2>
-          <p class="text-sm text-gray-500 mb-4">Add at least 2 potential dates for the game night</p>
+          <p class="text-sm text-gray-500 mb-4">Add one or more potential dates for the game night</p>
 
           <div class="space-y-3">
             <div
@@ -319,8 +319,8 @@ function formatDate(dateStr: string): string {
             Add Date Option
           </button>
 
-          <div v-if="form.proposedDates.filter(d => d.date).length < 2" class="text-sm text-orange-600 mt-3">
-            Please add at least 2 date options
+          <div v-if="form.proposedDates.filter(d => d.date).length < 1" class="text-sm text-orange-600 mt-3">
+            Please add at least 1 date option
           </div>
         </div>
 

@@ -303,7 +303,7 @@ async function handleGroupUpdated() {
             <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="currentColor">
               <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/>
             </svg>
-            Plan a Game Night
+            Host a Game
           </button>
         </div>
         <div v-if="loadingPlans" class="p-6 text-center">
@@ -338,7 +338,7 @@ async function handleGroupUpdated() {
         </div>
         <div v-else class="p-6 text-center text-gray-500">
           <p>No active planning sessions.</p>
-          <p v-if="isAdmin" class="text-sm mt-1">Click "Plan a Game Night" to start coordinating your next game night.</p>
+          <p v-if="isAdmin" class="text-sm mt-1">Click "Host a Game" to start coordinating your next game night.</p>
         </div>
       </div>
 
