@@ -4,6 +4,124 @@ Work sessions organized newest to oldest.
 
 ---
 
+## 2026-03-04 - Nearby Radius Search, E2E Tests, UI Fixes
+
+### Work Completed
+
+1. **Nearby Radius Search Feature (25-mile vicinity)**
+   - Created `zip_codes` table with lat/long for US zip codes
+   - Created Haversine distance calculation function (`calculate_distance_miles`)
+   - Created `get_zips_within_radius()` RPC function
+   - Created seed script to populate zip codes from public dataset
+   - Added `nearbyZip` and `radiusMiles` parameters to events browse endpoint
+   - Added "Nearby" toggle button with radius selector (10/25/50/100 miles)
+   - Nearby search uses user's postal code from their profile
+   - **Requires activation**: Run migration + seed zip codes
+
+2. **Comprehensive E2E Tests (Playwright)**
+   - Created full CRUD tests for events (create, view, edit, delete)
+   - Created games management tests (add/remove BGG games from events)
+   - Created groups CRUD tests (create, join, leave)
+   - Created test fixtures and authentication helpers
+   - Test credentials configured: `TestAccount334`
+
+3. **UI Fixes**
+   - Removed GitHub link from contact page
+   - Removed large pricing tier cards section from home page
+   - Home page now shows simple Get Started/Sign In buttons + Browse link
+
+### Files Created
+
+| File | Description |
+|------|-------------|
+| `supabase/migrations/038_zip_codes.sql` | Zip codes table with distance functions |
+| `supabase/scripts/seed-zip-codes.ts` | Script to populate zip codes from public dataset |
+| `frontend/e2e/events-full.spec.ts` | Full events CRUD tests |
+| `frontend/e2e/groups-full.spec.ts` | Full groups CRUD tests |
+| `frontend/e2e/games-management.spec.ts` | Add/remove games from events tests |
+| `frontend/e2e/fixtures/test-helpers.ts` | Test helper utilities |
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/types/events.ts` | Added `nearbyZip`, `radiusMiles` to EventSearchFilter |
+| `frontend/src/services/eventsApi.ts` | Added `browseEvents()` for authenticated radius search |
+| `frontend/src/stores/useEventStore.ts` | Uses authenticated browse when logged in |
+| `frontend/src/views/EventsView.vue` | Added Nearby toggle, radius selector |
+| `frontend/src/views/ContactView.vue` | Removed GitHub link section |
+| `frontend/src/views/HomeView.vue` | Removed large pricing tier cards |
+| `supabase/functions/events/index.ts` | Added radius search support to browse |
+
+### To Activate Nearby Search
+
+1. Run migration: `038_zip_codes.sql`
+2. Seed zip codes:
+   ```bash
+   SUPABASE_URL=xxx SUPABASE_SERVICE_ROLE_KEY=xxx npx tsx supabase/scripts/seed-zip-codes.ts
+   ```
+3. Users need postal code in their profile for "Nearby" button to appear
+
+### E2E Test Commands
+
+```bash
+# Set test credentials
+set TEST_USER_EMAIL=TestAccount334@...
+set TEST_USER_PASSWORD=<password>
+
+# Install browsers (first time)
+npx playwright install
+
+# Run tests
+npm run test:e2e
+npx playwright test e2e/events-full.spec.ts
+```
+
+---
+
+## 2026-03-03 - Game Thumbnails, Admin Fixes, UI Updates
+
+### Work Completed
+
+1. **Fixed Admin Panel API Errors**
+   - Fixed "Cannot read properties of undefined (reading 'length')" in Ads tab
+   - Changed all `data?.map()` to `(data || []).map()` in admin-stats
+   - Added `|| []` fallbacks in frontend adsApi.ts
+
+2. **Game Thumbnails on Event Cards**
+   - Event cards now show board game box art with host avatar as overlay badge
+   - Added `primaryGameThumbnail` field to EventSummary type
+   - Added `games:event_games(thumbnail_url, is_primary)` join to events queries
+   - Created admin "Refresh Thumbnails" button to fetch missing thumbnails from BGG
+   - Created migration to backfill thumbnails from BGG cache
+
+3. **UI Text Updates**
+   - Changed "Plan a Game Night" to "Host a Game" on group detail page
+   - Changed minimum dates for planning sessions from 2 to 1
+
+### Files Created
+
+| File | Description |
+|------|-------------|
+| `supabase/migrations/037_backfill_event_game_thumbnails.sql` | Backfill thumbnails from cache |
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `frontend/src/components/events/EventCard.vue` | Game thumbnail with host avatar overlay |
+| `frontend/src/services/eventsApi.ts` | Added games join to public events query |
+| `frontend/src/services/adminApi.ts` | Added refreshBggThumbnails function |
+| `frontend/src/services/adsApi.ts` | Added null checks for API responses |
+| `frontend/src/types/events.ts` | Added primaryGameThumbnail field |
+| `frontend/src/views/AdminView.vue` | Added "Refresh Thumbnails" button, fixed ads |
+| `frontend/src/views/GroupDetailView.vue` | Changed "Plan a Game Night" to "Host a Game" |
+| `frontend/src/views/PlanGameNightView.vue` | Allow single date option |
+| `supabase/functions/admin-stats/index.ts` | Fixed null arrays, added refresh-bgg-cache |
+| `supabase/functions/events/index.ts` | Added games join and primaryGameThumbnail |
+
+---
+
 ## 2026-03-03 - SendGrid Email Integration
 
 ### Work Completed
