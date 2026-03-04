@@ -93,13 +93,13 @@ async function adminRequest<T>(
 // Get all ads (admin)
 export async function getAllAds(token: string): Promise<Ad[]> {
   const response = await adminRequest<{ ads: Ad[] }>('/admin-stats?action=ads', token)
-  return response.ads
+  return response.ads || []
 }
 
 // Get ad stats (admin)
 export async function getAdStats(token: string): Promise<AdStats[]> {
   const response = await adminRequest<{ stats: AdStats[] }>('/admin-stats?action=ad-stats', token)
-  return response.stats
+  return response.stats || []
 }
 
 // Create a new ad (admin)

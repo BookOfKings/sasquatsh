@@ -332,7 +332,7 @@ Deno.serve(async (req) => {
       }
 
       return jsonResponse({
-        users: users?.map(u => ({
+        users: (users || []).map(u => ({
           id: u.id,
           email: u.email,
           username: u.username,
@@ -386,7 +386,7 @@ Deno.serve(async (req) => {
       }
 
       return jsonResponse({
-        groups: groups?.map(g => ({
+        groups: (groups || []).map(g => ({
           id: g.id,
           name: g.name,
           slug: g.slug,
@@ -426,7 +426,7 @@ Deno.serve(async (req) => {
       }
 
       return jsonResponse({
-        members: members?.map(m => ({
+        members: (members || []).map(m => ({
           id: m.id,
           userId: (m.user as { id: string }).id,
           username: (m.user as { username: string }).username,
@@ -463,7 +463,7 @@ Deno.serve(async (req) => {
       }
 
       return jsonResponse({
-        notes: notes?.map(n => ({
+        notes: (notes || []).map(n => ({
           id: n.id,
           title: n.title,
           content: n.content,
@@ -495,7 +495,7 @@ Deno.serve(async (req) => {
       }
 
       return jsonResponse({
-        ads: ads?.map(a => ({
+        ads: (ads || []).map(a => ({
           id: a.id,
           name: a.name,
           advertiserName: a.advertiser_name,
@@ -530,7 +530,7 @@ Deno.serve(async (req) => {
       }
 
       return jsonResponse({
-        stats: stats?.map(s => ({
+        stats: (stats || []).map(s => ({
           id: s.id,
           name: s.name,
           advertiserName: s.advertiser_name,
@@ -574,7 +574,7 @@ Deno.serve(async (req) => {
       }
 
       return jsonResponse({
-        bugs: bugs?.map(b => ({
+        bugs: (bugs || []).map(b => ({
           id: b.id,
           title: b.title,
           description: b.description,
