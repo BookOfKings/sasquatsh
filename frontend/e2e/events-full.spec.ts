@@ -15,6 +15,15 @@ import { loadTestData } from './test-utils'
  * Tests share the same browser context when run serially.
  */
 
+// Helper to dismiss cookie consent modal
+async function dismissCookieConsent(page: Page) {
+  const acceptCookies = page.getByRole('button', { name: /accept all/i })
+  if (await acceptCookies.isVisible({ timeout: 1000 }).catch(() => false)) {
+    await acceptCookies.click()
+    await page.waitForTimeout(500)
+  }
+}
+
 // Helper function to login (checks if already logged in first)
 async function loginIfNeeded(page: Page, email: string, password: string) {
   // Navigate to a page to check auth status
@@ -91,11 +100,14 @@ test.describe('Events - Unauthenticated', () => {
     } else {
       // Fallback: try to find an event in the list
       await page.goto('/games')
-      const eventCards = page.locator('.card').first()
-      const hasCards = await eventCards.isVisible().catch(() => false)
+      await page.waitForTimeout(1000)
 
-      if (hasCards) {
-        await eventCards.click()
+      // Click on event heading (h3) which links to detail page
+      const eventHeading = page.locator('h3').first()
+      const hasEvents = await eventHeading.isVisible().catch(() => false)
+
+      if (hasEvents) {
+        await eventHeading.click()
         await expect(page).toHaveURL(/\/games\//)
       }
     }
@@ -123,6 +135,8 @@ test.describe('Events - Authenticated', () => {
   test.beforeEach(async ({ page }) => {
     // Login if not already logged in (reduces Firebase auth API calls)
     await loginIfNeeded(page, process.env.TEST_USER_EMAIL!, process.env.TEST_USER_PASSWORD!)
+    // Dismiss cookie consent if visible
+    await dismissCookieConsent(page)
   })
 
   test.describe('View Events', () => {
@@ -177,11 +191,12 @@ test.describe('Events - Authenticated', () => {
         await page.goto('/games')
         await page.waitForTimeout(1000)
 
-        const eventCard = page.locator('.card').first()
-        const hasCards = await eventCard.isVisible().catch(() => false)
+        // Click on event heading (h3) which links to detail page
+        const eventHeading = page.locator('h3').first()
+        const hasEvents = await eventHeading.isVisible().catch(() => false)
 
-        if (hasCards) {
-          await eventCard.click()
+        if (hasEvents) {
+          await eventHeading.click()
           await expect(page).toHaveURL(/\/games\/[a-zA-Z0-9-]+/)
         }
       }

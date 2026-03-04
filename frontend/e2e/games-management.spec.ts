@@ -14,6 +14,15 @@ import { test, expect, Page } from '@playwright/test'
  * Tests share the same browser context when run serially.
  */
 
+// Helper to dismiss cookie consent modal
+async function dismissCookieConsent(page: Page) {
+  const acceptCookies = page.getByRole('button', { name: /accept all/i })
+  if (await acceptCookies.isVisible({ timeout: 1000 }).catch(() => false)) {
+    await acceptCookies.click()
+    await page.waitForTimeout(500)
+  }
+}
+
 // Helper function to login (checks if already logged in first)
 async function loginIfNeeded(page: Page, email: string, password: string) {
   // Navigate to a page to check auth status
@@ -54,11 +63,12 @@ test.describe('Games Management - Unauthenticated', () => {
 
     await page.waitForTimeout(1000)
 
-    const eventCard = page.locator('.card').first()
-    const hasCards = await eventCard.isVisible().catch(() => false)
+    // Click on event heading (h3) which links to detail page
+    const eventHeading = page.locator('h3').first()
+    const hasEvents = await eventHeading.isVisible().catch(() => false)
 
-    if (hasCards) {
-      await eventCard.click()
+    if (hasEvents) {
+      await eventHeading.click()
       await page.waitForURL(/\/games\//)
 
       // Look for games section on event detail
@@ -79,11 +89,12 @@ test.describe('Games Management - Unauthenticated', () => {
 
     await page.waitForTimeout(1000)
 
-    const eventCard = page.locator('.card').first()
-    const hasCards = await eventCard.isVisible().catch(() => false)
+    // Click on event heading (h3) which links to detail page
+    const eventHeading = page.locator('h3').first()
+    const hasEvents = await eventHeading.isVisible().catch(() => false)
 
-    if (hasCards) {
-      await eventCard.click()
+    if (hasEvents) {
+      await eventHeading.click()
       await page.waitForURL(/\/games\//)
 
       // Look for game info badges
@@ -112,6 +123,8 @@ test.describe('Games Management - Authenticated', () => {
   test.beforeEach(async ({ page }) => {
     // Login if not already logged in (reduces Firebase auth API calls)
     await loginIfNeeded(page, process.env.TEST_USER_EMAIL!, process.env.TEST_USER_PASSWORD!)
+    // Dismiss cookie consent if visible
+    await dismissCookieConsent(page)
   })
 
   test.describe('Add Games to Event', () => {
@@ -154,12 +167,12 @@ test.describe('Games Management - Authenticated', () => {
       // Wait for search results
       await page.waitForTimeout(2000)
 
-      // Try to click on a result
-      const ticketToRide = page.getByText(/ticket to ride/i).first()
-      const isVisible = await ticketToRide.isVisible().catch(() => false)
+      // Try to click on a result - use the button role for search results
+      const ticketToRideButton = page.getByRole('button', { name: /ticket to ride/i }).first()
+      const isVisible = await ticketToRideButton.isVisible().catch(() => false)
 
       if (isVisible) {
-        await ticketToRide.click()
+        await ticketToRideButton.click()
 
         // Check if game was added to selected games
         await page.waitForTimeout(500)

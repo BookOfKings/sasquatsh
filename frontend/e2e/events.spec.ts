@@ -1,4 +1,13 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, Page } from '@playwright/test'
+
+// Helper to dismiss cookie consent modal
+async function dismissCookieConsent(page: Page) {
+  const acceptCookies = page.getByRole('button', { name: /accept all/i })
+  if (await acceptCookies.isVisible({ timeout: 1000 }).catch(() => false)) {
+    await acceptCookies.click()
+    await page.waitForTimeout(500)
+  }
+}
 
 test.describe('Events', () => {
   test.describe('Events List Page', () => {
@@ -53,14 +62,17 @@ test.describe('Events (Authenticated)', () => {
     await page.locator('#email').fill(process.env.TEST_USER_EMAIL!)
     await page.locator('#password').fill(process.env.TEST_USER_PASSWORD!)
     await page.getByRole('button', { name: /sign in/i }).click()
-    await page.waitForURL(/\/(dashboard|home|events)?$/, { timeout: 10000 })
+    await page.waitForURL(/\/(dashboard|home|games)?$/, { timeout: 15000 })
+    // Delay to avoid Firebase rate limits
+    await page.waitForTimeout(2000)
 
-    // Navigate to create event
-    await page.goto('/events/create')
+    // Navigate to create event (route is /games/create)
+    await page.goto('/games/create')
+    await dismissCookieConsent(page)
 
-    // Check for form elements
-    await expect(page.locator('form')).toBeVisible()
-    await expect(page.getByRole('button', { name: /create|save/i })).toBeVisible()
+    // Check for form elements - look for Host a Game heading
+    await expect(page.getByRole('heading', { name: /host a game/i })).toBeVisible()
+    await expect(page.getByRole('button', { name: /host game/i })).toBeVisible()
   })
 
   test('should show upgrade prompt when at tier limit', async ({ page }) => {
@@ -69,10 +81,13 @@ test.describe('Events (Authenticated)', () => {
     await page.locator('#email').fill(process.env.TEST_USER_EMAIL!)
     await page.locator('#password').fill(process.env.TEST_USER_PASSWORD!)
     await page.getByRole('button', { name: /sign in/i }).click()
-    await page.waitForURL(/\/(dashboard|home|events)?$/, { timeout: 10000 })
+    await page.waitForURL(/\/(dashboard|home|games)?$/, { timeout: 15000 })
+    // Delay to avoid Firebase rate limits
+    await page.waitForTimeout(2000)
 
-    // Navigate to create event
-    await page.goto('/events/create')
+    // Navigate to create event (route is /games/create)
+    await page.goto('/games/create')
+    await dismissCookieConsent(page)
 
     // If user is at limit, upgrade prompt should appear
     // This test checks the component exists when triggered
@@ -82,7 +97,7 @@ test.describe('Events (Authenticated)', () => {
     // Test passes whether user is at limit or not
     // If at limit, prompt should be visible
     // If not at limit, form should be visible
-    const hasForm = await page.locator('form').isVisible().catch(() => false)
+    const hasForm = await page.getByRole('heading', { name: /host a game/i }).isVisible().catch(() => false)
 
     expect(isAtLimit || hasForm).toBeTruthy()
   })

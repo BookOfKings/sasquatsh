@@ -1,4 +1,13 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, Page } from '@playwright/test'
+
+// Helper to dismiss cookie consent modal
+async function dismissCookieConsent(page: Page) {
+  const acceptCookies = page.getByRole('button', { name: /accept all/i })
+  if (await acceptCookies.isVisible({ timeout: 1000 }).catch(() => false)) {
+    await acceptCookies.click()
+    await page.waitForTimeout(500)
+  }
+}
 
 test.describe('Groups', () => {
   test.describe('Groups List Page', () => {
@@ -60,11 +69,14 @@ test.describe('Groups (Authenticated)', () => {
     await page.locator('#password').fill(process.env.TEST_USER_PASSWORD!)
     await page.getByRole('button', { name: /sign in/i }).click()
 
-    // Wait for login to complete
-    await page.waitForURL(/\/(dashboard|home|groups)?$/, { timeout: 10000 })
+    // Wait for login to complete (may redirect to games, dashboard, or home)
+    await page.waitForURL(/\/(dashboard|home|games|groups)?$/, { timeout: 15000 })
+    // Delay to avoid Firebase rate limits
+    await page.waitForTimeout(2000)
 
     // Navigate to create group
     await page.goto('/groups/create')
+    await dismissCookieConsent(page)
 
     // Check for form elements
     await expect(page.locator('#name')).toBeVisible()
@@ -77,10 +89,13 @@ test.describe('Groups (Authenticated)', () => {
     await page.locator('#email').fill(process.env.TEST_USER_EMAIL!)
     await page.locator('#password').fill(process.env.TEST_USER_PASSWORD!)
     await page.getByRole('button', { name: /sign in/i }).click()
-    await page.waitForURL(/\/(dashboard|home|groups)?$/, { timeout: 10000 })
+    await page.waitForURL(/\/(dashboard|home|games|groups)?$/, { timeout: 15000 })
+    // Delay to avoid Firebase rate limits
+    await page.waitForTimeout(2000)
 
     // Navigate to create group
     await page.goto('/groups/create')
+    await dismissCookieConsent(page)
 
     // Try to submit empty form
     await page.getByRole('button', { name: /create/i }).click()

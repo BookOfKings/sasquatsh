@@ -15,6 +15,15 @@ import { loadTestData } from './test-utils'
  * Tests share the same browser context when run serially.
  */
 
+// Helper to dismiss cookie consent modal
+async function dismissCookieConsent(page: Page) {
+  const acceptCookies = page.getByRole('button', { name: /accept all/i })
+  if (await acceptCookies.isVisible({ timeout: 1000 }).catch(() => false)) {
+    await acceptCookies.click()
+    await page.waitForTimeout(500)
+  }
+}
+
 // Helper function to login (checks if already logged in first)
 async function loginIfNeeded(page: Page, email: string, password: string) {
   // Navigate to a page to check auth status
@@ -95,11 +104,12 @@ test.describe('Groups - Unauthenticated', () => {
       await page.goto('/groups')
       await page.waitForTimeout(1000)
 
-      const groupCard = page.locator('.card').first()
-      const hasCards = await groupCard.isVisible().catch(() => false)
+      // Click on group heading (h3) which links to detail page
+      const groupHeading = page.locator('h3').first()
+      const hasGroups = await groupHeading.isVisible().catch(() => false)
 
-      if (hasCards) {
-        await groupCard.click()
+      if (hasGroups) {
+        await groupHeading.click()
         await expect(page).toHaveURL(/\/groups\//)
       }
     }
@@ -137,6 +147,8 @@ test.describe('Groups - Authenticated', () => {
   test.beforeEach(async ({ page }) => {
     // Login if not already logged in (reduces Firebase auth API calls)
     await loginIfNeeded(page, process.env.TEST_USER_EMAIL!, process.env.TEST_USER_PASSWORD!)
+    // Dismiss cookie consent if visible
+    await dismissCookieConsent(page)
   })
 
   test.describe('View Groups', () => {
@@ -191,11 +203,12 @@ test.describe('Groups - Authenticated', () => {
         await page.goto('/groups')
         await page.waitForTimeout(1000)
 
-        const groupCard = page.locator('.card').first()
-        const hasCards = await groupCard.isVisible().catch(() => false)
+        // Click on group heading (h3) which links to detail page
+        const groupHeading = page.locator('h3').first()
+        const hasGroups = await groupHeading.isVisible().catch(() => false)
 
-        if (hasCards) {
-          await groupCard.click()
+        if (hasGroups) {
+          await groupHeading.click()
           await expect(page).toHaveURL(/\/groups\/[a-zA-Z0-9-]+/)
         }
       }
