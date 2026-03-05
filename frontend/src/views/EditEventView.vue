@@ -86,6 +86,8 @@ const form = reactive<UpdateEventInput>({
 })
 
 onMounted(async () => {
+  // Wait for auth to be fully initialized before loading
+  await authStore.initializeAuth()
   await loadEvent()
 })
 
@@ -94,8 +96,10 @@ async function loadEvent() {
   const event = await eventStore.loadEvent(eventId.value)
 
   if (event) {
-    // Check if user is the host
-    if (event.hostUserId !== authStore.user.value?.id) {
+    // Check if user is the host or site admin
+    const isHost = event.hostUserId === authStore.user.value?.id
+    const isAdmin = authStore.user.value?.isAdmin ?? false
+    if (!isHost && !isAdmin) {
       errorMessage.value = 'You are not authorized to edit this event'
       loadingEvent.value = false
       return
@@ -240,6 +244,20 @@ function validate(): boolean {
     valid = false
   }
 
+  // Require either a venue or a custom address with zip code
+  const hasVenue = locationMode.value === 'venue' && selectedVenue.value
+  const hasCustomAddress = form.city?.trim() && form.postalCode?.trim()
+  if (!hasVenue && !hasCustomAddress) {
+    if (form.city?.trim() && !form.postalCode?.trim()) {
+      errors.location = 'Zip code is required for games to appear in nearby searches'
+    } else {
+      errors.location = 'Please select a venue or enter a city and zip code'
+    }
+    valid = false
+  } else {
+    errors.location = ''
+  }
+
   return valid
 }
 
@@ -306,6 +324,7 @@ function handleVenueSelect(venue: EventLocation) {
   form.eventLocationId = venue.id
   form.city = venue.city
   form.state = venue.state
+  form.postalCode = venue.postalCode || null
   locationMode.value = 'venue'
 }
 
@@ -693,6 +712,9 @@ function handleVenueSubmitted(venue: EventLocation) {
                 />
               </div>
             </div>
+
+            <!-- Location Error -->
+            <p v-if="errors.location" class="text-sm text-red-500 mt-2">{{ errors.location }}</p>
           </div>
 
           <!-- Game Settings -->

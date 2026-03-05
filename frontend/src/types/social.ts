@@ -4,6 +4,7 @@ export interface EventLocation {
   name: string
   city: string
   state: string
+  postalCode: string | null
   venue: string | null
   timezone: string | null
   startDate: string | null
@@ -26,6 +27,7 @@ export interface CreateEventLocationInput {
   name: string
   city: string
   state: string
+  postalCode?: string
   venue?: string
   startDate?: string | null
   endDate?: string | null

@@ -6,7 +6,10 @@ import { getGroup, getGroupMembers } from '@/services/groupsApi'
 import { createPlanningSession } from '@/services/planningApi'
 import { hasFeature, TIER_NAMES, type SubscriptionTier } from '@/config/subscriptionLimits'
 import { getEffectiveTier } from '@/types/user'
+import { searchBggGames, getBggGame } from '@/services/bggApi'
 import type { Group, GroupMember } from '@/types/groups'
+import type { BggSearchResult } from '@/types/bgg'
+import type { SuggestGameInput } from '@/types/planning'
 
 const route = useRoute()
 const router = useRouter()
@@ -25,12 +28,21 @@ const group = ref<Group | null>(null)
 const members = ref<GroupMember[]>([])
 const errorMessage = ref('')
 
+// Game search state
+const showGameSearch = ref(false)
+const gameSearchQuery = ref('')
+const gameSearchResults = ref<BggSearchResult[]>([])
+const searchingGames = ref(false)
+const suggestedGames = ref<SuggestGameInput[]>([])
+let searchTimeout: ReturnType<typeof setTimeout> | null = null
+
 const form = reactive({
   title: '',
   description: '',
   responseDeadline: '',
   selectedMemberIds: new Set<string>(),
   proposedDates: [{ date: '', startTime: '19:00' }] as { date: string; startTime: string }[],
+  sendEmailInvites: false,
 })
 
 const slug = computed(() => route.params.slug as string)
@@ -100,6 +112,56 @@ function removeDate(index: number) {
   }
 }
 
+// Game search functions
+function handleGameSearch() {
+  if (searchTimeout) clearTimeout(searchTimeout)
+
+  if (!gameSearchQuery.value.trim()) {
+    gameSearchResults.value = []
+    return
+  }
+
+  searchTimeout = setTimeout(async () => {
+    searchingGames.value = true
+    try {
+      gameSearchResults.value = await searchBggGames(gameSearchQuery.value)
+    } catch {
+      gameSearchResults.value = []
+    } finally {
+      searchingGames.value = false
+    }
+  }, 300)
+}
+
+async function selectGame(result: BggSearchResult) {
+  // Check if already added
+  if (suggestedGames.value.some(g => g.bggId === result.bggId)) {
+    return
+  }
+
+  try {
+    const game = await getBggGame(result.bggId)
+    suggestedGames.value.push({
+      gameName: game.name,
+      bggId: game.bggId,
+      thumbnailUrl: game.thumbnailUrl ?? undefined,
+      minPlayers: game.minPlayers ?? undefined,
+      maxPlayers: game.maxPlayers ?? undefined,
+      playingTime: game.playingTime ?? undefined,
+    })
+
+    gameSearchQuery.value = ''
+    gameSearchResults.value = []
+    showGameSearch.value = false
+  } catch (err) {
+    errorMessage.value = 'Failed to add game'
+  }
+}
+
+function removeGame(index: number) {
+  suggestedGames.value.splice(index, 1)
+}
+
 async function handleSubmit() {
   if (!isValid.value || !group.value) return
 
@@ -125,6 +187,8 @@ async function handleSubmit() {
           date: d.date,
           startTime: d.startTime || undefined,
         })),
+      sendEmailInvites: form.sendEmailInvites,
+      initialGameSuggestions: suggestedGames.value.length > 0 ? suggestedGames.value : undefined,
     })
 
     router.push(`/planning/${session.id}`)
@@ -175,7 +239,7 @@ function formatDate(dateStr: string): string {
         </button>
       </div>
 
-      <h1 class="text-2xl font-bold mb-6">Plan a Game Night</h1>
+      <h1 class="text-2xl font-bold mb-6">Plan a Game</h1>
 
       <!-- Feature locked for free tier -->
       <div v-if="!canUsePlanning" class="card p-8 text-center">
@@ -204,7 +268,7 @@ function formatDate(dateStr: string): string {
                 v-model="form.title"
                 type="text"
                 class="input"
-                placeholder="e.g., Friday Game Night"
+                placeholder="e.g., Friday Game"
                 required
               />
             </div>
@@ -356,6 +420,129 @@ function formatDate(dateStr: string): string {
               <span v-if="dateOption.startTime" class="text-gray-500">at {{ dateOption.startTime }}</span>
             </div>
           </div>
+        </div>
+
+        <!-- Game Suggestions (Optional) -->
+        <div class="card p-6">
+          <h2 class="font-semibold mb-4">Suggest Games (Optional)</h2>
+          <p class="text-sm text-gray-500 mb-4">Pre-populate game suggestions for the group to vote on</p>
+
+          <!-- Game Search -->
+          <div v-if="!showGameSearch" class="mb-4">
+            <button type="button" class="btn-outline text-sm" @click="showGameSearch = true">
+              <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/>
+              </svg>
+              Add a Game
+            </button>
+          </div>
+          <div v-else class="mb-4">
+            <div class="relative">
+              <input
+                v-model="gameSearchQuery"
+                type="text"
+                class="input pr-10"
+                placeholder="Search BoardGameGeek..."
+                @input="handleGameSearch"
+              />
+              <button
+                type="button"
+                class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
+                @click="showGameSearch = false; gameSearchQuery = ''; gameSearchResults = []"
+              >
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
+                </svg>
+              </button>
+            </div>
+            <!-- Powered by BGG -->
+            <div class="flex items-center justify-end mt-1">
+              <a href="https://boardgamegeek.com" target="_blank" rel="noopener noreferrer" class="hover:opacity-80 transition-opacity">
+                <img src="/powered-by-bgg.svg" alt="Powered by BoardGameGeek" class="h-5" />
+              </a>
+            </div>
+            <div v-if="searchingGames" class="mt-2 text-gray-500 text-sm">Searching...</div>
+            <div v-else-if="gameSearchResults.length > 0" class="mt-2 border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
+              <button
+                v-for="result in gameSearchResults"
+                :key="result.bggId"
+                type="button"
+                class="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-left border-b border-gray-100 last:border-0"
+                @click="selectGame(result)"
+              >
+                <img
+                  v-if="result.thumbnailUrl"
+                  :src="result.thumbnailUrl"
+                  :alt="result.name"
+                  class="w-10 h-10 object-cover rounded flex-shrink-0 bg-gray-100"
+                />
+                <div v-else class="w-10 h-10 flex items-center justify-center bg-gray-100 rounded flex-shrink-0">
+                  <svg class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
+                  </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="font-medium truncate">{{ result.name }}</div>
+                  <div v-if="result.yearPublished" class="text-sm text-gray-500">{{ result.yearPublished }}</div>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Suggested Games List -->
+          <div v-if="suggestedGames.length > 0" class="space-y-2">
+            <div
+              v-for="(game, index) in suggestedGames"
+              :key="game.bggId"
+              class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
+            >
+              <img
+                v-if="game.thumbnailUrl"
+                :src="game.thumbnailUrl"
+                :alt="game.gameName"
+                class="w-10 h-10 object-cover rounded flex-shrink-0"
+              />
+              <div v-else class="w-10 h-10 flex items-center justify-center bg-gray-200 rounded flex-shrink-0">
+                <svg class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
+                </svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="font-medium truncate">{{ game.gameName }}</div>
+                <div v-if="game.minPlayers && game.maxPlayers" class="text-sm text-gray-500">
+                  {{ game.minPlayers }}-{{ game.maxPlayers }} players
+                  <span v-if="game.playingTime"> · {{ game.playingTime }} min</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                class="p-1 text-gray-400 hover:text-red-500"
+                @click="removeGame(index)"
+              >
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div v-else class="text-sm text-gray-500">
+            No games suggested yet. You can add them now or let the group suggest them later.
+          </div>
+        </div>
+
+        <!-- Email Notification Option -->
+        <div class="card p-6">
+          <label class="flex items-center gap-3 cursor-pointer">
+            <input
+              v-model="form.sendEmailInvites"
+              type="checkbox"
+              class="w-5 h-5 rounded border-gray-300 text-primary-500 focus:ring-primary-500"
+            />
+            <div>
+              <span class="font-medium text-gray-900">Send email invites</span>
+              <p class="text-sm text-gray-500">Notify selected members via email about this planning session</p>
+            </div>
+          </label>
         </div>
 
         <!-- Submit -->

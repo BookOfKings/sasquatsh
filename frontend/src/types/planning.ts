@@ -106,6 +106,8 @@ export interface CreatePlanningSessionInput {
   responseDeadline: string
   inviteeUserIds: string[]
   proposedDates: { date: string; startTime?: string }[]
+  sendEmailInvites?: boolean
+  initialGameSuggestions?: SuggestGameInput[]
 }
 
 export interface PlanningResponseInput {

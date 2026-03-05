@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { verifyFirebaseToken, jsonResponse, errorResponse, getCorsHeaders, getFirebaseToken } from '../_shared/firebase.ts'
+import { sendEmail, planningInviteEmail } from '../_shared/email.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -201,8 +202,8 @@ Deno.serve(async (req) => {
         return errorResponse('groupId, title, responseDeadline, inviteeUserIds, and proposedDates required', 400)
       }
 
-      if (body.proposedDates.length < 2) {
-        return errorResponse('At least 2 proposed dates required', 400)
+      if (body.proposedDates.length < 1) {
+        return errorResponse('At least 1 proposed date required', 400)
       }
 
       // Verify user is owner/admin of group
@@ -264,6 +265,93 @@ Deno.serve(async (req) => {
       }))
 
       await supabase.from('planning_dates').insert(dateRows)
+
+      // Add initial game suggestions if provided
+      if (body.initialGameSuggestions && body.initialGameSuggestions.length > 0) {
+        const suggestionRows = body.initialGameSuggestions.map((g: {
+          gameName: string
+          bggId?: number
+          thumbnailUrl?: string
+          minPlayers?: number
+          maxPlayers?: number
+          playingTime?: number
+        }) => ({
+          session_id: session.id,
+          suggested_by_user_id: user.id,
+          bgg_id: g.bggId || null,
+          game_name: g.gameName,
+          thumbnail_url: g.thumbnailUrl || null,
+          min_players: g.minPlayers || null,
+          max_players: g.maxPlayers || null,
+          playing_time: g.playingTime || null,
+        }))
+
+        await supabase.from('planning_game_suggestions').insert(suggestionRows)
+      }
+
+      // Send email invites if requested
+      if (body.sendEmailInvites) {
+        // Get group name and creator name
+        const { data: groupData } = await supabase
+          .from('groups')
+          .select('name, slug')
+          .eq('id', body.groupId)
+          .single()
+
+        const { data: creatorData } = await supabase
+          .from('users')
+          .select('display_name, username')
+          .eq('id', user.id)
+          .single()
+
+        // Get invitee emails (exclude creator)
+        const inviteeIdsWithoutCreator = body.inviteeUserIds.filter((id: string) => id !== user.id)
+        if (inviteeIdsWithoutCreator.length > 0) {
+          const { data: inviteeUsers } = await supabase
+            .from('users')
+            .select('id, email')
+            .in('id', inviteeIdsWithoutCreator)
+
+          if (inviteeUsers && inviteeUsers.length > 0) {
+            // Format dates for email
+            const formattedDates = body.proposedDates.map((d: { date: string; startTime?: string }) => {
+              const dateObj = new Date(d.date + 'T12:00:00')
+              const dateStr = dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+              return d.startTime ? `${dateStr} at ${d.startTime}` : dateStr
+            })
+
+            // Format deadline
+            const deadlineDate = new Date(body.responseDeadline)
+            const deadlineStr = deadlineDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+
+            const hostName = creatorData?.display_name || creatorData?.username || 'Someone'
+            const planningUrl = `https://sasquatsh.com/groups/${groupData?.slug}/planning/${session.id}`
+
+            // Send emails in parallel
+            const emailPromises = inviteeUsers.map(invitee => {
+              const emailContent = planningInviteEmail({
+                sessionTitle: body.title,
+                groupName: groupData?.name || 'your group',
+                hostName,
+                proposedDates: formattedDates,
+                responseDeadline: deadlineStr,
+                planningUrl,
+              })
+              return sendEmail({
+                to: invitee.email,
+                subject: emailContent.subject,
+                text: emailContent.text,
+                html: emailContent.html,
+              })
+            })
+
+            // Don't wait for all emails - fire and forget
+            Promise.all(emailPromises).catch(err => {
+              console.error('Failed to send some planning invite emails:', err)
+            })
+          }
+        }
+      }
 
       // Fetch full session to return
       const { data: fullSession } = await supabase

@@ -552,7 +552,7 @@ function getStatusBadge(status: string) {
               <div class="flex items-start justify-between gap-2">
                 <div>
                   <h3 class="font-semibold text-gray-900">
-                    {{ request.event?.title || 'Game Night' }}
+                    {{ request.event?.title || 'Game' }}
                   </h3>
                   <p class="text-sm text-gray-500">
                     Hosted by {{ request.host?.displayName || request.host?.username || 'Unknown' }}
@@ -625,7 +625,7 @@ function getStatusBadge(status: string) {
             <div class="flex-1">
               <div class="flex items-center gap-2 flex-wrap">
                 <h3 class="font-semibold text-gray-900">
-                  {{ request.event?.title || 'Game Night' }}
+                  {{ request.event?.title || 'Game' }}
                 </h3>
                 <span
                   class="chip text-xs"

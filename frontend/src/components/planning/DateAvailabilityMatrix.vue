@@ -6,6 +6,8 @@ const props = defineProps<{
   dates: PlanningDate[]
   invitees: PlanningInvitee[]
   selectedDateId?: string | null
+  currentUserId?: string | null
+  pendingAvailability?: Record<string, boolean>
 }>()
 
 const emit = defineEmits<{
@@ -36,6 +38,15 @@ function formatTime(timeStr: string): string {
 
 function getVoteStatus(date: PlanningDate, invitee: PlanningInvitee): 'available' | 'unavailable' | 'pending' | 'cannot-attend' {
   if (invitee.cannotAttendAny) return 'cannot-attend'
+
+  // Check for pending (unsaved) availability for current user
+  if (props.currentUserId && invitee.userId === props.currentUserId && props.pendingAvailability) {
+    const pendingStatus = props.pendingAvailability[date.id]
+    if (pendingStatus !== undefined) {
+      return pendingStatus ? 'available' : 'unavailable'
+    }
+  }
+
   if (!invitee.hasResponded) return 'pending'
   const vote = date.votes?.find(v => v.userId === invitee.userId)
   if (!vote) return 'pending'

@@ -168,3 +168,89 @@ ${params.message}
 
   return { subject, html, text }
 }
+
+export function planningInviteEmail(params: {
+  sessionTitle: string
+  groupName: string
+  hostName: string
+  proposedDates: string[]
+  responseDeadline: string
+  planningUrl: string
+}): { subject: string; html: string; text: string } {
+  const subject = `You're invited to plan: ${params.sessionTitle}`
+
+  const datesText = params.proposedDates.map(d => `  • ${d}`).join('\n')
+  const datesHtml = params.proposedDates.map(d => `<li style="margin: 4px 0;">${d}</li>`).join('')
+
+  const text = `
+You've been invited to help Plan a Game!
+
+${params.sessionTitle}
+Group: ${params.groupName}
+Organized by ${params.hostName}
+
+Proposed dates:
+${datesText}
+
+Please respond by: ${params.responseDeadline}
+
+Vote on dates and suggest games: ${params.planningUrl}
+
+- The Sasquatsh Team
+`.trim()
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="text-align: center; margin-bottom: 30px;">
+    <h1 style="color: #7c3aed; margin: 0;">Sasquatsh</h1>
+    <p style="color: #666; margin: 5px 0;">You've been invited to help Plan a Game!</p>
+  </div>
+
+  <div style="background: linear-gradient(135deg, #f5f3ff 0%, #fdf4ff 100%); border-radius: 12px; padding: 24px; margin-bottom: 24px;">
+    <h2 style="margin: 0 0 16px 0; color: #1f2937;">${params.sessionTitle}</h2>
+    <p style="margin: 8px 0; color: #4b5563;">
+      <strong>Group:</strong> ${params.groupName}
+    </p>
+    <p style="margin: 8px 0; color: #4b5563;">
+      <strong>Organized by:</strong> ${params.hostName}
+    </p>
+    <p style="margin: 8px 0; color: #4b5563;">
+      <strong>Respond by:</strong> ${params.responseDeadline}
+    </p>
+  </div>
+
+  <div style="background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+    <p style="margin: 0 0 8px 0; font-weight: 600; color: #374151;">Proposed Dates:</p>
+    <ul style="margin: 0; padding-left: 20px; color: #4b5563;">
+      ${datesHtml}
+    </ul>
+  </div>
+
+  <div style="text-align: center; margin: 30px 0;">
+    <a href="${params.planningUrl}" style="display: inline-block; background: #7c3aed; color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600;">
+      Vote &amp; Suggest Games
+    </a>
+  </div>
+
+  <p style="color: #666; font-size: 14px; text-align: center;">
+    Let's find a time that works for everyone!<br>
+    The Sasquatsh Team
+  </p>
+
+  <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+
+  <p style="color: #9ca3af; font-size: 12px; text-align: center;">
+    If you didn't expect this invitation, you can safely ignore this email.
+  </p>
+</body>
+</html>
+`.trim()
+
+  return { subject, html, text }
+}

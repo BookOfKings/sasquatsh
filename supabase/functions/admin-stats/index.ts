@@ -65,115 +65,139 @@ async function getStats(supabase: ReturnType<typeof createClient>): Promise<Admi
   const BASIC_PRICE = 7.99
   const PRO_PRICE = 14.99
 
-  // Run all queries in parallel for performance
-  const [
-    usersTotal,
-    usersLast7,
-    usersLast30,
-    usersBasicTier,
-    usersProTier,
-    groupsTotal,
-    groupsPublic,
-    eventsTotal,
-    eventsUpcoming,
-    planningTotal,
-    planningOpen,
-    requestsTotal,
-    requestsActive,
-    bggCacheTotal,
-    popularGamesResult,
-  ] = await Promise.all([
-    // Users
-    supabase.from('users').select('*', { count: 'exact', head: true }),
-    supabase.from('users').select('*', { count: 'exact', head: true }).gte('created_at', sevenDaysAgo),
-    supabase.from('users').select('*', { count: 'exact', head: true }).gte('created_at', thirtyDaysAgo),
-    // Count users with basic tier (either direct or override)
-    supabase.from('users').select('*', { count: 'exact', head: true })
-      .or('subscription_tier.eq.basic,subscription_override_tier.eq.basic'),
-    // Count users with pro tier (either direct or override)
-    supabase.from('users').select('*', { count: 'exact', head: true })
-      .or('subscription_tier.eq.pro,subscription_override_tier.eq.pro'),
+  try {
+    // Run all queries in parallel for performance
+    const [
+      usersTotal,
+      usersLast7,
+      usersLast30,
+      groupsTotal,
+      groupsPublic,
+      eventsTotal,
+      eventsUpcoming,
+      planningTotal,
+      planningOpen,
+      requestsTotal,
+      requestsActive,
+      bggCacheTotal,
+    ] = await Promise.all([
+      // Users
+      supabase.from('users').select('*', { count: 'exact', head: true }),
+      supabase.from('users').select('*', { count: 'exact', head: true }).gte('created_at', sevenDaysAgo),
+      supabase.from('users').select('*', { count: 'exact', head: true }).gte('created_at', thirtyDaysAgo),
 
-    // Groups
-    supabase.from('groups').select('*', { count: 'exact', head: true }),
-    supabase.from('groups').select('*', { count: 'exact', head: true }).eq('join_policy', 'open'),
+      // Groups
+      supabase.from('groups').select('*', { count: 'exact', head: true }),
+      supabase.from('groups').select('*', { count: 'exact', head: true }).eq('join_policy', 'open'),
 
-    // Events
-    supabase.from('events').select('*', { count: 'exact', head: true }),
-    supabase.from('events').select('*', { count: 'exact', head: true }).gte('date', now.toISOString().split('T')[0]),
+      // Events
+      supabase.from('events').select('*', { count: 'exact', head: true }),
+      supabase.from('events').select('*', { count: 'exact', head: true }).gte('date', now.toISOString().split('T')[0]),
 
-    // Planning Sessions
-    supabase.from('planning_sessions').select('*', { count: 'exact', head: true }),
-    supabase.from('planning_sessions').select('*', { count: 'exact', head: true }).eq('status', 'open'),
+      // Planning Sessions
+      supabase.from('planning_sessions').select('*', { count: 'exact', head: true }),
+      supabase.from('planning_sessions').select('*', { count: 'exact', head: true }).eq('status', 'open'),
 
-    // Player Requests (LFP)
-    supabase.from('player_requests').select('*', { count: 'exact', head: true }),
-    supabase.from('player_requests').select('*', { count: 'exact', head: true }).eq('status', 'open'),
+      // Player Requests (LFP)
+      supabase.from('player_requests').select('*', { count: 'exact', head: true }),
+      supabase.from('player_requests').select('*', { count: 'exact', head: true }).eq('status', 'open'),
 
-    // BGG Cache
-    supabase.from('bgg_games_cache').select('*', { count: 'exact', head: true }),
+      // BGG Cache
+      supabase.from('bgg_games_cache').select('*', { count: 'exact', head: true }),
+    ])
 
-    // Popular games - aggregate by game name from event_games
-    supabase.rpc('get_popular_games', { limit_count: 10 }).catch(() => ({ data: null })),
-  ])
+    // Get tier counts separately with error handling
+    let basicCount = 0
+    let proCount = 0
+    try {
+      const usersBasicTier = await supabase.from('users').select('*', { count: 'exact', head: true })
+        .or('subscription_tier.eq.basic,subscription_override_tier.eq.basic')
+      basicCount = usersBasicTier.count ?? 0
+    } catch (e) {
+      console.error('Error counting basic tier users:', e)
+    }
 
-  // Calculate tier counts
-  const basicCount = usersBasicTier.count ?? 0
-  const proCount = usersProTier.count ?? 0
-  const totalUsers = usersTotal.count ?? 0
-  const freeCount = totalUsers - basicCount - proCount
+    try {
+      const usersProTier = await supabase.from('users').select('*', { count: 'exact', head: true })
+        .or('subscription_tier.eq.pro,subscription_override_tier.eq.pro')
+      proCount = usersProTier.count ?? 0
+    } catch (e) {
+      console.error('Error counting pro tier users:', e)
+    }
 
-  // Calculate projected monthly revenue
-  const projectedMonthly = (basicCount * BASIC_PRICE) + (proCount * PRO_PRICE)
+    // Get popular games separately
+    let popularGames: AdminStats['popularGames'] = []
+    try {
+      const popularGamesResult = await supabase.rpc('get_popular_games', { limit_count: 10 })
+      if (popularGamesResult.data && Array.isArray(popularGamesResult.data)) {
+        popularGames = popularGamesResult.data.map((g: { game_name: string; bgg_id: number | null; usage_count: number; thumbnail_url: string | null }) => ({
+          name: g.game_name,
+          bggId: g.bgg_id,
+          count: g.usage_count,
+          thumbnailUrl: g.thumbnail_url,
+        }))
+      }
+    } catch (e) {
+      console.error('Error getting popular games:', e)
+    }
 
-  // Format popular games result
-  let popularGames: AdminStats['popularGames'] = []
-  if (popularGamesResult.data && Array.isArray(popularGamesResult.data)) {
-    popularGames = popularGamesResult.data.map((g: { game_name: string; bgg_id: number | null; usage_count: number; thumbnail_url: string | null }) => ({
-      name: g.game_name,
-      bggId: g.bgg_id,
-      count: g.usage_count,
-      thumbnailUrl: g.thumbnail_url,
-    }))
-  }
+    const totalUsers = usersTotal.count ?? 0
+    const freeCount = Math.max(0, totalUsers - basicCount - proCount)
 
-  return {
-    users: {
-      total: totalUsers,
-      last7Days: usersLast7.count ?? 0,
-      last30Days: usersLast30.count ?? 0,
-      byTier: {
-        free: freeCount,
-        basic: basicCount,
-        pro: proCount,
+    // Calculate projected monthly revenue
+    const projectedMonthly = (basicCount * BASIC_PRICE) + (proCount * PRO_PRICE)
+
+    return {
+      users: {
+        total: totalUsers,
+        last7Days: usersLast7.count ?? 0,
+        last30Days: usersLast30.count ?? 0,
+        byTier: {
+          free: freeCount,
+          basic: basicCount,
+          pro: proCount,
+        },
       },
-    },
-    revenue: {
-      projectedMonthly: Math.round(projectedMonthly * 100) / 100,
-      basicCount,
-      proCount,
-    },
-    groups: {
-      total: groupsTotal.count ?? 0,
-      public: groupsPublic.count ?? 0,
-      private: (groupsTotal.count ?? 0) - (groupsPublic.count ?? 0),
-    },
-    events: {
-      total: eventsTotal.count ?? 0,
-      upcoming: eventsUpcoming.count ?? 0,
-    },
-    planningSessions: {
-      total: planningTotal.count ?? 0,
-      open: planningOpen.count ?? 0,
-    },
-    playerRequests: {
-      total: requestsTotal.count ?? 0,
-      active: requestsActive.count ?? 0,
-    },
-    bggCache: {
-      total: bggCacheTotal.count ?? 0,
-    },
-    popularGames,
+      revenue: {
+        projectedMonthly: Math.round(projectedMonthly * 100) / 100,
+        basicCount,
+        proCount,
+      },
+      groups: {
+        total: groupsTotal.count ?? 0,
+        public: groupsPublic.count ?? 0,
+        private: (groupsTotal.count ?? 0) - (groupsPublic.count ?? 0),
+      },
+      events: {
+        total: eventsTotal.count ?? 0,
+        upcoming: eventsUpcoming.count ?? 0,
+      },
+      planningSessions: {
+        total: planningTotal.count ?? 0,
+        open: planningOpen.count ?? 0,
+      },
+      playerRequests: {
+        total: requestsTotal.count ?? 0,
+        active: requestsActive.count ?? 0,
+      },
+      bggCache: {
+        total: bggCacheTotal.count ?? 0,
+      },
+      popularGames,
+    }
+  } catch (error) {
+    console.error('Error in getStats:', error)
+    // Return default stats on error
+    return {
+      users: { total: 0, last7Days: 0, last30Days: 0, byTier: { free: 0, basic: 0, pro: 0 } },
+      revenue: { projectedMonthly: 0, basicCount: 0, proCount: 0 },
+      groups: { total: 0, public: 0, private: 0 },
+      events: { total: 0, upcoming: 0 },
+      planningSessions: { total: 0, open: 0 },
+      playerRequests: { total: 0, active: 0 },
+      bggCache: { total: 0 },
+      popularGames: [],
+    }
   }
 }
 

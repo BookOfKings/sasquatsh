@@ -11,6 +11,7 @@ function toEventLocation(row: Record<string, unknown>) {
     name: row.name as string,
     city: row.city as string,
     state: row.state as string,
+    postalCode: row.postal_code as string | null,
     venue: row.venue as string | null,
     timezone: row.timezone as string | null,
     startDate: row.start_date as string | null,
@@ -260,6 +261,7 @@ Deno.serve(async (req) => {
         name_normalized: normalizedName,
         city: body.city.trim(),
         state: body.state.trim(),
+        postal_code: body.postalCode?.trim() || null,
         venue: body.venue?.trim() || null,
         start_date: body.startDate || null,
         end_date: body.endDate || null,
@@ -348,6 +350,7 @@ Deno.serve(async (req) => {
     }
     if (body.city !== undefined) updates.city = body.city.trim()
     if (body.state !== undefined) updates.state = body.state.trim()
+    if (body.postalCode !== undefined) updates.postal_code = body.postalCode?.trim() || null
     if (body.venue !== undefined) updates.venue = body.venue?.trim() || null
     if (body.startDate !== undefined) updates.start_date = body.startDate || null
     if (body.endDate !== undefined) updates.end_date = body.endDate || null

@@ -901,6 +901,8 @@ function getStatusBadgeClass(status: string) {
               :dates="session.dates"
               :invitees="session.invitees"
               :selected-date-id="selectedDateId"
+              :current-user-id="auth.user.value?.id"
+              :pending-availability="responseForm.dateAvailability"
               @select-date="selectedDateId = $event"
             />
           </div>
@@ -977,7 +979,7 @@ function getStatusBadgeClass(status: string) {
         <!-- Finalize Section (for creator) -->
         <div v-if="isCreator" class="card">
           <div class="p-6 border-b border-gray-100">
-            <h2 class="font-semibold">Finalize Game Night</h2>
+            <h2 class="font-semibold">Finalize Game</h2>
           </div>
           <div class="p-6">
             <p class="text-gray-600 mb-4">
@@ -1013,7 +1015,7 @@ function getStatusBadgeClass(status: string) {
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
               </svg>
-              Create Game Night Event
+              Create Game Event
             </button>
           </div>
         </div>

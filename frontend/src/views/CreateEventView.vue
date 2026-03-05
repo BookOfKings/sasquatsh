@@ -203,6 +203,20 @@ function validate(): boolean {
     valid = false
   }
 
+  // Require either a venue or a custom address with zip code
+  const hasVenue = locationMode.value === 'venue' && selectedVenue.value
+  const hasCustomAddress = form.city?.trim() && form.postalCode?.trim()
+  if (!hasVenue && !hasCustomAddress) {
+    if (form.city?.trim() && !form.postalCode?.trim()) {
+      errors.location = 'Zip code is required for games to appear in nearby searches'
+    } else {
+      errors.location = 'Please select a venue or enter a city and zip code'
+    }
+    valid = false
+  } else {
+    errors.location = ''
+  }
+
   return valid
 }
 
@@ -302,6 +316,7 @@ function handleVenueSelect(venue: EventLocation) {
   form.eventLocationId = venue.id
   form.city = venue.city
   form.state = venue.state
+  form.postalCode = venue.postalCode || ''
   locationMode.value = 'venue'
 }
 
@@ -703,6 +718,9 @@ function handleVenueSubmitted(venue: EventLocation) {
                 />
               </div>
             </div>
+
+            <!-- Location Error -->
+            <p v-if="errors.location" class="text-sm text-red-500 mt-2">{{ errors.location }}</p>
           </div>
 
           <!-- Game Settings -->

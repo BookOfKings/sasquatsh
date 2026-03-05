@@ -74,13 +74,14 @@ Deno.serve(async (req) => {
         return errorResponse(error.message, 500)
       }
 
-      // Check access: public+published, or user is host, or user is registered
+      // Check access: public+published, or user is host, or user is registered, or user is admin
       const isHost = data.host_user_id === user.id
+      const isAdmin = user.is_admin === true
       const isPublicAndPublished = data.is_public && data.status === 'published'
       const isRegistered = Array.isArray(data.registrations) &&
         data.registrations.some((r: { user_id: string }) => r.user_id === user.id)
 
-      if (!isHost && !isPublicAndPublished && !isRegistered) {
+      if (!isHost && !isAdmin && !isPublicAndPublished && !isRegistered) {
         return errorResponse('Event not found', 404)
       }
 
@@ -271,6 +272,16 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Require either a venue or a city+postal code for location (postal code needed for radius search)
+    const hasVenue = !!body.eventLocationId
+    const hasCustomLocation = !!body.city?.trim() && !!body.postalCode?.trim()
+    if (!hasVenue && !hasCustomLocation) {
+      if (body.city?.trim() && !body.postalCode?.trim()) {
+        return errorResponse('Postal/zip code is required for radius-based search to work.', 400)
+      }
+      return errorResponse('A location is required. Please select a venue or enter a city and zip code.', 400)
+    }
+
     const { data, error } = await supabase
       .from('events')
       .insert({
@@ -316,18 +327,33 @@ Deno.serve(async (req) => {
   if (req.method === 'PUT') {
     if (!eventId) return errorResponse('Event ID required', 400)
 
-    // Verify ownership
+    // Verify ownership or admin status
     const { data: existing } = await supabase
       .from('events')
       .select('host_user_id')
       .eq('id', eventId)
       .single()
 
-    if (!existing || existing.host_user_id !== user.id) {
+    if (!existing) {
+      return errorResponse('Event not found', 404)
+    }
+
+    // Allow host or site admin to edit
+    if (existing.host_user_id !== user.id && !user.is_admin) {
       return errorResponse('Not authorized', 403)
     }
 
     const body = await req.json()
+
+    // Require either a venue or a city+postal code for location (postal code needed for radius search)
+    const hasVenue = !!body.eventLocationId
+    const hasCustomLocation = !!body.city?.trim() && !!body.postalCode?.trim()
+    if (!hasVenue && !hasCustomLocation) {
+      if (body.city?.trim() && !body.postalCode?.trim()) {
+        return errorResponse('Postal/zip code is required for radius-based search to work.', 400)
+      }
+      return errorResponse('A location is required. Please select a venue or enter a city and zip code.', 400)
+    }
 
     const { data, error } = await supabase
       .from('events')

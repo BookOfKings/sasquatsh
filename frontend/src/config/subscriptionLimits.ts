@@ -92,7 +92,6 @@ export const TIER_FEATURES: Record<SubscriptionTier, string[]> = {
     'Specify table locations per game',
     'Game night planning feature',
     'Items to bring lists',
-    'Priority support',
     'No ads',
   ],
   premium: [

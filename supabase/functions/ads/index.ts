@@ -49,7 +49,8 @@ Deno.serve(async (req) => {
   if (req.method === 'GET' && !action) {
     const today = new Date().toISOString().split('T')[0]
 
-    const { data: ads, error } = await supabase
+    // First try to get ads for the specific placement
+    let { data: ads, error } = await supabase
       .from('ads')
       .select('id, title, description, image_url, link_url, ad_type')
       .eq('is_active', true)
@@ -61,6 +62,24 @@ Deno.serve(async (req) => {
 
     if (error) {
       return errorResponse(error.message, 500)
+    }
+
+    // Fall back to "general" placement ads if none found for specific placement
+    if (ads.length === 0 && placement !== 'general') {
+      const { data: generalAds, error: generalError } = await supabase
+        .from('ads')
+        .select('id, title, description, image_url, link_url, ad_type')
+        .eq('is_active', true)
+        .eq('placement', 'general')
+        .or(`start_date.is.null,start_date.lte.${today}`)
+        .or(`end_date.is.null,end_date.gte.${today}`)
+        .order('priority', { ascending: false })
+        .limit(5)
+
+      if (generalError) {
+        return errorResponse(generalError.message, 500)
+      }
+      ads = generalAds
     }
 
     // Pick one randomly (weighted by order/priority)

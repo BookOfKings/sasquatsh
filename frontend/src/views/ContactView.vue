@@ -25,6 +25,7 @@ if (auth.user.value?.displayName) {
 
 const subjectOptions = [
   { value: 'general', label: 'General Inquiry' },
+  { value: 'advertising', label: 'Advertising Inquiry' },
   { value: 'bug', label: 'Report a Bug' },
   { value: 'feature', label: 'Feature Request' },
   { value: 'account', label: 'Account Issue' },
