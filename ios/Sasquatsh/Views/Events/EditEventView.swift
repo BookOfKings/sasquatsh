@@ -4,6 +4,7 @@ struct EditEventView: View {
     let event: Event
     @Environment(\.services) private var services
     @Environment(\.dismiss) private var dismiss
+    @Environment(AuthViewModel.self) private var authVM
     @State private var vm = CreateEditEventViewModel()
     @State private var showVenueSelector = false
 
@@ -77,18 +78,29 @@ struct EditEventView: View {
                         }
 
                         if vm.selectedVenue != nil {
-                            TextField("Hall", text: Binding(
-                                get: { vm.venueHall ?? "" },
-                                set: { vm.venueHall = $0.isEmpty ? nil : $0 }
-                            ))
-                            TextField("Room", text: Binding(
-                                get: { vm.venueRoom ?? "" },
-                                set: { vm.venueRoom = $0.isEmpty ? nil : $0 }
-                            ))
-                            TextField("Table", text: Binding(
-                                get: { vm.venueTable ?? "" },
-                                set: { vm.venueTable = $0.isEmpty ? nil : $0 }
-                            ))
+                            let tier = authVM.user?.subscriptionTier ?? .free
+                            if TierConfig.hasFeature(tier, feature: \.tableInfo) {
+                                TextField("Hall", text: Binding(
+                                    get: { vm.venueHall ?? "" },
+                                    set: { vm.venueHall = $0.isEmpty ? nil : $0 }
+                                ))
+                                TextField("Room", text: Binding(
+                                    get: { vm.venueRoom ?? "" },
+                                    set: { vm.venueRoom = $0.isEmpty ? nil : $0 }
+                                ))
+                                TextField("Table", text: Binding(
+                                    get: { vm.venueTable ?? "" },
+                                    set: { vm.venueTable = $0.isEmpty ? nil : $0 }
+                                ))
+                            } else {
+                                HStack {
+                                    Image(systemName: "lock.fill")
+                                        .foregroundStyle(Color.md3OnSurfaceVariant)
+                                    Text("Hall/Room/Table — upgrade to unlock")
+                                        .font(.md3BodyMedium)
+                                        .foregroundStyle(Color.md3OnSurfaceVariant)
+                                }
+                            }
                         }
 
                         TextField("Location Details", text: $vm.locationDetails)

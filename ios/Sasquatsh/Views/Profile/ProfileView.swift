@@ -79,6 +79,30 @@ struct ProfileView: View {
                         .cardStyle()
                     }
 
+                    // Subscription
+                    NavigationLink {
+                        BillingView()
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Subscription")
+                                    .font(.md3TitleSmall)
+                                    .foregroundStyle(Color.md3OnSurface)
+                                Text((profile.subscriptionTier ?? .free).priceLabel)
+                                    .font(.md3BodySmall)
+                                    .foregroundStyle(Color.md3OnSurfaceVariant)
+                            }
+                            Spacer()
+                            SubscriptionBadgeView(tier: profile.subscriptionTier ?? .free)
+                            Image(systemName: "chevron.right")
+                                .font(.md3BodySmall)
+                                .foregroundStyle(Color.md3OnSurfaceVariant)
+                        }
+                        .padding()
+                        .cardStyle()
+                    }
+                    .buttonStyle(.plain)
+
                     // Bio
                     if let bio = profile.bio, !bio.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {

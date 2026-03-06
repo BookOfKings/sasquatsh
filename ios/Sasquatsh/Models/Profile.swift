@@ -24,6 +24,8 @@ struct UserProfile: Codable, Identifiable {
     var favoriteGames: [String]?
     var preferredGameTypes: [String]?
     let isAdmin: Bool
+    let subscriptionTier: SubscriptionTier?
+    let subscriptionExpiresAt: String?
     var blockedUserIds: [String]
     let createdAt: String
     let updatedAt: String

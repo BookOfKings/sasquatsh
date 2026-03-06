@@ -13,6 +13,9 @@ struct EventDetailView: View {
     @State private var showDeleteConfirm = false
     @State private var newItemName = ""
     @State private var newItemCategory = "other"
+    @State private var showUpgradePrompt = false
+    @State private var upgradePromptType: LimitType = .games
+    @State private var showItemsUpgradePrompt = false
 
     var body: some View {
         ScrollView {
@@ -105,6 +108,18 @@ struct EventDetailView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Are you sure you want to delete this game? This cannot be undone.")
+        }
+        .sheet(isPresented: $showUpgradePrompt) {
+            UpgradePromptView(
+                limitType: upgradePromptType,
+                currentTier: authVM.user?.subscriptionTier ?? .free
+            )
+        }
+        .sheet(isPresented: $showItemsUpgradePrompt) {
+            UpgradePromptView(
+                limitType: .games,
+                currentTier: authVM.user?.subscriptionTier ?? .free
+            )
         }
         .refreshable { await vm.loadEvent(id: eventId) }
         .task {
@@ -220,7 +235,14 @@ struct EventDetailView: View {
                     .foregroundStyle(Color.md3OnSurface)
                 Spacer()
                 Button {
-                    showBGGSearch = true
+                    let tier = authVM.user?.subscriptionTier ?? .free
+                    let currentCount = event.games?.count ?? 0
+                    if TierConfig.canAddGame(tier, currentCount: currentCount) {
+                        showBGGSearch = true
+                    } else {
+                        upgradePromptType = .games
+                        showUpgradePrompt = true
+                    }
                 } label: {
                     Image(systemName: "plus.circle")
                         .foregroundStyle(Color.md3Primary)
@@ -284,7 +306,12 @@ struct EventDetailView: View {
                 Spacer()
                 if let userId = authVM.user?.id, vm.isHost(userId: userId) {
                     Button {
-                        showAddItem = true
+                        let tier = authVM.user?.subscriptionTier ?? .free
+                        if TierConfig.hasFeature(tier, feature: \.items) {
+                            showAddItem = true
+                        } else {
+                            showItemsUpgradePrompt = true
+                        }
                     } label: {
                         Image(systemName: "plus.circle")
                             .foregroundStyle(Color.md3Primary)

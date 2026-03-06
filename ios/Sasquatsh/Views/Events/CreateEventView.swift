@@ -3,9 +3,11 @@ import SwiftUI
 struct CreateEventView: View {
     @Environment(\.services) private var services
     @Environment(\.dismiss) private var dismiss
+    @Environment(AuthViewModel.self) private var authVM
     @State private var vm = CreateEditEventViewModel()
     @State private var showGameSearch = false
     @State private var showVenueSelector = false
+    @State private var showUpgradePrompt = false
 
     var groupId: String?
 
@@ -46,6 +48,12 @@ struct CreateEventView: View {
                         vm.selectVenue(venue)
                     }
                 }
+                .sheet(isPresented: $showUpgradePrompt) {
+                    UpgradePromptView(
+                        limitType: .games,
+                        currentTier: authVM.user?.subscriptionTier ?? .free
+                    )
+                }
         }
     }
 
@@ -80,7 +88,12 @@ struct CreateEventView: View {
             TextField("Title", text: $vm.title)
 
             Button {
-                showGameSearch = true
+                let tier = authVM.user?.subscriptionTier ?? .free
+                if TierConfig.canAddGame(tier, currentCount: vm.selectedGames.count) {
+                    showGameSearch = true
+                } else {
+                    showUpgradePrompt = true
+                }
             } label: {
                 Label("Search BoardGameGeek", systemImage: "magnifyingglass")
             }
@@ -179,18 +192,29 @@ struct CreateEventView: View {
                 }
 
                 if vm.selectedVenue != nil {
-                    TextField("Hall", text: Binding(
-                        get: { vm.venueHall ?? "" },
-                        set: { vm.venueHall = $0.isEmpty ? nil : $0 }
-                    ))
-                    TextField("Room", text: Binding(
-                        get: { vm.venueRoom ?? "" },
-                        set: { vm.venueRoom = $0.isEmpty ? nil : $0 }
-                    ))
-                    TextField("Table", text: Binding(
-                        get: { vm.venueTable ?? "" },
-                        set: { vm.venueTable = $0.isEmpty ? nil : $0 }
-                    ))
+                    let tier = authVM.user?.subscriptionTier ?? .free
+                    if TierConfig.hasFeature(tier, feature: \.tableInfo) {
+                        TextField("Hall", text: Binding(
+                            get: { vm.venueHall ?? "" },
+                            set: { vm.venueHall = $0.isEmpty ? nil : $0 }
+                        ))
+                        TextField("Room", text: Binding(
+                            get: { vm.venueRoom ?? "" },
+                            set: { vm.venueRoom = $0.isEmpty ? nil : $0 }
+                        ))
+                        TextField("Table", text: Binding(
+                            get: { vm.venueTable ?? "" },
+                            set: { vm.venueTable = $0.isEmpty ? nil : $0 }
+                        ))
+                    } else {
+                        HStack {
+                            Image(systemName: "lock.fill")
+                                .foregroundStyle(Color.md3OnSurfaceVariant)
+                            Text("Hall/Room/Table — upgrade to unlock")
+                                .font(.md3BodyMedium)
+                                .foregroundStyle(Color.md3OnSurfaceVariant)
+                        }
+                    }
                 }
 
                 TextField("Location Details", text: $vm.locationDetails)

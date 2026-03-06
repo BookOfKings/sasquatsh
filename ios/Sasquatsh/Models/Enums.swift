@@ -125,10 +125,48 @@ enum JoinRequestStatus: String, Codable {
     case rejected
 }
 
-enum SubscriptionTier: String, Codable {
-    case free
-    case pro
-    case premium
+enum SubscriptionTier: String, Codable, CaseIterable, Identifiable {
+    case free, basic, pro, premium
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .free: return "Free"
+        case .basic: return "Basic"
+        case .pro: return "Pro"
+        case .premium: return "Premium"
+        }
+    }
+
+    var priceLabel: String {
+        switch self {
+        case .free: return "$0"
+        case .basic: return "$7.99/mo"
+        case .pro: return "$14.99/mo"
+        case .premium: return "Custom"
+        }
+    }
+
+    var rank: Int {
+        switch self {
+        case .free: return 0
+        case .basic: return 1
+        case .pro: return 2
+        case .premium: return 3
+        }
+    }
+}
+
+enum SubscriptionStatus: String, Codable {
+    case active
+    case pastDue = "past_due"
+    case canceled
+    case incomplete
+}
+
+enum InvoiceStatus: String, Codable {
+    case paid, open, draft, void, uncollectible
 }
 
 enum EventLocationStatus: String, Codable {
