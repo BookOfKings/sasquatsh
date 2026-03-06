@@ -3,11 +3,13 @@ import SwiftUI
 enum LimitType {
     case games
     case groups
+    case items
 
     var title: String {
         switch self {
         case .games: return "Game Limit Reached"
         case .groups: return "Group Limit Reached"
+        case .items: return "Items to Bring"
         }
     }
 
@@ -15,6 +17,7 @@ enum LimitType {
         switch self {
         case .games: return "You've reached the maximum number of games for your current plan."
         case .groups: return "You've reached the maximum number of groups for your current plan."
+        case .items: return "Track items to bring to game night with a Pro plan or higher."
         }
     }
 
@@ -22,6 +25,7 @@ enum LimitType {
         switch self {
         case .games: return "gamecontroller"
         case .groups: return "person.3"
+        case .items: return "bag"
         }
     }
 }
