@@ -25,6 +25,8 @@ import HotLocationsBar from '@/components/venues/HotLocationsBar.vue'
 import VenueSelector from '@/components/venues/VenueSelector.vue'
 import VenueDetailsFields from '@/components/venues/VenueDetailsFields.vue'
 import SubmitVenueModal from '@/components/venues/SubmitVenueModal.vue'
+import { hasFeature, TIER_NAMES, type SubscriptionTier } from '@/config/subscriptionLimits'
+import { getEffectiveTier } from '@/types/user'
 import type { UpdateEventInput } from '@/types/events'
 import type { BggGame } from '@/types/bgg'
 import type { EventLocation } from '@/types/social'
@@ -35,6 +37,11 @@ const eventStore = useEventStore()
 const authStore = useAuthStore()
 
 const eventId = computed(() => route.params.id as string)
+
+const currentTier = computed((): SubscriptionTier => {
+  if (!authStore.user.value) return 'free'
+  return getEffectiveTier(authStore.user.value)
+})
 
 // Selected games for this event
 const selectedGames = ref<BggGame[]>([])
@@ -593,16 +600,25 @@ function handleVenueSubmitted(venue: EventLocation) {
 
               <!-- Venue Details (Hall/Room/Table) when venue selected -->
               <div v-if="selectedVenue">
-                <label class="label">Location Details (optional)</label>
-                <VenueDetailsFields
-                  :hall="form.venueHall"
-                  :room="form.venueRoom"
-                  :table="form.venueTable"
-                  :disabled="loading"
-                  @update:hall="(v) => form.venueHall = v"
-                  @update:room="(v) => form.venueRoom = v"
-                  @update:table="(v) => form.venueTable = v"
-                />
+                <template v-if="hasFeature(currentTier, 'tableInfo')">
+                  <label class="label">Location Details (optional)</label>
+                  <VenueDetailsFields
+                    :hall="form.venueHall"
+                    :room="form.venueRoom"
+                    :table="form.venueTable"
+                    :disabled="loading"
+                    @update:hall="(v) => form.venueHall = v"
+                    @update:room="(v) => form.venueRoom = v"
+                    @update:table="(v) => form.venueTable = v"
+                  />
+                </template>
+                <div v-else class="rounded-lg bg-gray-50 border border-gray-200 p-4 text-center">
+                  <svg class="w-8 h-8 mx-auto text-gray-400 mb-2" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.9,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z"/>
+                  </svg>
+                  <p class="text-sm text-gray-500">Hall, room, and table details require {{ TIER_NAMES.basic }} plan</p>
+                  <button type="button" class="text-sm text-primary-500 hover:text-primary-600 mt-1" @click="$router.push('/pricing')">Upgrade</button>
+                </div>
               </div>
 
               <div>

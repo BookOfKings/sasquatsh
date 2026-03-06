@@ -4,11 +4,20 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { getGroup, getGroupMembers } from '@/services/groupsApi'
 import { createPlanningSession } from '@/services/planningApi'
+import { hasFeature, TIER_NAMES, type SubscriptionTier } from '@/config/subscriptionLimits'
+import { getEffectiveTier } from '@/types/user'
 import type { Group, GroupMember } from '@/types/groups'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+
+const currentTier = computed((): SubscriptionTier => {
+  if (!auth.user.value) return 'free'
+  return getEffectiveTier(auth.user.value)
+})
+
+const canUsePlanning = computed(() => hasFeature(currentTier.value, 'planning'))
 
 const loading = ref(true)
 const creating = ref(false)
@@ -168,6 +177,17 @@ function formatDate(dateStr: string): string {
 
       <h1 class="text-2xl font-bold mb-6">Plan a Game Night</h1>
 
+      <!-- Feature locked for free tier -->
+      <div v-if="!canUsePlanning" class="card p-8 text-center">
+        <svg class="w-12 h-12 mx-auto text-gray-400 mb-4" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.9,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z"/>
+        </svg>
+        <h2 class="text-xl font-semibold mb-2">Planning Requires {{ TIER_NAMES.basic }} Plan</h2>
+        <p class="text-gray-500 mb-6">Game night planning with date voting and group coordination is available on the Basic plan and above.</p>
+        <button class="btn-primary" @click="router.push('/pricing')">View Plans</button>
+      </div>
+
+      <template v-if="canUsePlanning">
       <div v-if="errorMessage" class="alert-error mb-6">
         {{ errorMessage }}
       </div>
@@ -360,6 +380,7 @@ function formatDate(dateStr: string): string {
           </button>
         </div>
       </form>
+      </template>
     </template>
   </div>
 </template>
