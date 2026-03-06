@@ -20,6 +20,8 @@ final class CreateEditEventViewModel {
     var venueHall: String?
     var venueRoom: String?
     var venueTable: String?
+    var timezone: AppTimezone = .eastern
+    var hostIsPlaying: Bool = true
     var selectedVenue: EventLocation?
     var useVenueMode: Bool = true
     var difficultyLevel: DifficultyLevel?
@@ -61,6 +63,9 @@ final class CreateEditEventViewModel {
         city = venue.city
         state = venue.state
         useVenueMode = true
+        if let venueTz = venue.timezone, let appTz = AppTimezone(rawValue: venueTz) {
+            timezone = appTz
+        }
     }
 
     func clearVenue() {
@@ -127,6 +132,8 @@ final class CreateEditEventViewModel {
         venueHall = event.venueHall
         venueRoom = event.venueRoom
         venueTable = event.venueTable
+        timezone = event.timezone.flatMap { AppTimezone(rawValue: $0) } ?? .eastern
+        hostIsPlaying = event.hostIsPlaying ?? true
         useVenueMode = event.eventLocationId != nil
         difficultyLevel = event.difficultyLevel.flatMap { DifficultyLevel(rawValue: $0) }
         maxPlayers = event.maxPlayers ?? 8
@@ -168,6 +175,8 @@ final class CreateEditEventViewModel {
                     venueHall: venueHall,
                     venueRoom: venueRoom,
                     venueTable: venueTable,
+                    timezone: timezone.rawValue,
+                    hostIsPlaying: hostIsPlaying,
                     difficultyLevel: difficultyLevel?.rawValue,
                     maxPlayers: maxPlayers,
                     isPublic: isPublic,
@@ -197,6 +206,8 @@ final class CreateEditEventViewModel {
                     venueHall: venueHall,
                     venueRoom: venueRoom,
                     venueTable: venueTable,
+                    timezone: timezone.rawValue,
+                    hostIsPlaying: hostIsPlaying,
                     difficultyLevel: difficultyLevel?.rawValue,
                     maxPlayers: maxPlayers,
                     isPublic: isPublic,

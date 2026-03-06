@@ -127,6 +127,12 @@ struct CreateEventView: View {
             DatePicker("Start Time", selection: $vm.startTime, displayedComponents: .hourAndMinute)
             Stepper("Duration: \(vm.durationMinutes) min", value: $vm.durationMinutes, in: 15...480, step: 15)
             Stepper("Setup: \(vm.setupMinutes) min", value: $vm.setupMinutes, in: 0...120, step: 5)
+
+            Picker("Timezone", selection: $vm.timezone) {
+                ForEach(AppTimezone.allCases) { tz in
+                    Text(tz.displayName).tag(tz)
+                }
+            }
         }
     }
 
@@ -203,6 +209,14 @@ struct CreateEventView: View {
     private var gameSettingsSection: some View {
         Section("Game Settings") {
             Stepper("Max Players: \(vm.maxPlayers)", value: $vm.maxPlayers, in: 2...100)
+
+            Toggle("I Am Playing", isOn: $vm.hostIsPlaying)
+
+            Text(vm.hostIsPlaying
+                ? "\(vm.maxPlayers - 1) spots for others"
+                : "\(vm.maxPlayers) spots (you're not playing)")
+                .font(.md3BodySmall)
+                .foregroundStyle(Color.md3OnSurfaceVariant)
 
             HStack {
                 Text("Min Age")

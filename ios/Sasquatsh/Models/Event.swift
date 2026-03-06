@@ -20,6 +20,8 @@ struct Event: Codable, Identifiable {
     var venueHall: String?
     var venueRoom: String?
     var venueTable: String?
+    var timezone: String?
+    var hostIsPlaying: Bool?
     var difficultyLevel: String?
     var maxPlayers: Int?
     var confirmedCount: Int
@@ -51,6 +53,7 @@ struct EventSummary: Codable, Identifiable {
     let isCharityEvent: Bool
     let minAge: Int?
     let eventLocationId: String?
+    let timezone: String?
     let status: String
     let host: UserSummary?
 }
@@ -103,6 +106,8 @@ struct CreateEventInput: Codable {
     var venueHall: String?
     var venueRoom: String?
     var venueTable: String?
+    var timezone: String?
+    var hostIsPlaying: Bool?
     var difficultyLevel: String?
     var maxPlayers: Int?
     var isPublic: Bool?
@@ -130,6 +135,8 @@ struct UpdateEventInput: Codable {
     var venueHall: String?
     var venueRoom: String?
     var venueTable: String?
+    var timezone: String?
+    var hostIsPlaying: Bool?
     var difficultyLevel: String?
     var maxPlayers: Int
     var isPublic: Bool
