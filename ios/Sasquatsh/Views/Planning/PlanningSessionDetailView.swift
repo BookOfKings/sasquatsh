@@ -19,6 +19,24 @@ struct PlanningSessionDetailView: View {
         ScrollView {
             if vm.isLoading && vm.session == nil {
                 LoadingView()
+            } else if vm.session == nil {
+                VStack(spacing: 12) {
+                    if let error = vm.error {
+                        ErrorBannerView(message: error) { vm.error = nil }
+                    } else {
+                        Text("Session not found")
+                            .font(.md3BodyMedium)
+                            .foregroundStyle(Color.md3OnSurfaceVariant)
+                    }
+                    Button {
+                        Task { await vm.loadSession(id: sessionId) }
+                    } label: {
+                        Text("Retry")
+                            .font(.md3LabelLarge)
+                            .foregroundStyle(Color.md3Primary)
+                    }
+                }
+                .padding()
             } else if let session = vm.session {
                 VStack(alignment: .leading, spacing: 20) {
                     // Header

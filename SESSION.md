@@ -4,6 +4,126 @@ Work sessions organized newest to oldest.
 
 ---
 
+## 2026-03-06 - iOS App Feature Parity: Phase 1 Planning
+
+### Context
+
+Did a full feature comparison between the website and the iOS app. The website has significantly evolved with venues, proximity search, billing, ads, timezone support, host-is-playing, and more. The iOS app is functional but missing many of these features.
+
+### Completed Previously (2026-03-06, earlier session)
+
+**Enhanced Create Event Form** — already implemented and building:
+- Added BGG game search + SelectedGameCard component to Create Event form
+- Added group picker (Host for Group dropdown)
+- Added min age, status picker, difficulty to Game Settings section
+- Restructured form into 4 sections matching website
+- Updated both CreateEventView and EditEventView
+- All builds and compiles successfully
+
+### Feature Gap Analysis (Website → iOS)
+
+Full comparison was done. Features grouped by priority:
+
+#### Tier 1 — High Impact (Core Website Features)
+| # | Feature | Status |
+|---|---------|--------|
+| 1 | **Venue System** (venue selector, hot locations, submit venue, hall/room/table) | **Planned — Phase 1** |
+| 2 | **Proximity Search** (postal code + radius filter on events) | **Planned — Phase 1** |
+| 3 | **Time Zone Support** (timezone picker on create/edit event) | Not started |
+| 4 | **"Host is Playing" Toggle** | Not started |
+| 5 | **Avatar Upload/Delete** | Not started |
+| 6 | **Profile Home Venue** | Not started (tied to venue system) |
+
+#### Tier 2 — Medium Impact (Monetization & Polish)
+| # | Feature | Status |
+|---|---------|--------|
+| 7 | Subscription/Billing | Not started |
+| 8 | Pricing Page | Not started |
+| 9 | Tier Limit Enforcement | Not started |
+| 10 | Ad Banners | Not started |
+| 11 | Home/Landing Page | Not started |
+
+#### Tier 3 — Low Impact (Nice-to-Haves)
+| # | Feature | Status |
+|---|---------|--------|
+| 12 | Profile Active City/State | Not started |
+| 13 | Profile Timezone Preference | Not started |
+| 14 | Profile Game Collection (BGG) | Not started |
+| 15 | Profile Email Notifications Toggle | Not started |
+| 16 | Planning Items to Bring | Not started |
+| 17 | LFP Venue Filtering | Planned (Phase 1 venue system) |
+
+### Phase 1 Plan: Venue System + Proximity Search
+
+**Status: Plan written, awaiting implementation**
+
+Plan file: `~/.claude/plans/virtual-brewing-rossum.md`
+
+#### Summary of Changes
+
+**Models to update:**
+| File | Changes |
+|------|---------|
+| `Models/PlayerRequest.swift` | Add isPermanent, recurringDays, timezone, eventCount, userCount to EventLocation; make startDate/endDate optional; add city/state/eventLocationId to PlayerRequestFilters |
+| `Models/Event.swift` | Add eventLocationId, venueHall, venueRoom, venueTable to Event, EventSummary, CreateEventInput, UpdateEventInput; add nearbyZip, radiusMiles to EventSearchFilter |
+
+**Services to update:**
+| File | Changes |
+|------|---------|
+| `Services/SocialService.swift` | Add `getHotLocations()` method (GET /event-locations?hot=true) |
+
+**New UI components (3 files):**
+| File | Description |
+|------|-------------|
+| `Views/Shared/HotLocationsBar.swift` | Horizontal scroll of popular venue pill buttons with event count badges |
+| `Views/Shared/VenueSelector.swift` | Sheet-based searchable venue list with schedule labels |
+| `Views/Shared/SubmitVenueSheet.swift` | Form to submit new venue (name, city, state, type: temp/permanent/recurring) |
+
+**ViewModels to update:**
+| File | Changes |
+|------|---------|
+| `ViewModels/CreateEditEventViewModel.swift` | Add venue properties (eventLocationId, venueHall/Room/Table, selectedVenue, useVenueMode), selectVenue/clearVenue methods, update save/loadForEdit |
+| `ViewModels/EventListViewModel.swift` | Add nearbyEnabled, radiusMiles, userPostalCode, filterCity/State; loadUserPostalCode(); update filter computed property |
+
+**Views to update:**
+| File | Changes |
+|------|---------|
+| `Views/Events/CreateEventView.swift` | Replace location section with venue/custom toggle, HotLocationsBar, VenueSelector sheet, hall/room/table fields |
+| `Views/Events/EditEventView.swift` | Same venue/custom location toggle |
+| `Views/Events/EventListView.swift` | Add Location section to filter sheet (city/state fields), add Nearby section (toggle + radius picker) |
+
+#### Implementation Order
+1. Models (EventLocation fields, Event venue fields, EventSearchFilter proximity, PlayerRequestFilters)
+2. Service (getHotLocations in SocialService)
+3. Shared Components (HotLocationsBar, VenueSelector, SubmitVenueSheet + add to Xcode project)
+4. CreateEditEventViewModel (venue properties and methods)
+5. CreateEventView (venue/custom location section)
+6. EditEventView (same location section)
+7. EventListViewModel (proximity search + city/state filters)
+8. EventListView (filter UI updates)
+9. Build & verify
+
+#### Key Backend Endpoints (already deployed)
+- `GET /event-locations` → all active approved locations
+- `GET /event-locations?hot=true` → top 10 hot venues with eventCount/userCount
+- `POST /event-locations` → submit new venue (pending approval for non-admins)
+- `GET /events?type=browse&nearbyZip=85281&radiusMiles=25` → proximity search
+
+### iOS Project Location
+
+All iOS source files are at: `ios/Sasquatsh/`
+Xcode project: `ios/Sasquatsh/Sasquatsh.xcodeproj`
+
+### Next Steps
+
+1. Implement Phase 1 (venue system + proximity search)
+2. Phase 2: Time zone picker + Host is Playing toggle on events
+3. Phase 3: Profile enhancements (avatar upload, active city, timezone, game collection)
+4. Phase 4: Monetization (tier limits, upgrade prompts, billing view)
+5. Phase 5: Planning items to bring, LFP venue filtering
+
+---
+
 ## 2026-03-04 - Nearby Radius Search, E2E Tests, UI Fixes
 
 ### Work Completed

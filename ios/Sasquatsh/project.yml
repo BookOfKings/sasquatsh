@@ -1,0 +1,67 @@
+name: Sasquatsh
+options:
+  bundleIdPrefix: com.sasquatsh
+  deploymentTarget:
+    iOS: "18.0"
+  xcodeVersion: "26.0"
+  groupSortPosition: top
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    INFOPLIST_KEY_CFBundleDisplayName: Sasquatsh
+    INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.board-games"
+
+packages:
+  firebase-ios-sdk:
+    url: https://github.com/firebase/firebase-ios-sdk
+    from: "11.0.0"
+  google-sign-in-ios:
+    url: https://github.com/google/GoogleSignIn-iOS
+    from: "7.1.0"
+
+targets:
+  Sasquatsh:
+    type: application
+    platform: iOS
+    sources:
+      - path: .
+        excludes:
+          - project.yml
+          - "*.xcodeproj"
+          - "*.xcworkspace"
+          - build
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sasquatsh.ios
+        INFOPLIST_KEY_UILaunchScreen_Generation: true
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        DEVELOPMENT_TEAM: ""
+    dependencies:
+      - package: firebase-ios-sdk
+        product: FirebaseAuth
+      - package: firebase-ios-sdk
+        product: FirebaseCore
+      - package: google-sign-in-ios
+        product: GoogleSignIn
+      - package: google-sign-in-ios
+        product: GoogleSignInSwift
+    info:
+      path: Info.plist
+      properties:
+        CFBundleURLTypes:
+          - CFBundleURLSchemes:
+              - com.googleusercontent.apps.313358569933-dimgosjcmgo7fimhi56trekhu0jdm6sf
+        UIApplicationSupportsIndirectInputEvents: true
+        ITSAppUsesNonExemptEncryption: false
+        UIAppFonts:
+          - Inter-Regular.ttf
+          - Inter-Medium.ttf
+          - Inter-SemiBold.ttf
+          - Inter-Bold.ttf

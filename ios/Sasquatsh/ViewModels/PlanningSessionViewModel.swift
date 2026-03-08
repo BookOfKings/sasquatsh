@@ -100,7 +100,7 @@ final class PlanningSessionViewModel {
         guard let services, let session else { return }
         error = nil
         do {
-            let input = AddPlanningItemInput(name: name, category: category, quantity: quantity)
+            let input = AddPlanningItemInput(itemName: name, itemCategory: category, quantityNeeded: quantity)
             let item = try await services.planning.addItem(sessionId: session.id, input: input)
             if self.session?.items == nil {
                 self.session?.items = []

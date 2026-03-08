@@ -96,21 +96,23 @@ struct DateAvailabilityInput: Codable {
 
 struct PlanningItem: Codable, Identifiable {
     let id: String
-    let sessionId: String
-    let name: String
-    let category: ItemCategory
-    let quantity: Int?
-    let addedByUserId: String
+    let itemName: String
+    let itemCategory: ItemCategory
+    let quantityNeeded: Int?
     let claimedByUserId: String?
+    let claimedAt: String?
     let createdAt: String
-    let addedBy: UserSummary?
     let claimedBy: UserSummary?
+
+    var name: String { itemName }
+    var category: ItemCategory { itemCategory }
+    var quantity: Int? { quantityNeeded }
 }
 
 struct AddPlanningItemInput: Codable {
-    var name: String
-    var category: ItemCategory
-    var quantity: Int?
+    var itemName: String
+    var itemCategory: ItemCategory
+    var quantityNeeded: Int?
 }
 
 struct SuggestGameInput: Codable {
