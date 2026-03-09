@@ -1073,9 +1073,9 @@ Deno.serve(async (req) => {
         return errorResponse('userId required', 400)
       }
 
-      // Can't modify yourself through this endpoint
-      if (userId === adminUser.id) {
-        return errorResponse('Cannot modify your own account through admin panel', 400)
+      // Can't change your own admin status (to prevent accidental lockout)
+      if (userId === adminUser.id && isAdmin !== undefined && isAdmin !== adminUser.is_admin) {
+        return errorResponse('Cannot change your own admin status', 400)
       }
 
       const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }

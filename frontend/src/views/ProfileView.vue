@@ -1170,6 +1170,12 @@ function goToGroup(slug: string) {
           </h3>
         </div>
         <div class="p-4">
+          <!-- Debug: subscription info -->
+          <div v-if="auth.user.value?.isAdmin" class="mb-3 p-2 bg-gray-100 rounded text-xs font-mono">
+            <div>tier: {{ auth.user.value?.subscriptionTier }}</div>
+            <div>override: {{ auth.user.value?.subscriptionOverrideTier }}</div>
+            <div>effective: {{ currentTier }}</div>
+          </div>
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-3">
               <span

@@ -1,3 +1,5 @@
+import type { PlannedGame } from './planning'
+
 export interface UserSummary {
   id: string
   displayName: string | null
@@ -100,6 +102,7 @@ export interface Event {
   registrations: EventRegistration[] | null
   items: EventItem[] | null
   games: EventGameSummary[] | null
+  plannedGames: PlannedGame[] | null // Games from multi-game planning (2+ interested)
   createdAt: string
 }
 

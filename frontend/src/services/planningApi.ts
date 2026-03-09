@@ -86,6 +86,20 @@ export async function createPlanningSession(
   })
 }
 
+// Accept a planning invitation (marks interest, but still needs to submit availability)
+export async function acceptPlanningInvitation(
+  token: string,
+  sessionId: string
+): Promise<{ message: string }> {
+  return authenticatedRequest<{ message: string }>(
+    `/planning?id=${sessionId}&action=accept`,
+    token,
+    {
+      method: 'POST',
+    }
+  )
+}
+
 // Submit availability response
 export async function respondToPlanningSession(
   token: string,

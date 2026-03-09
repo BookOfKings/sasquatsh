@@ -11,7 +11,9 @@ export interface PlanningSession {
   createdEventId: string | null
   createdAt: string
   maxParticipants: number | null
+  maxGames: number // Tier-based limit: Basic=5, Pro=10
   inviteeCount?: number
+  userVotedGameIds?: string[] // Game IDs the current user has voted for
   group?: {
     id: string
     name: string
@@ -34,6 +36,7 @@ export interface PlanningSession {
 export interface PlanningInvitation extends PlanningSession {
   hasResponded: boolean
   cannotAttendAny: boolean
+  acceptedAt: string | null
 }
 
 export type ItemCategory = 'food' | 'drinks' | 'supplies' | 'other'
@@ -68,6 +71,7 @@ export interface PlanningInvitee {
   respondedAt: string | null
   cannotAttendAny: boolean
   hasSlot: boolean
+  acceptedAt: string | null
   user?: {
     id: string
     displayName: string | null
@@ -138,4 +142,12 @@ export interface SuggestGameInput {
   minPlayers?: number
   maxPlayers?: number
   playingTime?: number
+}
+
+// Game that qualified from planning (2+ interested players)
+export interface PlannedGame {
+  bggId: number | null
+  name: string
+  image: string | null
+  interestedCount: number
 }

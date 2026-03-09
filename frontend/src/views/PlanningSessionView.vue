@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { getEffectiveTier } from '@/types/user'
@@ -22,6 +22,7 @@ import { searchBggGames, getBggGame } from '@/services/bggApi'
 import type { PlanningSession, GameSuggestion, PlanningItem, ItemCategory } from '@/types/planning'
 import type { BggSearchResult } from '@/types/bgg'
 import DateAvailabilityMatrix from '@/components/planning/DateAvailabilityMatrix.vue'
+import DateAvailabilitySummary from '@/components/planning/DateAvailabilitySummary.vue'
 import GameSuggestionCard from '@/components/planning/GameSuggestionCard.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 
@@ -32,6 +33,12 @@ const auth = useAuthStore()
 const loading = ref(true)
 const session = ref<PlanningSession | null>(null)
 const errorMessage = ref('')
+
+// Responsive detection for availability view
+const isMobile = ref(false)
+const checkMobile = () => {
+  isMobile.value = window.innerWidth < 768 // md breakpoint
+}
 const successMessage = ref('')
 
 // Response form state
@@ -84,6 +91,12 @@ const currentUserInvitee = computed(() => {
 
 const hasResponded = computed(() => currentUserInvitee.value?.hasResponded ?? false)
 
+// Check if user has accepted the invitation (or is the creator who is auto-accepted)
+const hasAccepted = computed(() => {
+  if (isCreator.value) return true
+  return !!currentUserInvitee.value?.acceptedAt
+})
+
 const isOpen = computed(() => session.value?.status === 'open')
 
 const deadlinePassed = computed(() => {
@@ -123,8 +136,22 @@ const topGame = computed(() => {
   return sorted[0]
 })
 
+// Use summary view for mobile or when there are more than 10 invitees
+const useSummaryView = computed(() => {
+  if (isMobile.value) return true
+  return (session.value?.invitees?.length ?? 0) > 10
+})
+
 onMounted(async () => {
+  // Set up responsive detection
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
+
   await loadSession()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile)
 })
 
 async function loadSession(preserveFormState = false) {
@@ -151,10 +178,14 @@ async function loadSession(preserveFormState = false) {
         responseForm.dateAvailability = savedDateAvailability
         responseForm.cannotAttendAny = savedCannotAttendAny ?? false
       } else {
-        // Initialize from existing votes
+        // Initialize from existing votes only - don't default to false
+        // This allows the matrix to show "No response" for unvoted dates
+        responseForm.dateAvailability = {}
         for (const date of session.value.dates) {
           const userVote = date.votes?.find(v => v.userId === auth.user.value?.id)
-          responseForm.dateAvailability[date.id] = userVote?.isAvailable ?? false
+          if (userVote !== undefined) {
+            responseForm.dateAvailability[date.id] = userVote.isAvailable
+          }
         }
       }
     }
@@ -495,8 +526,25 @@ function getStatusBadgeClass(status: string) {
       {{ errorMessage }}
     </div>
 
-    <!-- Session Content -->
-    <template v-else-if="session">
+    <!-- Not Accepted - User must accept invitation first -->
+    <div v-else-if="session && !hasAccepted" class="card p-8 text-center">
+      <svg class="w-16 h-16 mx-auto text-orange-400 mb-4" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.9,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z"/>
+      </svg>
+      <h2 class="text-xl font-semibold text-gray-900 mb-2">Invitation Not Accepted</h2>
+      <p class="text-gray-500 mb-6">
+        You need to accept this planning invitation before you can view the session details and respond with your availability.
+      </p>
+      <button class="btn-primary" @click="router.push('/dashboard')">
+        <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z"/>
+        </svg>
+        Go to Dashboard
+      </button>
+    </div>
+
+    <!-- Session Content (only if accepted) -->
+    <template v-else-if="session && hasAccepted">
       <!-- Back link -->
       <div class="mb-6">
         <button
@@ -683,19 +731,25 @@ function getStatusBadgeClass(status: string) {
 
             <!-- Game Suggestions Section (inline) -->
             <div class="mb-6 pt-6 border-t border-gray-200">
-              <h3 class="font-medium text-gray-700 mb-3 flex items-center gap-2">
-                <svg class="w-5 h-5 text-secondary-500" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
-                </svg>
-                Game Suggestions
-                <span class="text-sm font-normal text-gray-500">(vote for games you want to play)</span>
-              </h3>
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="font-medium text-gray-700 flex items-center gap-2">
+                  <svg class="w-5 h-5 text-secondary-500" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
+                  </svg>
+                  Game Suggestions
+                  <span class="text-sm font-normal text-gray-500">(vote for games you want to play)</span>
+                </h3>
+                <!-- Game count indicator -->
+                <span v-if="session.maxGames" class="text-sm text-gray-500">
+                  {{ session.gameSuggestions?.length ?? 0 }} / {{ session.maxGames }} games
+                </span>
+              </div>
 
               <!-- Game Search -->
               <div v-if="!showGameSearch" class="mb-4">
                 <button
                   class="btn-outline text-sm"
-                  :disabled="!!(session.maxParticipants && !currentUserHasSlot)"
+                  :disabled="!!(session.maxParticipants && !currentUserHasSlot) || !!(session.maxGames && (session.gameSuggestions?.length ?? 0) >= session.maxGames)"
                   @click="showGameSearch = true"
                 >
                   <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="currentColor">
@@ -705,6 +759,9 @@ function getStatusBadgeClass(status: string) {
                 </button>
                 <p v-if="session.maxParticipants && !currentUserHasSlot" class="text-sm text-red-500 mt-2">
                   You need a participation slot to suggest games
+                </p>
+                <p v-else-if="session.maxGames && (session.gameSuggestions?.length ?? 0) >= session.maxGames" class="text-sm text-orange-600 mt-2">
+                  Game suggestion limit reached ({{ session.maxGames }} max)
                 </p>
               </div>
               <div v-else class="mb-4">
@@ -759,6 +816,11 @@ function getStatusBadgeClass(status: string) {
                   </button>
                 </div>
               </div>
+
+              <!-- Multi-vote explanation -->
+              <p class="text-sm text-gray-500 mb-3">
+                Vote for all games you'd like to play. Games with 2+ votes will be included in the event!
+              </p>
 
               <!-- Suggested Games List (compact) -->
               <div v-if="session.gameSuggestions && session.gameSuggestions.length > 0" class="space-y-2">
@@ -940,14 +1002,28 @@ function getStatusBadgeClass(status: string) {
           </div>
         </div>
 
-        <!-- Date Availability Matrix (for creator overview) -->
+        <!-- Date Availability (for creator overview) -->
         <div v-if="isCreator && session.dates && session.invitees" class="card mb-6">
           <div class="p-6 border-b border-gray-100">
-            <h2 class="font-semibold">Availability Matrix</h2>
-            <p class="text-sm text-gray-500">Overview of everyone's availability</p>
+            <h2 class="font-semibold">Availability Overview</h2>
+            <p class="text-sm text-gray-500">
+              {{ useSummaryView ? 'Click a date to see who\'s available' : 'Overview of everyone\'s availability' }}
+            </p>
           </div>
-          <div class="p-6 overflow-x-auto">
+          <div class="p-6" :class="{ 'overflow-x-auto': !useSummaryView }">
+            <!-- Summary View (mobile or >10 invitees) -->
+            <DateAvailabilitySummary
+              v-if="useSummaryView"
+              :dates="session.dates"
+              :invitees="session.invitees"
+              :selected-date-id="selectedDateId"
+              :current-user-id="auth.user.value?.id"
+              :pending-availability="responseForm.dateAvailability"
+              @select-date="selectedDateId = $event"
+            />
+            <!-- Matrix View (desktop with <=10 invitees) -->
             <DateAvailabilityMatrix
+              v-else
               :dates="session.dates"
               :invitees="session.invitees"
               :selected-date-id="selectedDateId"

@@ -7,6 +7,7 @@ import { TIER_NAMES } from '@/config/subscriptionLimits'
 import CookieConsent from '@/components/common/CookieConsent.vue'
 import D6Spinner from '@/components/common/D6Spinner.vue'
 import UpdateNotification from '@/components/common/UpdateNotification.vue'
+import UserAvatar from '@/components/common/UserAvatar.vue'
 
 const router = useRouter()
 const route = useRoute()

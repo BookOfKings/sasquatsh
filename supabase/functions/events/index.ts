@@ -572,6 +572,7 @@ function transformEvent(row: Record<string, unknown>) {
           isAlternative: g.is_alternative,
         }))
       : null,
+    plannedGames: row.planned_games ?? null,
     createdAt: row.created_at,
   }
 }

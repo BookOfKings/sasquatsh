@@ -60,6 +60,8 @@ const isValid = computed(() => {
 })
 
 onMounted(async () => {
+  // Wait for auth to be fully initialized before checking tier
+  await auth.initializeAuth()
   await loadGroup()
 })
 

@@ -168,6 +168,7 @@ function toEvent(row: Record<string, unknown>): Event {
       isPrimary: g.is_primary as boolean,
       isAlternative: g.is_alternative as boolean,
     })) ?? null,
+    plannedGames: row.plannedGames as Event['plannedGames'] ?? null,
     createdAt: row.created_at as string,
   }
 }

@@ -6,7 +6,7 @@ import { useGroupStore } from '@/stores/useGroupStore'
 import { useRouter } from 'vue-router'
 import type { EventSummary } from '@/types/events'
 import type { PlanningInvitation } from '@/types/planning'
-import { getMyPlanningInvitations, respondToPlanningSession } from '@/services/planningApi'
+import { getMyPlanningInvitations, respondToPlanningSession, acceptPlanningInvitation } from '@/services/planningApi'
 import D20Spinner from '@/components/common/D20Spinner.vue'
 import AdBanner from '@/components/ads/AdBanner.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
@@ -26,13 +26,19 @@ const loadingInvitations = ref(true)
 const loadingPlanningInvitations = ref(true)
 const respondingTo = ref<string | null>(null)
 const decliningPlanningSession = ref<string | null>(null)
+const acceptingPlanningSession = ref<string | null>(null)
 
 // Check if initial page load is still in progress
 const isInitialLoading = computed(() => loadingMy.value && loadingHosted.value && loadingGroups.value)
 
-// Filter to pending planning invitations (open sessions where user hasn't responded)
+// Filter to pending planning invitations (open sessions where user hasn't accepted yet)
 const pendingPlanningInvitations = computed(() =>
-  planningInvitations.value.filter(p => p.status === 'open' && !p.hasResponded)
+  planningInvitations.value.filter(p => p.status === 'open' && !p.acceptedAt && !p.hasResponded)
+)
+
+// Needs response sessions (accepted but not responded yet)
+const needsResponseSessions = computed(() =>
+  planningInvitations.value.filter(p => p.status === 'open' && p.acceptedAt && !p.hasResponded)
 )
 
 // Active planning sessions (user has responded and is attending, session still open)
@@ -155,6 +161,25 @@ async function handleDeclinePlanningSession(sessionId: string) {
     console.error('Failed to decline planning session:', err)
   } finally {
     decliningPlanningSession.value = null
+  }
+}
+
+async function handleAcceptPlanningSession(sessionId: string) {
+  acceptingPlanningSession.value = sessionId
+  try {
+    const token = await auth.getIdToken()
+    if (token) {
+      await acceptPlanningInvitation(token, sessionId)
+      // Update local state to move from pending to needs-response
+      const invitation = planningInvitations.value.find(p => p.id === sessionId)
+      if (invitation) {
+        invitation.acceptedAt = new Date().toISOString()
+      }
+    }
+  } catch (err) {
+    console.error('Failed to accept planning invitation:', err)
+  } finally {
+    acceptingPlanningSession.value = null
   }
 }
 </script>
@@ -312,7 +337,7 @@ async function handleDeclinePlanningSession(sessionId: string) {
               <div class="flex gap-2 flex-shrink-0">
                 <button
                   @click="handleDeclinePlanningSession(invitation.id)"
-                  :disabled="decliningPlanningSession === invitation.id"
+                  :disabled="decliningPlanningSession === invitation.id || acceptingPlanningSession === invitation.id"
                   class="btn-outline text-sm px-3 py-1.5"
                 >
                   <svg v-if="decliningPlanningSession === invitation.id" class="w-4 h-4 mr-1 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -322,10 +347,67 @@ async function handleDeclinePlanningSession(sessionId: string) {
                   Decline
                 </button>
                 <button
-                  @click="router.push(`/planning/${invitation.id}`)"
+                  @click="handleAcceptPlanningSession(invitation.id)"
+                  :disabled="decliningPlanningSession === invitation.id || acceptingPlanningSession === invitation.id"
                   class="btn-primary text-sm px-3 py-1.5"
                 >
+                  <svg v-if="acceptingPlanningSession === invitation.id" class="w-4 h-4 mr-1 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                  </svg>
                   Accept
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Needs Your Response Section (Accepted but not responded) -->
+      <div v-if="needsResponseSessions.length > 0" class="mb-8">
+        <div class="flex items-center gap-3 mb-4">
+          <svg class="w-6 h-6 text-blue-500" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19,19H5V8H19M16,1V3H8V1H6V3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3H18V1M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
+          </svg>
+          <h2 class="text-lg font-semibold text-gray-900">Needs Your Response</h2>
+          <span class="bg-blue-100 text-blue-700 text-xs font-medium px-2 py-0.5 rounded-full">
+            {{ needsResponseSessions.length }}
+          </span>
+        </div>
+
+        <div class="space-y-3">
+          <div
+            v-for="session in needsResponseSessions"
+            :key="session.id"
+            class="bg-blue-50 border border-blue-200 rounded-xl p-4"
+          >
+            <div class="flex items-start gap-4">
+              <!-- Icon -->
+              <div class="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                <svg class="w-6 h-6 text-blue-500" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19,19H5V8H19M16,1V3H8V1H6V3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3H18V1M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
+                </svg>
+              </div>
+
+              <!-- Info -->
+              <div class="flex-1 min-w-0">
+                <p class="font-semibold text-gray-900">{{ session.title }}</p>
+                <p v-if="session.group" class="text-sm text-gray-600">
+                  {{ session.group.name }}
+                </p>
+                <p class="text-xs text-gray-500 mt-1">
+                  Hosted by {{ session.createdBy?.displayName || session.createdBy?.username || 'someone' }}
+                  <span class="ml-2">&bull; Respond by {{ formatDate(session.responseDeadline.split('T')[0] || '') }}</span>
+                </p>
+              </div>
+
+              <!-- Actions -->
+              <div class="flex gap-2 flex-shrink-0">
+                <button
+                  @click="router.push(`/planning/${session.id}`)"
+                  class="btn-primary text-sm px-3 py-1.5"
+                >
+                  Respond
                 </button>
               </div>
             </div>

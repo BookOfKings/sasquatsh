@@ -137,7 +137,7 @@ function getVoteColor(status: 'available' | 'unavailable' | 'pending' | 'cannot-
                 class="mb-1"
               />
               <span class="text-xs text-gray-500 max-w-[60px] truncate">
-                {{ invitee.user?.displayName?.split(' ')[0] || '?' }}
+                {{ invitee.user?.displayName?.split(' ')[0] || invitee.user?.username || '?' }}
               </span>
             </div>
           </th>

@@ -110,12 +110,20 @@ Deno.serve(async (req) => {
           avatar_url: existingUser.avatar_url || firebaseUser.picture,
         })
         .eq('firebase_uid', firebaseUser.uid)
-        .select()
+        .select('id, firebase_uid, email, username, display_name, avatar_url, subscription_tier, subscription_expires_at, subscription_status, subscription_override_tier, account_status, is_admin, is_founding_member, blocked_user_ids, created_at')
         .single()
 
       if (error) {
         return errorResponse(error.message, 500)
       }
+
+      // Debug: Log subscription fields
+      console.log('User sync - subscription fields:', {
+        userId: data.id,
+        username: data.username,
+        subscription_tier: data.subscription_tier,
+        subscription_override_tier: data.subscription_override_tier,
+      })
 
       return jsonResponse(transformUser(data))
     }

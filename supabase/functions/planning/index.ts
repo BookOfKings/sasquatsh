@@ -50,6 +50,7 @@ Deno.serve(async (req) => {
         .select(`
           has_responded,
           cannot_attend_any,
+          accepted_at,
           session:planning_sessions(
             id, group_id, created_by_user_id, title, description,
             response_deadline, status, finalized_date, created_event_id, created_at,
@@ -67,6 +68,7 @@ Deno.serve(async (req) => {
           ...transformSessionSummary(d.session as Record<string, unknown>),
           hasResponded: d.has_responded ?? false,
           cannotAttendAny: d.cannot_attend_any ?? false,
+          acceptedAt: d.accepted_at ?? null,
         }))
 
       return jsonResponse(sessions)
@@ -110,7 +112,7 @@ Deno.serve(async (req) => {
         .select(`
           id, group_id, created_by_user_id, title, description,
           response_deadline, status, finalized_date, finalized_game_id, created_event_id, created_at,
-          max_participants,
+          max_participants, max_games,
           group:groups(id, name, slug),
           created_by:users!created_by_user_id(id, display_name, username, avatar_url, is_founding_member)
         `)
@@ -138,7 +140,7 @@ Deno.serve(async (req) => {
       const { data: invitees } = await supabase
         .from('planning_invitees')
         .select(`
-          id, user_id, has_responded, responded_at, cannot_attend_any, has_slot,
+          id, user_id, has_responded, responded_at, cannot_attend_any, has_slot, accepted_at,
           user:users(id, display_name, username, avatar_url, is_founding_member)
         `)
         .eq('session_id', sessionId)
@@ -178,7 +180,23 @@ Deno.serve(async (req) => {
         .eq('session_id', sessionId)
         .order('created_at', { ascending: true })
 
-      return jsonResponse(transformSessionFull(session, invitees ?? [], dates ?? [], suggestions ?? [], items ?? [], user.id))
+      // Fetch user's voted game IDs (for multi-vote checkbox state)
+      const suggestionIds = (suggestions ?? []).map(s => s.id)
+      let userVotedGameIds: string[] = []
+      if (suggestionIds.length > 0) {
+        const { data: userVotes } = await supabase
+          .from('planning_game_votes')
+          .select('suggestion_id')
+          .eq('user_id', user.id)
+          .in('suggestion_id', suggestionIds)
+
+        userVotedGameIds = (userVotes ?? []).map(v => v.suggestion_id)
+      }
+
+      return jsonResponse({
+        ...transformSessionFull(session, invitees ?? [], dates ?? [], suggestions ?? [], items ?? [], user.id),
+        userVotedGameIds,
+      })
     }
 
     return errorResponse('groupId, id, or mine parameter required', 400)
@@ -246,6 +264,10 @@ Deno.serve(async (req) => {
         return errorResponse('Some invitees are not members of this group', 400)
       }
 
+      // Calculate max_games based on host's tier
+      const tierGameLimits: Record<string, number> = { free: 0, basic: 5, pro: 10, premium: 10 }
+      const maxGames = tierGameLimits[effectiveTier] || 5
+
       // Create session
       const { data: session, error: sessionError } = await supabase
         .from('planning_sessions')
@@ -256,6 +278,7 @@ Deno.serve(async (req) => {
           description: body.description || null,
           response_deadline: body.responseDeadline,
           max_participants: body.maxParticipants || null,
+          max_games: maxGames,
         })
         .select()
         .single()
@@ -266,11 +289,13 @@ Deno.serve(async (req) => {
       const allInviteeIds = new Set<string>(body.inviteeUserIds)
       allInviteeIds.add(user.id) // Ensure creator is included
 
-      // Creator always gets a slot (first participant)
+      // Creator always gets a slot (first participant) and is auto-accepted
+      const now = new Date().toISOString()
       const inviteeRows = Array.from(allInviteeIds).map((userId: string) => ({
         session_id: session.id,
         user_id: userId,
         has_slot: userId === user.id, // Creator auto-gets a slot
+        accepted_at: userId === user.id ? now : null, // Creator is auto-accepted
       }))
 
       await supabase.from('planning_invitees').insert(inviteeRows)
@@ -416,6 +441,37 @@ Deno.serve(async (req) => {
       return errorResponse('You need to be invited to this planning session', 403)
     }
 
+    // Accept invitation (marks user as interested, but they still need to respond with availability)
+    if (action === 'accept') {
+      if (session.status !== 'open') {
+        return errorResponse('Session is no longer open', 400)
+      }
+
+      if (!invitee) {
+        return errorResponse('Only invitees can accept', 403)
+      }
+
+      // Check if already accepted
+      const { data: currentInvitee } = await supabase
+        .from('planning_invitees')
+        .select('accepted_at')
+        .eq('session_id', sessionId)
+        .eq('user_id', user.id)
+        .single()
+
+      if (currentInvitee?.accepted_at) {
+        return jsonResponse({ message: 'Already accepted' })
+      }
+
+      await supabase
+        .from('planning_invitees')
+        .update({ accepted_at: new Date().toISOString() })
+        .eq('session_id', sessionId)
+        .eq('user_id', user.id)
+
+      return jsonResponse({ message: 'Invitation accepted' })
+    }
+
     // Submit availability response
     if (action === 'respond') {
       if (session.status !== 'open') {
@@ -452,7 +508,15 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Update invitee record
+      // Get current invitee state to check accepted_at
+      const { data: currentInvitee } = await supabase
+        .from('planning_invitees')
+        .select('accepted_at')
+        .eq('session_id', sessionId)
+        .eq('user_id', user.id)
+        .single()
+
+      // Update invitee record (also set accepted_at if not already set)
       await supabase
         .from('planning_invitees')
         .update({
@@ -460,6 +524,7 @@ Deno.serve(async (req) => {
           responded_at: new Date().toISOString(),
           cannot_attend_any: body.cannotAttendAny || false,
           has_slot: grantSlot,
+          accepted_at: currentInvitee?.accepted_at || new Date().toISOString(),
         })
         .eq('session_id', sessionId)
         .eq('user_id', user.id)
@@ -521,7 +586,7 @@ Deno.serve(async (req) => {
       // Check if session has participant limit and user has a slot
       const { data: sessionData, error: sessionError } = await supabase
         .from('planning_sessions')
-        .select('max_participants')
+        .select('max_participants, max_games, created_by_user_id')
         .eq('id', sessionId)
         .single()
 
@@ -531,6 +596,17 @@ Deno.serve(async (req) => {
 
       if (sessionData?.max_participants && !invitee?.has_slot) {
         return errorResponse('You must have a participation slot to suggest games', 403)
+      }
+
+      // Check tier-based game limit
+      const maxGames = sessionData?.max_games || 5
+      const { count: currentCount } = await supabase
+        .from('planning_game_suggestions')
+        .select('*', { count: 'exact', head: true })
+        .eq('session_id', sessionId)
+
+      if ((currentCount ?? 0) >= maxGames) {
+        return errorResponse(`Maximum ${maxGames} games allowed for this session`, 400)
       }
 
       const body = await req.json()
@@ -579,7 +655,7 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Vote for a game
+    // Vote for a game (toggle: adds vote if not exists, removes if exists)
     if (action === 'vote-game') {
       // Check if session has participant limit and user has a slot
       const { data: sessionData, error: sessionError } = await supabase
@@ -612,17 +688,35 @@ Deno.serve(async (req) => {
         return errorResponse('Invalid suggestion', 400)
       }
 
-      // Add vote (upsert)
-      const { error } = await supabase
+      // Check if vote already exists (toggle behavior for multi-vote)
+      const { data: existingVote } = await supabase
         .from('planning_game_votes')
-        .upsert({
-          suggestion_id: suggestionId,
-          user_id: user.id,
-        }, { onConflict: 'suggestion_id,user_id' })
+        .select('id')
+        .eq('suggestion_id', suggestionId)
+        .eq('user_id', user.id)
+        .single()
 
-      if (error) return errorResponse(error.message, 500)
+      if (existingVote) {
+        // Remove vote (toggle off)
+        const { error } = await supabase
+          .from('planning_game_votes')
+          .delete()
+          .eq('id', existingVote.id)
 
-      return jsonResponse({ message: 'Vote recorded' })
+        if (error) return errorResponse(error.message, 500)
+        return jsonResponse({ message: 'Vote removed', voted: false })
+      } else {
+        // Add vote (toggle on)
+        const { error } = await supabase
+          .from('planning_game_votes')
+          .insert({
+            suggestion_id: suggestionId,
+            user_id: user.id,
+          })
+
+        if (error) return errorResponse(error.message, 500)
+        return jsonResponse({ message: 'Vote added', voted: true })
+      }
     }
 
     // Remove vote for a game
@@ -928,7 +1022,33 @@ Deno.serve(async (req) => {
         return errorResponse('No valid date found', 400)
       }
 
-      // Get selected game (or top-voted game)
+      // Get all game suggestions with their vote counts
+      const { data: allSuggestions } = await supabase
+        .from('planning_game_suggestions')
+        .select(`
+          id, game_name, bgg_id, thumbnail_url,
+          votes:planning_game_votes(id)
+        `)
+        .eq('session_id', sessionId)
+
+      // Calculate qualifying games (2+ votes) for multi-game events
+      const suggestionsWithCounts = (allSuggestions ?? []).map(s => ({
+        ...s,
+        voteCount: (s.votes as { id: string }[])?.length ?? 0,
+      }))
+
+      // Get games with 2+ interested players (will "fire")
+      const qualifyingGames = suggestionsWithCounts
+        .filter(s => s.voteCount >= 2)
+        .sort((a, b) => b.voteCount - a.voteCount)
+        .map(s => ({
+          bggId: s.bgg_id,
+          name: s.game_name,
+          image: s.thumbnail_url,
+          interestedCount: s.voteCount,
+        }))
+
+      // Get primary game (top-voted or selected)
       let finalGame: { id: string; game_name: string; bgg_id: number | null } | null = null
 
       if (body.selectedGameId) {
@@ -939,27 +1059,13 @@ Deno.serve(async (req) => {
           .eq('session_id', sessionId)
           .single()
         finalGame = data
-      } else {
-        // Get top-voted game
-        const { data: suggestions } = await supabase
-          .from('planning_game_suggestions')
-          .select(`
-            id, game_name, bgg_id,
-            votes:planning_game_votes(id)
-          `)
-          .eq('session_id', sessionId)
-
-        if (suggestions?.length) {
-          const suggestionsWithCounts = suggestions.map(s => ({
-            ...s,
-            voteCount: (s.votes as { id: string }[])?.length ?? 0,
-          }))
-          suggestionsWithCounts.sort((a, b) => b.voteCount - a.voteCount)
-          finalGame = suggestionsWithCounts[0]
-        }
+      } else if (suggestionsWithCounts.length) {
+        // Get top-voted game as primary
+        suggestionsWithCounts.sort((a, b) => b.voteCount - a.voteCount)
+        finalGame = suggestionsWithCounts[0]
       }
 
-      // Create draft event
+      // Create draft event with planned_games for multi-game support
       const { data: event, error: eventError } = await supabase
         .from('events')
         .insert({
@@ -973,6 +1079,7 @@ Deno.serve(async (req) => {
           duration_minutes: 180,
           status: 'draft',
           is_public: false,
+          planned_games: qualifyingGames.length > 0 ? qualifyingGames : null,
         })
         .select('id')
         .single()
@@ -1076,6 +1183,7 @@ function transformSessionSummary(row: Record<string, unknown>) {
     createdEventId: row.created_event_id,
     createdAt: row.created_at,
     maxParticipants: row.max_participants ?? null,
+    maxGames: row.max_games ?? 5,
     inviteeCount: (row.invitees as { count: number }[])?.[0]?.count ?? 0,
     group: row.group ? {
       id: (row.group as Record<string, unknown>).id,
@@ -1110,6 +1218,7 @@ function transformSessionFull(
       respondedAt: i.responded_at,
       cannotAttendAny: i.cannot_attend_any,
       hasSlot: i.has_slot ?? false,
+      acceptedAt: i.accepted_at ?? null,
       user: i.user ? {
         id: (i.user as Record<string, unknown>).id,
         displayName: (i.user as Record<string, unknown>).display_name,
