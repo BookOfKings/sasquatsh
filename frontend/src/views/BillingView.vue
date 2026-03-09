@@ -38,7 +38,10 @@ const currentTier = computed(() => {
 })
 
 const isCancelled = computed(() => {
-  return subscriptionInfo.value?.subscription.status === 'canceled'
+  // Check if subscription is scheduled for cancellation (cancel_at_period_end)
+  // or if it's already fully canceled
+  return subscriptionInfo.value?.subscription.cancelAtPeriodEnd ||
+    subscriptionInfo.value?.subscription.status === 'canceled'
 })
 
 const isPastDue = computed(() => {
@@ -215,7 +218,7 @@ function getTierColor(tier: SubscriptionTier): string {
                   (Complimentary)
                 </span>
                 <span v-if="isCancelled" class="text-sm text-orange-600 font-medium">
-                  Cancels {{ subscriptionInfo?.subscription.expiresAt ? formatDate(subscriptionInfo.subscription.expiresAt) : 'soon' }}
+                  Cancels {{ subscriptionInfo?.subscription.cancelAt ? formatDate(subscriptionInfo.subscription.cancelAt) : (subscriptionInfo?.subscription.expiresAt ? formatDate(subscriptionInfo.subscription.expiresAt) : 'soon') }}
                 </span>
                 <span v-if="isPastDue" class="text-sm text-red-600 font-medium">
                   Payment past due

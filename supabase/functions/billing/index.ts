@@ -95,13 +95,35 @@ Deno.serve(async (req) => {
 
     // Get subscription info with payment method
     let paymentMethod = null
+    let cancelAtPeriodEnd = false
+    let cancelAt: string | null = null
+
     if (user.stripe_customer_id) {
       try {
+        // First try to get payment method from customer's invoice settings
         const customer = await stripe.customers.retrieve(user.stripe_customer_id, {
           expand: ['invoice_settings.default_payment_method'],
         }) as Stripe.Customer
 
-        const pm = customer.invoice_settings?.default_payment_method as Stripe.PaymentMethod | null
+        let pm = customer.invoice_settings?.default_payment_method as Stripe.PaymentMethod | null
+
+        // If not found, try to get it from the active subscription
+        if (user.stripe_subscription_id) {
+          const subscription = await stripe.subscriptions.retrieve(user.stripe_subscription_id, {
+            expand: ['default_payment_method'],
+          })
+
+          // Check if subscription is scheduled for cancellation
+          cancelAtPeriodEnd = subscription.cancel_at_period_end
+          if (subscription.cancel_at) {
+            cancelAt = new Date(subscription.cancel_at * 1000).toISOString()
+          }
+
+          if (!pm?.card) {
+            pm = subscription.default_payment_method as Stripe.PaymentMethod | null
+          }
+        }
+
         if (pm?.card) {
           paymentMethod = {
             brand: pm.card.brand,
@@ -125,6 +147,8 @@ Deno.serve(async (req) => {
         status: user.subscription_status || 'active',
         expiresAt: user.subscription_expires_at,
         hasOverride: !!user.subscription_override_tier,
+        cancelAtPeriodEnd,
+        cancelAt,
       },
       paymentMethod,
       hasStripeAccount: !!user.stripe_customer_id,

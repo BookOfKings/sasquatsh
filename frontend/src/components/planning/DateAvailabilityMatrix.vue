@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { PlanningDate, PlanningInvitee } from '@/types/planning'
+import UserAvatar from '@/components/common/UserAvatar.vue'
 
 const props = defineProps<{
   dates: PlanningDate[]
@@ -14,8 +15,46 @@ const emit = defineEmits<{
   (e: 'select-date', dateId: string): void
 }>()
 
+// Calculate effective available count including pending changes
+function getEffectiveAvailableCount(date: PlanningDate): number {
+  const baseCount = date.availableCount ?? 0
+
+  // If no pending availability or no current user, return base count
+  if (!props.currentUserId || !props.pendingAvailability) {
+    return baseCount
+  }
+
+  const pendingStatus = props.pendingAvailability[date.id]
+  if (pendingStatus === undefined) {
+    return baseCount
+  }
+
+  // Find current user's existing vote
+  const currentInvitee = props.invitees.find(i => i.userId === props.currentUserId)
+  if (!currentInvitee) {
+    return baseCount
+  }
+
+  // If user hasn't responded yet, pending adds/removes from base
+  if (!currentInvitee.hasResponded) {
+    return pendingStatus ? baseCount + 1 : baseCount
+  }
+
+  // User has responded - check their existing vote
+  const existingVote = date.votes?.find(v => v.userId === props.currentUserId)
+  const wasAvailable = existingVote?.isAvailable ?? false
+
+  // If pending status matches existing vote, no change
+  if (pendingStatus === wasAvailable) {
+    return baseCount
+  }
+
+  // Pending status differs from saved vote
+  return pendingStatus ? baseCount + 1 : baseCount - 1
+}
+
 const maxAvailable = computed(() => {
-  return Math.max(...props.dates.map(d => d.availableCount ?? 0))
+  return Math.max(...props.dates.map(d => getEffectiveAvailableCount(d)))
 })
 
 function formatDate(dateStr: string): string {
@@ -90,16 +129,13 @@ function getVoteColor(status: 'available' | 'unavailable' | 'pending' | 'cannot-
             class="text-center pb-3 px-2"
           >
             <div class="flex flex-col items-center">
-              <div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden mb-1">
-                <img
-                  v-if="invitee.user?.avatarUrl"
-                  :src="invitee.user.avatarUrl"
-                  class="w-full h-full object-cover"
-                />
-                <svg v-else class="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
-                </svg>
-              </div>
+              <UserAvatar
+                :avatar-url="invitee.user?.avatarUrl"
+                :display-name="invitee.user?.displayName"
+                :is-founding-member="invitee.user?.isFoundingMember"
+                size="sm"
+                class="mb-1"
+              />
               <span class="text-xs text-gray-500 max-w-[60px] truncate">
                 {{ invitee.user?.displayName?.split(' ')[0] || '?' }}
               </span>
@@ -115,7 +151,7 @@ function getVoteColor(status: 'available' | 'unavailable' | 'pending' | 'cannot-
           class="cursor-pointer transition-colors"
           :class="{
             'bg-primary-50': selectedDateId === date.id,
-            'bg-green-50': (date.availableCount ?? 0) === maxAvailable && maxAvailable > 0 && selectedDateId !== date.id,
+            'bg-green-50': getEffectiveAvailableCount(date) === maxAvailable && maxAvailable > 0 && selectedDateId !== date.id,
             'hover:bg-gray-50': selectedDateId !== date.id,
           }"
           @click="emit('select-date', date.id)"
@@ -153,11 +189,11 @@ function getVoteColor(status: 'available' | 'unavailable' | 'pending' | 'cannot-
             <span
               class="inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold"
               :class="{
-                'bg-green-100 text-green-700': (date.availableCount ?? 0) === maxAvailable && maxAvailable > 0,
-                'bg-gray-100 text-gray-600': (date.availableCount ?? 0) < maxAvailable || maxAvailable === 0,
+                'bg-green-100 text-green-700': getEffectiveAvailableCount(date) === maxAvailable && maxAvailable > 0,
+                'bg-gray-100 text-gray-600': getEffectiveAvailableCount(date) < maxAvailable || maxAvailable === 0,
               }"
             >
-              {{ date.availableCount ?? 0 }}
+              {{ getEffectiveAvailableCount(date) }}
             </span>
           </td>
         </tr>

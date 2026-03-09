@@ -10,6 +10,7 @@ export interface PlanningSession {
   finalizedGameId: string | null
   createdEventId: string | null
   createdAt: string
+  maxParticipants: number | null
   inviteeCount?: number
   group?: {
     id: string
@@ -19,12 +20,20 @@ export interface PlanningSession {
   createdBy?: {
     id: string
     displayName: string | null
+    username: string | null
     avatarUrl: string | null
+    isFoundingMember?: boolean
   } | null
   invitees?: PlanningInvitee[]
   dates?: PlanningDate[]
   gameSuggestions?: GameSuggestion[]
   items?: PlanningItem[]
+}
+
+// Planning session invitation with user's response status
+export interface PlanningInvitation extends PlanningSession {
+  hasResponded: boolean
+  cannotAttendAny: boolean
 }
 
 export type ItemCategory = 'food' | 'drinks' | 'supplies' | 'other'
@@ -42,6 +51,7 @@ export interface PlanningItem {
     displayName: string | null
     username: string
     avatarUrl: string | null
+    isFoundingMember?: boolean
   } | null
 }
 
@@ -57,10 +67,13 @@ export interface PlanningInvitee {
   hasResponded: boolean
   respondedAt: string | null
   cannotAttendAny: boolean
+  hasSlot: boolean
   user?: {
     id: string
     displayName: string | null
+    username: string | null
     avatarUrl: string | null
+    isFoundingMember?: boolean
   } | null
 }
 
@@ -78,6 +91,7 @@ export interface DateVote {
   user?: {
     displayName: string | null
     avatarUrl: string | null
+    isFoundingMember?: boolean
   } | null
 }
 
@@ -96,6 +110,7 @@ export interface GameSuggestion {
   suggestedBy?: {
     displayName: string | null
     avatarUrl: string | null
+    isFoundingMember?: boolean
   } | null
 }
 
@@ -108,6 +123,7 @@ export interface CreatePlanningSessionInput {
   proposedDates: { date: string; startTime?: string }[]
   sendEmailInvites?: boolean
   initialGameSuggestions?: SuggestGameInput[]
+  maxParticipants?: number
 }
 
 export interface PlanningResponseInput {

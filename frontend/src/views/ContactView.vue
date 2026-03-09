@@ -4,6 +4,34 @@ import { useAuthStore } from '@/stores/useAuthStore'
 
 const auth = useAuthStore()
 
+// Get reCAPTCHA token
+async function getRecaptchaToken(): Promise<string | undefined> {
+  try {
+    // @ts-expect-error - grecaptcha is loaded from external script
+    if (typeof grecaptcha === 'undefined') {
+      console.warn('reCAPTCHA not loaded')
+      return undefined
+    }
+    // Wait for grecaptcha to be ready, then execute
+    return new Promise((resolve) => {
+      // @ts-expect-error - grecaptcha is loaded from external script
+      grecaptcha.ready(async () => {
+        try {
+          // @ts-expect-error - grecaptcha is loaded from external script
+          const token = await grecaptcha.execute('6LfZ-HcsAAAAALniN1xOkc_I5t443MorPE66H0CK', { action: 'contact' })
+          resolve(token)
+        } catch (err) {
+          console.error('Failed to execute reCAPTCHA:', err)
+          resolve(undefined)
+        }
+      })
+    })
+  } catch (err) {
+    console.error('Failed to get reCAPTCHA token:', err)
+    return undefined
+  }
+}
+
 const loading = ref(false)
 const submitted = ref(false)
 const errorMessage = ref('')
@@ -61,6 +89,9 @@ async function handleSubmit() {
   loading.value = true
 
   try {
+    // Get reCAPTCHA token
+    const recaptchaToken = await getRecaptchaToken()
+
     const FUNCTIONS_URL = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL
     const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
@@ -76,6 +107,7 @@ async function handleSubmit() {
         subject: form.subject,
         message: form.message.trim(),
         userId: auth.user.value?.id || null,
+        recaptchaToken,
       }),
     })
 

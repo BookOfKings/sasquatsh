@@ -607,6 +607,14 @@ function goToGroup(slug: string) {
               <p class="text-gray-500 text-sm">{{ profile.email }}</p>
               <p class="text-sm text-gray-400 mt-1">Member since {{ memberSince }}</p>
 
+              <!-- Founding Member Badge -->
+              <div v-if="profile.isFoundingMember" class="inline-flex items-center gap-1.5 mt-2 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full">
+                <svg class="w-4 h-4 text-amber-500" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
+                </svg>
+                <span class="text-sm font-medium text-amber-700">Founding Member</span>
+              </div>
+
               <div v-if="profile.homeCity || profile.homeState" class="flex items-center gap-1 mt-2 text-gray-600">
                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12,11.5A2.5,2.5 0 0,1 9.5,9A2.5,2.5 0 0,1 12,6.5A2.5,2.5 0 0,1 14.5,9A2.5,2.5 0 0,1 12,11.5M12,2A7,7 0 0,0 5,9C5,14.25 12,22 12,22C12,22 19,14.25 19,9A7,7 0 0,0 12,2Z"/>

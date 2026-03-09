@@ -10,6 +10,7 @@ import { searchBggGames, getBggGame } from '@/services/bggApi'
 import type { Group, GroupMember } from '@/types/groups'
 import type { BggSearchResult } from '@/types/bgg'
 import type { SuggestGameInput } from '@/types/planning'
+import UserAvatar from '@/components/common/UserAvatar.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -43,6 +44,8 @@ const form = reactive({
   selectedMemberIds: new Set<string>(),
   proposedDates: [{ date: '', startTime: '19:00' }] as { date: string; startTime: string }[],
   sendEmailInvites: false,
+  hasParticipantLimit: false,
+  maxParticipants: 8,
 })
 
 const slug = computed(() => route.params.slug as string)
@@ -189,6 +192,7 @@ async function handleSubmit() {
         })),
       sendEmailInvites: form.sendEmailInvites,
       initialGameSuggestions: suggestedGames.value.length > 0 ? suggestedGames.value : undefined,
+      maxParticipants: form.hasParticipantLimit ? form.maxParticipants : undefined,
     })
 
     router.push(`/planning/${session.id}`)
@@ -330,18 +334,15 @@ function formatDate(dateStr: string): string {
                 class="w-5 h-5 text-primary-500 rounded border-gray-300 focus:ring-primary-500"
                 @change="toggleMember(member.userId)"
               />
-              <div class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
-                <img
-                  v-if="member.avatarUrl"
-                  :src="member.avatarUrl"
-                  class="w-full h-full object-cover"
-                />
-                <svg v-else class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
-                </svg>
-              </div>
+              <UserAvatar
+                :avatar-url="member.avatarUrl"
+                :display-name="member.displayName"
+                :is-founding-member="member.isFoundingMember"
+                size="md"
+                class="flex-shrink-0"
+              />
               <div class="flex-1 min-w-0">
-                <div class="font-medium">{{ member.displayName || 'Unknown' }}</div>
+                <div class="font-medium">{{ member.displayName || member.username || 'Unknown' }}</div>
                 <div class="text-sm text-gray-500 capitalize">{{ member.role }}</div>
               </div>
             </label>
@@ -543,6 +544,38 @@ function formatDate(dateStr: string): string {
               <p class="text-sm text-gray-500">Notify selected members via email about this planning session</p>
             </div>
           </label>
+        </div>
+
+        <!-- Participant Limit Option -->
+        <div class="card p-6">
+          <h2 class="font-semibold mb-4">Participant Limit (Optional)</h2>
+          <label class="flex items-center gap-3 cursor-pointer mb-4">
+            <input
+              v-model="form.hasParticipantLimit"
+              type="checkbox"
+              class="w-5 h-5 rounded border-gray-300 text-primary-500 focus:ring-primary-500"
+            />
+            <div>
+              <span class="font-medium text-gray-900">Limit participants</span>
+              <p class="text-sm text-gray-500">First-come-first-served slot allocation</p>
+            </div>
+          </label>
+          <div v-if="form.hasParticipantLimit" class="ml-8">
+            <div class="flex items-center gap-3">
+              <label for="maxParticipants" class="text-sm text-gray-600">Maximum participants:</label>
+              <input
+                id="maxParticipants"
+                v-model.number="form.maxParticipants"
+                type="number"
+                min="2"
+                max="100"
+                class="input w-24"
+              />
+            </div>
+            <p class="text-sm text-gray-500 mt-2">
+              You automatically get 1 spot. {{ form.maxParticipants - 1 }} spots available for others.
+            </p>
+          </div>
         </div>
 
         <!-- Submit -->

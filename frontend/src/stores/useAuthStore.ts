@@ -214,6 +214,7 @@ export function useAuthStore() {
     firebaseUser: computed(() => firebaseUser.value),
     isAuthenticated: computed(() => !!user.value),
     isAdmin: computed(() => user.value?.isAdmin ?? false),
+    isFoundingMember: computed(() => user.value?.isFoundingMember ?? false),
     blockedUserIds: computed(() => user.value?.blockedUserIds ?? []),
     isLoading: computed(() => isLoading.value),
     error: computed(() => error.value),

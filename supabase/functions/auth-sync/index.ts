@@ -171,13 +171,13 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Create new user
+    // Create new user - use username as display_name if not provided
     const { data, error } = await supabase
       .from('users')
       .insert({
         firebase_uid: firebaseUser.uid,
         email: firebaseUser.email,
-        display_name: firebaseUser.name,
+        display_name: firebaseUser.name || username,
         avatar_url: firebaseUser.picture,
         username: username,
       })
@@ -214,10 +214,13 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Use username as display_name fallback if display_name is empty
+    const displayName = body.displayName || body.username
+
     const { data, error } = await supabase
       .from('users')
       .update({
-        display_name: body.displayName,
+        display_name: displayName,
         username: body.username,
         updated_at: new Date().toISOString(),
       })
@@ -248,6 +251,7 @@ function transformUser(row: Record<string, unknown>) {
     subscriptionOverrideTier: row.subscription_override_tier,
     accountStatus: row.account_status ?? 'active',
     isAdmin: row.is_admin ?? false,
+    isFoundingMember: row.is_founding_member ?? false,
     blockedUserIds: row.blocked_user_ids ?? [],
     createdAt: row.created_at,
   }

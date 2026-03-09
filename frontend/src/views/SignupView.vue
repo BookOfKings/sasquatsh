@@ -92,9 +92,20 @@ async function getRecaptchaToken(): Promise<string | undefined> {
       console.warn('reCAPTCHA not loaded')
       return undefined
     }
-    // @ts-expect-error - grecaptcha is loaded from external script
-    const token = await grecaptcha.execute('6LfZ-HcsAAAAALniN1xOkc_I5t443MorPE66H0CK', { action: 'signup' })
-    return token
+    // Wait for grecaptcha to be ready, then execute
+    return new Promise((resolve) => {
+      // @ts-expect-error - grecaptcha is loaded from external script
+      grecaptcha.ready(async () => {
+        try {
+          // @ts-expect-error - grecaptcha is loaded from external script
+          const token = await grecaptcha.execute('6LfZ-HcsAAAAALniN1xOkc_I5t443MorPE66H0CK', { action: 'signup' })
+          resolve(token)
+        } catch (err) {
+          console.error('Failed to execute reCAPTCHA:', err)
+          resolve(undefined)
+        }
+      })
+    })
   } catch (err) {
     console.error('Failed to get reCAPTCHA token:', err)
     return undefined

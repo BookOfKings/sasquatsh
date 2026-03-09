@@ -11,11 +11,16 @@ const stripe = new Stripe(stripeSecretKey, {
   httpClient: Stripe.createFetchHttpClient(),
 })
 
-// Map Stripe price IDs to tiers
+// Map Stripe price IDs to tiers (from environment variables)
 const PRICE_TO_TIER: Record<string, string> = {
   [Deno.env.get('STRIPE_PRICE_BASIC') || '']: 'basic',
   [Deno.env.get('STRIPE_PRICE_PRO') || '']: 'pro',
 }
+
+// Debug: Log price mappings at startup
+console.log('PRICE_TO_TIER mapping:', JSON.stringify(PRICE_TO_TIER))
+console.log('STRIPE_PRICE_BASIC env:', Deno.env.get('STRIPE_PRICE_BASIC'))
+console.log('STRIPE_PRICE_PRO env:', Deno.env.get('STRIPE_PRICE_PRO'))
 
 Deno.serve(async (req) => {
   if (req.method !== 'POST') {
@@ -116,9 +121,10 @@ async function handleCheckoutCompleted(
     .single()
 
   const oldTier = user?.subscription_tier || 'free'
+  console.log(`handleCheckoutCompleted: Upgrading user ${userId} from ${oldTier} to ${tier}`)
 
   // Update user subscription
-  await supabase
+  const { error: updateError } = await supabase
     .from('users')
     .update({
       subscription_tier: tier,
@@ -128,8 +134,13 @@ async function handleCheckoutCompleted(
     })
     .eq('id', userId)
 
+  if (updateError) {
+    console.error('Failed to update user in handleCheckoutCompleted:', updateError)
+    throw new Error(`Database update failed: ${updateError.message}`)
+  }
+
   // Log subscription event
-  await supabase.from('subscription_events').insert({
+  const { error: eventError } = await supabase.from('subscription_events').insert({
     user_id: userId,
     event_type: 'upgrade',
     old_tier: oldTier,
@@ -137,6 +148,10 @@ async function handleCheckoutCompleted(
     stripe_event_id: eventId,
     notes: 'Checkout completed',
   })
+
+  if (eventError) {
+    console.error('Failed to log subscription event:', eventError)
+  }
 
   console.log(`User ${userId} upgraded from ${oldTier} to ${tier}`)
 }
@@ -147,13 +162,16 @@ async function handleSubscriptionUpdate(
   eventId: string
 ) {
   const customerId = subscription.customer as string
+  console.log('handleSubscriptionUpdate called for customer:', customerId)
 
   // Find user by Stripe customer ID
-  const { data: user } = await supabase
+  const { data: user, error: userError } = await supabase
     .from('users')
     .select('id, subscription_tier')
     .eq('stripe_customer_id', customerId)
     .single()
+
+  console.log('User lookup result:', { user, userError })
 
   if (!user) {
     console.error('User not found for customer:', customerId)
@@ -163,6 +181,7 @@ async function handleSubscriptionUpdate(
   // Determine tier from price
   const priceId = subscription.items.data[0]?.price?.id
   const newTier = priceId ? PRICE_TO_TIER[priceId] : null
+  console.log('Price ID:', priceId, 'Mapped tier:', newTier)
 
   // Map Stripe status to our status
   let status = 'active'
@@ -184,7 +203,13 @@ async function handleSubscriptionUpdate(
     updates.subscription_tier = newTier
   }
 
-  await supabase.from('users').update(updates).eq('id', user.id)
+  console.log('Updating user with:', updates)
+  const { error: updateError } = await supabase.from('users').update(updates).eq('id', user.id)
+  if (updateError) {
+    console.error('Failed to update user:', updateError)
+    throw new Error(`Database update failed: ${updateError.message}`)
+  }
+  console.log('User updated successfully')
 
   // Log if tier changed
   if (newTier && newTier !== user.subscription_tier) {

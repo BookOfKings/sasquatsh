@@ -5,6 +5,36 @@ import { sendEmail, contactNotificationEmail } from '../_shared/email.ts'
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const ADMIN_EMAIL = Deno.env.get('ADMIN_EMAIL') || 'admin@sasquatsh.com'
+const recaptchaSecretKey = Deno.env.get('RECAPTCHA_SECRET_KEY')
+
+async function verifyRecaptcha(token: string): Promise<{ success: boolean; score?: number; error?: string }> {
+  if (!recaptchaSecretKey) {
+    console.warn('RECAPTCHA_SECRET_KEY not configured, skipping verification')
+    return { success: true }
+  }
+  try {
+    const response = await fetch('https://www.google.com/recaptcha/api/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `secret=${recaptchaSecretKey}&response=${token}`,
+    })
+    const data = await response.json()
+    if (!data.success) {
+      console.error('reCAPTCHA verification failed:', data)
+      return { success: false, error: 'reCAPTCHA verification failed' }
+    }
+    // For v3, check the score (0.0 - 1.0, higher is more likely human)
+    // Reject if score is below 0.3 (likely bot)
+    if (data.score !== undefined && data.score < 0.3) {
+      console.warn('reCAPTCHA score too low:', data.score)
+      return { success: false, score: data.score, error: 'Request blocked due to suspicious activity' }
+    }
+    return { success: true, score: data.score }
+  } catch (err) {
+    console.error('reCAPTCHA verification error:', err)
+    return { success: false, error: 'Failed to verify reCAPTCHA' }
+  }
+}
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -18,7 +48,18 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json()
-    const { name, email, subject, message, userId } = body
+    const { name, email, subject, message, userId, recaptchaToken } = body
+
+    // Verify reCAPTCHA
+    if (recaptchaToken) {
+      const recaptchaResult = await verifyRecaptcha(recaptchaToken)
+      if (!recaptchaResult.success) {
+        return errorResponse(recaptchaResult.error || 'reCAPTCHA verification failed', 400)
+      }
+    } else if (recaptchaSecretKey) {
+      // If reCAPTCHA is configured but no token provided, reject
+      return errorResponse('reCAPTCHA token required', 400)
+    }
 
     // Validation
     if (!name?.trim()) {

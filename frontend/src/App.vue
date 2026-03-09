@@ -6,6 +6,7 @@ import { getEffectiveTier } from '@/types/user'
 import { TIER_NAMES } from '@/config/subscriptionLimits'
 import CookieConsent from '@/components/common/CookieConsent.vue'
 import D6Spinner from '@/components/common/D6Spinner.vue'
+import UpdateNotification from '@/components/common/UpdateNotification.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -94,6 +95,9 @@ async function handleLogout() {
 
 <template>
   <div class="min-h-screen flex flex-col">
+    <!-- Update Notification Banner -->
+    <UpdateNotification />
+
     <!-- Background D6 dice -->
     <div class="fixed inset-0 pointer-events-none overflow-hidden z-0">
       <div class="absolute -top-10 -left-10">
@@ -181,16 +185,12 @@ async function handleLogout() {
                   @click="toggleUserMenu"
                   class="flex items-center p-1 hover:bg-primary-600 rounded-full transition-colors"
                 >
-                  <div class="w-8 h-8 rounded-full bg-secondary-500 flex items-center justify-center overflow-hidden">
-                    <img
-                      v-if="auth.user.value?.avatarUrl"
-                      :src="auth.user.value.avatarUrl"
-                      class="w-full h-full object-cover"
-                    />
-                    <svg v-else class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
-                    </svg>
-                  </div>
+                  <UserAvatar
+                    :avatar-url="auth.user.value?.avatarUrl"
+                    :display-name="auth.user.value?.displayName"
+                    :is-founding-member="auth.user.value?.isFoundingMember"
+                    size="sm"
+                  />
                 </button>
 
                 <!-- Dropdown (teleported to body to escape stacking contexts) -->
@@ -275,16 +275,12 @@ async function handleLogout() {
                 @click="goToProfile"
                 class="p-1 hover:bg-primary-600 rounded-full transition-colors"
               >
-                <div class="w-8 h-8 rounded-full bg-secondary-500 flex items-center justify-center overflow-hidden">
-                  <img
-                    v-if="auth.user.value?.avatarUrl"
-                    :src="auth.user.value.avatarUrl"
-                    class="w-full h-full object-cover"
-                  />
-                  <svg v-else class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
-                  </svg>
-                </div>
+                <UserAvatar
+                  :avatar-url="auth.user.value?.avatarUrl"
+                  :display-name="auth.user.value?.displayName"
+                  :is-founding-member="auth.user.value?.isFoundingMember"
+                  size="sm"
+                />
               </button>
             </template>
 

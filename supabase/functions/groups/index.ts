@@ -63,6 +63,7 @@ function toGroup(row: Record<string, unknown>) {
           id: (row.creator as Record<string, unknown>).id as string,
           displayName: (row.creator as Record<string, unknown>).display_name as string | null,
           avatarUrl: (row.creator as Record<string, unknown>).avatar_url as string | null,
+          isFoundingMember: (row.creator as Record<string, unknown>).is_founding_member as boolean | undefined,
         }
       : null,
   }
@@ -75,8 +76,10 @@ function toGroupMember(row: Record<string, unknown>) {
     id: row.id as string,
     userId: row.user_id as string,
     displayName: user?.display_name as string | null,
+    username: user?.username as string | null,
     email: user?.email as string | null,
     avatarUrl: user?.avatar_url as string | null,
+    isFoundingMember: user?.is_founding_member as boolean | undefined,
     role: row.role as string,
     joinedAt: row.joined_at as string,
   }
@@ -89,8 +92,10 @@ function toJoinRequest(row: Record<string, unknown>) {
     id: row.id as string,
     userId: row.user_id as string,
     displayName: user?.display_name as string | null,
+    username: user?.username as string | null,
     email: user?.email as string | null,
     avatarUrl: user?.avatar_url as string | null,
+    isFoundingMember: user?.is_founding_member as boolean | undefined,
     message: row.message as string | null,
     status: row.status as string,
     createdAt: row.created_at as string,
@@ -136,7 +141,7 @@ Deno.serve(async (req) => {
         .from('group_invitations')
         .select(`
           id, invite_code, invited_email, max_uses, uses_count, expires_at, created_at,
-          invited_by:users!invited_by_user_id(id, display_name, avatar_url),
+          invited_by:users!invited_by_user_id(id, display_name, avatar_url, is_founding_member),
           group:groups!group_id(id, name, slug, description, logo_url, group_type, location_city, location_state, join_policy)
         `)
         .eq('invite_code', inviteCode)
@@ -177,9 +182,79 @@ Deno.serve(async (req) => {
           id: invitedBy.id,
           displayName: invitedBy.display_name,
           avatarUrl: invitedBy.avatar_url,
+          isFoundingMember: invitedBy.is_founding_member,
         },
         expiresAt: invitation.expires_at,
       })
+    }
+
+    // Get user's pending invitations (requires auth)
+    if (action === 'my-invitations') {
+      const token = getFirebaseToken(req)
+      if (!token) {
+        return errorResponse('Authentication required', 401)
+      }
+
+      const firebaseUser = await verifyFirebaseToken(token)
+      if (!firebaseUser) {
+        return errorResponse('Invalid Firebase token', 401)
+      }
+
+      const { data: dbUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('firebase_uid', firebaseUser.uid)
+        .single()
+
+      if (!dbUser) {
+        return errorResponse('User not found', 404)
+      }
+
+      // Get pending invitations for this user
+      const { data: invitations, error } = await supabase
+        .from('group_invitations')
+        .select(`
+          id, invite_code, created_at, expires_at, status,
+          invited_by:users!invited_by_user_id(id, display_name, avatar_url, is_founding_member),
+          group:groups!group_id(id, name, slug, description, logo_url, group_type, location_city, location_state, memberships:group_memberships(count))
+        `)
+        .eq('invited_user_id', dbUser.id)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        return errorResponse(error.message, 500)
+      }
+
+      return jsonResponse(invitations.map(inv => {
+        const group = inv.group as Record<string, unknown>
+        const invitedBy = inv.invited_by as Record<string, unknown>
+        const memberships = group?.memberships as { count: number }[] | undefined
+        return {
+          id: inv.id,
+          inviteCode: inv.invite_code,
+          status: inv.status,
+          createdAt: inv.created_at,
+          expiresAt: inv.expires_at,
+          invitedBy: invitedBy ? {
+            id: invitedBy.id,
+            displayName: invitedBy.display_name,
+            avatarUrl: invitedBy.avatar_url,
+            isFoundingMember: invitedBy.is_founding_member,
+          } : null,
+          group: group ? {
+            id: group.id,
+            name: group.name,
+            slug: group.slug,
+            description: group.description,
+            logoUrl: group.logo_url,
+            groupType: group.group_type,
+            locationCity: group.location_city,
+            locationState: group.location_state,
+            memberCount: memberships?.[0]?.count ?? 0,
+          } : null,
+        }
+      }))
     }
 
     // Get single group by ID or slug
@@ -235,16 +310,18 @@ Deno.serve(async (req) => {
             .from('group_memberships')
             .select(`
               id, user_id, role, joined_at,
-              user:users(id, display_name, email, avatar_url)
+              user:users(id, display_name, username, email, avatar_url, is_founding_member)
             `)
             .eq('group_id', group.id)
             .order('joined_at', { ascending: true })
 
           if (error) {
+            console.error('Members query error:', error)
             return errorResponse(error.message, 500)
           }
 
-          return jsonResponse((data ?? []).map(toGroupMember))
+          const members = (data ?? []).map(toGroupMember)
+          return jsonResponse(members)
         }
 
         // Get join requests (owner/admin only)
@@ -257,7 +334,7 @@ Deno.serve(async (req) => {
             .from('group_join_requests')
             .select(`
               id, user_id, message, status, created_at,
-              user:users!group_join_requests_user_id_fkey(id, display_name, email, avatar_url)
+              user:users!group_join_requests_user_id_fkey(id, display_name, username, email, avatar_url, is_founding_member)
             `)
             .eq('group_id', group.id)
             .eq('status', 'pending')
@@ -299,7 +376,7 @@ Deno.serve(async (req) => {
         .from('groups')
         .select(`
           *,
-          creator:users!created_by_user_id(id, display_name, avatar_url),
+          creator:users!created_by_user_id(id, display_name, avatar_url, is_founding_member),
           memberships:group_memberships(id)
         `)
 
@@ -628,6 +705,45 @@ Deno.serve(async (req) => {
         expiresAt = d.toISOString()
       }
 
+      // If inviting a specific user, validate and check existing membership
+      if (body.userId) {
+        // Check if user exists
+        const { data: invitedUser } = await supabase
+          .from('users')
+          .select('id')
+          .eq('id', body.userId)
+          .single()
+
+        if (!invitedUser) {
+          return errorResponse('User not found', 404)
+        }
+
+        // Check if already a member
+        const { data: existingMembership } = await supabase
+          .from('group_memberships')
+          .select('id')
+          .eq('group_id', groupId)
+          .eq('user_id', body.userId)
+          .single()
+
+        if (existingMembership) {
+          return errorResponse('User is already a member of this group', 400)
+        }
+
+        // Check if there's already a pending invitation for this user
+        const { data: existingInvite } = await supabase
+          .from('group_invitations')
+          .select('id')
+          .eq('group_id', groupId)
+          .eq('invited_user_id', body.userId)
+          .eq('status', 'pending')
+          .single()
+
+        if (existingInvite) {
+          return errorResponse('User already has a pending invitation to this group', 400)
+        }
+      }
+
       const { data, error } = await supabase
         .from('group_invitations')
         .insert({
@@ -635,11 +751,13 @@ Deno.serve(async (req) => {
           invited_by_user_id: user.id,
           invite_code: code,
           invited_email: body.email?.trim() || null,
-          max_uses: body.maxUses || 1,
+          invited_user_id: body.userId || null,
+          max_uses: body.userId ? 1 : (body.maxUses || 1), // Direct invites are always single-use
           expires_at: expiresAt,
+          status: 'pending',
         })
         .select(`
-          id, invite_code, invited_email, max_uses, uses_count, expires_at, created_at,
+          id, invite_code, invited_email, max_uses, uses_count, expires_at, created_at, status, invited_user_id,
           invited_by:users!invited_by_user_id(id, display_name)
         `)
         .single()
@@ -669,7 +787,7 @@ Deno.serve(async (req) => {
         return errorResponse('This invitation has expired', 400)
       }
 
-      // Check max uses
+      // Check max uses (initial check - will verify atomically later)
       if (invitation.max_uses && invitation.uses_count >= invitation.max_uses) {
         return errorResponse('This invitation has reached its maximum uses', 400)
       }
@@ -692,6 +810,30 @@ Deno.serve(async (req) => {
         return errorResponse('You have already used this invitation', 400)
       }
 
+      // Atomically increment uses_count and get new value
+      // This prevents race conditions where multiple users bypass the limit
+      const { data: updatedInvite, error: updateError } = await supabase
+        .from('group_invitations')
+        .update({ uses_count: invitation.uses_count + 1 })
+        .eq('id', invitation.id)
+        .select('uses_count, max_uses')
+        .single()
+
+      if (updateError) {
+        return errorResponse('Failed to process invitation', 500)
+      }
+
+      // Re-check max_uses with the atomically incremented count
+      // If we exceeded due to race condition, reject and decrement
+      if (updatedInvite.max_uses && updatedInvite.uses_count > updatedInvite.max_uses) {
+        // Decrement the count since we can't use this invite
+        await supabase
+          .from('group_invitations')
+          .update({ uses_count: updatedInvite.uses_count - 1 })
+          .eq('id', invitation.id)
+        return errorResponse('This invitation has reached its maximum uses', 400)
+      }
+
       // Add as member
       const { error: memberError } = await supabase
         .from('group_memberships')
@@ -702,22 +844,35 @@ Deno.serve(async (req) => {
         })
 
       if (memberError) {
+        // Rollback the uses_count increment
+        await supabase
+          .from('group_invitations')
+          .update({ uses_count: updatedInvite.uses_count - 1 })
+          .eq('id', invitation.id)
         return errorResponse(memberError.message, 500)
       }
 
       // Record invitation use
-      await supabase
+      const { error: useError } = await supabase
         .from('group_invitation_uses')
         .insert({
           invitation_id: invitation.id,
           user_id: user.id,
         })
 
-      // Increment uses count
-      await supabase
-        .from('group_invitations')
-        .update({ uses_count: invitation.uses_count + 1 })
-        .eq('id', invitation.id)
+      // If recording use fails (likely duplicate), rollback
+      if (useError) {
+        await supabase
+          .from('group_memberships')
+          .delete()
+          .eq('group_id', invitation.group_id)
+          .eq('user_id', user.id)
+        await supabase
+          .from('group_invitations')
+          .update({ uses_count: updatedInvite.uses_count - 1 })
+          .eq('id', invitation.id)
+        return errorResponse('You have already used this invitation', 400)
+      }
 
       // Get group name for response
       const { data: group } = await supabase
@@ -731,6 +886,100 @@ Deno.serve(async (req) => {
         groupId: invitation.group_id,
         groupName: group?.name,
       })
+    }
+
+    // Respond to direct invitation (accept or decline)
+    if (action === 'respond-invite' && inviteId) {
+      const body = await req.json().catch(() => ({}))
+      const response = body.response as 'accept' | 'decline'
+
+      if (!response || !['accept', 'decline'].includes(response)) {
+        return errorResponse('Response must be "accept" or "decline"', 400)
+      }
+
+      // Find the invitation
+      const { data: invitation } = await supabase
+        .from('group_invitations')
+        .select('id, group_id, expires_at, status, invited_user_id')
+        .eq('id', inviteId)
+        .single()
+
+      if (!invitation) {
+        return errorResponse('Invitation not found', 404)
+      }
+
+      // Verify this invitation is for the current user
+      if (invitation.invited_user_id !== user.id) {
+        return errorResponse('This invitation is not for you', 403)
+      }
+
+      // Check status
+      if (invitation.status !== 'pending') {
+        return errorResponse('This invitation has already been responded to', 400)
+      }
+
+      // Check expiry
+      if (invitation.expires_at && new Date(invitation.expires_at) < new Date()) {
+        // Mark as expired
+        await supabase
+          .from('group_invitations')
+          .update({ status: 'expired' })
+          .eq('id', inviteId)
+        return errorResponse('This invitation has expired', 400)
+      }
+
+      if (response === 'accept') {
+        // Check if already a member
+        const existing = await getUserMembership(invitation.group_id)
+        if (existing) {
+          // Mark invitation as accepted anyway
+          await supabase
+            .from('group_invitations')
+            .update({ status: 'accepted' })
+            .eq('id', inviteId)
+          return errorResponse('Already a member of this group', 400)
+        }
+
+        // Add as member
+        const { error: memberError } = await supabase
+          .from('group_memberships')
+          .insert({
+            group_id: invitation.group_id,
+            user_id: user.id,
+            role: 'member',
+          })
+
+        if (memberError) {
+          return errorResponse(memberError.message, 500)
+        }
+
+        // Update invitation status
+        await supabase
+          .from('group_invitations')
+          .update({ status: 'accepted', uses_count: 1 })
+          .eq('id', inviteId)
+
+        // Get group name for response
+        const { data: group } = await supabase
+          .from('groups')
+          .select('id, name')
+          .eq('id', invitation.group_id)
+          .single()
+
+        return jsonResponse({
+          message: 'Joined group successfully',
+          groupId: invitation.group_id,
+          groupName: group?.name,
+        })
+      } else {
+        // Decline the invitation
+        await supabase
+          .from('group_invitations')
+          .update({ status: 'declined' })
+          .eq('id', inviteId)
+
+        return jsonResponse({ message: 'Invitation declined' })
+      }
     }
 
     // Create new group (no action specified)
@@ -949,7 +1198,7 @@ Deno.serve(async (req) => {
       .eq('id', groupId)
       .select(`
         *,
-        creator:users!created_by_user_id(id, display_name, avatar_url),
+        creator:users!created_by_user_id(id, display_name, avatar_url, is_founding_member),
         memberships:group_memberships(id)
       `)
       .single()

@@ -37,6 +37,7 @@ function toPlayerRequest(row: Record<string, unknown>) {
       displayName: host.display_name as string | null,
       username: host.username as string | null,
       avatarUrl: host.avatar_url as string | null,
+      isFoundingMember: host.is_founding_member as boolean | undefined,
     } : null,
   }
 }
@@ -78,7 +79,7 @@ Deno.serve(async (req) => {
       .from('player_requests')
       .select(`
         *,
-        user:users(id, display_name, username, avatar_url),
+        user:users(id, display_name, username, avatar_url, is_founding_member),
         event:events(id, title, game_title, event_date, start_time, city, state, address_line1, location_details, event_location_id)
       `)
       .eq('status', 'open')
@@ -158,7 +159,7 @@ Deno.serve(async (req) => {
       .from('player_requests')
       .select(`
         *,
-        user:users(id, display_name, username, avatar_url),
+        user:users(id, display_name, username, avatar_url, is_founding_member),
         event:events(id, title, game_title, event_date, start_time, city, state, address_line1, location_details)
       `)
       .eq('user_id', user.id)
@@ -224,7 +225,7 @@ Deno.serve(async (req) => {
       })
       .select(`
         *,
-        user:users(id, display_name, username, avatar_url),
+        user:users(id, display_name, username, avatar_url, is_founding_member),
         event:events(id, title, game_title, event_date, start_time, city, state, address_line1, location_details)
       `)
       .single()
@@ -269,7 +270,7 @@ Deno.serve(async (req) => {
         .eq('id', requestId)
         .select(`
           *,
-          user:users(id, display_name, username, avatar_url),
+          user:users(id, display_name, username, avatar_url, is_founding_member),
           event:events(id, title, game_title, event_date, start_time, city, state, address_line1, location_details)
         `)
         .single()
@@ -293,7 +294,7 @@ Deno.serve(async (req) => {
         .eq('id', requestId)
         .select(`
           *,
-          user:users(id, display_name, username, avatar_url),
+          user:users(id, display_name, username, avatar_url, is_founding_member),
           event:events(id, title, game_title, event_date, start_time, city, state, address_line1, location_details)
         `)
         .single()
@@ -347,7 +348,7 @@ Deno.serve(async (req) => {
       .eq('id', requestId)
       .select(`
         *,
-        user:users(id, display_name, username, avatar_url),
+        user:users(id, display_name, username, avatar_url, is_founding_member),
         event:events(id, title, game_title, event_date, start_time, city, state, address_line1, location_details)
       `)
       .single()

@@ -22,6 +22,7 @@ export interface Group {
     id: string
     displayName: string | null
     avatarUrl: string | null
+    isFoundingMember?: boolean
   }
 }
 
@@ -49,6 +50,7 @@ export interface GroupMembership {
     id: string
     displayName: string | null
     avatarUrl: string | null
+    isFoundingMember?: boolean
   }
 }
 
@@ -99,8 +101,10 @@ export interface GroupMember {
   id: string
   userId: string
   displayName: string | null
+  username: string | null
   email: string | null
   avatarUrl: string | null
+  isFoundingMember?: boolean
   role: MemberRole
   joinedAt: string
 }
@@ -109,8 +113,10 @@ export interface JoinRequest {
   id: string
   userId: string
   displayName: string | null
+  username: string | null
   email: string | null
   avatarUrl: string | null
+  isFoundingMember?: boolean
   message: string | null
   status: 'pending' | 'approved' | 'rejected'
   createdAt: string
@@ -132,6 +138,33 @@ export interface CreateInvitationInput {
   phone?: string
   maxUses?: number
   expiresInDays?: number
+  userId?: string  // For direct in-app invitations
+}
+
+// Pending invitation for a user
+export interface PendingInvitation {
+  id: string
+  inviteCode: string
+  status: 'pending' | 'accepted' | 'declined' | 'expired'
+  createdAt: string
+  expiresAt: string | null
+  invitedBy: {
+    id: string
+    displayName: string | null
+    avatarUrl: string | null
+    isFoundingMember?: boolean
+  } | null
+  group: {
+    id: string
+    name: string
+    slug: string
+    description: string | null
+    logoUrl: string | null
+    groupType: string
+    locationCity: string | null
+    locationState: string | null
+    memberCount: number
+  } | null
 }
 
 export interface InvitationPreview {
@@ -152,6 +185,7 @@ export interface InvitationPreview {
     id: string
     displayName: string | null
     avatarUrl: string | null
+    isFoundingMember?: boolean
   }
   expiresAt: string | null
 }

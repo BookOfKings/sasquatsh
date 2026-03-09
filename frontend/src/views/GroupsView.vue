@@ -1,15 +1,30 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, ref, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGroupStore } from '@/stores/useGroupStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import GroupCard from '@/components/groups/GroupCard.vue'
 import AdBanner from '@/components/ads/AdBanner.vue'
-import type { GroupSummary, GroupSearchFilter } from '@/types/groups'
+import type { GroupSummary, GroupSearchFilter, MemberRole } from '@/types/groups'
 
 const router = useRouter()
 const groupStore = useGroupStore()
 const auth = useAuthStore()
+
+// Map of groupId -> userRole for groups the user is a member of
+const myGroupRoles = computed(() => {
+  const roles = new Map<string, MemberRole>()
+  for (const group of groupStore.myGroups.value) {
+    if (group.userRole) {
+      roles.set(group.id, group.userRole)
+    }
+  }
+  return roles
+})
+
+function getUserRole(groupId: string): MemberRole | undefined {
+  return myGroupRoles.value.get(groupId)
+}
 
 const showFilters = ref(false)
 const searchText = ref('')
@@ -61,6 +76,10 @@ watch(searchText, () => {
 
 onMounted(() => {
   groupStore.loadPublicGroups()
+  // Load user's groups to show membership badges
+  if (auth.isAuthenticated.value) {
+    groupStore.loadMyGroups()
+  }
 })
 
 function handleSelectGroup(group: GroupSummary) {
@@ -219,6 +238,7 @@ function goToCreateGroup() {
         v-for="group in groupStore.publicGroups.value"
         :key="group.id"
         :group="group"
+        :user-role="getUserRole(group.id)"
         @click="handleSelectGroup"
       />
     </div>

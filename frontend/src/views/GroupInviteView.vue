@@ -5,6 +5,7 @@ import { useGroupStore } from '@/stores/useGroupStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { getInvitationPreview } from '@/services/groupsApi'
 import type { InvitationPreview } from '@/types/groups'
+import UserAvatar from '@/components/common/UserAvatar.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -167,16 +168,12 @@ function formatLocation(city: string | null, state: string | null): string {
         <div class="bg-gray-50 rounded-lg p-3 mb-6">
           <p class="text-sm text-gray-500 mb-2">You've been invited by</p>
           <div class="flex items-center justify-center gap-2">
-            <div class="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center overflow-hidden">
-              <img
-                v-if="preview.invitedBy.avatarUrl"
-                :src="preview.invitedBy.avatarUrl"
-                class="w-full h-full object-cover"
-              />
-              <svg v-else class="w-4 h-4 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
-              </svg>
-            </div>
+            <UserAvatar
+              :avatar-url="preview.invitedBy.avatarUrl"
+              :display-name="preview.invitedBy.displayName"
+              :is-founding-member="preview.invitedBy.isFoundingMember"
+              size="sm"
+            />
             <span class="font-medium text-gray-900">{{ preview.invitedBy.displayName || 'A group member' }}</span>
           </div>
         </div>

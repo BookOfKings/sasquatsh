@@ -22,6 +22,7 @@ import {
   banUser,
   unbanUser,
   setUserTier,
+  toggleFoundingMember,
   updateUser,
   deleteUser,
   sendPasswordReset,
@@ -97,6 +98,7 @@ const userEditForm = reactive({
   displayName: '',
   username: '',
   isAdmin: false,
+  isFoundingMember: false,
   tier: 'free' as 'free' | 'basic' | 'pro' | 'premium',
   tierReason: '',
 })
@@ -119,6 +121,7 @@ const tierForm = reactive({
   reason: '',
 })
 const settingTierId = ref<string | null>(null)
+const togglingFoundingId = ref<string | null>(null)
 
 // Group management state
 const groups = ref<AdminGroup[]>([])
@@ -157,7 +160,7 @@ const deletingNoteId = ref<string | null>(null)
 // Bugs state
 const bugs = ref<AdminBug[]>([])
 const bugsLoading = ref(false)
-const bugStatusFilter = ref('')
+const bugStatusFilter = ref('open')
 const bugPriorityFilter = ref('')
 const showBugDialog = ref(false)
 const editingBug = ref<AdminBug | null>(null)
@@ -439,9 +442,26 @@ function openUserEditDialog(user: AdminUser) {
   userEditForm.displayName = user.displayName || ''
   userEditForm.username = user.username
   userEditForm.isAdmin = user.isAdmin
+  userEditForm.isFoundingMember = user.isFoundingMember || false
   userEditForm.tier = user.subscriptionOverrideTier || user.subscriptionTier || 'free'
   userEditForm.tierReason = user.subscriptionOverrideReason || ''
   showUserEditDialog.value = true
+}
+
+async function editSignupUser(username: string) {
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    const result = await getAdminUsers(token, { search: username, limit: 1 })
+    const user = result.users[0]
+    if (user) {
+      openUserEditDialog(user)
+    } else {
+      errorMessage.value = 'User not found'
+    }
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to load user'
+  }
 }
 
 async function handleSaveUser() {
@@ -594,6 +614,27 @@ async function handleSetTier() {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to set tier'
   } finally {
     settingTierId.value = null
+  }
+}
+
+async function handleToggleFounding(user: AdminUser) {
+  const newStatus = !user.isFoundingMember
+  const action = newStatus ? 'grant Founding Member badge to' : 'remove Founding Member badge from'
+  if (!confirm(`${action} @${user.username}?`)) return
+
+  togglingFoundingId.value = user.id
+  errorMessage.value = ''
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    const result = await toggleFoundingMember(token, user.id, newStatus)
+    successMessage.value = result.message
+    await loadUsers()
+    setTimeout(() => successMessage.value = '', 3000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to update founding member status'
+  } finally {
+    togglingFoundingId.value = null
   }
 }
 
@@ -1686,19 +1727,43 @@ function getLocationTypeLabel(location: EventLocation): string {
                   </div>
                   <span class="font-bold">{{ dashboardStats.users.byTier?.free ?? 0 }}</span>
                 </div>
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-2">
-                    <span class="w-3 h-3 rounded-full bg-blue-500"></span>
-                    <span class="text-sm">Basic ($7.99/mo)</span>
+                <div>
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <span class="w-3 h-3 rounded-full bg-blue-500"></span>
+                      <span class="text-sm">Basic ($7.99/mo)</span>
+                    </div>
+                    <span class="font-bold text-blue-600">{{ dashboardStats.users.byTier?.basic ?? 0 }}</span>
                   </div>
-                  <span class="font-bold text-blue-600">{{ dashboardStats.users.byTier?.basic ?? 0 }}</span>
+                  <div v-if="dashboardStats.users.tierBreakdown" class="ml-5 mt-1 text-xs text-gray-500 space-y-0.5">
+                    <div class="flex justify-between">
+                      <span>Paid</span>
+                      <span>{{ dashboardStats.users.tierBreakdown.basicPaid }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span>Upgraded (free)</span>
+                      <span class="text-amber-600">{{ dashboardStats.users.tierBreakdown.basicUpgraded }}</span>
+                    </div>
+                  </div>
                 </div>
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-2">
-                    <span class="w-3 h-3 rounded-full bg-purple-500"></span>
-                    <span class="text-sm">Pro ($14.99/mo)</span>
+                <div>
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <span class="w-3 h-3 rounded-full bg-purple-500"></span>
+                      <span class="text-sm">Pro ($14.99/mo)</span>
+                    </div>
+                    <span class="font-bold text-purple-600">{{ dashboardStats.users.byTier?.pro ?? 0 }}</span>
                   </div>
-                  <span class="font-bold text-purple-600">{{ dashboardStats.users.byTier?.pro ?? 0 }}</span>
+                  <div v-if="dashboardStats.users.tierBreakdown" class="ml-5 mt-1 text-xs text-gray-500 space-y-0.5">
+                    <div class="flex justify-between">
+                      <span>Paid</span>
+                      <span>{{ dashboardStats.users.tierBreakdown.proPaid }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span>Upgraded (free)</span>
+                      <span class="text-amber-600">{{ dashboardStats.users.tierBreakdown.proUpgraded }}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
               <!-- Visual bar chart -->
@@ -1744,6 +1809,57 @@ function getLocationTypeLabel(location: EventLocation): string {
                   <span class="font-medium">${{ ((dashboardStats.revenue?.proCount ?? 0) * 14.99).toFixed(2) }}</span>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <!-- Today's Signups Section -->
+          <div v-if="dashboardStats?.users?.todaySignups && dashboardStats.users.todaySignups.length > 0" class="mt-6">
+            <h3 class="font-semibold mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-green-500" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z"/>
+              </svg>
+              Today's Signups ({{ dashboardStats.users.todaySignups.length }})
+            </h3>
+            <div class="card divide-y divide-gray-100">
+              <div
+                v-for="signup in dashboardStats.users.todaySignups"
+                :key="signup.id"
+                class="p-3 flex items-center gap-3"
+              >
+                <UserAvatar
+                  :avatar-url="signup.avatarUrl"
+                  :display-name="signup.displayName"
+                  size="sm"
+                />
+                <div class="flex-1 min-w-0">
+                  <div class="font-medium truncate">{{ signup.displayName || signup.username }}</div>
+                  <div class="text-xs text-gray-500">@{{ signup.username }}</div>
+                </div>
+                <div class="text-right">
+                  <div class="text-sm text-gray-600">{{ signup.email }}</div>
+                  <div class="text-xs text-gray-400">{{ new Date(signup.createdAt).toLocaleTimeString() }}</div>
+                </div>
+                <button
+                  @click="editSignupUser(signup.username)"
+                  class="p-2 text-gray-400 hover:text-primary-500 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="Edit user"
+                >
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div v-else-if="dashboardStats" class="mt-6">
+            <h3 class="font-semibold mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z"/>
+              </svg>
+              Today's Signups (0)
+            </h3>
+            <div class="card p-4 text-center text-gray-500">
+              No new signups today
             </div>
           </div>
 
@@ -1910,6 +2026,12 @@ function getLocationTypeLabel(location: EventLocation): string {
                 <span v-if="user.isAdmin" class="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
                   Admin
                 </span>
+                <span v-if="user.isFoundingMember" class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 flex items-center gap-1">
+                  <svg class="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
+                  </svg>
+                  Founder
+                </span>
                 <!-- Account Status Badge -->
                 <span
                   v-if="user.accountStatus === 'banned'"
@@ -1975,6 +2097,23 @@ function getLocationTypeLabel(location: EventLocation): string {
                 </svg>
                 <svg v-else class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M16,6L18.29,8.29L13.41,13.17L9.41,9.17L2,16.59L3.41,18L9.41,12L13.41,16L19.71,9.71L22,12V6H16Z"/>
+                </svg>
+              </button>
+
+              <!-- Toggle Founding Member button -->
+              <button
+                class="btn-ghost text-sm"
+                :class="user.isFoundingMember ? 'text-amber-600' : 'text-gray-400'"
+                :title="user.isFoundingMember ? 'Remove Founding Member badge' : 'Grant Founding Member badge'"
+                :disabled="togglingFoundingId === user.id"
+                @click="handleToggleFounding(user)"
+              >
+                <svg v-if="togglingFoundingId === user.id" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                <svg v-else class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
                 </svg>
               </button>
 
@@ -3404,7 +3543,7 @@ function getLocationTypeLabel(location: EventLocation): string {
             <p class="text-xs text-gray-500 mt-1">3-30 characters, starts with letter, alphanumeric + underscore only</p>
           </div>
 
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-6">
             <label class="flex items-center gap-2 cursor-pointer">
               <input
                 v-model="userEditForm.isAdmin"
@@ -3412,6 +3551,19 @@ function getLocationTypeLabel(location: EventLocation): string {
                 class="w-4 h-4 rounded border-gray-300 text-primary-500 focus:ring-primary-500"
               />
               <span>Admin privileges</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                v-model="userEditForm.isFoundingMember"
+                type="checkbox"
+                class="w-4 h-4 rounded border-gray-300 text-amber-500 focus:ring-amber-500"
+              />
+              <span class="flex items-center gap-1">
+                <svg class="w-4 h-4 text-amber-500" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M5,16L3,5L8.5,10L12,4L15.5,10L21,5L19,16H5M19,19A1,1 0 0,1 18,20H6A1,1 0 0,1 5,19V18H19V19Z"/>
+                </svg>
+                Founding Member
+              </span>
             </label>
           </div>
 

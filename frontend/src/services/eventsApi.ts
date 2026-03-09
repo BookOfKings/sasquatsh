@@ -124,6 +124,15 @@ function toEvent(row: Record<string, unknown>): Event {
           avatarUrl: (row.host as Record<string, unknown>).avatar_url as string | null,
         }
       : null,
+    venue: row.venue
+      ? {
+          id: (row.venue as Record<string, unknown>).id as string,
+          name: (row.venue as Record<string, unknown>).name as string,
+          city: (row.venue as Record<string, unknown>).city as string,
+          state: (row.venue as Record<string, unknown>).state as string,
+          postalCode: (row.venue as Record<string, unknown>).postal_code as string | null,
+        }
+      : null,
     registrations: (row.registrations as Record<string, unknown>[])?.map((r) => ({
       id: r.id as string,
       userId: r.user_id as string,
@@ -203,6 +212,9 @@ export async function getPublicEvents(
   if (filter?.search) {
     query = query.or(`title.ilike.%${filter.search}%,game_title.ilike.%${filter.search}%`)
   }
+  if (filter?.venueId) {
+    query = query.eq('event_location_id', filter.venueId)
+  }
 
   const { data, error } = await query
 
@@ -226,6 +238,7 @@ export async function browseEvents(
   if (filter?.search) params.append('search', filter.search)
   if (filter?.nearbyZip) params.append('nearbyZip', filter.nearbyZip)
   if (filter?.radiusMiles) params.append('radiusMiles', String(filter.radiusMiles))
+  if (filter?.venueId) params.append('venueId', filter.venueId)
 
   return authenticatedRequest<EventSummary[]>(`/events?${params.toString()}`, token)
 }

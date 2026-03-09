@@ -52,6 +52,8 @@ const currentTier = computed((): SubscriptionTier => {
 
 const eventLimit = computed(() => TIER_LIMITS[currentTier.value].gamesPerEvent)
 const isAtLimit = computed(() => activeEventCount.value >= eventLimit.value)
+// Today's date for min date validation (YYYY-MM-DD format)
+const today = computed(() => new Date().toISOString().split('T')[0])
 
 // Timezone options
 const timezoneOptions = [
@@ -171,6 +173,7 @@ const statusOptions = [
 
 function validate(): boolean {
   errors.title = ''
+  errors.gameTitle = ''
   errors.eventDate = ''
   errors.startTime = ''
   errors.durationMinutes = ''
@@ -183,6 +186,11 @@ function validate(): boolean {
     valid = false
   }
 
+  if (!form.gameTitle?.trim()) {
+    errors.gameTitle = 'Primary game name is required'
+    valid = false
+  }
+
   if (!form.eventDate) {
     errors.eventDate = 'Date is required'
     valid = false
@@ -191,6 +199,15 @@ function validate(): boolean {
   if (!form.startTime) {
     errors.startTime = 'Start time is required'
     valid = false
+  }
+
+  // Check if event date/time is in the past
+  if (form.eventDate && form.startTime) {
+    const eventDateTime = new Date(`${form.eventDate}T${form.startTime}`)
+    if (eventDateTime < new Date()) {
+      errors.eventDate = 'Event cannot be scheduled in the past'
+      valid = false
+    }
   }
 
   if (!form.durationMinutes || form.durationMinutes <= 0) {
@@ -449,16 +466,18 @@ function handleVenueSubmitted(venue: EventLocation) {
 
               <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div class="md:col-span-2">
-                  <label for="gameTitle" class="label">Primary Game Name</label>
+                  <label for="gameTitle" class="label">Primary Game Name *</label>
                   <input
                     id="gameTitle"
                     v-model="form.gameTitle"
                     type="text"
                     class="input"
+                    :class="{ 'input-error': errors.gameTitle }"
                     placeholder="e.g., Catan, Ticket to Ride"
                     :disabled="loading"
                   />
-                  <p class="text-sm text-gray-500 mt-1">
+                  <p v-if="errors.gameTitle" class="text-sm text-red-500 mt-1">{{ errors.gameTitle }}</p>
+                  <p v-else class="text-sm text-gray-500 mt-1">
                     {{ selectedGames.length > 0 ? 'Auto-filled from BGG selection' : 'Or enter manually' }}
                   </p>
                 </div>
@@ -506,6 +525,7 @@ function handleVenueSubmitted(venue: EventLocation) {
                   id="eventDate"
                   v-model="form.eventDate"
                   type="date"
+                  :min="today"
                   class="input"
                   :class="{ 'input-error': errors.eventDate }"
                   :disabled="loading"

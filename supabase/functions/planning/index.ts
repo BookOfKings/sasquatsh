@@ -48,11 +48,13 @@ Deno.serve(async (req) => {
       const { data, error } = await supabase
         .from('planning_invitees')
         .select(`
+          has_responded,
+          cannot_attend_any,
           session:planning_sessions(
             id, group_id, created_by_user_id, title, description,
             response_deadline, status, finalized_date, created_event_id, created_at,
             group:groups(id, name, slug),
-            created_by:users!created_by_user_id(id, display_name, avatar_url)
+            created_by:users!created_by_user_id(id, display_name, username, avatar_url, is_founding_member)
           )
         `)
         .eq('user_id', user.id)
@@ -60,9 +62,12 @@ Deno.serve(async (req) => {
       if (error) return errorResponse(error.message, 500)
 
       const sessions = data
-        .map(d => d.session)
-        .filter((s): s is NonNullable<typeof s> => s !== null)
-        .map(transformSessionSummary)
+        .filter(d => d.session !== null)
+        .map(d => ({
+          ...transformSessionSummary(d.session as Record<string, unknown>),
+          hasResponded: d.has_responded ?? false,
+          cannotAttendAny: d.cannot_attend_any ?? false,
+        }))
 
       return jsonResponse(sessions)
     }
@@ -86,8 +91,9 @@ Deno.serve(async (req) => {
         .select(`
           id, group_id, created_by_user_id, title, description,
           response_deadline, status, finalized_date, created_event_id, created_at,
+          max_participants,
           group:groups(id, name, slug),
-          created_by:users!created_by_user_id(id, display_name, avatar_url),
+          created_by:users!created_by_user_id(id, display_name, username, avatar_url, is_founding_member),
           invitees:planning_invitees(count)
         `)
         .eq('group_id', groupId)
@@ -104,8 +110,9 @@ Deno.serve(async (req) => {
         .select(`
           id, group_id, created_by_user_id, title, description,
           response_deadline, status, finalized_date, finalized_game_id, created_event_id, created_at,
+          max_participants,
           group:groups(id, name, slug),
-          created_by:users!created_by_user_id(id, display_name, avatar_url)
+          created_by:users!created_by_user_id(id, display_name, username, avatar_url, is_founding_member)
         `)
         .eq('id', sessionId)
         .single()
@@ -124,15 +131,15 @@ Deno.serve(async (req) => {
 
       const isCreator = session.created_by_user_id === user.id
       if (!isCreator && !invitee) {
-        return errorResponse('Not authorized to view this session', 403)
+        return errorResponse('You need to be invited to view this planning session', 403)
       }
 
       // Fetch invitees
       const { data: invitees } = await supabase
         .from('planning_invitees')
         .select(`
-          id, user_id, has_responded, responded_at, cannot_attend_any,
-          user:users(id, display_name, avatar_url)
+          id, user_id, has_responded, responded_at, cannot_attend_any, has_slot,
+          user:users(id, display_name, username, avatar_url, is_founding_member)
         `)
         .eq('session_id', sessionId)
 
@@ -143,7 +150,7 @@ Deno.serve(async (req) => {
           id, proposed_date, start_time,
           votes:planning_date_votes(
             user_id, is_available,
-            user:users(display_name, avatar_url)
+            user:users(display_name, username, avatar_url, is_founding_member)
           )
         `)
         .eq('session_id', sessionId)
@@ -155,7 +162,7 @@ Deno.serve(async (req) => {
         .select(`
           id, suggested_by_user_id, bgg_id, game_name, thumbnail_url,
           min_players, max_players, playing_time, created_at,
-          suggested_by:users!suggested_by_user_id(display_name, avatar_url),
+          suggested_by:users!suggested_by_user_id(display_name, avatar_url, is_founding_member),
           votes:planning_game_votes(user_id)
         `)
         .eq('session_id', sessionId)
@@ -166,7 +173,7 @@ Deno.serve(async (req) => {
         .from('planning_session_items')
         .select(`
           id, item_name, item_category, quantity_needed, claimed_by_user_id, claimed_at, created_at,
-          claimed_by:users!claimed_by_user_id(id, display_name, username, avatar_url)
+          claimed_by:users!claimed_by_user_id(id, display_name, username, avatar_url, is_founding_member)
         `)
         .eq('session_id', sessionId)
         .order('created_at', { ascending: true })
@@ -206,6 +213,14 @@ Deno.serve(async (req) => {
         return errorResponse('At least 1 proposed date required', 400)
       }
 
+      // Validate maxParticipants if provided
+      if (body.maxParticipants !== undefined && body.maxParticipants !== null) {
+        const maxP = Number(body.maxParticipants)
+        if (isNaN(maxP) || maxP < 2 || maxP > 100) {
+          return errorResponse('maxParticipants must be between 2 and 100', 400)
+        }
+      }
+
       // Verify user is owner/admin of group
       const { data: membership } = await supabase
         .from('group_memberships')
@@ -240,6 +255,7 @@ Deno.serve(async (req) => {
           title: body.title,
           description: body.description || null,
           response_deadline: body.responseDeadline,
+          max_participants: body.maxParticipants || null,
         })
         .select()
         .single()
@@ -250,9 +266,11 @@ Deno.serve(async (req) => {
       const allInviteeIds = new Set<string>(body.inviteeUserIds)
       allInviteeIds.add(user.id) // Ensure creator is included
 
+      // Creator always gets a slot (first participant)
       const inviteeRows = Array.from(allInviteeIds).map((userId: string) => ({
         session_id: session.id,
         user_id: userId,
+        has_slot: userId === user.id, // Creator auto-gets a slot
       }))
 
       await supabase.from('planning_invitees').insert(inviteeRows)
@@ -359,8 +377,9 @@ Deno.serve(async (req) => {
         .select(`
           id, group_id, created_by_user_id, title, description,
           response_deadline, status, finalized_date, created_event_id, created_at,
+          max_participants,
           group:groups(id, name, slug),
-          created_by:users!created_by_user_id(id, display_name, avatar_url)
+          created_by:users!created_by_user_id(id, display_name, username, avatar_url, is_founding_member)
         `)
         .eq('id', session.id)
         .single()
@@ -388,13 +407,13 @@ Deno.serve(async (req) => {
     // Verify user is invitee
     const { data: invitee } = await supabase
       .from('planning_invitees')
-      .select('id, has_responded')
+      .select('id, has_responded, has_slot')
       .eq('session_id', sessionId)
       .eq('user_id', user.id)
       .single()
 
     if (!isCreator && !invitee) {
-      return errorResponse('Not authorized for this session', 403)
+      return errorResponse('You need to be invited to this planning session', 403)
     }
 
     // Submit availability response
@@ -409,6 +428,30 @@ Deno.serve(async (req) => {
 
       const body = await req.json()
 
+      // Check if user should get a slot (first-come-first-served)
+      let grantSlot = invitee.has_slot // Keep existing slot if they have one
+
+      // Fetch session's max_participants
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('planning_sessions')
+        .select('max_participants')
+        .eq('id', sessionId)
+        .single()
+
+      if (sessionError) {
+        return errorResponse('Failed to fetch session data', 500)
+      }
+
+      if (!invitee.has_slot && !body.cannotAttendAny) {
+        if (sessionData?.max_participants) {
+          // Optimistically grant slot, then verify
+          grantSlot = true
+        } else {
+          // No limit - everyone gets a slot
+          grantSlot = true
+        }
+      }
+
       // Update invitee record
       await supabase
         .from('planning_invitees')
@@ -416,9 +459,29 @@ Deno.serve(async (req) => {
           has_responded: true,
           responded_at: new Date().toISOString(),
           cannot_attend_any: body.cannotAttendAny || false,
+          has_slot: grantSlot,
         })
         .eq('session_id', sessionId)
         .eq('user_id', user.id)
+
+      // If we granted a slot and there's a limit, verify we didn't exceed it (race condition protection)
+      if (grantSlot && !invitee.has_slot && sessionData?.max_participants) {
+        const { count } = await supabase
+          .from('planning_invitees')
+          .select('id', { count: 'exact', head: true })
+          .eq('session_id', sessionId)
+          .eq('has_slot', true)
+
+        if ((count ?? 0) > sessionData.max_participants) {
+          // We exceeded the limit - revoke our slot (last one in loses)
+          await supabase
+            .from('planning_invitees')
+            .update({ has_slot: false })
+            .eq('session_id', sessionId)
+            .eq('user_id', user.id)
+          grantSlot = false
+        }
+      }
 
       // If not "cannot attend any", record date votes
       if (!body.cannotAttendAny && body.dateAvailability?.length) {
@@ -446,13 +509,28 @@ Deno.serve(async (req) => {
         await supabase.from('planning_date_votes').insert(voteRows)
       }
 
-      return jsonResponse({ message: 'Response recorded' })
+      return jsonResponse({ message: 'Response recorded', hasSlot: grantSlot })
     }
 
     // Suggest a game
     if (action === 'suggest-game') {
       if (session.status !== 'open') {
         return errorResponse('Session is no longer open', 400)
+      }
+
+      // Check if session has participant limit and user has a slot
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('planning_sessions')
+        .select('max_participants')
+        .eq('id', sessionId)
+        .single()
+
+      if (sessionError) {
+        return errorResponse('Failed to fetch session data', 500)
+      }
+
+      if (sessionData?.max_participants && !invitee?.has_slot) {
+        return errorResponse('You must have a participation slot to suggest games', 403)
       }
 
       const body = await req.json()
@@ -490,7 +568,7 @@ Deno.serve(async (req) => {
         .select(`
           id, suggested_by_user_id, bgg_id, game_name, thumbnail_url,
           min_players, max_players, playing_time, created_at,
-          suggested_by:users!suggested_by_user_id(display_name, avatar_url)
+          suggested_by:users!suggested_by_user_id(display_name, avatar_url, is_founding_member)
         `)
         .single()
 
@@ -503,6 +581,21 @@ Deno.serve(async (req) => {
 
     // Vote for a game
     if (action === 'vote-game') {
+      // Check if session has participant limit and user has a slot
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('planning_sessions')
+        .select('max_participants')
+        .eq('id', sessionId)
+        .single()
+
+      if (sessionError) {
+        return errorResponse('Failed to fetch session data', 500)
+      }
+
+      if (sessionData?.max_participants && !invitee?.has_slot) {
+        return errorResponse('You must have a participation slot to vote on games', 403)
+      }
+
       const suggestionId = url.searchParams.get('suggestionId')
       if (!suggestionId) {
         return errorResponse('suggestionId required', 400)
@@ -534,6 +627,21 @@ Deno.serve(async (req) => {
 
     // Remove vote for a game
     if (action === 'unvote-game') {
+      // Check if session has participant limit and user has a slot
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('planning_sessions')
+        .select('max_participants')
+        .eq('id', sessionId)
+        .single()
+
+      if (sessionError) {
+        return errorResponse('Failed to fetch session data', 500)
+      }
+
+      if (sessionData?.max_participants && !invitee?.has_slot) {
+        return errorResponse('You must have a participation slot to vote on games', 403)
+      }
+
       const suggestionId = url.searchParams.get('suggestionId')
       if (!suggestionId) {
         return errorResponse('suggestionId required', 400)
@@ -967,6 +1075,7 @@ function transformSessionSummary(row: Record<string, unknown>) {
     finalizedDate: row.finalized_date,
     createdEventId: row.created_event_id,
     createdAt: row.created_at,
+    maxParticipants: row.max_participants ?? null,
     inviteeCount: (row.invitees as { count: number }[])?.[0]?.count ?? 0,
     group: row.group ? {
       id: (row.group as Record<string, unknown>).id,
@@ -976,7 +1085,9 @@ function transformSessionSummary(row: Record<string, unknown>) {
     createdBy: row.created_by ? {
       id: (row.created_by as Record<string, unknown>).id,
       displayName: (row.created_by as Record<string, unknown>).display_name,
+      username: (row.created_by as Record<string, unknown>).username,
       avatarUrl: (row.created_by as Record<string, unknown>).avatar_url,
+      isFoundingMember: (row.created_by as Record<string, unknown>).is_founding_member,
     } : null,
   }
 }
@@ -998,10 +1109,13 @@ function transformSessionFull(
       hasResponded: i.has_responded,
       respondedAt: i.responded_at,
       cannotAttendAny: i.cannot_attend_any,
+      hasSlot: i.has_slot ?? false,
       user: i.user ? {
         id: (i.user as Record<string, unknown>).id,
         displayName: (i.user as Record<string, unknown>).display_name,
+        username: (i.user as Record<string, unknown>).username,
         avatarUrl: (i.user as Record<string, unknown>).avatar_url,
+        isFoundingMember: (i.user as Record<string, unknown>).is_founding_member,
       } : null,
     })),
     dates: dates.map(d => {
@@ -1016,7 +1130,9 @@ function transformSessionFull(
           isAvailable: v.is_available,
           user: v.user ? {
             displayName: (v.user as Record<string, unknown>).display_name,
+            username: (v.user as Record<string, unknown>).username,
             avatarUrl: (v.user as Record<string, unknown>).avatar_url,
+            isFoundingMember: (v.user as Record<string, unknown>).is_founding_member,
           } : null,
         })),
       }
@@ -1043,6 +1159,7 @@ function transformItem(
       displayName: claimedBy.display_name,
       username: claimedBy.username,
       avatarUrl: claimedBy.avatar_url,
+      isFoundingMember: claimedBy.is_founding_member,
     } : null,
   }
 }
@@ -1067,6 +1184,7 @@ function transformGameSuggestion(
     suggestedBy: row.suggested_by ? {
       displayName: (row.suggested_by as Record<string, unknown>).display_name,
       avatarUrl: (row.suggested_by as Record<string, unknown>).avatar_url,
+      isFoundingMember: (row.suggested_by as Record<string, unknown>).is_founding_member,
     } : null,
   }
 }

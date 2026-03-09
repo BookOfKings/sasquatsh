@@ -23,6 +23,7 @@ import type { PlanningSession, GameSuggestion, PlanningItem, ItemCategory } from
 import type { BggSearchResult } from '@/types/bgg'
 import DateAvailabilityMatrix from '@/components/planning/DateAvailabilityMatrix.vue'
 import GameSuggestionCard from '@/components/planning/GameSuggestionCard.vue'
+import UserAvatar from '@/components/common/UserAvatar.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -95,6 +96,20 @@ const respondedCount = computed(() => {
 })
 
 const totalInvitees = computed(() => session.value?.invitees?.length ?? 0)
+
+// Slot-related computed properties
+const slotsFilled = computed(() => {
+  return session.value?.invitees?.filter(i => i.hasSlot).length ?? 0
+})
+
+const currentUserHasSlot = computed(() => {
+  return currentUserInvitee.value?.hasSlot ?? false
+})
+
+const slotsAvailable = computed(() => {
+  if (!session.value?.maxParticipants) return true
+  return slotsFilled.value < session.value.maxParticipants
+})
 
 const bestDate = computed(() => {
   if (!session.value?.dates) return null
@@ -519,7 +534,7 @@ function getStatusBadgeClass(status: string) {
                   <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
                   </svg>
-                  Created by {{ session.createdBy?.displayName || 'Unknown' }}
+                  Created by {{ session.createdBy?.displayName || session.createdBy?.username || 'Unknown' }}
                 </span>
                 <span class="flex items-center gap-1">
                   <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -549,6 +564,33 @@ function getStatusBadgeClass(status: string) {
                 :style="{ width: `${totalInvitees > 0 ? (respondedCount / totalInvitees) * 100 : 0}%` }"
               />
             </div>
+          </div>
+
+          <!-- Participant Slots (when limited) -->
+          <div v-if="session.maxParticipants" class="mt-4 pt-4 border-t border-gray-100">
+            <div class="flex items-center justify-between text-sm mb-2">
+              <span class="font-medium">Participation Slots</span>
+              <span class="text-gray-500">{{ slotsFilled }} of {{ session.maxParticipants }}</span>
+            </div>
+            <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                class="h-full rounded-full transition-all"
+                :class="slotsFilled >= session.maxParticipants ? 'bg-red-500' : 'bg-green-500'"
+                :style="{ width: `${(slotsFilled / session.maxParticipants) * 100}%` }"
+              />
+            </div>
+            <p v-if="currentUserHasSlot" class="text-sm text-green-600 mt-2 flex items-center gap-1">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+              </svg>
+              You have a participation slot
+            </p>
+            <p v-else-if="!slotsAvailable" class="text-sm text-red-500 mt-2">
+              All participation slots are filled. You can still respond but won't be able to vote on games.
+            </p>
+            <p v-else class="text-sm text-gray-500 mt-2">
+              Respond to secure your participation slot (first-come-first-served)
+            </p>
           </div>
         </div>
       </div>
@@ -651,12 +693,19 @@ function getStatusBadgeClass(status: string) {
 
               <!-- Game Search -->
               <div v-if="!showGameSearch" class="mb-4">
-                <button class="btn-outline text-sm" @click="showGameSearch = true">
+                <button
+                  class="btn-outline text-sm"
+                  :disabled="!!(session.maxParticipants && !currentUserHasSlot)"
+                  @click="showGameSearch = true"
+                >
                   <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/>
                   </svg>
                   Suggest a Game
                 </button>
+                <p v-if="session.maxParticipants && !currentUserHasSlot" class="text-sm text-red-500 mt-2">
+                  You need a participation slot to suggest games
+                </p>
               </div>
               <div v-else class="mb-4">
                 <div class="relative">
@@ -720,6 +769,7 @@ function getStatusBadgeClass(status: string) {
                   :selectable="false"
                   :selected="false"
                   :removable="canRemoveSuggestion(suggestion)"
+                  :voting-disabled="!!(session.maxParticipants && !currentUserHasSlot)"
                   @vote="handleVoteGame(suggestion)"
                   @remove="handleRemoveSuggestion(suggestion)"
                 />
@@ -935,6 +985,9 @@ function getStatusBadgeClass(status: string) {
         <div class="card mb-6">
           <div class="p-6 border-b border-gray-100">
             <h2 class="font-semibold">Invited Members</h2>
+            <p v-if="session.maxParticipants" class="text-sm text-gray-500 mt-1">
+              Limited to {{ session.maxParticipants }} participants (first-come-first-served)
+            </p>
           </div>
           <div class="p-6">
             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
@@ -944,15 +997,13 @@ function getStatusBadgeClass(status: string) {
                 class="flex flex-col items-center text-center"
               >
                 <div class="relative">
-                  <div class="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
-                    <img
-                      v-if="invitee.user?.avatarUrl"
-                      :src="invitee.user.avatarUrl"
-                      class="w-full h-full object-cover"
+                  <div :class="session.maxParticipants && invitee.hasSlot ? 'ring-2 ring-green-500 rounded-full' : ''">
+                    <UserAvatar
+                      :avatar-url="invitee.user?.avatarUrl"
+                      :display-name="invitee.user?.displayName"
+                      :is-founding-member="invitee.user?.isFoundingMember"
+                      size="lg"
                     />
-                    <svg v-else class="w-6 h-6 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
-                    </svg>
                   </div>
                   <div
                     v-if="invitee.hasResponded"
@@ -967,9 +1018,14 @@ function getStatusBadgeClass(status: string) {
                     </svg>
                   </div>
                 </div>
-                <span class="text-sm mt-2 truncate w-full">{{ invitee.user?.displayName || 'Unknown' }}</span>
+                <span class="text-sm mt-2 truncate w-full">{{ invitee.user?.displayName || invitee.user?.username || 'Unknown' }}</span>
                 <span class="text-xs text-gray-400">
-                  {{ invitee.hasResponded ? (invitee.cannotAttendAny ? 'Unavailable' : 'Responded') : 'Pending' }}
+                  <template v-if="session.maxParticipants && invitee.hasSlot">
+                    <span class="text-green-600">Has Slot</span>
+                  </template>
+                  <template v-else>
+                    {{ invitee.hasResponded ? (invitee.cannotAttendAny ? 'Unavailable' : 'Responded') : 'Pending' }}
+                  </template>
                 </span>
               </div>
             </div>

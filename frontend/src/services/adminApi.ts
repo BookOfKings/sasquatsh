@@ -12,6 +12,15 @@ export interface PopularGame {
   thumbnailUrl: string | null
 }
 
+export interface TodaySignup {
+  id: string
+  username: string
+  email: string
+  displayName: string | null
+  avatarUrl: string | null
+  createdAt: string
+}
+
 export interface AdminStats {
   users: {
     total: number
@@ -22,6 +31,13 @@ export interface AdminStats {
       basic: number
       pro: number
     }
+    tierBreakdown?: {
+      basicPaid: number
+      basicUpgraded: number
+      proPaid: number
+      proUpgraded: number
+    }
+    todaySignups?: TodaySignup[]
   }
   revenue: {
     projectedMonthly: number
@@ -262,6 +278,7 @@ export interface AdminUser {
   displayName: string | null
   avatarUrl: string | null
   isAdmin: boolean
+  isFoundingMember: boolean
   isSuspended: boolean
   suspensionReason: string | null
   suspendedAt: string | null
@@ -341,6 +358,18 @@ export async function setUserTier(
   return authenticatedRequest<{ message: string; effectiveTier: string }>('/admin-stats?action=set-tier', token, {
     method: 'POST',
     body: JSON.stringify({ userId, tier, reason }),
+  })
+}
+
+// Toggle founding member status (admin only)
+export async function toggleFoundingMember(
+  token: string,
+  userId: string,
+  isFoundingMember: boolean
+): Promise<{ message: string; isFoundingMember: boolean }> {
+  return authenticatedRequest<{ message: string; isFoundingMember: boolean }>('/admin-stats?action=toggle-founding', token, {
+    method: 'POST',
+    body: JSON.stringify({ userId, isFoundingMember }),
   })
 }
 

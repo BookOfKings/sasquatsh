@@ -22,6 +22,7 @@ export interface UserProfile {
   favoriteGames: string[] | null
   preferredGameTypes: string[] | null
   isAdmin: boolean
+  isFoundingMember: boolean
   blockedUserIds: string[]
   createdAt: string
   updatedAt: string
@@ -77,6 +78,7 @@ export interface PublicProfile {
   bio: string | null
   favoriteGames: string[] | null
   preferredGameTypes: string[] | null
+  isFoundingMember: boolean
   createdAt: string
 }
 

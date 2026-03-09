@@ -21,6 +21,8 @@ import {
   getInvitations,
   revokeInvitation,
   acceptInvitation,
+  getMyPendingInvitations,
+  respondToInvitation,
 } from '@/services/groupsApi'
 import type {
   Group,
@@ -33,6 +35,7 @@ import type {
   GroupInvitation,
   CreateInvitationInput,
   MemberRole,
+  PendingInvitation,
 } from '@/types/groups'
 
 const publicGroups = ref<GroupSummary[]>([])
@@ -41,6 +44,7 @@ const currentGroup = ref<Group | null>(null)
 const groupMembers = ref<GroupMember[]>([])
 const joinRequests = ref<JoinRequest[]>([])
 const invitations = ref<GroupInvitation[]>([])
+const pendingInvitations = ref<PendingInvitation[]>([])
 const userMembership = ref<GroupMember | null>(null)
 const loading = ref(false)
 const error = ref<string | null>(null)
@@ -458,6 +462,50 @@ export function useGroupStore() {
     }
   }
 
+  async function loadPendingInvitations(): Promise<void> {
+    try {
+      const token = await auth.getIdToken()
+      if (!token) return
+
+      pendingInvitations.value = await getMyPendingInvitations(token)
+    } catch (err) {
+      console.error('Failed to load pending invitations:', err)
+      pendingInvitations.value = []
+    }
+  }
+
+  async function handleRespondToInvitation(
+    invitationId: string,
+    response: 'accept' | 'decline'
+  ): Promise<{ ok: boolean; message: string; groupId?: string; groupName?: string }> {
+    try {
+      const token = await auth.getIdToken()
+      if (!token) {
+        return { ok: false, message: 'Not authenticated' }
+      }
+
+      const result = await respondToInvitation(token, invitationId, response)
+
+      // Refresh pending invitations
+      await loadPendingInvitations()
+
+      // If accepted, refresh my groups
+      if (response === 'accept') {
+        await loadMyGroups()
+      }
+
+      return {
+        ok: true,
+        message: result.message,
+        groupId: result.groupId,
+        groupName: result.groupName,
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to respond to invitation'
+      return { ok: false, message }
+    }
+  }
+
   return {
     publicGroups: computed(() => publicGroups.value),
     myGroups: computed(() => myGroups.value),
@@ -465,6 +513,7 @@ export function useGroupStore() {
     groupMembers: computed(() => groupMembers.value),
     joinRequests: computed(() => joinRequests.value),
     invitations: computed(() => invitations.value),
+    pendingInvitations: computed(() => pendingInvitations.value),
     userMembership: computed(() => userMembership.value),
     loading: computed(() => loading.value),
     error: computed(() => error.value),
@@ -474,6 +523,7 @@ export function useGroupStore() {
     loadGroupMembers,
     loadJoinRequests,
     loadInvitations,
+    loadPendingInvitations,
     createGroup: handleCreateGroup,
     updateGroup: handleUpdateGroup,
     deleteGroup: handleDeleteGroup,
@@ -488,5 +538,6 @@ export function useGroupStore() {
     createInvitation: handleCreateInvitation,
     revokeInvitation: handleRevokeInvitation,
     acceptInvitation: handleAcceptInvitation,
+    respondToInvitation: handleRespondToInvitation,
   }
 }

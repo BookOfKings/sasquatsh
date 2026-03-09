@@ -155,3 +155,24 @@ export async function deleteAvatar(
     { method: 'POST' }
   )
 }
+
+// ============ User Search ============
+
+export interface UserSearchResult {
+  id: string
+  username: string
+  displayName: string | null
+  avatarUrl: string | null
+  isFoundingMember?: boolean
+}
+
+// Search users by username (for invitations, etc.)
+export async function searchUsersByUsername(
+  token: string,
+  query: string
+): Promise<UserSearchResult[]> {
+  return authenticatedRequest<UserSearchResult[]>(
+    `/profile?action=search&q=${encodeURIComponent(query)}`,
+    token
+  )
+}

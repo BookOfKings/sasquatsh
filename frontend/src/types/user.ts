@@ -10,6 +10,7 @@ export interface User {
   subscriptionOverrideTier?: 'free' | 'basic' | 'pro' | 'premium'
   accountStatus?: 'active' | 'suspended' | 'banned'
   isAdmin: boolean
+  isFoundingMember: boolean
   blockedUserIds: string[]
   createdAt: string
 }
@@ -24,4 +25,5 @@ export interface UserSummary {
   username: string
   displayName?: string
   avatarUrl?: string
+  isFoundingMember?: boolean
 }

@@ -6,7 +6,9 @@ import { useAuthStore } from '@/stores/useAuthStore'
 import { getMyProfile } from '@/services/profileApi'
 import EventList from '@/components/events/EventList.vue'
 import AdBanner from '@/components/ads/AdBanner.vue'
+import HotLocationsBar from '@/components/venues/HotLocationsBar.vue'
 import type { EventSummary, EventSearchFilter } from '@/types/events'
+import type { EventLocation } from '@/types/social'
 
 const router = useRouter()
 const eventStore = useEventStore()
@@ -19,6 +21,7 @@ const city = ref('')
 const state = ref('')
 const gameCategory = ref<string | null>(null)
 const difficulty = ref<string | null>(null)
+const selectedVenue = ref<EventLocation | null>(null)
 
 // Nearby search state
 const nearbyEnabled = ref(false)
@@ -61,8 +64,11 @@ function buildFilter(): EventSearchFilter | undefined {
   const filter: EventSearchFilter = {}
   if (searchText.value.trim()) filter.search = searchText.value.trim()
 
-  // Use nearby search if enabled and user has postal code
-  if (nearbyEnabled.value && userPostalCode.value) {
+  // If venue is selected, filter by venue (ignore location filters)
+  if (selectedVenue.value) {
+    filter.venueId = selectedVenue.value.id
+  } else if (nearbyEnabled.value && userPostalCode.value) {
+    // Use nearby search if enabled and user has postal code
     filter.nearbyZip = userPostalCode.value
     filter.radiusMiles = radiusMiles.value
   } else {
@@ -88,11 +94,26 @@ function clearFilters() {
   gameCategory.value = null
   difficulty.value = null
   nearbyEnabled.value = false
+  selectedVenue.value = null
+  applyFilters()
+}
+
+function selectVenue(venue: EventLocation) {
+  // Toggle selection - if same venue is clicked, deselect it
+  if (selectedVenue.value?.id === venue.id) {
+    selectedVenue.value = null
+  } else {
+    selectedVenue.value = venue
+    // Clear other location filters when selecting a venue
+    nearbyEnabled.value = false
+    city.value = ''
+    state.value = ''
+  }
   applyFilters()
 }
 
 const hasActiveFilters = () => {
-  return searchText.value || city.value || state.value || gameCategory.value || difficulty.value || nearbyEnabled.value
+  return searchText.value || city.value || state.value || gameCategory.value || difficulty.value || nearbyEnabled.value || selectedVenue.value
 }
 
 function toggleNearby() {
@@ -112,7 +133,9 @@ function toggleNearby() {
 const activeFilterChips = () => {
   const chips: string[] = []
   if (searchText.value) chips.push(`"${searchText.value}"`)
-  if (nearbyEnabled.value && userPostalCode.value) {
+  if (selectedVenue.value) {
+    chips.push(`Venue: ${selectedVenue.value.name}`)
+  } else if (nearbyEnabled.value && userPostalCode.value) {
     chips.push(`Within ${radiusMiles.value} miles`)
   } else {
     if (city.value) chips.push(`City: ${city.value}`)
@@ -198,6 +221,12 @@ function goToCreateGame() {
         Host a Game
       </button>
     </div>
+
+    <!-- Hot Venues Bar -->
+    <HotLocationsBar
+      :selected-id="selectedVenue?.id"
+      @select="selectVenue"
+    />
 
     <!-- Search and Filter Bar -->
     <div class="card p-4 mb-6">

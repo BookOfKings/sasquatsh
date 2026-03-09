@@ -7,6 +7,7 @@ import { getEffectiveTier } from '@/types/user'
 import { hasFeature } from '@/config/subscriptionLimits'
 import ShareModal from '@/components/common/ShareModal.vue'
 import D20Spinner from '@/components/common/D20Spinner.vue'
+import UserAvatar from '@/components/common/UserAvatar.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -39,6 +40,16 @@ const isRegistered = computed(() => {
 const spotsLeft = computed(() => {
   if (!event.value) return 0
   return event.value.maxPlayers - event.value.confirmedCount
+})
+
+// Check if user can see full address details
+// For private/invite-only events, only show full address to host, registered users, or admins
+const canSeeFullAddress = computed(() => {
+  if (!event.value) return false
+  // Public events - everyone can see address
+  if (event.value.isPublic) return true
+  // Private events - only host, registered users, or admins
+  return isHost.value || isRegistered.value || auth.isAdmin.value
 })
 
 // Check if user can see/use items feature (Pro+ only)
@@ -204,16 +215,13 @@ function goToLogin() {
       <div class="card p-6 mb-6">
         <!-- Header -->
         <div class="flex items-start gap-4 mb-4">
-          <div class="w-14 h-14 rounded-full bg-primary-500 flex items-center justify-center overflow-hidden flex-shrink-0">
-            <img
-              v-if="event.host?.avatarUrl"
-              :src="event.host.avatarUrl"
-              class="w-full h-full object-cover"
-            />
-            <svg v-else class="w-8 h-8 text-white" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
-            </svg>
-          </div>
+          <UserAvatar
+            :avatar-url="event.host?.avatarUrl"
+            :display-name="event.host?.displayName"
+            :is-founding-member="event.host?.isFoundingMember"
+            size="lg"
+            class="flex-shrink-0"
+          />
           <div class="flex-1 min-w-0">
             <h1 class="text-2xl font-bold text-gray-900">{{ event.title }}</h1>
             <p class="text-gray-500">
@@ -303,16 +311,41 @@ function goToLogin() {
             </div>
 
             <!-- Location -->
-            <div v-if="event.addressLine1 || event.city" class="flex items-start gap-3">
+            <div v-if="event.venue || event.addressLine1 || event.city" class="flex items-start gap-3">
               <svg class="w-5 h-5 text-primary-500 mt-0.5" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12,11.5A2.5,2.5 0 0,1 9.5,9A2.5,2.5 0 0,1 12,6.5A2.5,2.5 0 0,1 14.5,9A2.5,2.5 0 0,1 12,11.5M12,2A7,7 0 0,0 5,9C5,14.25 12,22 12,22C12,22 19,14.25 19,9A7,7 0 0,0 12,2Z"/>
               </svg>
               <div>
-                <div v-if="event.addressLine1" class="font-medium">{{ event.addressLine1 }}</div>
-                <div class="text-sm text-gray-500">
-                  {{ [event.city, event.state, event.postalCode].filter(Boolean).join(', ') }}
-                </div>
-                <div v-if="event.locationDetails" class="text-sm text-gray-500 mt-1">{{ event.locationDetails }}</div>
+                <!-- Full address details (only for public events or authorized users) -->
+                <template v-if="canSeeFullAddress">
+                  <!-- Venue name if at a venue -->
+                  <div v-if="event.venue" class="font-medium text-primary-700">{{ event.venue.name }}</div>
+                  <!-- Street address if available -->
+                  <div v-if="event.addressLine1" class="font-medium">{{ event.addressLine1 }}</div>
+                  <!-- City, State, Postal Code -->
+                  <div class="text-sm text-gray-500">
+                    {{ [event.city, event.state, event.postalCode].filter(Boolean).join(', ') }}
+                  </div>
+                  <!-- Venue hall/room/table details -->
+                  <div v-if="event.venueHall || event.venueRoom || event.venueTable" class="text-sm text-gray-600 mt-1">
+                    <span v-if="event.venueHall">{{ event.venueHall }}</span>
+                    <span v-if="event.venueHall && (event.venueRoom || event.venueTable)"> &bull; </span>
+                    <span v-if="event.venueRoom">{{ event.venueRoom }}</span>
+                    <span v-if="event.venueRoom && event.venueTable"> &bull; </span>
+                    <span v-if="event.venueTable">Table {{ event.venueTable }}</span>
+                  </div>
+                  <!-- Additional location details -->
+                  <div v-if="event.locationDetails" class="text-sm text-gray-500 mt-1">{{ event.locationDetails }}</div>
+                </template>
+                <!-- Limited address for private events (city/state only) -->
+                <template v-else>
+                  <div class="font-medium text-gray-700">
+                    {{ [event.city, event.state].filter(Boolean).join(', ') }}
+                  </div>
+                  <div class="text-sm text-gray-500 mt-1 italic">
+                    Full address visible after joining
+                  </div>
+                </template>
               </div>
             </div>
           </div>
@@ -435,12 +468,12 @@ function goToLogin() {
             :key="reg.id"
             class="flex items-center gap-3 p-4"
           >
-            <div class="w-10 h-10 rounded-full bg-secondary-500 flex items-center justify-center overflow-hidden">
-              <img v-if="reg.user?.avatarUrl" :src="reg.user.avatarUrl" class="w-full h-full object-cover" />
-              <svg v-else class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
-              </svg>
-            </div>
+            <UserAvatar
+              :avatar-url="reg.user?.avatarUrl"
+              :display-name="reg.user?.displayName"
+              :is-founding-member="reg.user?.isFoundingMember"
+              size="md"
+            />
             <div class="flex-1">
               <div class="font-medium">{{ reg.user?.displayName || 'Anonymous' }}</div>
               <div class="text-sm text-gray-500">{{ reg.status }}</div>

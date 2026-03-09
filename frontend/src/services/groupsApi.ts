@@ -10,6 +10,7 @@ import type {
   CreateInvitationInput,
   InvitationPreview,
   MemberRole,
+  PendingInvitation,
 } from '@/types/groups'
 
 const FUNCTIONS_URL = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL
@@ -281,5 +282,28 @@ export async function acceptInvitation(
     `/groups?action=accept-invite&code=${inviteCode}`,
     token,
     { method: 'POST' }
+  )
+}
+
+// Get user's pending group invitations
+export async function getMyPendingInvitations(
+  token: string
+): Promise<PendingInvitation[]> {
+  return authenticatedRequest<PendingInvitation[]>('/groups?action=my-invitations', token)
+}
+
+// Respond to a direct invitation (accept or decline)
+export async function respondToInvitation(
+  token: string,
+  invitationId: string,
+  response: 'accept' | 'decline'
+): Promise<{ message: string; groupId?: string; groupName?: string }> {
+  return authenticatedRequest<{ message: string; groupId?: string; groupName?: string }>(
+    `/groups?action=respond-invite&inviteId=${invitationId}`,
+    token,
+    {
+      method: 'POST',
+      body: JSON.stringify({ response }),
+    }
   )
 }

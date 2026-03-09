@@ -48,10 +48,11 @@ Deno.serve(async (req) => {
         .from('events')
         .select(`
           *,
-          host:users!host_user_id(id, display_name, avatar_url),
+          host:users!host_user_id(id, display_name, avatar_url, is_founding_member),
+          venue:event_locations!event_location_id(id, name, city, state, postal_code),
           registrations:event_registrations(
             id, user_id, status, registered_at,
-            user:users(id, display_name, avatar_url)
+            user:users(id, display_name, avatar_url, is_founding_member)
           ),
           items:event_items(
             id, item_name, item_category, quantity_needed,
@@ -99,6 +100,7 @@ Deno.serve(async (req) => {
       const search = url.searchParams.get('search')
       const nearbyZip = url.searchParams.get('nearbyZip')
       const radiusMiles = url.searchParams.get('radiusMiles')
+      const venueId = url.searchParams.get('venueId')
 
       // If radius search is requested, get list of zip codes within radius
       let nearbyZipCodes: string[] | null = null
@@ -118,7 +120,7 @@ Deno.serve(async (req) => {
           id, title, game_title, game_category, event_date, start_time,
           duration_minutes, city, state, postal_code, difficulty_level, max_players, host_is_playing,
           is_public, is_charity_event, min_age, status, host_user_id,
-          host:users!host_user_id(id, display_name, avatar_url),
+          host:users!host_user_id(id, display_name, avatar_url, is_founding_member),
           registrations:event_registrations(count),
           games:event_games(thumbnail_url, is_primary)
         `)
@@ -147,6 +149,7 @@ Deno.serve(async (req) => {
       if (dateFrom) query = query.gte('event_date', dateFrom)
       if (dateTo) query = query.lte('event_date', dateTo)
       if (search) query = query.or(`title.ilike.%${search}%,game_title.ilike.%${search}%`)
+      if (venueId) query = query.eq('event_location_id', venueId)
 
       const { data, error } = await query
 
@@ -179,7 +182,7 @@ Deno.serve(async (req) => {
           id, title, game_title, game_category, event_date, start_time,
           duration_minutes, city, state, difficulty_level, max_players, host_is_playing,
           is_public, is_charity_event, min_age, status,
-          host:users!host_user_id(id, display_name, avatar_url),
+          host:users!host_user_id(id, display_name, avatar_url, is_founding_member),
           registrations:event_registrations(count),
           games:event_games(thumbnail_url, is_primary)
         `)
@@ -199,7 +202,7 @@ Deno.serve(async (req) => {
             id, title, game_title, game_category, event_date, start_time,
             duration_minutes, city, state, difficulty_level, max_players, host_is_playing,
             is_public, is_charity_event, min_age, status,
-            host:users!host_user_id(id, display_name, avatar_url),
+            host:users!host_user_id(id, display_name, avatar_url, is_founding_member),
             registrations:event_registrations(count),
             games:event_games(thumbnail_url, is_primary)
           )
@@ -315,7 +318,7 @@ Deno.serve(async (req) => {
       })
       .select(`
         *,
-        host:users!host_user_id(id, display_name, avatar_url)
+        host:users!host_user_id(id, display_name, avatar_url, is_founding_member)
       `)
       .single()
 
@@ -388,10 +391,10 @@ Deno.serve(async (req) => {
       .eq('id', eventId)
       .select(`
         *,
-        host:users!host_user_id(id, display_name, avatar_url),
+        host:users!host_user_id(id, display_name, avatar_url, is_founding_member),
         registrations:event_registrations(
           id, user_id, status, registered_at,
-          user:users(id, display_name, avatar_url)
+          user:users(id, display_name, avatar_url, is_founding_member)
         ),
         items:event_items(
           id, item_name, item_category, quantity_needed,
@@ -474,6 +477,7 @@ function transformEventSummary(row: Record<string, unknown>) {
           id: (row.host as Record<string, unknown>).id,
           displayName: (row.host as Record<string, unknown>).display_name,
           avatarUrl: (row.host as Record<string, unknown>).avatar_url,
+          isFoundingMember: (row.host as Record<string, unknown>).is_founding_member,
         }
       : null,
   }
@@ -514,6 +518,16 @@ function transformEvent(row: Record<string, unknown>) {
           id: (row.host as Record<string, unknown>).id,
           displayName: (row.host as Record<string, unknown>).display_name,
           avatarUrl: (row.host as Record<string, unknown>).avatar_url,
+          isFoundingMember: (row.host as Record<string, unknown>).is_founding_member,
+        }
+      : null,
+    venue: row.venue
+      ? {
+          id: (row.venue as Record<string, unknown>).id,
+          name: (row.venue as Record<string, unknown>).name,
+          city: (row.venue as Record<string, unknown>).city,
+          state: (row.venue as Record<string, unknown>).state,
+          postalCode: (row.venue as Record<string, unknown>).postal_code,
         }
       : null,
     registrations: Array.isArray(row.registrations)
@@ -527,6 +541,7 @@ function transformEvent(row: Record<string, unknown>) {
                 id: (r.user as Record<string, unknown>).id,
                 displayName: (r.user as Record<string, unknown>).display_name,
                 avatarUrl: (r.user as Record<string, unknown>).avatar_url,
+                isFoundingMember: (r.user as Record<string, unknown>).is_founding_member,
               }
             : null,
         }))

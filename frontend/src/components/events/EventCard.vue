@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { EventSummary } from '@/types/events'
+import UserAvatar from '@/components/common/UserAvatar.vue'
 
 defineProps<{
   event: EventSummary
@@ -106,16 +107,13 @@ function getPlayerProgress(confirmed: number, max: number): number {
           </svg>
         </div>
         <!-- Host avatar overlay -->
-        <div class="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center overflow-hidden ring-2 ring-white">
-          <img
-            v-if="event.host?.avatarUrl"
-            :src="event.host.avatarUrl"
-            :alt="event.host?.displayName || 'Host'"
-            class="w-full h-full object-cover"
+        <div class="absolute -bottom-1 -right-1 ring-2 ring-white rounded-full">
+          <UserAvatar
+            :avatar-url="event.host?.avatarUrl"
+            :display-name="event.host?.displayName"
+            :is-founding-member="event.host?.isFoundingMember"
+            size="xs"
           />
-          <svg v-else class="w-3 h-3 text-white" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
-          </svg>
         </div>
       </div>
       <div class="flex-1 min-w-0">

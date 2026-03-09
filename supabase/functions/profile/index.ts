@@ -34,6 +34,7 @@ function toUserProfile(row: Record<string, unknown>) {
     favoriteGames: row.favorite_games as string[] | null,
     preferredGameTypes: row.preferred_game_types as string[] | null,
     isAdmin: row.is_admin as boolean ?? false,
+    isFoundingMember: row.is_founding_member as boolean ?? false,
     blockedUserIds: row.blocked_user_ids as string[] ?? [],
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
@@ -52,6 +53,7 @@ function toPublicProfile(row: Record<string, unknown>) {
     bio: row.bio as string | null,
     favoriteGames: row.favorite_games as string[] | null,
     preferredGameTypes: row.preferred_game_types as string[] | null,
+    isFoundingMember: row.is_founding_member as boolean ?? false,
     createdAt: row.created_at as string,
   }
 }
@@ -127,6 +129,41 @@ Deno.serve(async (req) => {
       username: u.username,
       displayName: u.display_name,
       avatarUrl: u.avatar_url,
+    })))
+  }
+
+  // GET - Search users by username
+  if (req.method === 'GET' && action === 'search') {
+    const query = url.searchParams.get('q')?.trim()
+
+    if (!query || query.length < 2) {
+      return jsonResponse([])
+    }
+
+    // Search for users by username (case-insensitive prefix match)
+    // Exclude current user and blocked users
+    const blockedIds: string[] = user.blocked_user_ids ?? []
+
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('id, username, display_name, avatar_url, is_founding_member')
+      .ilike('username', `${query}%`)
+      .neq('id', user.id)
+      .limit(10)
+
+    if (error) {
+      return errorResponse(error.message, 500)
+    }
+
+    // Filter out blocked users
+    const filteredUsers = users.filter(u => !blockedIds.includes(u.id))
+
+    return jsonResponse(filteredUsers.map(u => ({
+      id: u.id,
+      username: u.username,
+      displayName: u.display_name,
+      avatarUrl: u.avatar_url,
+      isFoundingMember: u.is_founding_member ?? false,
     })))
   }
 

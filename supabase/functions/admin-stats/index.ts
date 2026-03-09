@@ -12,6 +12,15 @@ interface ServiceHealth {
   message?: string
 }
 
+interface TodaySignup {
+  id: string
+  username: string
+  email: string
+  displayName: string | null
+  avatarUrl: string | null
+  createdAt: string
+}
+
 interface AdminStats {
   users: {
     total: number
@@ -22,6 +31,13 @@ interface AdminStats {
       basic: number
       pro: number
     }
+    tierBreakdown: {
+      basicPaid: number
+      basicUpgraded: number
+      proPaid: number
+      proUpgraded: number
+    }
+    todaySignups: TodaySignup[]
   }
   revenue: {
     projectedMonthly: number
@@ -109,20 +125,68 @@ async function getStats(supabase: ReturnType<typeof createClient>): Promise<Admi
     // Get tier counts separately with error handling
     let basicCount = 0
     let proCount = 0
+    let basicPaid = 0
+    let basicUpgraded = 0
+    let proPaid = 0
+    let proUpgraded = 0
+
     try {
-      const usersBasicTier = await supabase.from('users').select('*', { count: 'exact', head: true })
-        .or('subscription_tier.eq.basic,subscription_override_tier.eq.basic')
-      basicCount = usersBasicTier.count ?? 0
+      // Basic tier - paid (has subscription_tier=basic, no override)
+      const basicPaidResult = await supabase.from('users').select('*', { count: 'exact', head: true })
+        .eq('subscription_tier', 'basic')
+        .is('subscription_override_tier', null)
+      basicPaid = basicPaidResult.count ?? 0
+
+      // Basic tier - upgraded (has override to basic)
+      const basicUpgradedResult = await supabase.from('users').select('*', { count: 'exact', head: true })
+        .eq('subscription_override_tier', 'basic')
+      basicUpgraded = basicUpgradedResult.count ?? 0
+
+      basicCount = basicPaid + basicUpgraded
     } catch (e) {
       console.error('Error counting basic tier users:', e)
     }
 
     try {
-      const usersProTier = await supabase.from('users').select('*', { count: 'exact', head: true })
-        .or('subscription_tier.eq.pro,subscription_override_tier.eq.pro')
-      proCount = usersProTier.count ?? 0
+      // Pro tier - paid (has subscription_tier=pro, no override)
+      const proPaidResult = await supabase.from('users').select('*', { count: 'exact', head: true })
+        .eq('subscription_tier', 'pro')
+        .is('subscription_override_tier', null)
+      proPaid = proPaidResult.count ?? 0
+
+      // Pro tier - upgraded (has override to pro)
+      const proUpgradedResult = await supabase.from('users').select('*', { count: 'exact', head: true })
+        .eq('subscription_override_tier', 'pro')
+      proUpgraded = proUpgradedResult.count ?? 0
+
+      proCount = proPaid + proUpgraded
     } catch (e) {
       console.error('Error counting pro tier users:', e)
+    }
+
+    // Get today's signups
+    const todayStart = new Date()
+    todayStart.setHours(0, 0, 0, 0)
+    let todaySignups: TodaySignup[] = []
+    try {
+      const { data: signups } = await supabase
+        .from('users')
+        .select('id, username, email, display_name, avatar_url, created_at')
+        .gte('created_at', todayStart.toISOString())
+        .order('created_at', { ascending: false })
+
+      if (signups) {
+        todaySignups = signups.map(u => ({
+          id: u.id,
+          username: u.username,
+          email: u.email,
+          displayName: u.display_name,
+          avatarUrl: u.avatar_url,
+          createdAt: u.created_at,
+        }))
+      }
+    } catch (e) {
+      console.error('Error getting today signups:', e)
     }
 
     // Get popular games separately
@@ -157,6 +221,13 @@ async function getStats(supabase: ReturnType<typeof createClient>): Promise<Admi
           basic: basicCount,
           pro: proCount,
         },
+        tierBreakdown: {
+          basicPaid,
+          basicUpgraded,
+          proPaid,
+          proUpgraded,
+        },
+        todaySignups,
       },
       revenue: {
         projectedMonthly: Math.round(projectedMonthly * 100) / 100,
@@ -189,7 +260,12 @@ async function getStats(supabase: ReturnType<typeof createClient>): Promise<Admi
     console.error('Error in getStats:', error)
     // Return default stats on error
     return {
-      users: { total: 0, last7Days: 0, last30Days: 0, byTier: { free: 0, basic: 0, pro: 0 } },
+      users: {
+        total: 0, last7Days: 0, last30Days: 0,
+        byTier: { free: 0, basic: 0, pro: 0 },
+        tierBreakdown: { basicPaid: 0, basicUpgraded: 0, proPaid: 0, proUpgraded: 0 },
+        todaySignups: [],
+      },
       revenue: { projectedMonthly: 0, basicCount: 0, proCount: 0 },
       groups: { total: 0, public: 0, private: 0 },
       events: { total: 0, upcoming: 0 },
@@ -392,7 +468,7 @@ Deno.serve(async (req) => {
       let query = supabase
         .from('users')
         .select(`
-          id, email, username, display_name, avatar_url, is_admin,
+          id, email, username, display_name, avatar_url, is_admin, is_founding_member,
           is_suspended, suspension_reason, suspended_at,
           account_status, banned_at, ban_reason,
           subscription_tier, subscription_override_tier, subscription_override_reason,
@@ -426,6 +502,7 @@ Deno.serve(async (req) => {
           displayName: u.display_name,
           avatarUrl: u.avatar_url,
           isAdmin: u.is_admin,
+          isFoundingMember: u.is_founding_member ?? false,
           isSuspended: u.is_suspended,
           suspensionReason: u.suspension_reason,
           suspendedAt: u.suspended_at,
@@ -942,6 +1019,49 @@ Deno.serve(async (req) => {
           ? `User ${targetUser.username || targetUser.email} tier set to ${tier}`
           : `User ${targetUser.username || targetUser.email} tier override removed`,
         effectiveTier: overrideTier || targetUser.subscription_tier || 'free',
+      })
+    }
+
+    // Toggle founding member status
+    if (action === 'toggle-founding') {
+      const userId = body.userId as string
+      const isFoundingMember = body.isFoundingMember as boolean
+
+      if (!userId) {
+        return errorResponse('userId required', 400)
+      }
+
+      if (typeof isFoundingMember !== 'boolean') {
+        return errorResponse('isFoundingMember must be a boolean', 400)
+      }
+
+      const { data: targetUser } = await supabase
+        .from('users')
+        .select('username, email, is_founding_member')
+        .eq('id', userId)
+        .single()
+
+      if (!targetUser) {
+        return errorResponse('User not found', 404)
+      }
+
+      const { error } = await supabase
+        .from('users')
+        .update({
+          is_founding_member: isFoundingMember,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', userId)
+
+      if (error) {
+        return errorResponse(error.message, 500)
+      }
+
+      return jsonResponse({
+        message: isFoundingMember
+          ? `${targetUser.username || targetUser.email} is now a Founding Member`
+          : `${targetUser.username || targetUser.email} is no longer a Founding Member`,
+        isFoundingMember,
       })
     }
 

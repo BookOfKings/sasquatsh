@@ -15,6 +15,7 @@ import { getMyProfile } from '@/services/profileApi'
 import type { PlayerRequest, CreatePlayerRequestInput, PlayerRequestFilters, EventLocation } from '@/types/social'
 import type { EventSummary } from '@/types/events'
 import D20Spinner from '@/components/common/D20Spinner.vue'
+import UserAvatar from '@/components/common/UserAvatar.vue'
 import HotLocationsBar from '@/components/venues/HotLocationsBar.vue'
 import VenueDetailsFields from '@/components/venues/VenueDetailsFields.vue'
 import SubmitVenueModal from '@/components/venues/SubmitVenueModal.vue'
@@ -537,16 +538,13 @@ function getStatusBadge(status: string) {
         >
           <div class="flex items-start gap-4">
             <!-- Host Avatar -->
-            <div class="w-12 h-12 rounded-full bg-secondary-500 flex items-center justify-center overflow-hidden flex-shrink-0">
-              <img
-                v-if="request.host?.avatarUrl"
-                :src="request.host.avatarUrl"
-                class="w-full h-full object-cover"
-              />
-              <svg v-else class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
-              </svg>
-            </div>
+            <UserAvatar
+              :avatar-url="request.host?.avatarUrl"
+              :display-name="request.host?.displayName"
+              :is-founding-member="request.host?.isFoundingMember"
+              size="lg"
+              class="flex-shrink-0"
+            />
 
             <div class="flex-1 min-w-0">
               <div class="flex items-start justify-between gap-2">

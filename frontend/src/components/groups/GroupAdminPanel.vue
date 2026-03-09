@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useGroupStore } from '@/stores/useGroupStore'
+import { useAuthStore } from '@/stores/useAuthStore'
+import { searchUsersByUsername } from '@/services/profileApi'
+import UserAvatar from '@/components/common/UserAvatar.vue'
 import type { GroupMember, JoinRequest, GroupInvitation, MemberRole } from '@/types/groups'
 
 const props = defineProps<{
@@ -13,6 +16,7 @@ const emit = defineEmits<{
 }>()
 
 const groupStore = useGroupStore()
+const auth = useAuthStore()
 
 const activeTab = ref<'members' | 'requests' | 'invitations'>('members')
 const loading = ref(false)
@@ -25,6 +29,19 @@ const invitePhone = ref('')
 const inviteEmail = ref('')
 const copiedInviteCode = ref<string | null>(null)
 const lastCreatedInviteLink = ref<string | null>(null)
+
+// User search state
+const userSearchQuery = ref('')
+const userSearchResults = ref<Array<{ id: string; username: string; displayName: string | null; avatarUrl: string | null; isFoundingMember?: boolean }>>([])
+const selectedUsers = ref<Array<{ id: string; username: string; displayName: string | null; avatarUrl: string | null; isFoundingMember?: boolean }>>([])
+const searchingUsers = ref(false)
+let userSearchTimer: ReturnType<typeof setTimeout> | null = null
+
+// Mobile detection
+const isMobile = computed(() => {
+  if (typeof navigator === 'undefined') return false
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+})
 
 const members = computed(() => groupStore.groupMembers.value)
 const requests = computed(() => groupStore.joinRequests.value)
@@ -49,7 +66,7 @@ async function loadData() {
 }
 
 async function handleRemoveMember(member: GroupMember) {
-  if (!confirm(`Remove ${member.displayName || member.email} from the group?`)) return
+  if (!confirm(`Remove ${member.displayName || member.username || 'this member'} from the group?`)) return
 
   const result = await groupStore.removeMember(props.groupId, member.userId)
   emit('toast', result.message, result.ok ? 'success' : 'error')
@@ -157,6 +174,96 @@ function formatDate(dateStr: string) {
     year: 'numeric',
   })
 }
+
+// User search with debounce
+watch(userSearchQuery, (query) => {
+  if (userSearchTimer) {
+    clearTimeout(userSearchTimer)
+  }
+
+  if (!query.trim() || query.trim().length < 2) {
+    userSearchResults.value = []
+    return
+  }
+
+  userSearchTimer = setTimeout(async () => {
+    await searchUsers(query.trim())
+  }, 300)
+})
+
+async function searchUsers(query: string) {
+  searchingUsers.value = true
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+
+    const results = await searchUsersByUsername(token, query)
+    // Filter out already selected users and current group members
+    const memberUserIds = members.value.map(m => m.userId)
+    const selectedUserIds = selectedUsers.value.map(u => u.id)
+    userSearchResults.value = results.filter(
+      u => !memberUserIds.includes(u.id) && !selectedUserIds.includes(u.id)
+    )
+  } catch (err) {
+    console.error('Failed to search users:', err)
+    userSearchResults.value = []
+  } finally {
+    searchingUsers.value = false
+  }
+}
+
+function addUserToInviteList(user: { id: string; username: string; displayName: string | null; avatarUrl: string | null }) {
+  if (!selectedUsers.value.find(u => u.id === user.id)) {
+    selectedUsers.value.push(user)
+  }
+  userSearchQuery.value = ''
+  userSearchResults.value = []
+}
+
+function removeUserFromInviteList(userId: string) {
+  selectedUsers.value = selectedUsers.value.filter(u => u.id !== userId)
+}
+
+async function handleSendInAppInvites() {
+  if (selectedUsers.value.length === 0) return
+
+  let successCount = 0
+  let failCount = 0
+
+  for (const user of selectedUsers.value) {
+    const result = await groupStore.createInvitation(props.groupId, {
+      userId: user.id,
+      maxUses: 1,
+      expiresInDays: inviteExpiresIn.value || undefined,
+    })
+    if (result.ok) {
+      successCount++
+    } else {
+      failCount++
+    }
+  }
+
+  if (successCount > 0) {
+    emit('toast', `Sent ${successCount} invitation${successCount > 1 ? 's' : ''}`, 'success')
+  }
+  if (failCount > 0) {
+    emit('toast', `Failed to send ${failCount} invitation${failCount > 1 ? 's' : ''}`, 'error')
+  }
+
+  // Reset state
+  selectedUsers.value = []
+  userSearchQuery.value = ''
+  showInviteModal.value = false
+}
+
+function resetInviteModal() {
+  invitePhone.value = ''
+  inviteEmail.value = ''
+  userSearchQuery.value = ''
+  userSearchResults.value = []
+  selectedUsers.value = []
+  showInviteModal.value = false
+}
 </script>
 
 <template>
@@ -220,19 +327,18 @@ function formatDate(dateStr: string) {
           class="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
         >
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center overflow-hidden">
-              <img
-                v-if="member.avatarUrl"
-                :src="member.avatarUrl"
-                class="w-full h-full object-cover"
-              />
-              <svg v-else class="w-5 h-5 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
-              </svg>
-            </div>
+            <UserAvatar
+              :avatar-url="member.avatarUrl"
+              :display-name="member.displayName"
+              :is-founding-member="member.isFoundingMember"
+              size="md"
+            />
             <div>
-              <div class="font-medium text-gray-900">{{ member.displayName || 'Unknown' }}</div>
-              <div class="text-sm text-gray-500">{{ member.email }}</div>
+              <div class="font-medium text-gray-900">{{ member.displayName || member.username || 'Unknown' }}</div>
+              <div class="text-sm text-gray-500">
+                <span v-if="member.username">@{{ member.username }} · </span>
+                Joined {{ formatDate(member.joinedAt) }}
+              </div>
             </div>
           </div>
           <div class="flex items-center gap-2">
@@ -296,20 +402,18 @@ function formatDate(dateStr: string) {
         >
           <div class="flex items-start justify-between">
             <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center overflow-hidden">
-                <img
-                  v-if="request.avatarUrl"
-                  :src="request.avatarUrl"
-                  class="w-full h-full object-cover"
-                />
-                <svg v-else class="w-5 h-5 text-yellow-600" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
-                </svg>
-              </div>
+              <UserAvatar
+                :avatar-url="request.avatarUrl"
+                :display-name="request.displayName"
+                :is-founding-member="request.isFoundingMember"
+                size="md"
+              />
               <div>
-                <div class="font-medium text-gray-900">{{ request.displayName || 'Unknown' }}</div>
-                <div class="text-sm text-gray-500">{{ request.email }}</div>
-                <div class="text-xs text-gray-400">{{ formatDate(request.createdAt) }}</div>
+                <div class="font-medium text-gray-900">{{ request.displayName || request.username || 'Unknown' }}</div>
+                <div class="text-sm text-gray-500">
+                  <span v-if="request.username">@{{ request.username }} · </span>
+                  Requested {{ formatDate(request.createdAt) }}
+                </div>
               </div>
             </div>
             <div class="flex gap-2">
@@ -389,34 +493,122 @@ function formatDate(dateStr: string) {
     <div
       v-if="showInviteModal"
       class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-      @click.self="showInviteModal = false"
+      @click.self="resetInviteModal"
     >
-      <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4">
-        <h3 class="text-lg font-semibold mb-4">Create Invitation Link</h3>
+      <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <h3 class="text-lg font-semibold mb-4">Invite Members</h3>
 
         <div class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Max Uses</label>
-            <select v-model="inviteMaxUses" class="input">
-              <option :value="1">Single use</option>
-              <option :value="5">5 uses</option>
-              <option :value="10">10 uses</option>
-              <option :value="null">Unlimited</option>
-            </select>
+          <!-- Search Users Section -->
+          <div class="border-b border-gray-200 pb-4">
+            <p class="text-sm font-medium text-gray-700 mb-2">Invite Sasquatsh Users</p>
+            <div class="relative">
+              <input
+                v-model="userSearchQuery"
+                type="text"
+                class="input pl-9"
+                placeholder="Search by username..."
+              />
+              <svg class="w-5 h-5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"/>
+              </svg>
+              <div v-if="searchingUsers" class="absolute right-3 top-1/2 -translate-y-1/2">
+                <svg class="w-4 h-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+              </div>
+            </div>
+
+            <!-- Search Results -->
+            <div v-if="userSearchResults.length > 0" class="mt-2 border border-gray-200 rounded-lg max-h-40 overflow-y-auto">
+              <button
+                v-for="user in userSearchResults"
+                :key="user.id"
+                @click="addUserToInviteList(user)"
+                class="w-full flex items-center gap-3 p-2 hover:bg-gray-50 transition-colors text-left"
+              >
+                <UserAvatar
+                  :avatar-url="user.avatarUrl"
+                  :display-name="user.displayName"
+                  :is-founding-member="user.isFoundingMember"
+                  size="sm"
+                  class="flex-shrink-0"
+                />
+                <div class="min-w-0">
+                  <div class="font-medium text-sm truncate">{{ user.displayName || user.username }}</div>
+                  <div class="text-xs text-gray-500">@{{ user.username }}</div>
+                </div>
+              </button>
+            </div>
+
+            <!-- Selected Users -->
+            <div v-if="selectedUsers.length > 0" class="mt-3">
+              <p class="text-xs text-gray-500 mb-2">Selected ({{ selectedUsers.length }})</p>
+              <div class="flex flex-wrap gap-2">
+                <div
+                  v-for="user in selectedUsers"
+                  :key="user.id"
+                  class="flex items-center gap-2 bg-primary-50 px-2 py-1 rounded-full"
+                >
+                  <UserAvatar
+                    :avatar-url="user.avatarUrl"
+                    :display-name="user.displayName"
+                    :is-founding-member="user.isFoundingMember"
+                    size="xs"
+                    class="flex-shrink-0"
+                  />
+                  <span class="text-sm text-primary-700">@{{ user.username }}</span>
+                  <button
+                    @click="removeUserFromInviteList(user.id)"
+                    class="text-primary-500 hover:text-primary-700"
+                  >
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <button
+                @click="handleSendInAppInvites"
+                class="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg font-medium transition-colors"
+              >
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M2,21L23,12L2,3V10L17,12L2,14V21Z"/>
+                </svg>
+                Send {{ selectedUsers.length }} In-App Invitation{{ selectedUsers.length > 1 ? 's' : '' }}
+              </button>
+            </div>
           </div>
 
+          <!-- Link Settings -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Expires In</label>
-            <select v-model="inviteExpiresIn" class="input">
-              <option :value="1">1 day</option>
-              <option :value="7">7 days</option>
-              <option :value="30">30 days</option>
-              <option :value="null">Never</option>
-            </select>
+            <p class="text-sm font-medium text-gray-700 mb-2">Or Create Shareable Link</p>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs text-gray-500 mb-1">Max Uses</label>
+                <select v-model="inviteMaxUses" class="input text-sm">
+                  <option :value="1">Single use</option>
+                  <option :value="5">5 uses</option>
+                  <option :value="10">10 uses</option>
+                  <option :value="null">Unlimited</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 mb-1">Expires In</label>
+                <select v-model="inviteExpiresIn" class="input text-sm">
+                  <option :value="1">1 day</option>
+                  <option :value="7">7 days</option>
+                  <option :value="30">30 days</option>
+                  <option :value="null">Never</option>
+                </select>
+              </div>
+            </div>
           </div>
 
+          <!-- Send Directly Section -->
           <div class="border-t border-gray-200 pt-4">
-            <p class="text-sm font-medium text-gray-700 mb-3">Send invite directly (optional)</p>
+            <p class="text-sm font-medium text-gray-700 mb-3">Send link via (optional)</p>
 
             <div class="space-y-3">
               <div>
@@ -429,7 +621,7 @@ function formatDate(dateStr: string) {
                 />
               </div>
 
-              <div>
+              <div v-if="isMobile">
                 <label class="block text-xs text-gray-500 mb-1">Phone (SMS)</label>
                 <input
                   v-model="invitePhone"
@@ -445,7 +637,7 @@ function formatDate(dateStr: string) {
 
         <div class="flex flex-col gap-2 mt-6">
           <div class="flex gap-3">
-            <button @click="showInviteModal = false" class="btn-outline flex-1">
+            <button @click="resetInviteModal" class="btn-outline flex-1">
               Cancel
             </button>
             <button @click="handleCreateInvite('copy')" class="btn-primary flex-1">
@@ -453,7 +645,7 @@ function formatDate(dateStr: string) {
             </button>
           </div>
 
-          <div v-if="inviteEmail.trim() || invitePhone.trim()" class="flex gap-2">
+          <div v-if="inviteEmail.trim() || (isMobile && invitePhone.trim())" class="flex gap-2">
             <button
               v-if="inviteEmail.trim()"
               @click="handleCreateInvite('email')"
@@ -465,7 +657,7 @@ function formatDate(dateStr: string) {
               Send Email
             </button>
             <button
-              v-if="invitePhone.trim()"
+              v-if="isMobile && invitePhone.trim()"
               @click="handleCreateInvite('sms')"
               class="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors"
             >
@@ -497,7 +689,7 @@ function formatDate(dateStr: string) {
 
         <p class="text-gray-600 mb-4">
           Are you sure you want to transfer group leadership to
-          <strong>{{ transferTargetMember.displayName || transferTargetMember.email }}</strong>?
+          <strong>{{ transferTargetMember.displayName || 'this member' }}</strong>?
         </p>
 
         <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">

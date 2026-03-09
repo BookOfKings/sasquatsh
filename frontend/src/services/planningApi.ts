@@ -1,5 +1,6 @@
 import type {
   PlanningSession,
+  PlanningInvitation,
   CreatePlanningSessionInput,
   PlanningResponseInput,
   SuggestGameInput,
@@ -59,8 +60,8 @@ export async function getGroupPlanningSessions(
 // Get planning sessions user is invited to
 export async function getMyPlanningInvitations(
   token: string
-): Promise<PlanningSession[]> {
-  return authenticatedRequest<PlanningSession[]>('/planning?mine=true', token)
+): Promise<PlanningInvitation[]> {
+  return authenticatedRequest<PlanningInvitation[]>('/planning?mine=true', token)
 }
 
 // Get single planning session with full details

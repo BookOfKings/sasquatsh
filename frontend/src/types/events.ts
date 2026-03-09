@@ -2,6 +2,7 @@ export interface UserSummary {
   id: string
   displayName: string | null
   avatarUrl: string | null
+  isFoundingMember?: boolean
 }
 
 export interface EventSummary {
@@ -57,6 +58,14 @@ export interface EventGameSummary {
   isAlternative: boolean
 }
 
+export interface VenueSummary {
+  id: string
+  name: string
+  city: string
+  state: string
+  postalCode: string | null
+}
+
 export interface Event {
   id: string
   hostUserId: string
@@ -87,6 +96,7 @@ export interface Event {
   minAge: number | null
   status: string
   host: UserSummary | null
+  venue: VenueSummary | null
   registrations: EventRegistration[] | null
   items: EventItem[] | null
   games: EventGameSummary[] | null
@@ -185,4 +195,5 @@ export interface EventSearchFilter {
   dateTo?: string
   nearbyZip?: string
   radiusMiles?: number
+  venueId?: string
 }

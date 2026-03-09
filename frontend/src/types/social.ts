@@ -62,6 +62,7 @@ export interface PlayerRequest {
     displayName: string | null
     username: string | null
     avatarUrl: string | null
+    isFoundingMember?: boolean
   } | null
 }
 

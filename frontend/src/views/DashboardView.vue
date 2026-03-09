@@ -5,8 +5,11 @@ import { useEventStore } from '@/stores/useEventStore'
 import { useGroupStore } from '@/stores/useGroupStore'
 import { useRouter } from 'vue-router'
 import type { EventSummary } from '@/types/events'
+import type { PlanningInvitation } from '@/types/planning'
+import { getMyPlanningInvitations, respondToPlanningSession } from '@/services/planningApi'
 import D20Spinner from '@/components/common/D20Spinner.vue'
 import AdBanner from '@/components/ads/AdBanner.vue'
+import UserAvatar from '@/components/common/UserAvatar.vue'
 
 const auth = useAuthStore()
 const eventStore = useEventStore()
@@ -15,12 +18,27 @@ const router = useRouter()
 
 const allMyGames = ref<EventSummary[]>([])
 const allHostedGames = ref<EventSummary[]>([])
+const planningInvitations = ref<PlanningInvitation[]>([])
 const loadingMy = ref(true)
 const loadingHosted = ref(true)
 const loadingGroups = ref(true)
+const loadingInvitations = ref(true)
+const loadingPlanningInvitations = ref(true)
+const respondingTo = ref<string | null>(null)
+const decliningPlanningSession = ref<string | null>(null)
 
 // Check if initial page load is still in progress
 const isInitialLoading = computed(() => loadingMy.value && loadingHosted.value && loadingGroups.value)
+
+// Filter to pending planning invitations (open sessions where user hasn't responded)
+const pendingPlanningInvitations = computed(() =>
+  planningInvitations.value.filter(p => p.status === 'open' && !p.hasResponded)
+)
+
+// Active planning sessions (user has responded and is attending, session still open)
+const myActivePlanningSessions = computed(() =>
+  planningInvitations.value.filter(p => p.status === 'open' && p.hasResponded && !p.cannotAttendAny)
+)
 
 // Get today's date for filtering
 const today = new Date().toISOString().split('T')[0] ?? ''
@@ -52,9 +70,25 @@ onMounted(async () => {
   allHostedGames.value = eventStore.hostedEvents.value
   loadingHosted.value = false
 
-  // Load my groups
-  await groupStore.loadMyGroups()
+  // Load my groups and pending invitations in parallel
+  await Promise.all([
+    groupStore.loadMyGroups(),
+    groupStore.loadPendingInvitations(),
+  ])
   loadingGroups.value = false
+  loadingInvitations.value = false
+
+  // Load planning invitations
+  try {
+    const token = await auth.getIdToken()
+    if (token) {
+      planningInvitations.value = await getMyPlanningInvitations(token)
+    }
+  } catch (err) {
+    console.error('Failed to load planning invitations:', err)
+  } finally {
+    loadingPlanningInvitations.value = false
+  }
 })
 
 async function handleLogout() {
@@ -68,6 +102,10 @@ function goToGames() {
 
 function goToCreateGame() {
   router.push('/games/create')
+}
+
+function goToCreateGroup() {
+  router.push('/groups/create')
 }
 
 function goToGame(id: string) {
@@ -89,6 +127,36 @@ function formatTime(timeStr: string | undefined) {
   const hour12 = hour % 12 || 12
   return `${hour12}:${minutes} ${ampm}`
 }
+
+async function handleInvitationResponse(invitationId: string, response: 'accept' | 'decline') {
+  respondingTo.value = invitationId
+  const result = await groupStore.respondToInvitation(invitationId, response)
+  respondingTo.value = null
+
+  if (result.ok && response === 'accept' && result.groupId) {
+    router.push(`/groups/${result.groupId}`)
+  }
+}
+
+async function handleDeclinePlanningSession(sessionId: string) {
+  decliningPlanningSession.value = sessionId
+  try {
+    const token = await auth.getIdToken()
+    if (token) {
+      // Mark as cannot attend any dates
+      await respondToPlanningSession(token, sessionId, {
+        dateAvailability: [],
+        cannotAttendAny: true,
+      })
+      // Remove from local list
+      planningInvitations.value = planningInvitations.value.filter(p => p.id !== sessionId)
+    }
+  } catch (err) {
+    console.error('Failed to decline planning session:', err)
+  } finally {
+    decliningPlanningSession.value = null
+  }
+}
 </script>
 
 <template>
@@ -105,16 +173,12 @@ function formatTime(timeStr: string | undefined) {
       <!-- Header -->
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div class="flex items-center gap-4">
-          <div class="w-14 h-14 rounded-full bg-primary-500 flex items-center justify-center overflow-hidden">
-            <img
-              v-if="auth.user.value?.avatarUrl"
-              :src="auth.user.value.avatarUrl"
-              class="w-full h-full object-cover"
-            />
-            <svg v-else class="w-8 h-8 text-white" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
-            </svg>
-          </div>
+          <UserAvatar
+            :avatar-url="auth.user.value?.avatarUrl"
+            :display-name="auth.user.value?.displayName"
+            :is-founding-member="auth.user.value?.isFoundingMember"
+            size="lg"
+          />
           <div>
             <h1 class="text-xl font-bold text-gray-900">
               {{ auth.user.value?.displayName || 'Welcome!' }}
@@ -134,6 +198,172 @@ function formatTime(timeStr: string | undefined) {
       </div>
 
       <hr class="border-gray-200 my-6" />
+
+      <!-- Pending Group Invitations -->
+      <div v-if="groupStore.pendingInvitations.value.length > 0" class="mb-8">
+        <div class="flex items-center gap-3 mb-4">
+          <svg class="w-6 h-6 text-yellow-500" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M20,4H4A2,2 0 0,0 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V6A2,2 0 0,0 20,4M20,18H4V8L12,13L20,8V18M20,6L12,11L4,6V6H20V6Z"/>
+          </svg>
+          <h2 class="text-lg font-semibold text-gray-900">Group Invitations</h2>
+          <span class="bg-yellow-100 text-yellow-700 text-xs font-medium px-2 py-0.5 rounded-full">
+            {{ groupStore.pendingInvitations.value.length }} pending
+          </span>
+        </div>
+
+        <div class="space-y-3">
+          <div
+            v-for="invitation in groupStore.pendingInvitations.value"
+            :key="invitation.id"
+            class="bg-yellow-50 border border-yellow-200 rounded-xl p-4"
+          >
+            <div class="flex items-start gap-4">
+              <!-- Group Logo -->
+              <div class="w-12 h-12 rounded-lg bg-yellow-100 flex items-center justify-center overflow-hidden flex-shrink-0">
+                <img
+                  v-if="invitation.group?.logoUrl"
+                  :src="invitation.group.logoUrl"
+                  class="w-full h-full object-cover"
+                />
+                <svg v-else class="w-6 h-6 text-yellow-500" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12,5.5A3.5,3.5 0 0,1 15.5,9A3.5,3.5 0 0,1 12,12.5A3.5,3.5 0 0,1 8.5,9A3.5,3.5 0 0,1 12,5.5M5,8C5.56,8 6.08,8.15 6.53,8.42C6.38,9.85 6.8,11.27 7.66,12.38C7.16,13.34 6.16,14 5,14A3,3 0 0,1 2,11A3,3 0 0,1 5,8M19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14C17.84,14 16.84,13.34 16.34,12.38C17.2,11.27 17.62,9.85 17.47,8.42C17.92,8.15 18.44,8 19,8M5.5,18.25C5.5,16.18 8.41,14.5 12,14.5C15.59,14.5 18.5,16.18 18.5,18.25V20H5.5V18.25Z"/>
+                </svg>
+              </div>
+
+              <!-- Info -->
+              <div class="flex-1 min-w-0">
+                <p class="font-semibold text-gray-900">{{ invitation.group?.name || 'Unknown Group' }}</p>
+                <p v-if="invitation.group?.description" class="text-sm text-gray-600 line-clamp-1">
+                  {{ invitation.group.description }}
+                </p>
+                <p class="text-xs text-gray-500 mt-1">
+                  Invited by {{ invitation.invitedBy?.displayName || 'someone' }}
+                  <span v-if="invitation.group?.memberCount" class="ml-2">
+                    &bull; {{ invitation.group.memberCount }} member{{ invitation.group.memberCount !== 1 ? 's' : '' }}
+                  </span>
+                </p>
+              </div>
+
+              <!-- Actions -->
+              <div class="flex gap-2 flex-shrink-0">
+                <button
+                  @click="handleInvitationResponse(invitation.id, 'decline')"
+                  :disabled="respondingTo === invitation.id"
+                  class="btn-outline text-sm px-3 py-1.5"
+                >
+                  Decline
+                </button>
+                <button
+                  @click="handleInvitationResponse(invitation.id, 'accept')"
+                  :disabled="respondingTo === invitation.id"
+                  class="btn-primary text-sm px-3 py-1.5"
+                >
+                  <svg v-if="respondingTo === invitation.id" class="w-4 h-4 mr-1 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                  </svg>
+                  Accept
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pending Planning Invitations -->
+      <div v-if="pendingPlanningInvitations.length > 0" class="mb-8">
+        <div class="flex items-center gap-3 mb-4">
+          <svg class="w-6 h-6 text-purple-500" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19,19H5V8H19M16,1V3H8V1H6V3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3H18V1M11,9H9V12H6V14H9V17H11V14H14V12H11V9Z"/>
+          </svg>
+          <h2 class="text-lg font-semibold text-gray-900">Game Invitations</h2>
+          <span class="bg-purple-100 text-purple-700 text-xs font-medium px-2 py-0.5 rounded-full">
+            {{ pendingPlanningInvitations.length }} pending
+          </span>
+        </div>
+
+        <div class="space-y-3">
+          <div
+            v-for="invitation in pendingPlanningInvitations"
+            :key="invitation.id"
+            class="bg-purple-50 border border-purple-200 rounded-xl p-4"
+          >
+            <div class="flex items-start gap-4">
+              <!-- Icon -->
+              <div class="w-12 h-12 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
+                <svg class="w-6 h-6 text-purple-500" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19,19H5V8H19M16,1V3H8V1H6V3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3H18V1"/>
+                </svg>
+              </div>
+
+              <!-- Info -->
+              <div class="flex-1 min-w-0">
+                <p class="font-semibold text-gray-900">{{ invitation.title }}</p>
+                <p v-if="invitation.group" class="text-sm text-gray-600">
+                  {{ invitation.group.name }}
+                </p>
+                <p class="text-xs text-gray-500 mt-1">
+                  Hosted by {{ invitation.createdBy?.displayName || invitation.createdBy?.username || 'someone' }}
+                  <span class="ml-2">&bull; Deadline: {{ formatDate(invitation.responseDeadline.split('T')[0] || '') }}</span>
+                </p>
+              </div>
+
+              <!-- Actions -->
+              <div class="flex gap-2 flex-shrink-0">
+                <button
+                  @click="handleDeclinePlanningSession(invitation.id)"
+                  :disabled="decliningPlanningSession === invitation.id"
+                  class="btn-outline text-sm px-3 py-1.5"
+                >
+                  <svg v-if="decliningPlanningSession === invitation.id" class="w-4 h-4 mr-1 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                  </svg>
+                  Decline
+                </button>
+                <button
+                  @click="router.push(`/planning/${invitation.id}`)"
+                  class="btn-primary text-sm px-3 py-1.5"
+                >
+                  Accept
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- My Active Planning Sessions -->
+      <div v-if="myActivePlanningSessions.length > 0" class="mb-8">
+        <div class="flex items-center gap-3 mb-4">
+          <svg class="w-6 h-6 text-green-500" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19,19H5V8H19M16,1V3H8V1H6V3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3H18V1"/>
+          </svg>
+          <h2 class="text-lg font-semibold text-gray-900">Games Being Planned</h2>
+        </div>
+
+        <div class="space-y-3">
+          <div
+            v-for="session in myActivePlanningSessions"
+            :key="session.id"
+            @click="router.push(`/planning/${session.id}`)"
+            class="bg-green-50 rounded-xl p-4 cursor-pointer hover:bg-green-100 transition-colors"
+          >
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="font-semibold text-gray-900">{{ session.title }}</p>
+                <p class="text-sm text-gray-600">
+                  {{ session.group?.name }}
+                  <span class="ml-2">&bull; Deadline: {{ formatDate(session.responseDeadline.split('T')[0] || '') }}</span>
+                </p>
+              </div>
+              <svg class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <!-- My Games Section -->
       <div class="mb-8">
@@ -263,7 +493,10 @@ function formatTime(timeStr: string | undefined) {
         </div>
 
         <div v-else-if="managedGroups.length === 0" class="bg-gray-50 rounded-xl p-6 text-center">
-          <p class="text-gray-600">You're not managing any groups yet.</p>
+          <p class="text-gray-600 mb-3">You're not managing any groups yet.</p>
+          <button @click="goToCreateGroup" class="btn-primary">
+            Create Group
+          </button>
         </div>
 
         <div v-else class="space-y-3">

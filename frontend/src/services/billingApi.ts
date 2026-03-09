@@ -43,6 +43,8 @@ export interface SubscriptionInfo {
     status: 'active' | 'past_due' | 'canceled' | 'incomplete'
     expiresAt: string | null
     hasOverride: boolean
+    cancelAtPeriodEnd: boolean
+    cancelAt: string | null
   }
   paymentMethod: {
     brand: string

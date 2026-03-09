@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import type { GroupSummary } from '@/types/groups'
+import type { GroupSummary, MemberRole } from '@/types/groups'
 
 defineProps<{
   group: GroupSummary
+  userRole?: MemberRole
 }>()
 
 const emit = defineEmits<{
@@ -46,6 +47,34 @@ function formatGroupType(type: string): string {
 
     <!-- Tags -->
     <div class="flex flex-wrap gap-2 mb-3">
+      <!-- User's role badge -->
+      <span
+        v-if="userRole === 'owner'"
+        class="text-xs px-2 py-1 rounded-full bg-purple-100 text-purple-700 font-medium"
+      >
+        <svg class="w-3 h-3 mr-1 inline" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M5,16L3,5L8.5,12L12,5L15.5,12L21,5L19,16H5M19,19A1,1 0 0,1 18,20H6A1,1 0 0,1 5,19V18H19V19Z"/>
+        </svg>
+        Owner
+      </span>
+      <span
+        v-else-if="userRole === 'admin'"
+        class="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-medium"
+      >
+        <svg class="w-3 h-3 mr-1 inline" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1Z"/>
+        </svg>
+        Admin
+      </span>
+      <span
+        v-else-if="userRole === 'member'"
+        class="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700 font-medium"
+      >
+        <svg class="w-3 h-3 mr-1 inline" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+        </svg>
+        Member
+      </span>
       <span class="chip-primary">
         {{ formatGroupType(group.groupType) }}
       </span>

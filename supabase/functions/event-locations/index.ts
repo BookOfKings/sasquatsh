@@ -54,13 +54,39 @@ Deno.serve(async (req) => {
       const { data, error } = await supabase
         .from('hot_locations')
         .select('*')
-        .limit(10)
+        .limit(20) // Fetch more to allow for filtering
 
       if (error) {
         return errorResponse(error.message, 500)
       }
 
-      return jsonResponse(data.map(toEventLocation))
+      // Filter to only show venues that are currently active
+      const today = new Date().toISOString().split('T')[0]
+      const currentDayOfWeek = new Date().getDay() // 0 = Sunday, 6 = Saturday
+
+      const activeVenues = data.filter((venue: Record<string, unknown>) => {
+        // Permanent venues are always active
+        if (venue.is_permanent) return true
+
+        // Check recurring days - venue is active if today is one of the recurring days
+        const recurringDays = venue.recurring_days as number[] | null
+        if (recurringDays && recurringDays.length > 0) {
+          return recurringDays.includes(currentDayOfWeek)
+        }
+
+        // For dated venues, check if today is within the date range
+        const startDate = venue.start_date as string | null
+        const endDate = venue.end_date as string | null
+
+        if (startDate && endDate) {
+          return startDate <= today && today <= endDate
+        }
+
+        // If no date constraints, show it
+        return true
+      })
+
+      return jsonResponse(activeVenues.slice(0, 10).map(toEventLocation))
     }
 
     // Admin endpoint - all locations including expired/pending
@@ -104,13 +130,14 @@ Deno.serve(async (req) => {
     }
 
     // Public: List active, approved locations
-    // Includes permanent locations, recurring locations, and dated locations that haven't expired
+    // Includes permanent locations, recurring locations, and dated locations that are currently active
     const today = new Date().toISOString().split('T')[0]
+    const currentDayOfWeek = new Date().getDay() // 0 = Sunday, 6 = Saturday
+
     const { data, error } = await supabase
       .from('event_locations')
       .select('*')
       .eq('status', 'approved')
-      .or(`is_permanent.eq.true,end_date.gte.${today},end_date.is.null`)
       .order('is_permanent', { ascending: false })
       .order('start_date', { ascending: true, nullsFirst: false })
 
@@ -118,7 +145,35 @@ Deno.serve(async (req) => {
       return errorResponse(error.message, 500)
     }
 
-    return jsonResponse(data.map(toEventLocation))
+    // Filter to only show venues that are currently active
+    const activeVenues = data.filter((venue: Record<string, unknown>) => {
+      // Permanent venues are always active
+      if (venue.is_permanent) return true
+
+      // Check recurring days - venue is active if today is one of the recurring days
+      const recurringDays = venue.recurring_days as number[] | null
+      if (recurringDays && recurringDays.length > 0) {
+        return recurringDays.includes(currentDayOfWeek)
+      }
+
+      // For dated venues, check if today is within the date range
+      const startDate = venue.start_date as string | null
+      const endDate = venue.end_date as string | null
+
+      if (startDate && endDate) {
+        return startDate <= today && today <= endDate
+      }
+
+      // If only end_date is set, check it hasn't passed
+      if (endDate) {
+        return today <= endDate
+      }
+
+      // If no date constraints, show it
+      return true
+    })
+
+    return jsonResponse(activeVenues.map(toEventLocation))
   }
 
   // GET - Get single location by ID
