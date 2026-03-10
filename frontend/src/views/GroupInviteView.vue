@@ -172,6 +172,7 @@ function formatLocation(city: string | null, state: string | null): string {
               :avatar-url="preview.invitedBy.avatarUrl"
               :display-name="preview.invitedBy.displayName"
               :is-founding-member="preview.invitedBy.isFoundingMember"
+              :is-admin="preview.invitedBy.isAdmin"
               size="sm"
             />
             <span class="font-medium text-gray-900">{{ preview.invitedBy.displayName || 'A group member' }}</span>

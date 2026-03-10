@@ -6,15 +6,28 @@ const props = withDefaults(defineProps<{
   username?: string
   displayName?: string | null
   isFoundingMember?: boolean
+  isAdmin?: boolean
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
   showBadge?: boolean
 }>(), {
   showBadge: true
 })
 
-// Computed to determine if badge should show
-const shouldShowBadge = computed(() => {
+// Computed to determine if founding member badge should show
+const shouldShowFoundingBadge = computed(() => {
   return props.isFoundingMember === true && props.showBadge === true
+})
+
+// Computed to determine if admin badge should show
+const shouldShowAdminBadge = computed(() => {
+  return props.isAdmin === true && props.showBadge === true
+})
+
+// Ring class based on status (admin takes priority over founding)
+const ringClass = computed(() => {
+  if (props.isAdmin && props.showBadge) return 'ring-2 ring-red-500'
+  if (props.isFoundingMember && props.showBadge) return 'ring-2 ring-amber-400'
+  return ''
 })
 
 const sizeClasses = {
@@ -41,7 +54,7 @@ const iconSizeClasses = {
       :class="[
         sizeClasses[props.size || 'md'],
         'rounded-full bg-primary-500 flex items-center justify-center overflow-hidden',
-        shouldShowBadge ? 'ring-2 ring-amber-400' : ''
+        ringClass
       ]"
     >
       <img
@@ -59,9 +72,31 @@ const iconSizeClasses = {
         <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
       </svg>
     </div>
-    <!-- Founding Member Badge -->
+    <!-- Admin Badge (Sasquatch Foot) - takes priority -->
     <div
-      v-if="shouldShowBadge"
+      v-if="shouldShowAdminBadge"
+      style="position: absolute; bottom: -4px; right: -4px; width: 16px; height: 16px; z-index: 10;"
+      title="Admin"
+    >
+      <svg viewBox="0 0 24 24" fill="none" class="w-full h-full drop-shadow-sm">
+        <!-- Sasquatch Footprint -->
+        <ellipse cx="12" cy="14" rx="6" ry="8" fill="#DC2626" stroke="#991B1B" stroke-width="1"/>
+        <ellipse cx="12" cy="14" rx="4.5" ry="6" fill="#EF4444"/>
+        <!-- Toes -->
+        <circle cx="7" cy="5" r="2.5" fill="#DC2626" stroke="#991B1B" stroke-width="0.5"/>
+        <circle cx="10.5" cy="3.5" r="2.5" fill="#DC2626" stroke="#991B1B" stroke-width="0.5"/>
+        <circle cx="14.5" cy="3.5" r="2.5" fill="#DC2626" stroke="#991B1B" stroke-width="0.5"/>
+        <circle cx="18" cy="5" r="2.5" fill="#DC2626" stroke="#991B1B" stroke-width="0.5"/>
+        <!-- Toe highlights -->
+        <circle cx="7" cy="4.5" r="1.5" fill="#EF4444"/>
+        <circle cx="10.5" cy="3" r="1.5" fill="#EF4444"/>
+        <circle cx="14.5" cy="3" r="1.5" fill="#EF4444"/>
+        <circle cx="18" cy="4.5" r="1.5" fill="#EF4444"/>
+      </svg>
+    </div>
+    <!-- Founding Member Badge (Star) -->
+    <div
+      v-else-if="shouldShowFoundingBadge"
       style="position: absolute; bottom: -4px; right: -4px; width: 16px; height: 16px; z-index: 10;"
       title="Founding Member"
     >

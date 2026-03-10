@@ -23,6 +23,7 @@ export interface Group {
     displayName: string | null
     avatarUrl: string | null
     isFoundingMember?: boolean
+    isAdmin?: boolean
   }
 }
 
@@ -51,6 +52,7 @@ export interface GroupMembership {
     displayName: string | null
     avatarUrl: string | null
     isFoundingMember?: boolean
+    isAdmin?: boolean
   }
 }
 
@@ -105,6 +107,7 @@ export interface GroupMember {
   email: string | null
   avatarUrl: string | null
   isFoundingMember?: boolean
+    isAdmin?: boolean
   role: MemberRole
   joinedAt: string
 }
@@ -117,6 +120,7 @@ export interface JoinRequest {
   email: string | null
   avatarUrl: string | null
   isFoundingMember?: boolean
+    isAdmin?: boolean
   message: string | null
   status: 'pending' | 'approved' | 'rejected'
   createdAt: string
@@ -153,6 +157,7 @@ export interface PendingInvitation {
     displayName: string | null
     avatarUrl: string | null
     isFoundingMember?: boolean
+    isAdmin?: boolean
   } | null
   group: {
     id: string
@@ -186,6 +191,7 @@ export interface InvitationPreview {
     displayName: string | null
     avatarUrl: string | null
     isFoundingMember?: boolean
+    isAdmin?: boolean
   }
   expiresAt: string | null
 }

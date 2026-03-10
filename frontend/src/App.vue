@@ -190,6 +190,7 @@ async function handleLogout() {
                     :avatar-url="auth.user.value?.avatarUrl"
                     :display-name="auth.user.value?.displayName"
                     :is-founding-member="auth.user.value?.isFoundingMember"
+                    :is-admin="auth.user.value?.isAdmin"
                     size="sm"
                   />
                 </button>
@@ -280,6 +281,7 @@ async function handleLogout() {
                   :avatar-url="auth.user.value?.avatarUrl"
                   :display-name="auth.user.value?.displayName"
                   :is-founding-member="auth.user.value?.isFoundingMember"
+                  :is-admin="auth.user.value?.isAdmin"
                   size="sm"
                 />
               </button>

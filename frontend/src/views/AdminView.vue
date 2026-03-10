@@ -46,6 +46,7 @@ import type { BggCacheStats, AdminStats, ServiceHealth, AdminUser, AdminGroup, A
 import { getAllAds, getAdStats, createAd, updateAd, deleteAd, toggleAdActive } from '@/services/adsApi'
 import type { Ad, AdStats, CreateAdInput } from '@/services/adsApi'
 import D20Spinner from '@/components/common/D20Spinner.vue'
+import UserAvatar from '@/components/common/UserAvatar.vue'
 
 const auth = useAuthStore()
 
@@ -477,11 +478,12 @@ async function handleSaveUser() {
     const token = await auth.getIdToken()
     if (!token) return
 
-    // Update basic user info
+    // Update basic user info including founding member status
     await updateUser(token, editingUser.value.id, {
       displayName: userEditForm.displayName.trim() || undefined,
       username: userEditForm.username.trim(),
       isAdmin: userEditForm.isAdmin,
+      isFoundingMember: userEditForm.isFoundingMember,
     })
 
     // Check if tier changed and update if needed
@@ -1799,14 +1801,40 @@ function getLocationTypeLabel(location: EventLocation): string {
                 </div>
                 <div class="text-sm text-gray-500 mt-1">per month</div>
               </div>
-              <div class="border-t border-gray-100 pt-4 space-y-2 text-sm">
-                <div class="flex justify-between">
-                  <span class="text-gray-600">Basic ({{ dashboardStats.revenue?.basicCount ?? 0 }} x $7.99)</span>
-                  <span class="font-medium">${{ ((dashboardStats.revenue?.basicCount ?? 0) * 7.99).toFixed(2) }}</span>
+              <div class="border-t border-gray-100 pt-4 space-y-3 text-sm">
+                <!-- Basic Tier Breakdown -->
+                <div>
+                  <div class="flex justify-between">
+                    <span class="text-gray-600 font-medium">Basic ({{ dashboardStats.revenue?.basicCount ?? 0 }} total)</span>
+                    <span class="font-medium">${{ ((dashboardStats.revenue?.basicPaidCount ?? 0) * 7.99).toFixed(2) }}</span>
+                  </div>
+                  <div class="ml-4 mt-1 text-xs text-gray-500 space-y-0.5">
+                    <div class="flex justify-between">
+                      <span>Paid ({{ dashboardStats.revenue?.basicPaidCount ?? 0 }} x $7.99)</span>
+                      <span class="text-green-600">${{ ((dashboardStats.revenue?.basicPaidCount ?? 0) * 7.99).toFixed(2) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span>Promoted ({{ (dashboardStats.revenue?.basicCount ?? 0) - (dashboardStats.revenue?.basicPaidCount ?? 0) }} x $0.00)</span>
+                      <span class="text-amber-600">$0.00</span>
+                    </div>
+                  </div>
                 </div>
-                <div class="flex justify-between">
-                  <span class="text-gray-600">Pro ({{ dashboardStats.revenue?.proCount ?? 0 }} x $14.99)</span>
-                  <span class="font-medium">${{ ((dashboardStats.revenue?.proCount ?? 0) * 14.99).toFixed(2) }}</span>
+                <!-- Pro Tier Breakdown -->
+                <div>
+                  <div class="flex justify-between">
+                    <span class="text-gray-600 font-medium">Pro ({{ dashboardStats.revenue?.proCount ?? 0 }} total)</span>
+                    <span class="font-medium">${{ ((dashboardStats.revenue?.proPaidCount ?? 0) * 14.99).toFixed(2) }}</span>
+                  </div>
+                  <div class="ml-4 mt-1 text-xs text-gray-500 space-y-0.5">
+                    <div class="flex justify-between">
+                      <span>Paid ({{ dashboardStats.revenue?.proPaidCount ?? 0 }} x $14.99)</span>
+                      <span class="text-green-600">${{ ((dashboardStats.revenue?.proPaidCount ?? 0) * 14.99).toFixed(2) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span>Promoted ({{ (dashboardStats.revenue?.proCount ?? 0) - (dashboardStats.revenue?.proPaidCount ?? 0) }} x $0.00)</span>
+                      <span class="text-amber-600">$0.00</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2001,20 +2029,14 @@ function getLocationTypeLabel(location: EventLocation): string {
             }"
           >
             <!-- Avatar -->
-            <div class="flex-shrink-0">
-              <img
-                v-if="user.avatarUrl"
-                :src="user.avatarUrl"
-                :alt="user.displayName || user.username"
-                class="w-10 h-10 rounded-full object-cover"
-              />
-              <div
-                v-else
-                class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 font-medium"
-              >
-                {{ (user.displayName || user.username || '?').charAt(0).toUpperCase() }}
-              </div>
-            </div>
+            <UserAvatar
+              :avatar-url="user.avatarUrl"
+              :display-name="user.displayName"
+              :is-founding-member="user.isFoundingMember"
+              :is-admin="user.isAdmin"
+              size="md"
+              class="flex-shrink-0"
+            />
 
             <!-- User info -->
             <div class="flex-1 min-w-0">
@@ -3501,18 +3523,14 @@ function getLocationTypeLabel(location: EventLocation): string {
 
         <div v-if="editingUser" class="space-y-4">
           <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-            <img
-              v-if="editingUser.avatarUrl"
-              :src="editingUser.avatarUrl"
-              :alt="editingUser.displayName || editingUser.username"
-              class="w-10 h-10 rounded-full object-cover"
+            <UserAvatar
+              :avatar-url="editingUser.avatarUrl"
+              :display-name="editingUser.displayName"
+              :is-founding-member="editingUser.isFoundingMember"
+              :is-admin="editingUser.isAdmin"
+              size="md"
+              class="flex-shrink-0"
             />
-            <div
-              v-else
-              class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 font-medium"
-            >
-              {{ (editingUser.displayName || editingUser.username || '?').charAt(0).toUpperCase() }}
-            </div>
             <div>
               <div class="font-medium">{{ editingUser.email }}</div>
               <div class="text-sm text-gray-500">ID: {{ editingUser.id.slice(0, 8) }}...</div>
@@ -3649,16 +3667,14 @@ function getLocationTypeLabel(location: EventLocation): string {
               class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
             >
               <!-- Avatar -->
-              <div class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
-                <img
-                  v-if="member.avatarUrl"
-                  :src="member.avatarUrl"
-                  class="w-full h-full object-cover"
-                />
-                <span v-else class="text-gray-500 font-medium">
-                  {{ (member.displayName || member.username || '?').charAt(0).toUpperCase() }}
-                </span>
-              </div>
+              <UserAvatar
+                :avatar-url="member.avatarUrl"
+                :display-name="member.displayName"
+                :is-founding-member="member.isFoundingMember"
+                :is-admin="member.isAdmin"
+                size="md"
+                class="flex-shrink-0"
+              />
 
               <!-- Info -->
               <div class="flex-1 min-w-0">
@@ -3748,16 +3764,14 @@ function getLocationTypeLabel(location: EventLocation): string {
               :disabled="addingMemberId === user.id"
               @click="handleAddMember(user)"
             >
-              <div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
-                <img
-                  v-if="user.avatarUrl"
-                  :src="user.avatarUrl"
-                  class="w-full h-full object-cover"
-                />
-                <span v-else class="text-gray-500 text-sm font-medium">
-                  {{ (user.displayName || user.username || '?').charAt(0).toUpperCase() }}
-                </span>
-              </div>
+              <UserAvatar
+                :avatar-url="user.avatarUrl"
+                :display-name="user.displayName"
+                :is-founding-member="user.isFoundingMember"
+                :is-admin="user.isAdmin"
+                size="sm"
+                class="flex-shrink-0"
+              />
               <div class="flex-1 min-w-0">
                 <div class="font-medium">{{ user.displayName || user.username }}</div>
                 <div class="text-sm text-gray-500">@{{ user.username }} &bull; {{ user.email }}</div>

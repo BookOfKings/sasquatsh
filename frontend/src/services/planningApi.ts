@@ -280,3 +280,22 @@ export async function removePlanningItem(
     }
   )
 }
+
+// ============ Invitee Management ============
+
+// Add more invitees to an existing session
+export async function addPlanningInvitees(
+  token: string,
+  sessionId: string,
+  userIds: string[],
+  sendEmailInvites = false
+): Promise<{ message: string; addedCount: number }> {
+  return authenticatedRequest<{ message: string; addedCount: number }>(
+    `/planning?id=${sessionId}&action=add-invitees`,
+    token,
+    {
+      method: 'POST',
+      body: JSON.stringify({ userIds, sendEmailInvites }),
+    }
+  )
+}

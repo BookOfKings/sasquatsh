@@ -165,6 +165,7 @@ function toggleExpanded(dateId: string) {
               :avatar-url="invitee.user?.avatarUrl"
               :display-name="invitee.user?.displayName"
               :is-founding-member="invitee.user?.isFoundingMember"
+              :is-admin="invitee.user?.isAdmin"
               size="sm"
               class="ring-2 ring-white"
               :style="{ zIndex: 5 - idx }"
@@ -225,6 +226,7 @@ function toggleExpanded(dateId: string) {
                 :avatar-url="invitee.user?.avatarUrl"
                 :display-name="invitee.user?.displayName"
                 :is-founding-member="invitee.user?.isFoundingMember"
+                :is-admin="invitee.user?.isAdmin"
                 size="xs"
               />
               <span class="text-sm text-green-700">{{ invitee.user?.displayName || invitee.user?.username || '?' }}</span>
@@ -250,6 +252,7 @@ function toggleExpanded(dateId: string) {
                 :avatar-url="invitee.user?.avatarUrl"
                 :display-name="invitee.user?.displayName"
                 :is-founding-member="invitee.user?.isFoundingMember"
+                :is-admin="invitee.user?.isAdmin"
                 size="xs"
               />
               <span class="text-sm text-red-600">{{ invitee.user?.displayName || invitee.user?.username || '?' }}</span>
@@ -275,6 +278,7 @@ function toggleExpanded(dateId: string) {
                 :avatar-url="invitee.user?.avatarUrl"
                 :display-name="invitee.user?.displayName"
                 :is-founding-member="invitee.user?.isFoundingMember"
+                :is-admin="invitee.user?.isAdmin"
                 size="xs"
               />
               <span class="text-sm text-gray-500">{{ invitee.user?.displayName || invitee.user?.username || '?' }}</span>

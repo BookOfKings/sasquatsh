@@ -112,6 +112,7 @@ function getPlayerProgress(confirmed: number, max: number): number {
             :avatar-url="event.host?.avatarUrl"
             :display-name="event.host?.displayName"
             :is-founding-member="event.host?.isFoundingMember"
+            :is-admin="event.host?.isAdmin"
             size="xs"
           />
         </div>

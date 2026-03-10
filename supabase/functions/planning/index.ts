@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
             id, group_id, created_by_user_id, title, description,
             response_deadline, status, finalized_date, created_event_id, created_at,
             group:groups(id, name, slug),
-            created_by:users!created_by_user_id(id, display_name, username, avatar_url, is_founding_member)
+            created_by:users!created_by_user_id(id, display_name, username, avatar_url, is_founding_member, is_admin)
           )
         `)
         .eq('user_id', user.id)
@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
           response_deadline, status, finalized_date, created_event_id, created_at,
           max_participants,
           group:groups(id, name, slug),
-          created_by:users!created_by_user_id(id, display_name, username, avatar_url, is_founding_member),
+          created_by:users!created_by_user_id(id, display_name, username, avatar_url, is_founding_member, is_admin),
           invitees:planning_invitees(count)
         `)
         .eq('group_id', groupId)
@@ -114,7 +114,7 @@ Deno.serve(async (req) => {
           response_deadline, status, finalized_date, finalized_game_id, created_event_id, created_at,
           max_participants, max_games,
           group:groups(id, name, slug),
-          created_by:users!created_by_user_id(id, display_name, username, avatar_url, is_founding_member)
+          created_by:users!created_by_user_id(id, display_name, username, avatar_url, is_founding_member, is_admin)
         `)
         .eq('id', sessionId)
         .single()
@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
         .from('planning_invitees')
         .select(`
           id, user_id, has_responded, responded_at, cannot_attend_any, has_slot, accepted_at,
-          user:users(id, display_name, username, avatar_url, is_founding_member)
+          user:users(id, display_name, username, avatar_url, is_founding_member, is_admin)
         `)
         .eq('session_id', sessionId)
 
@@ -152,7 +152,7 @@ Deno.serve(async (req) => {
           id, proposed_date, start_time,
           votes:planning_date_votes(
             user_id, is_available,
-            user:users(display_name, username, avatar_url, is_founding_member)
+            user:users(display_name, username, avatar_url, is_founding_member, is_admin)
           )
         `)
         .eq('session_id', sessionId)
@@ -164,7 +164,7 @@ Deno.serve(async (req) => {
         .select(`
           id, suggested_by_user_id, bgg_id, game_name, thumbnail_url,
           min_players, max_players, playing_time, created_at,
-          suggested_by:users!suggested_by_user_id(display_name, avatar_url, is_founding_member),
+          suggested_by:users!suggested_by_user_id(display_name, avatar_url, is_founding_member, is_admin),
           votes:planning_game_votes(user_id)
         `)
         .eq('session_id', sessionId)
@@ -175,7 +175,7 @@ Deno.serve(async (req) => {
         .from('planning_session_items')
         .select(`
           id, item_name, item_category, quantity_needed, claimed_by_user_id, claimed_at, created_at,
-          claimed_by:users!claimed_by_user_id(id, display_name, username, avatar_url, is_founding_member)
+          claimed_by:users!claimed_by_user_id(id, display_name, username, avatar_url, is_founding_member, is_admin)
         `)
         .eq('session_id', sessionId)
         .order('created_at', { ascending: true })
@@ -404,7 +404,7 @@ Deno.serve(async (req) => {
           response_deadline, status, finalized_date, created_event_id, created_at,
           max_participants,
           group:groups(id, name, slug),
-          created_by:users!created_by_user_id(id, display_name, username, avatar_url, is_founding_member)
+          created_by:users!created_by_user_id(id, display_name, username, avatar_url, is_founding_member, is_admin)
         `)
         .eq('id', session.id)
         .single()
@@ -644,7 +644,7 @@ Deno.serve(async (req) => {
         .select(`
           id, suggested_by_user_id, bgg_id, game_name, thumbnail_url,
           min_players, max_players, playing_time, created_at,
-          suggested_by:users!suggested_by_user_id(display_name, avatar_url, is_founding_member)
+          suggested_by:users!suggested_by_user_id(display_name, avatar_url, is_founding_member, is_admin)
         `)
         .single()
 
@@ -942,6 +942,145 @@ Deno.serve(async (req) => {
       return jsonResponse({ message: 'Item removed' })
     }
 
+    // ============ Invitee Management ============
+
+    // Add more invitees to an existing session
+    if (action === 'add-invitees') {
+      if (session.status !== 'open') {
+        return errorResponse('Session is no longer open', 400)
+      }
+
+      // Only creator can add invitees
+      if (!isCreator) {
+        return errorResponse('Only the session creator can invite more people', 403)
+      }
+
+      const body = await req.json()
+
+      if (!body.userIds || !Array.isArray(body.userIds) || body.userIds.length === 0) {
+        return errorResponse('userIds array required', 400)
+      }
+
+      // Verify all new invitees are group members
+      const { data: validMembers } = await supabase
+        .from('group_memberships')
+        .select('user_id')
+        .eq('group_id', session.group_id)
+        .in('user_id', body.userIds)
+
+      const validUserIds = new Set(validMembers?.map(m => m.user_id) || [])
+      const invalidIds = body.userIds.filter((id: string) => !validUserIds.has(id))
+
+      if (invalidIds.length > 0) {
+        return errorResponse('Some users are not members of this group', 400)
+      }
+
+      // Get existing invitees to avoid duplicates
+      const { data: existingInvitees } = await supabase
+        .from('planning_invitees')
+        .select('user_id')
+        .eq('session_id', sessionId)
+
+      const existingUserIds = new Set(existingInvitees?.map(i => i.user_id) || [])
+      const newUserIds = body.userIds.filter((id: string) => !existingUserIds.has(id))
+
+      if (newUserIds.length === 0) {
+        return jsonResponse({ message: 'All users are already invited', addedCount: 0 })
+      }
+
+      // Insert new invitees
+      const inviteeRows = newUserIds.map((userId: string) => ({
+        session_id: sessionId,
+        user_id: userId,
+        has_slot: false,
+        accepted_at: null,
+      }))
+
+      const { error: insertError } = await supabase
+        .from('planning_invitees')
+        .insert(inviteeRows)
+
+      if (insertError) {
+        return errorResponse(insertError.message, 500)
+      }
+
+      // Optionally send email invites
+      if (body.sendEmailInvites) {
+        // Get group and session info
+        const { data: groupData } = await supabase
+          .from('groups')
+          .select('name, slug')
+          .eq('id', session.group_id)
+          .single()
+
+        const { data: sessionData } = await supabase
+          .from('planning_sessions')
+          .select('title, response_deadline')
+          .eq('id', sessionId)
+          .single()
+
+        const { data: creatorData } = await supabase
+          .from('users')
+          .select('display_name, username')
+          .eq('id', user.id)
+          .single()
+
+        // Get dates for the email
+        const { data: dates } = await supabase
+          .from('planning_dates')
+          .select('proposed_date, start_time')
+          .eq('session_id', sessionId)
+          .order('proposed_date')
+
+        // Get new invitee emails
+        const { data: inviteeUsers } = await supabase
+          .from('users')
+          .select('id, email')
+          .in('id', newUserIds)
+
+        if (inviteeUsers && inviteeUsers.length > 0 && sessionData && groupData) {
+          // Format dates for email
+          const formattedDates = (dates || []).map((d: { proposed_date: string; start_time?: string }) => {
+            const dateObj = new Date(d.proposed_date + 'T12:00:00')
+            const dateStr = dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+            return d.start_time ? `${dateStr} at ${d.start_time}` : dateStr
+          })
+
+          // Format deadline
+          const deadlineDate = new Date(sessionData.response_deadline)
+          const deadlineStr = deadlineDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+
+          const hostName = creatorData?.display_name || creatorData?.username || 'Someone'
+          const planningUrl = `https://sasquatsh.com/groups/${groupData?.slug}/planning/${sessionId}`
+
+          // Send emails in parallel
+          const emailPromises = inviteeUsers.map(inviteeUser => {
+            const emailContent = planningInviteEmail({
+              sessionTitle: sessionData.title,
+              groupName: groupData?.name || 'your group',
+              hostName,
+              proposedDates: formattedDates,
+              responseDeadline: deadlineStr,
+              planningUrl,
+            })
+            return sendEmail({
+              to: inviteeUser.email,
+              subject: emailContent.subject,
+              text: emailContent.text,
+              html: emailContent.html,
+            })
+          })
+
+          // Don't wait for all emails - fire and forget
+          Promise.all(emailPromises).catch(err => {
+            console.error('Failed to send some planning invite emails:', err)
+          })
+        }
+      }
+
+      return jsonResponse({ message: `Invited ${newUserIds.length} new people`, addedCount: newUserIds.length })
+    }
+
     return errorResponse('Invalid action', 400)
   }
 
@@ -1196,6 +1335,7 @@ function transformSessionSummary(row: Record<string, unknown>) {
       username: (row.created_by as Record<string, unknown>).username,
       avatarUrl: (row.created_by as Record<string, unknown>).avatar_url,
       isFoundingMember: (row.created_by as Record<string, unknown>).is_founding_member,
+      isAdmin: (row.created_by as Record<string, unknown>).is_admin,
     } : null,
   }
 }
@@ -1225,6 +1365,7 @@ function transformSessionFull(
         username: (i.user as Record<string, unknown>).username,
         avatarUrl: (i.user as Record<string, unknown>).avatar_url,
         isFoundingMember: (i.user as Record<string, unknown>).is_founding_member,
+        isAdmin: (i.user as Record<string, unknown>).is_admin,
       } : null,
     })),
     dates: dates.map(d => {
@@ -1242,6 +1383,7 @@ function transformSessionFull(
             username: (v.user as Record<string, unknown>).username,
             avatarUrl: (v.user as Record<string, unknown>).avatar_url,
             isFoundingMember: (v.user as Record<string, unknown>).is_founding_member,
+            isAdmin: (v.user as Record<string, unknown>).is_admin,
           } : null,
         })),
       }
@@ -1269,6 +1411,7 @@ function transformItem(
       username: claimedBy.username,
       avatarUrl: claimedBy.avatar_url,
       isFoundingMember: claimedBy.is_founding_member,
+      isAdmin: claimedBy.is_admin,
     } : null,
   }
 }
@@ -1294,6 +1437,7 @@ function transformGameSuggestion(
       displayName: (row.suggested_by as Record<string, unknown>).display_name,
       avatarUrl: (row.suggested_by as Record<string, unknown>).avatar_url,
       isFoundingMember: (row.suggested_by as Record<string, unknown>).is_founding_member,
+      isAdmin: (row.suggested_by as Record<string, unknown>).is_admin,
     } : null,
   }
 }

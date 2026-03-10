@@ -41,6 +41,8 @@ interface AdminStats {
   }
   revenue: {
     projectedMonthly: number
+    basicPaidCount: number
+    proPaidCount: number
     basicCount: number
     proCount: number
   }
@@ -164,9 +166,16 @@ async function getStats(supabase: ReturnType<typeof createClient>): Promise<Admi
       console.error('Error counting pro tier users:', e)
     }
 
-    // Get today's signups
-    const todayStart = new Date()
-    todayStart.setHours(0, 0, 0, 0)
+    // Get today's signups (using America/Phoenix timezone - MST, no DST)
+    // MST is UTC-7, so midnight MST = 7:00 AM UTC
+    const todayStart = new Date(now)
+    todayStart.setUTCHours(7, 0, 0, 0)
+
+    // If current UTC time is before 7 AM, we're still in "yesterday" MST, so go back a day
+    if (now.getUTCHours() < 7) {
+      todayStart.setUTCDate(todayStart.getUTCDate() - 1)
+    }
+
     let todaySignups: TodaySignup[] = []
     try {
       const { data: signups } = await supabase
@@ -208,8 +217,8 @@ async function getStats(supabase: ReturnType<typeof createClient>): Promise<Admi
     const totalUsers = usersTotal.count ?? 0
     const freeCount = Math.max(0, totalUsers - basicCount - proCount)
 
-    // Calculate projected monthly revenue
-    const projectedMonthly = (basicCount * BASIC_PRICE) + (proCount * PRO_PRICE)
+    // Calculate projected monthly revenue - only count PAID subscribers, not promoted/override accounts
+    const projectedMonthly = (basicPaid * BASIC_PRICE) + (proPaid * PRO_PRICE)
 
     return {
       users: {
@@ -231,8 +240,10 @@ async function getStats(supabase: ReturnType<typeof createClient>): Promise<Admi
       },
       revenue: {
         projectedMonthly: Math.round(projectedMonthly * 100) / 100,
-        basicCount,
-        proCount,
+        basicPaidCount: basicPaid,  // Only actual paying customers
+        proPaidCount: proPaid,      // Only actual paying customers
+        basicCount,  // Total including promoted
+        proCount,    // Total including promoted
       },
       groups: {
         total: groupsTotal.count ?? 0,
@@ -266,7 +277,7 @@ async function getStats(supabase: ReturnType<typeof createClient>): Promise<Admi
         tierBreakdown: { basicPaid: 0, basicUpgraded: 0, proPaid: 0, proUpgraded: 0 },
         todaySignups: [],
       },
-      revenue: { projectedMonthly: 0, basicCount: 0, proCount: 0 },
+      revenue: { projectedMonthly: 0, basicPaidCount: 0, proPaidCount: 0, basicCount: 0, proCount: 0 },
       groups: { total: 0, public: 0, private: 0 },
       events: { total: 0, upcoming: 0 },
       planningSessions: { total: 0, open: 0 },
@@ -1067,7 +1078,7 @@ Deno.serve(async (req) => {
 
     // Update user (admin edit)
     if (action === 'update-user') {
-      const { userId, displayName, username, isAdmin } = body
+      const { userId, displayName, username, isAdmin, isFoundingMember } = body
 
       if (!userId) {
         return errorResponse('userId required', 400)
@@ -1098,6 +1109,7 @@ Deno.serve(async (req) => {
         updates.username = trimmedUsername
       }
       if (isAdmin !== undefined) updates.is_admin = isAdmin
+      if (isFoundingMember !== undefined) updates.is_founding_member = isFoundingMember
 
       const { data: user, error } = await supabase
         .from('users')

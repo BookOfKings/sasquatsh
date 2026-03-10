@@ -63,6 +63,7 @@ export interface PlayerRequest {
     username: string | null
     avatarUrl: string | null
     isFoundingMember?: boolean
+    isAdmin?: boolean
   } | null
 }
 

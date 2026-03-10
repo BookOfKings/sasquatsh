@@ -25,6 +25,7 @@ export interface PlanningSession {
     username: string | null
     avatarUrl: string | null
     isFoundingMember?: boolean
+    isAdmin?: boolean
   } | null
   invitees?: PlanningInvitee[]
   dates?: PlanningDate[]
@@ -55,6 +56,7 @@ export interface PlanningItem {
     username: string
     avatarUrl: string | null
     isFoundingMember?: boolean
+    isAdmin?: boolean
   } | null
 }
 
@@ -78,6 +80,7 @@ export interface PlanningInvitee {
     username: string | null
     avatarUrl: string | null
     isFoundingMember?: boolean
+    isAdmin?: boolean
   } | null
 }
 
@@ -96,6 +99,7 @@ export interface DateVote {
     displayName: string | null
     avatarUrl: string | null
     isFoundingMember?: boolean
+    isAdmin?: boolean
   } | null
 }
 
@@ -115,6 +119,7 @@ export interface GameSuggestion {
     displayName: string | null
     avatarUrl: string | null
     isFoundingMember?: boolean
+    isAdmin?: boolean
   } | null
 }
 

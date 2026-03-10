@@ -41,6 +41,8 @@ export interface AdminStats {
   }
   revenue: {
     projectedMonthly: number
+    basicPaidCount: number
+    proPaidCount: number
     basicCount: number
     proCount: number
   }
@@ -377,7 +379,7 @@ export async function toggleFoundingMember(
 export async function updateUser(
   token: string,
   userId: string,
-  data: { displayName?: string; username?: string; isAdmin?: boolean }
+  data: { displayName?: string; username?: string; isAdmin?: boolean; isFoundingMember?: boolean }
 ): Promise<{ user: AdminUser; message: string }> {
   return authenticatedRequest<{ user: AdminUser; message: string }>('/admin-stats?action=update-user', token, {
     method: 'POST',
@@ -451,6 +453,8 @@ export interface AdminGroupMember {
   displayName: string | null
   email: string
   avatarUrl: string | null
+  isFoundingMember?: boolean
+  isAdmin?: boolean
   role: 'owner' | 'admin' | 'member'
   joinedAt: string
 }

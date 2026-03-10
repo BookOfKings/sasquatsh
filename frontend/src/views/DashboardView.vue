@@ -202,6 +202,7 @@ async function handleAcceptPlanningSession(sessionId: string) {
             :avatar-url="auth.user.value?.avatarUrl"
             :display-name="auth.user.value?.displayName"
             :is-founding-member="auth.user.value?.isFoundingMember"
+            :is-admin="auth.user.value?.isAdmin"
             size="lg"
           />
           <div>

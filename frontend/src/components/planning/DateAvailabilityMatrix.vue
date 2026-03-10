@@ -133,6 +133,7 @@ function getVoteColor(status: 'available' | 'unavailable' | 'pending' | 'cannot-
                 :avatar-url="invitee.user?.avatarUrl"
                 :display-name="invitee.user?.displayName"
                 :is-founding-member="invitee.user?.isFoundingMember"
+                :is-admin="invitee.user?.isAdmin"
                 size="sm"
                 class="mb-1"
               />

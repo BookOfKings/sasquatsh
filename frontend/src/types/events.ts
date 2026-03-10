@@ -5,6 +5,7 @@ export interface UserSummary {
   displayName: string | null
   avatarUrl: string | null
   isFoundingMember?: boolean
+  isAdmin?: boolean
 }
 
 export interface EventSummary {

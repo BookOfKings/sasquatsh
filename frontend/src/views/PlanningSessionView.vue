@@ -17,7 +17,10 @@ import {
   claimPlanningItem,
   unclaimPlanningItem,
   removePlanningItem,
+  addPlanningInvitees,
 } from '@/services/planningApi'
+import { getGroupMembers } from '@/services/groupsApi'
+import type { GroupMember } from '@/types/groups'
 import { searchBggGames, getBggGame } from '@/services/bggApi'
 import type { PlanningSession, GameSuggestion, PlanningItem, ItemCategory } from '@/types/planning'
 import type { BggSearchResult } from '@/types/bgg'
@@ -69,6 +72,14 @@ const newItem = reactive({
   category: 'food' as ItemCategory,
   quantity: 1,
 })
+
+// Invite more members state
+const showInviteModal = ref(false)
+const loadingMembers = ref(false)
+const groupMembers = ref<GroupMember[]>([])
+const selectedMemberIds = ref<string[]>([])
+const invitingMembers = ref(false)
+const sendInviteEmails = ref(true)
 
 const sessionId = computed(() => route.params.id as string)
 
@@ -458,6 +469,76 @@ function getCategoryIcon(category: ItemCategory): string {
   }
 }
 
+// ============ Invite More Members ============
+
+async function openInviteModal() {
+  if (!session.value?.groupId) return
+
+  showInviteModal.value = true
+  loadingMembers.value = true
+  selectedMemberIds.value = []
+
+  try {
+    const token = await auth.getIdToken()
+    if (!token) throw new Error('Not authenticated')
+
+    const members = await getGroupMembers(token, session.value.groupId)
+
+    // Filter out already invited members
+    const invitedUserIds = new Set(session.value.invitees?.map(i => i.userId) || [])
+    groupMembers.value = members.filter(m => !invitedUserIds.has(m.userId))
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to load members'
+    showInviteModal.value = false
+  } finally {
+    loadingMembers.value = false
+  }
+}
+
+function toggleMemberSelection(userId: string) {
+  const index = selectedMemberIds.value.indexOf(userId)
+  if (index === -1) {
+    selectedMemberIds.value.push(userId)
+  } else {
+    selectedMemberIds.value.splice(index, 1)
+  }
+}
+
+async function handleInviteMembers() {
+  if (!session.value || selectedMemberIds.value.length === 0) return
+
+  invitingMembers.value = true
+  errorMessage.value = ''
+
+  try {
+    const token = await auth.getIdToken()
+    if (!token) throw new Error('Not authenticated')
+
+    const result = await addPlanningInvitees(
+      token,
+      session.value.id,
+      selectedMemberIds.value,
+      sendInviteEmails.value
+    )
+
+    successMessage.value = result.message
+    showInviteModal.value = false
+    selectedMemberIds.value = []
+
+    // Reload session to show new invitees
+    await loadSession(true)
+
+    // Clear success message after a few seconds
+    setTimeout(() => {
+      successMessage.value = ''
+    }, 3000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to invite members'
+  } finally {
+    invitingMembers.value = false
+  }
+}
+
 function getCategoryColor(category: ItemCategory): string {
   switch (category) {
     case 'food': return 'text-orange-500 bg-orange-100'
@@ -521,9 +602,31 @@ function getStatusBadgeClass(status: string) {
       <p class="mt-4 text-gray-500">Loading planning session...</p>
     </div>
 
-    <!-- Error -->
-    <div v-else-if="errorMessage && !session" class="alert-error">
-      {{ errorMessage }}
+    <!-- Error - Not Invited or Other Error -->
+    <div v-else-if="errorMessage && !session" class="card p-8 text-center">
+      <svg class="w-16 h-16 mx-auto text-red-400 mb-4" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M13,13H11V7H13M13,17H11V15H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
+      </svg>
+      <h2 class="text-xl font-semibold text-gray-900 mb-2">
+        {{ errorMessage.includes('invited') ? 'Not Invited' : 'Unable to Load Session' }}
+      </h2>
+      <p class="text-gray-500 mb-6">
+        {{ errorMessage }}
+      </p>
+      <div class="flex justify-center gap-3">
+        <button class="btn-outline" @click="router.push('/dashboard')">
+          <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M10,20V14H14V20H19V12H22L12,3L2,12H5V20H10Z"/>
+          </svg>
+          Dashboard
+        </button>
+        <button class="btn-primary" @click="loadSession()">
+          <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"/>
+          </svg>
+          Try Again
+        </button>
+      </div>
     </div>
 
     <!-- Not Accepted - User must accept invitation first -->
@@ -1059,11 +1162,23 @@ function getStatusBadgeClass(status: string) {
 
         <!-- Invitees List -->
         <div class="card mb-6">
-          <div class="p-6 border-b border-gray-100">
-            <h2 class="font-semibold">Invited Members</h2>
-            <p v-if="session.maxParticipants" class="text-sm text-gray-500 mt-1">
-              Limited to {{ session.maxParticipants }} participants (first-come-first-served)
-            </p>
+          <div class="p-6 border-b border-gray-100 flex items-start justify-between">
+            <div>
+              <h2 class="font-semibold">Invited Members</h2>
+              <p v-if="session.maxParticipants" class="text-sm text-gray-500 mt-1">
+                Limited to {{ session.maxParticipants }} participants (first-come-first-served)
+              </p>
+            </div>
+            <button
+              v-if="isCreator && isOpen"
+              class="btn btn-sm btn-outline flex items-center gap-1"
+              @click="openInviteModal"
+            >
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z"/>
+              </svg>
+              Invite More
+            </button>
           </div>
           <div class="p-6">
             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
@@ -1078,6 +1193,7 @@ function getStatusBadgeClass(status: string) {
                       :avatar-url="invitee.user?.avatarUrl"
                       :display-name="invitee.user?.displayName"
                       :is-founding-member="invitee.user?.isFoundingMember"
+                      :is-admin="invitee.user?.isAdmin"
                       size="lg"
                     />
                   </div>
@@ -1153,5 +1269,105 @@ function getStatusBadgeClass(status: string) {
         </div>
       </template>
     </template>
+
+    <!-- Invite More Members Modal -->
+    <div
+      v-if="showInviteModal"
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      @click.self="showInviteModal = false"
+    >
+      <div class="bg-white rounded-lg max-w-md w-full max-h-[80vh] flex flex-col">
+        <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+          <h3 class="font-semibold text-lg">Invite More Members</h3>
+          <button
+            class="text-gray-400 hover:text-gray-600"
+            @click="showInviteModal = false"
+          >
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="p-4 overflow-y-auto flex-1">
+          <!-- Loading -->
+          <div v-if="loadingMembers" class="flex justify-center py-8">
+            <svg class="animate-spin h-8 w-8 text-primary-500" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+          </div>
+
+          <!-- No uninvited members -->
+          <div v-else-if="groupMembers.length === 0" class="text-center py-8 text-gray-500">
+            All group members have already been invited.
+          </div>
+
+          <!-- Member list -->
+          <div v-else class="space-y-2">
+            <p class="text-sm text-gray-500 mb-3">
+              Select members to invite to this planning session.
+            </p>
+            <label
+              v-for="member in groupMembers"
+              :key="member.userId"
+              class="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors"
+              :class="selectedMemberIds.includes(member.userId) ? 'bg-primary-50 border border-primary-300' : 'bg-gray-50 border border-transparent hover:bg-gray-100'"
+            >
+              <input
+                type="checkbox"
+                :checked="selectedMemberIds.includes(member.userId)"
+                class="w-5 h-5 text-primary-500 rounded"
+                @change="toggleMemberSelection(member.userId)"
+              />
+              <UserAvatar
+                :avatar-url="member.avatarUrl"
+                :display-name="member.displayName"
+                :is-founding-member="member.isFoundingMember"
+                :is-admin="member.isAdmin"
+                size="sm"
+              />
+              <div class="flex-1 min-w-0">
+                <div class="font-medium truncate">{{ member.displayName || member.username }}</div>
+                <div v-if="member.displayName && member.username" class="text-sm text-gray-500 truncate">@{{ member.username }}</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="p-4 border-t border-gray-200 space-y-3">
+          <!-- Email option -->
+          <label class="flex items-center gap-2 text-sm">
+            <input
+              v-model="sendInviteEmails"
+              type="checkbox"
+              class="w-4 h-4 text-primary-500 rounded"
+            />
+            Send email invitations
+          </label>
+
+          <!-- Actions -->
+          <div class="flex gap-3">
+            <button
+              class="btn btn-outline flex-1"
+              @click="showInviteModal = false"
+            >
+              Cancel
+            </button>
+            <button
+              class="btn btn-primary flex-1"
+              :disabled="selectedMemberIds.length === 0 || invitingMembers"
+              @click="handleInviteMembers"
+            >
+              <svg v-if="invitingMembers" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+              </svg>
+              {{ invitingMembers ? 'Inviting...' : `Invite (${selectedMemberIds.length})` }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>

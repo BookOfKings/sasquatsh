@@ -32,8 +32,8 @@ const lastCreatedInviteLink = ref<string | null>(null)
 
 // User search state
 const userSearchQuery = ref('')
-const userSearchResults = ref<Array<{ id: string; username: string; displayName: string | null; avatarUrl: string | null; isFoundingMember?: boolean }>>([])
-const selectedUsers = ref<Array<{ id: string; username: string; displayName: string | null; avatarUrl: string | null; isFoundingMember?: boolean }>>([])
+const userSearchResults = ref<Array<{ id: string; username: string; displayName: string | null; avatarUrl: string | null; isFoundingMember?: boolean; isAdmin?: boolean }>>([])
+const selectedUsers = ref<Array<{ id: string; username: string; displayName: string | null; avatarUrl: string | null; isFoundingMember?: boolean; isAdmin?: boolean }>>([])
 const searchingUsers = ref(false)
 let userSearchTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -331,6 +331,7 @@ function resetInviteModal() {
               :avatar-url="member.avatarUrl"
               :display-name="member.displayName"
               :is-founding-member="member.isFoundingMember"
+              :is-admin="member.isAdmin"
               size="md"
             />
             <div>
@@ -406,6 +407,7 @@ function resetInviteModal() {
                 :avatar-url="request.avatarUrl"
                 :display-name="request.displayName"
                 :is-founding-member="request.isFoundingMember"
+                :is-admin="request.isAdmin"
                 size="md"
               />
               <div>
@@ -532,6 +534,7 @@ function resetInviteModal() {
                   :avatar-url="user.avatarUrl"
                   :display-name="user.displayName"
                   :is-founding-member="user.isFoundingMember"
+                  :is-admin="user.isAdmin"
                   size="sm"
                   class="flex-shrink-0"
                 />
@@ -555,6 +558,7 @@ function resetInviteModal() {
                     :avatar-url="user.avatarUrl"
                     :display-name="user.displayName"
                     :is-founding-member="user.isFoundingMember"
+                    :is-admin="user.isAdmin"
                     size="xs"
                     class="flex-shrink-0"
                   />

@@ -542,6 +542,7 @@ function getStatusBadge(status: string) {
               :avatar-url="request.host?.avatarUrl"
               :display-name="request.host?.displayName"
               :is-founding-member="request.host?.isFoundingMember"
+              :is-admin="request.host?.isAdmin"
               size="lg"
               class="flex-shrink-0"
             />

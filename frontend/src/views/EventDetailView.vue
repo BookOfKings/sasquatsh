@@ -219,6 +219,7 @@ function goToLogin() {
             :avatar-url="event.host?.avatarUrl"
             :display-name="event.host?.displayName"
             :is-founding-member="event.host?.isFoundingMember"
+            :is-admin="event.host?.isAdmin"
             size="lg"
             class="flex-shrink-0"
           />
@@ -511,6 +512,7 @@ function goToLogin() {
               :avatar-url="reg.user?.avatarUrl"
               :display-name="reg.user?.displayName"
               :is-founding-member="reg.user?.isFoundingMember"
+              :is-admin="reg.user?.isAdmin"
               size="md"
             />
             <div class="flex-1">

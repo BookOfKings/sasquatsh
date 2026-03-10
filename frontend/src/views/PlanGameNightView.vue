@@ -340,6 +340,7 @@ function formatDate(dateStr: string): string {
                 :avatar-url="member.avatarUrl"
                 :display-name="member.displayName"
                 :is-founding-member="member.isFoundingMember"
+                :is-admin="member.isAdmin"
                 size="md"
                 class="flex-shrink-0"
               />

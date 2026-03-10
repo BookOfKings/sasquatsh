@@ -26,4 +26,5 @@ export interface UserSummary {
   displayName?: string
   avatarUrl?: string
   isFoundingMember?: boolean
+  isAdmin?: boolean
 }

@@ -64,6 +64,7 @@ function toGroup(row: Record<string, unknown>) {
           displayName: (row.creator as Record<string, unknown>).display_name as string | null,
           avatarUrl: (row.creator as Record<string, unknown>).avatar_url as string | null,
           isFoundingMember: (row.creator as Record<string, unknown>).is_founding_member as boolean | undefined,
+          isAdmin: (row.creator as Record<string, unknown>).is_admin as boolean | undefined,
         }
       : null,
   }
@@ -80,6 +81,7 @@ function toGroupMember(row: Record<string, unknown>) {
     email: user?.email as string | null,
     avatarUrl: user?.avatar_url as string | null,
     isFoundingMember: user?.is_founding_member as boolean | undefined,
+    isAdmin: user?.is_admin as boolean | undefined,
     role: row.role as string,
     joinedAt: row.joined_at as string,
   }
@@ -96,6 +98,7 @@ function toJoinRequest(row: Record<string, unknown>) {
     email: user?.email as string | null,
     avatarUrl: user?.avatar_url as string | null,
     isFoundingMember: user?.is_founding_member as boolean | undefined,
+    isAdmin: user?.is_admin as boolean | undefined,
     message: row.message as string | null,
     status: row.status as string,
     createdAt: row.created_at as string,
@@ -141,7 +144,7 @@ Deno.serve(async (req) => {
         .from('group_invitations')
         .select(`
           id, invite_code, invited_email, max_uses, uses_count, expires_at, created_at,
-          invited_by:users!invited_by_user_id(id, display_name, avatar_url, is_founding_member),
+          invited_by:users!invited_by_user_id(id, display_name, avatar_url, is_founding_member, is_admin),
           group:groups!group_id(id, name, slug, description, logo_url, group_type, location_city, location_state, join_policy)
         `)
         .eq('invite_code', inviteCode)
@@ -183,6 +186,7 @@ Deno.serve(async (req) => {
           displayName: invitedBy.display_name,
           avatarUrl: invitedBy.avatar_url,
           isFoundingMember: invitedBy.is_founding_member,
+          isAdmin: invitedBy.is_admin,
         },
         expiresAt: invitation.expires_at,
       })
@@ -215,7 +219,7 @@ Deno.serve(async (req) => {
         .from('group_invitations')
         .select(`
           id, invite_code, created_at, expires_at, status,
-          invited_by:users!invited_by_user_id(id, display_name, avatar_url, is_founding_member),
+          invited_by:users!invited_by_user_id(id, display_name, avatar_url, is_founding_member, is_admin),
           group:groups!group_id(id, name, slug, description, logo_url, group_type, location_city, location_state, memberships:group_memberships(count))
         `)
         .eq('invited_user_id', dbUser.id)
@@ -241,6 +245,7 @@ Deno.serve(async (req) => {
             displayName: invitedBy.display_name,
             avatarUrl: invitedBy.avatar_url,
             isFoundingMember: invitedBy.is_founding_member,
+            isAdmin: invitedBy.is_admin,
           } : null,
           group: group ? {
             id: group.id,
@@ -310,7 +315,7 @@ Deno.serve(async (req) => {
             .from('group_memberships')
             .select(`
               id, user_id, role, joined_at,
-              user:users(id, display_name, username, email, avatar_url, is_founding_member)
+              user:users(id, display_name, username, email, avatar_url, is_founding_member, is_admin)
             `)
             .eq('group_id', group.id)
             .order('joined_at', { ascending: true })
@@ -334,7 +339,7 @@ Deno.serve(async (req) => {
             .from('group_join_requests')
             .select(`
               id, user_id, message, status, created_at,
-              user:users!group_join_requests_user_id_fkey(id, display_name, username, email, avatar_url, is_founding_member)
+              user:users!group_join_requests_user_id_fkey(id, display_name, username, email, avatar_url, is_founding_member, is_admin)
             `)
             .eq('group_id', group.id)
             .eq('status', 'pending')
@@ -376,7 +381,7 @@ Deno.serve(async (req) => {
         .from('groups')
         .select(`
           *,
-          creator:users!created_by_user_id(id, display_name, avatar_url, is_founding_member),
+          creator:users!created_by_user_id(id, display_name, avatar_url, is_founding_member, is_admin),
           memberships:group_memberships(id)
         `)
 
@@ -1198,7 +1203,7 @@ Deno.serve(async (req) => {
       .eq('id', groupId)
       .select(`
         *,
-        creator:users!created_by_user_id(id, display_name, avatar_url, is_founding_member),
+        creator:users!created_by_user_id(id, display_name, avatar_url, is_founding_member, is_admin),
         memberships:group_memberships(id)
       `)
       .single()
