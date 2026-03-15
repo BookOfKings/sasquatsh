@@ -8,6 +8,7 @@ import {
   onAuthStateChanged,
   updateProfile,
   sendEmailVerification,
+  sendPasswordResetEmail,
   type User as FirebaseUser,
 } from 'firebase/auth'
 import { auth } from '@/services/firebase'
@@ -162,6 +163,16 @@ async function logout(): Promise<void> {
   user.value = null
 }
 
+async function resetPassword(email: string): Promise<{ ok: boolean; message: string }> {
+  try {
+    await sendPasswordResetEmail(auth, email)
+    return { ok: true, message: 'Password reset email sent. Check your inbox.' }
+  } catch (err: any) {
+    const message = getAuthErrorMessage(err.code)
+    return { ok: false, message }
+  }
+}
+
 async function refreshUser(): Promise<void> {
   if (firebaseUser.value) {
     try {
@@ -224,6 +235,7 @@ export function useAuthStore() {
     signupWithEmail,
     loginWithGoogle,
     logout,
+    resetPassword,
     getIdToken,
     refreshUser,
     updateUserData,
