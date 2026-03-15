@@ -295,12 +295,46 @@ export async function verifyFirebaseToken(token: string): Promise<DecodedToken |
   }
 }
 
-export function getCorsHeaders(): Record<string, string> {
+// Allowed origins for CORS
+const ALLOWED_ORIGINS = [
+  'https://sasquatsh.com',
+  'https://www.sasquatsh.com',
+  'https://sasquatsh.web.app',
+  'http://localhost:5173', // Vite dev server
+  'http://localhost:4173', // Vite preview
+]
+
+export function getCorsHeaders(req?: Request): Record<string, string> {
+  // Get the origin from the request
+  const origin = req?.headers.get('origin') || ''
+
+  // Check if origin is allowed, default to first allowed origin for non-browser requests
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]
+
   return {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': allowedOrigin,
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-firebase-token',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Credentials': 'true',
   }
+}
+
+// Escape special characters for PostgREST filter strings
+// This prevents SQL injection via .or() filter manipulation
+export function escapeFilterValue(value: string): string {
+  // PostgREST uses these special characters in filter syntax:
+  // . (dot) - field separator
+  // , (comma) - value separator in .or()
+  // ( ) - grouping
+  // % - wildcard in ilike
+  // * - wildcard
+  // Escape by URL encoding problematic characters
+  return value
+    .replace(/\\/g, '\\\\')  // Escape backslashes first
+    .replace(/,/g, '\\,')    // Escape commas (used as OR separator)
+    .replace(/\./g, '\\.')   // Escape dots (used as field separator)
+    .replace(/\(/g, '\\(')   // Escape parentheses
+    .replace(/\)/g, '\\)')
 }
 
 // Get Firebase token from request headers
@@ -308,16 +342,16 @@ export function getFirebaseToken(req: Request): string | null {
   return req.headers.get('X-Firebase-Token')
 }
 
-export function jsonResponse(data: unknown, status = 200): Response {
+export function jsonResponse(data: unknown, status = 200, req?: Request): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       'Content-Type': 'application/json',
-      ...getCorsHeaders(),
+      ...getCorsHeaders(req),
     },
   })
 }
 
-export function errorResponse(message: string, status = 400): Response {
-  return jsonResponse({ error: message }, status)
+export function errorResponse(message: string, status = 400, req?: Request): Response {
+  return jsonResponse({ error: message }, status, req)
 }

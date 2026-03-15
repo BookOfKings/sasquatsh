@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { jsonResponse, errorResponse, getCorsHeaders, verifyFirebaseToken, getFirebaseToken } from '../_shared/firebase.ts'
+import { jsonResponse, errorResponse, getCorsHeaders, verifyFirebaseToken, getFirebaseToken, escapeFilterValue } from '../_shared/firebase.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -488,7 +488,8 @@ Deno.serve(async (req) => {
         `, { count: 'exact' })
 
       if (search) {
-        query = query.or(`email.ilike.%${search}%,username.ilike.%${search}%,display_name.ilike.%${search}%`)
+        const safeSearch = escapeFilterValue(search)
+        query = query.or(`email.ilike.%${safeSearch}%,username.ilike.%${safeSearch}%,display_name.ilike.%${safeSearch}%`)
       }
       if (showSuspended) {
         query = query.eq('is_suspended', true)
@@ -549,7 +550,8 @@ Deno.serve(async (req) => {
         `, { count: 'exact' })
 
       if (search) {
-        query = query.or(`name.ilike.%${search}%,slug.ilike.%${search}%`)
+        const safeSearch = escapeFilterValue(search)
+        query = query.or(`name.ilike.%${safeSearch}%,slug.ilike.%${safeSearch}%`)
       }
 
       const { data: groups, count, error } = await query

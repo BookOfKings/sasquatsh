@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { verifyFirebaseToken, jsonResponse, errorResponse, getCorsHeaders, getFirebaseToken } from '../_shared/firebase.ts'
+import { verifyFirebaseToken, jsonResponse, errorResponse, getCorsHeaders, getFirebaseToken, escapeFilterValue } from '../_shared/firebase.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -468,13 +468,15 @@ Deno.serve(async (req) => {
       .order('name', { ascending: true })
 
     if (search) {
-      query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%`)
+      const safeSearch = escapeFilterValue(search)
+      query = query.or(`name.ilike.%${safeSearch}%,description.ilike.%${safeSearch}%`)
     }
     if (groupType) {
       query = query.eq('group_type', groupType)
     }
     if (city) {
-      query = query.ilike('location_city', `%${city}%`)
+      const safeCity = escapeFilterValue(city)
+      query = query.ilike('location_city', `%${safeCity}%`)
     }
     if (state) {
       query = query.eq('location_state', state)

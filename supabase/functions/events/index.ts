@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { verifyFirebaseToken, jsonResponse, errorResponse, getCorsHeaders, getFirebaseToken } from '../_shared/firebase.ts'
+import { verifyFirebaseToken, jsonResponse, errorResponse, getCorsHeaders, getFirebaseToken, escapeFilterValue } from '../_shared/firebase.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -148,7 +148,10 @@ Deno.serve(async (req) => {
       if (difficulty) query = query.eq('difficulty_level', difficulty)
       if (dateFrom) query = query.gte('event_date', dateFrom)
       if (dateTo) query = query.lte('event_date', dateTo)
-      if (search) query = query.or(`title.ilike.%${search}%,game_title.ilike.%${search}%`)
+      if (search) {
+        const safeSearch = escapeFilterValue(search)
+        query = query.or(`title.ilike.%${safeSearch}%,game_title.ilike.%${safeSearch}%`)
+      }
       if (venueId) query = query.eq('event_location_id', venueId)
 
       const { data, error } = await query

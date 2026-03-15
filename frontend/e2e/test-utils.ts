@@ -1,11 +1,26 @@
 /**
  * Test utilities for E2E tests
  * Provides functions to authenticate and manage test data via API
+ *
+ * Required environment variables (set in .env or CI/CD):
+ * - VITE_FIREBASE_API_KEY
+ * - VITE_SUPABASE_FUNCTIONS_URL
+ * - VITE_SUPABASE_ANON_KEY
+ * - TEST_USER_EMAIL / TEST_USER_PASSWORD (for global setup)
+ * - TEST_BASIC_USER_EMAIL / TEST_BASIC_USER_PASSWORD (for basic tier tests)
  */
 
-const FIREBASE_API_KEY = process.env.VITE_FIREBASE_API_KEY || 'AIzaSyDhi6XUJdloW4vxzrnAGj7ncAGthefUY6g'
-const SUPABASE_FUNCTIONS_URL = process.env.VITE_SUPABASE_FUNCTIONS_URL || 'https://yyfukoddeyiaxiufztdx.supabase.co/functions/v1'
-const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5ZnVrb2RkZXlpYXhpdWZ6dGR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5MTAxODIsImV4cCI6MjA4NzQ4NjE4Mn0.aujhFFlmiN_rswvYK4-yMrcuiCSa5osg-0i2aINvOYw'
+function getRequiredEnv(name: string): string {
+  const value = process.env[name]
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}. Ensure .env file exists or CI/CD secrets are configured.`)
+  }
+  return value
+}
+
+const FIREBASE_API_KEY = getRequiredEnv('VITE_FIREBASE_API_KEY')
+const SUPABASE_FUNCTIONS_URL = getRequiredEnv('VITE_SUPABASE_FUNCTIONS_URL')
+const SUPABASE_ANON_KEY = getRequiredEnv('VITE_SUPABASE_ANON_KEY')
 
 interface FirebaseAuthResponse {
   idToken: string

@@ -41,8 +41,13 @@ setup('authenticate main test user', async ({ page }) => {
 
 // Basic tier test user auth setup
 setup('authenticate basic test user', async ({ page }) => {
-  const email = process.env.TEST_BASIC_USER_EMAIL || 'testbasicaccount@sasquatsh.com'
-  const password = process.env.TEST_BASIC_USER_PASSWORD || 'password1'
+  const email = process.env.TEST_BASIC_USER_EMAIL
+  const password = process.env.TEST_BASIC_USER_PASSWORD
+
+  if (!email || !password) {
+    console.log('Skipping basic user auth setup - no credentials (set TEST_BASIC_USER_EMAIL and TEST_BASIC_USER_PASSWORD)')
+    return
+  }
 
   await page.goto('/login')
   await page.locator('#email').fill(email)

@@ -17,11 +17,19 @@ import { test, expect, Page } from '@playwright/test'
  * To minimize rate limits, consider running fewer tests or adding delays.
  */
 
-const BASIC_EMAIL = process.env.TEST_BASIC_USER_EMAIL || 'testbasicaccount@sasquatsh.com'
-const BASIC_PASSWORD = process.env.TEST_BASIC_USER_PASSWORD || 'password1'
+// Require test credentials from environment - no hardcoded fallbacks
+const BASIC_EMAIL = process.env.TEST_BASIC_USER_EMAIL
+const BASIC_PASSWORD = process.env.TEST_BASIC_USER_PASSWORD
+
+if (!BASIC_EMAIL || !BASIC_PASSWORD) {
+  console.warn('WARNING: TEST_BASIC_USER_EMAIL and TEST_BASIC_USER_PASSWORD not set. Basic tier tests will be skipped.')
+}
 
 // Helper function to login with basic user
 async function loginBasicUser(page: Page) {
+  if (!BASIC_EMAIL || !BASIC_PASSWORD) {
+    throw new Error('Test credentials not configured. Set TEST_BASIC_USER_EMAIL and TEST_BASIC_USER_PASSWORD in environment.')
+  }
   await page.goto('/login')
   await page.locator('#email').fill(BASIC_EMAIL)
   await page.locator('#password').fill(BASIC_PASSWORD)
