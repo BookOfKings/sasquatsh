@@ -286,6 +286,49 @@ async function handleGroupUpdated() {
         class="mb-6"
       />
 
+      <!-- Members Section (for all members, when not admin - admins see this in admin panel) -->
+      <div v-if="isMember && !isAdmin && group" class="card mb-6">
+        <div class="p-4 border-b border-gray-100 flex items-center justify-between">
+          <h2 class="font-semibold flex items-center gap-2">
+            <svg class="w-5 h-5 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12,5.5A3.5,3.5 0 0,1 15.5,9A3.5,3.5 0 0,1 12,12.5A3.5,3.5 0 0,1 8.5,9A3.5,3.5 0 0,1 12,5.5M5,8C5.56,8 6.08,8.15 6.53,8.42C6.38,9.85 6.8,11.27 7.66,12.38C7.16,13.34 6.16,14 5,14A3,3 0 0,1 2,11A3,3 0 0,1 5,8M19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14C17.84,14 16.84,13.34 16.34,12.38C17.2,11.27 17.62,9.85 17.47,8.42C17.92,8.15 18.44,8 19,8M5.5,18.25C5.5,16.18 8.41,14.5 12,14.5C15.59,14.5 18.5,16.18 18.5,18.25V20H5.5V18.25M0,20V18.5C0,17.11 1.89,15.94 4.45,15.6C3.86,16.28 3.5,17.22 3.5,18.25V20H0M24,20H20.5V18.25C20.5,17.22 20.14,16.28 19.55,15.6C22.11,15.94 24,17.11 24,18.5V20Z"/>
+            </svg>
+            Members ({{ groupStore.groupMembers.value.length }})
+          </h2>
+        </div>
+        <div class="divide-y divide-gray-100">
+          <div
+            v-for="member in groupStore.groupMembers.value"
+            :key="member.id"
+            class="flex items-center gap-3 p-4"
+          >
+            <div class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+              <img
+                v-if="member.avatarUrl"
+                :src="member.avatarUrl"
+                class="w-full h-full object-cover"
+                alt=""
+              />
+              <svg v-else class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="font-medium text-gray-900">{{ member.displayName || member.username || 'Unknown' }}</div>
+              <div v-if="member.username" class="text-sm text-gray-500">@{{ member.username }}</div>
+            </div>
+            <span :class="[
+              'text-xs px-2 py-1 rounded-full',
+              member.role === 'owner' ? 'bg-purple-100 text-purple-700' :
+              member.role === 'admin' ? 'bg-blue-100 text-blue-700' :
+              'bg-gray-100 text-gray-700'
+            ]">
+              {{ member.role }}
+            </span>
+          </div>
+        </div>
+      </div>
+
       <!-- Planning Sessions Section -->
       <div v-if="isMember" class="card mb-6">
         <div class="p-4 border-b border-gray-100 flex items-center justify-between">

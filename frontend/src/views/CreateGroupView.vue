@@ -201,7 +201,13 @@ function goBack() {
 
           <!-- Location -->
           <div>
-            <h3 class="font-semibold text-gray-900 mb-4">Location (Optional)</h3>
+            <h3 class="font-semibold text-gray-900 mb-4">
+              Location
+              <span class="text-sm font-normal text-gray-500">(Optional for all group types)</span>
+            </h3>
+            <p v-if="form.groupType === 'both'" class="text-sm text-gray-500 mb-3">
+              Add a location to help local players find your group, or leave blank for a purely interest-based community.
+            </p>
 
             <div class="grid grid-cols-12 gap-4">
               <div class="col-span-6">
