@@ -535,6 +535,31 @@ Deno.serve(async (req) => {
         refreshed: saved,
       })
     }
+
+    // Refresh incomplete cache entries (missing thumbnail or player counts)
+    if (action === 'refresh-incomplete') {
+      const { data: incompleteGames } = await supabase
+        .from('bgg_games_cache')
+        .select('bgg_id')
+        .is('thumbnail_url', null)
+        .is('min_players', null)
+        .limit(100)
+
+      if (!incompleteGames || incompleteGames.length === 0) {
+        return jsonResponse({ message: 'No incomplete entries to refresh', refreshed: 0 })
+      }
+
+      const ids = incompleteGames.map(g => g.bgg_id)
+      console.log(`Refreshing ${ids.length} incomplete cache entries...`)
+
+      const games = await fetchGamesById(ids)
+      const saved = await saveGamesToCache(supabase, games)
+
+      return jsonResponse({
+        message: `Refreshed ${saved} incomplete entries`,
+        refreshed: saved,
+      })
+    }
   }
 
   return errorResponse('Invalid action', 400)

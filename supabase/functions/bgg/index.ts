@@ -266,9 +266,12 @@ async function getFromCache(supabase: ReturnType<typeof createClient>, bggId: nu
     .single()
 
   if (cached) {
-    // Return cached data if less than 7 days old
+    // Return cached data if less than 7 days old AND has complete data
+    // (search results only cache basic info without thumbnail/players)
     const cacheAge = Date.now() - new Date(cached.cached_at).getTime()
-    if (cacheAge < 7 * 24 * 60 * 60 * 1000) {
+    const hasCompleteData = cached.thumbnail_url !== null || cached.min_players !== null
+
+    if (cacheAge < 7 * 24 * 60 * 60 * 1000 && hasCompleteData) {
       return {
         bggId: cached.bgg_id,
         name: cached.name,

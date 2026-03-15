@@ -234,6 +234,13 @@ export async function refreshStaleCache(token: string): Promise<BggCacheImportRe
   })
 }
 
+// Refresh incomplete cache entries (missing thumbnail/player data)
+export async function refreshIncompleteCache(token: string): Promise<BggCacheImportResult> {
+  return authenticatedRequest<BggCacheImportResult>('/bgg-cache?action=refresh-incomplete', token, {
+    method: 'POST',
+  })
+}
+
 // Refresh BGG thumbnails for event games missing them
 export async function refreshBggThumbnails(token: string): Promise<{ message: string; refreshed: number; total: number; errors?: string[] }> {
   return authenticatedRequest<{ message: string; refreshed: number; total: number; errors?: string[] }>('/admin-stats?action=refresh-bgg-cache', token, {

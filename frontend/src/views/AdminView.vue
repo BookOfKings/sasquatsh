@@ -14,6 +14,7 @@ import {
   importPopularGames,
   importHotGames,
   refreshStaleCache,
+  refreshIncompleteCache,
   refreshBggThumbnails,
   getAdminDashboard,
   getAdminUsers,
@@ -332,6 +333,23 @@ async function handleRefreshStale() {
     setTimeout(() => successMessage.value = '', 5000)
   } catch (err) {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to refresh cache'
+  } finally {
+    cacheImporting.value = false
+  }
+}
+
+async function handleRefreshIncomplete() {
+  cacheImporting.value = true
+  errorMessage.value = ''
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    const result = await refreshIncompleteCache(token)
+    successMessage.value = result.message
+    await loadCacheStats()
+    setTimeout(() => successMessage.value = '', 5000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to refresh incomplete entries'
   } finally {
     cacheImporting.value = false
   }
@@ -2868,6 +2886,20 @@ function getLocationTypeLabel(location: EventLocation): string {
               @click="handleRefreshStale"
             >
               Refresh Stale
+            </button>
+          </div>
+
+          <div class="flex items-center justify-between p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+            <div>
+              <div class="font-medium text-gray-900">Refresh Incomplete Entries</div>
+              <div class="text-sm text-gray-600">Fetches full data for games missing thumbnails/player counts</div>
+            </div>
+            <button
+              class="btn-primary"
+              :disabled="cacheImporting"
+              @click="handleRefreshIncomplete"
+            >
+              Fix Incomplete
             </button>
           </div>
 
