@@ -1,3 +1,5 @@
+import type { ScheduleEntry, HostPreference } from './sessions'
+
 export interface PlanningSession {
   id: string
   groupId: string
@@ -12,6 +14,9 @@ export interface PlanningSession {
   createdAt: string
   maxParticipants: number | null
   maxGames: number // Tier-based limit: Basic=5, Pro=10
+  tableCount: number | null // For multi-table sessions
+  scheduledSessions: ScheduleEntry[] | null // Game schedule before finalize
+  hostSessionPreferences: HostPreference[] | null // Host's preferred sessions
   inviteeCount?: number
   userVotedGameIds?: string[] // Game IDs the current user has voted for
   group?: {
@@ -133,6 +138,7 @@ export interface CreatePlanningSessionInput {
   sendEmailInvites?: boolean
   initialGameSuggestions?: SuggestGameInput[]
   maxParticipants?: number
+  tableCount?: number // For multi-table sessions (>= 2)
 }
 
 export interface PlanningResponseInput {

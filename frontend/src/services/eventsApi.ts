@@ -115,6 +115,7 @@ function toEvent(row: Record<string, unknown>): Event {
     confirmedCount: ((row.registrations as unknown[])?.length ?? 0) + (row.host_is_playing !== false ? 1 : 0),
     isPublic: row.is_public as boolean,
     isCharityEvent: row.is_charity_event as boolean,
+    isMultiTable: (row.is_multi_table as boolean) ?? false,
     minAge: row.min_age as number | null,
     status: row.status as string,
     host: row.host
@@ -174,6 +175,9 @@ function toEvent(row: Record<string, unknown>): Event {
     groupId: row.groupId as string | null ?? null,
     fromPlanningSessionId: row.fromPlanningSessionId as string | null ?? null,
     createdAt: row.created_at as string,
+    // Multi-table session data (populated by edge function when is_multi_table is true)
+    tables: row.tables as Event['tables'] ?? null,
+    sessions: row.sessions as Event['sessions'] ?? null,
   }
 }
 

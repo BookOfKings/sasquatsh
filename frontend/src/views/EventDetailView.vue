@@ -5,10 +5,12 @@ import { useEventStore } from '@/stores/useEventStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { hasFeature } from '@/config/subscriptionLimits'
 import { inviteGroupMembersToEvent } from '@/services/eventsApi'
+import { registerForSession, cancelSessionRegistration } from '@/services/sessionsApi'
 import { supabase } from '@/services/supabase'
 import ShareModal from '@/components/common/ShareModal.vue'
 import D20Spinner from '@/components/common/D20Spinner.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
+import SessionScheduleGrid from '@/components/events/SessionScheduleGrid.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -32,6 +34,9 @@ const inviteMembersDialog = ref(false)
 const groupMembers = ref<{ id: string; displayName: string; avatarUrl: string | null; selected: boolean }[]>([])
 const loadingGroupMembers = ref(false)
 const invitingMembers = ref(false)
+
+// Session registration state (multi-table mode)
+const registeringSession = ref(false)
 
 const eventId = computed(() => route.params.id as string)
 const event = computed(() => eventStore.currentEvent.value)
@@ -301,6 +306,41 @@ async function handleRegister() {
 async function handleCancelRegistration() {
   const result = await eventStore.cancelRegistration(eventId.value)
   showMessage(result.ok, result.message)
+}
+
+// Multi-table session registration handlers
+async function handleSessionRegister(sessionId: string) {
+  registeringSession.value = true
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+
+    await registerForSession(token, sessionId)
+    showMessage(true, 'Successfully joined session')
+    // Reload event to get updated session data
+    await eventStore.loadEvent(eventId.value)
+  } catch (err) {
+    showMessage(false, err instanceof Error ? err.message : 'Failed to join session')
+  } finally {
+    registeringSession.value = false
+  }
+}
+
+async function handleSessionCancel(sessionId: string) {
+  registeringSession.value = true
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+
+    await cancelSessionRegistration(token, sessionId)
+    showMessage(true, 'Left session successfully')
+    // Reload event to get updated session data
+    await eventStore.loadEvent(eventId.value)
+  } catch (err) {
+    showMessage(false, err instanceof Error ? err.message : 'Failed to leave session')
+  } finally {
+    registeringSession.value = false
+  }
 }
 
 async function handleAddItem() {
@@ -661,8 +701,8 @@ function goToLogin() {
           </div>
         </div>
 
-        <!-- Registration Actions -->
-        <div v-if="auth.isAuthenticated.value && !isHost">
+        <!-- Registration Actions (simple mode) -->
+        <div v-if="auth.isAuthenticated.value && !isHost && !event.isMultiTable">
           <button
             v-if="!isRegistered && spotsLeft > 0"
             class="btn-primary"
@@ -688,10 +728,37 @@ function goToLogin() {
           </span>
         </div>
 
-        <div v-else-if="!auth.isAuthenticated.value">
+        <div v-else-if="!auth.isAuthenticated.value && !event.isMultiTable">
           <button class="btn-outline" @click="goToLogin">
             Sign in to join
           </button>
+        </div>
+      </div>
+
+      <!-- Multi-Table Session Schedule -->
+      <div v-if="event.isMultiTable && event.tables && event.sessions" class="card mb-6">
+        <div class="p-4 border-b border-gray-100">
+          <h2 class="font-semibold flex items-center gap-2">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19,19H5V8H19M19,3H18V1H16V3H8V1H6V3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3Z"/>
+            </svg>
+            Game Sessions
+            <span class="text-sm font-normal text-gray-500">({{ event.tables.length }} tables)</span>
+          </h2>
+        </div>
+        <div class="p-4">
+          <p v-if="!auth.isAuthenticated.value" class="text-gray-600 mb-4">
+            <button class="text-primary-500 hover:underline" @click="goToLogin">Sign in</button>
+            to register for game sessions.
+          </p>
+          <SessionScheduleGrid
+            :tables="event.tables"
+            :sessions="event.sessions"
+            :is-host="isHost"
+            :registering="registeringSession"
+            @register="handleSessionRegister"
+            @cancel="handleSessionCancel"
+          />
         </div>
       </div>
 

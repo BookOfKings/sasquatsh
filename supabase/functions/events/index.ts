@@ -102,7 +102,79 @@ Deno.serve(async (req) => {
         return errorResponse('Event not found', 404)
       }
 
-      return jsonResponse(transformEvent(data))
+      // If multi-table event, fetch tables and sessions
+      let tables = null
+      let sessions = null
+      if (data.is_multi_table) {
+        // Fetch tables
+        const { data: tablesData } = await supabase
+          .from('event_tables')
+          .select('id, table_number, table_name')
+          .eq('event_id', eventId)
+          .order('table_number')
+
+        tables = tablesData
+
+        // Fetch sessions with registrations
+        const { data: sessionsData } = await supabase
+          .from('event_game_sessions')
+          .select(`
+            id, table_id, bgg_id, game_name, thumbnail_url,
+            min_players, max_players, slot_index, start_time,
+            duration_minutes, status,
+            registrations:game_session_registrations(
+              id, user_id, is_host_reserved,
+              user:users(id, display_name, avatar_url)
+            )
+          `)
+          .eq('event_id', eventId)
+          .order('slot_index')
+
+        // Get user's registered sessions
+        const { data: userRegs } = await supabase
+          .from('game_session_registrations')
+          .select('session_id')
+          .eq('user_id', user.id)
+
+        const userSessionIds = new Set(userRegs?.map(r => r.session_id) || [])
+
+        sessions = (sessionsData ?? []).map(s => {
+          const regs = (s.registrations as Array<{
+            id: string
+            user_id: string
+            is_host_reserved: boolean
+            user: { id: string; display_name: string | null; avatar_url: string | null } | null
+          }>) ?? []
+
+          const table = (tablesData ?? []).find(t => t.id === s.table_id)
+
+          return {
+            id: s.id,
+            tableId: s.table_id,
+            tableNumber: table?.table_number ?? 0,
+            bggId: s.bgg_id,
+            gameName: s.game_name,
+            thumbnailUrl: s.thumbnail_url,
+            minPlayers: s.min_players,
+            maxPlayers: s.max_players,
+            slotIndex: s.slot_index,
+            startTime: s.start_time,
+            durationMinutes: s.duration_minutes,
+            status: s.status,
+            registeredCount: regs.length,
+            isFull: s.max_players ? regs.length >= s.max_players : false,
+            isUserRegistered: userSessionIds.has(s.id),
+            registrations: regs.map(r => ({
+              userId: r.user_id,
+              displayName: r.user?.display_name ?? null,
+              avatarUrl: r.user?.avatar_url ?? null,
+              isHostReserved: r.is_host_reserved,
+            })),
+          }
+        })
+      }
+
+      return jsonResponse(transformEvent(data, tables, sessions))
     }
 
     // Browse public events (with blocked user filtering)
@@ -504,7 +576,11 @@ function transformEventSummary(row: Record<string, unknown>) {
   }
 }
 
-function transformEvent(row: Record<string, unknown>) {
+function transformEvent(
+  row: Record<string, unknown>,
+  tables?: { id: string; table_number: number; table_name: string | null }[] | null,
+  sessions?: Record<string, unknown>[] | null
+) {
   return {
     id: row.id,
     hostUserId: row.host_user_id,
@@ -529,10 +605,13 @@ function transformEvent(row: Record<string, unknown>) {
     difficultyLevel: row.difficulty_level,
     maxPlayers: row.max_players,
     hostIsPlaying: row.host_is_playing ?? true,
-    // confirmedCount includes host if they're playing, plus registrations
-    confirmedCount: (Array.isArray(row.registrations) ? row.registrations.length : 0) + (row.host_is_playing !== false ? 1 : 0),
+    // confirmedCount includes host if they're playing, plus confirmed registrations only
+    confirmedCount: (Array.isArray(row.registrations)
+      ? row.registrations.filter((r: { status: string }) => r.status === 'confirmed').length
+      : 0) + (row.host_is_playing !== false ? 1 : 0),
     isPublic: row.is_public,
     isCharityEvent: row.is_charity_event,
+    isMultiTable: row.is_multi_table ?? false,
     minAge: row.min_age,
     status: row.status,
     groupId: row.group_id,
@@ -602,5 +681,14 @@ function transformEvent(row: Record<string, unknown>) {
       : null,
     plannedGames: row.planned_games ?? null,
     createdAt: row.created_at,
+    // Multi-table session data
+    tables: tables
+      ? tables.map(t => ({
+          id: t.id,
+          tableNumber: t.table_number,
+          tableName: t.table_name,
+        }))
+      : null,
+    sessions: sessions ?? null,
   }
 }

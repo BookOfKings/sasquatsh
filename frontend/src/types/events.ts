@@ -1,4 +1,5 @@
 import type { PlannedGame } from './planning'
+import type { EventTable, GameSession } from './sessions'
 
 export interface UserSummary {
   id: string
@@ -98,6 +99,7 @@ export interface Event {
   confirmedCount: number
   isPublic: boolean
   isCharityEvent: boolean
+  isMultiTable: boolean
   minAge: number | null
   status: string
   host: UserSummary | null
@@ -109,6 +111,9 @@ export interface Event {
   groupId: string | null
   fromPlanningSessionId: string | null // Set if event was created from planning session
   createdAt: string
+  // Multi-table session data
+  tables: EventTable[] | null
+  sessions: GameSession[] | null
 }
 
 export interface CreateEventInput {

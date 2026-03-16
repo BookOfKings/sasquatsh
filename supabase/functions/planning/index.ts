@@ -271,6 +271,14 @@ Deno.serve(async (req) => {
       const tierGameLimits: Record<string, number> = { free: 0, basic: 5, pro: 10, premium: 10 }
       const maxGames = tierGameLimits[effectiveTier] || 5
 
+      // Validate tableCount if provided
+      if (body.tableCount !== undefined && body.tableCount !== null) {
+        const tableCount = Number(body.tableCount)
+        if (isNaN(tableCount) || tableCount < 1 || tableCount > 20) {
+          return errorResponse('tableCount must be between 1 and 20', 400)
+        }
+      }
+
       // Create session
       const { data: session, error: sessionError } = await supabase
         .from('planning_sessions')
@@ -282,6 +290,7 @@ Deno.serve(async (req) => {
           response_deadline: body.responseDeadline,
           max_participants: body.maxParticipants || null,
           max_games: maxGames,
+          table_count: body.tableCount || null,
         })
         .select()
         .single()
@@ -1093,6 +1102,113 @@ Deno.serve(async (req) => {
       return jsonResponse({ message: `Invited ${newUserIds.length} new people`, addedCount: newUserIds.length })
     }
 
+    // ============ Multi-Table Session Scheduling ============
+
+    // Schedule games to tables/time slots (host only, before finalize)
+    if (action === 'schedule-sessions') {
+      if (session.status !== 'open') {
+        return errorResponse('Session is no longer open', 400)
+      }
+
+      if (!isCreator) {
+        return errorResponse('Only the session creator can schedule sessions', 403)
+      }
+
+      const body = await req.json()
+
+      if (!body.schedule || !Array.isArray(body.schedule)) {
+        return errorResponse('schedule array required', 400)
+      }
+
+      // Fetch session to get table_count
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('planning_sessions')
+        .select('table_count')
+        .eq('id', sessionId)
+        .single()
+
+      if (sessionError || !sessionData?.table_count || sessionData.table_count < 2) {
+        return errorResponse('Multi-table scheduling requires tableCount >= 2', 400)
+      }
+
+      // Validate schedule entries
+      const seenSlots = new Set<string>()
+      for (const entry of body.schedule) {
+        if (!entry.suggestionId || entry.tableNumber === undefined || entry.slotIndex === undefined) {
+          return errorResponse('Each schedule entry requires suggestionId, tableNumber, slotIndex', 400)
+        }
+
+        if (entry.tableNumber < 1 || entry.tableNumber > sessionData.table_count) {
+          return errorResponse(`tableNumber must be between 1 and ${sessionData.table_count}`, 400)
+        }
+
+        // Check for conflicts (same table + slot)
+        const slotKey = `${entry.tableNumber}-${entry.slotIndex}`
+        if (seenSlots.has(slotKey)) {
+          return errorResponse(`Conflict: Table ${entry.tableNumber}, Slot ${entry.slotIndex} is already scheduled`, 400)
+        }
+        seenSlots.add(slotKey)
+      }
+
+      // Verify all suggestions belong to this session
+      const suggestionIds = body.schedule.map((e: { suggestionId: string }) => e.suggestionId)
+      const { data: validSuggestions } = await supabase
+        .from('planning_game_suggestions')
+        .select('id')
+        .eq('session_id', sessionId)
+        .in('id', suggestionIds)
+
+      const validIds = new Set(validSuggestions?.map(s => s.id) || [])
+      const invalidIds = suggestionIds.filter((id: string) => !validIds.has(id))
+
+      if (invalidIds.length > 0) {
+        return errorResponse('Some suggestion IDs are invalid', 400)
+      }
+
+      // Store schedule in session (JSONB column)
+      const { error: updateError } = await supabase
+        .from('planning_sessions')
+        .update({
+          scheduled_sessions: body.schedule,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', sessionId)
+
+      if (updateError) return errorResponse(updateError.message, 500)
+
+      return jsonResponse({ message: 'Schedule saved', schedule: body.schedule })
+    }
+
+    // Set host preferences for which sessions they want to play
+    if (action === 'set-host-preferences') {
+      if (session.status !== 'open') {
+        return errorResponse('Session is no longer open', 400)
+      }
+
+      if (!isCreator) {
+        return errorResponse('Only the session creator can set host preferences', 403)
+      }
+
+      const body = await req.json()
+
+      if (!body.preferences || !Array.isArray(body.preferences)) {
+        return errorResponse('preferences array required', 400)
+      }
+
+      // Store preferences in session (JSONB column)
+      const { error: updateError } = await supabase
+        .from('planning_sessions')
+        .update({
+          host_session_preferences: body.preferences,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', sessionId)
+
+      if (updateError) return errorResponse(updateError.message, 500)
+
+      return jsonResponse({ message: 'Host preferences saved', preferences: body.preferences })
+    }
+
     return errorResponse('Invalid action', 400)
   }
 
@@ -1104,7 +1220,7 @@ Deno.serve(async (req) => {
 
     const { data: session } = await supabase
       .from('planning_sessions')
-      .select('id, status, created_by_user_id, group_id, title, description')
+      .select('id, status, created_by_user_id, group_id, title, description, table_count, scheduled_sessions, host_session_preferences')
       .eq('id', sessionId)
       .single()
 
@@ -1216,6 +1332,9 @@ Deno.serve(async (req) => {
         finalGame = suggestionsWithCounts[0]
       }
 
+      // Check if this is a multi-table session
+      const isMultiTable = (session.table_count ?? 0) >= 2 && session.scheduled_sessions
+
       // Create draft event with planned_games for multi-game support
       const { data: event, error: eventError } = await supabase
         .from('events')
@@ -1232,28 +1351,142 @@ Deno.serve(async (req) => {
           is_public: false,
           from_planning_session_id: sessionId,
           planned_games: qualifyingGames.length > 0 ? qualifyingGames : null,
+          is_multi_table: isMultiTable,
         })
         .select('id')
         .single()
 
       if (eventError) return errorResponse(eventError.message, 500)
 
-      // Get users who are available for the final date
-      const { data: availableVotes } = await supabase
-        .from('planning_date_votes')
-        .select('user_id')
-        .eq('date_id', finalDate.id)
-        .eq('is_available', true)
+      // Handle multi-table session setup
+      if (isMultiTable) {
+        // Create event_tables
+        const tableRows = []
+        for (let i = 1; i <= session.table_count!; i++) {
+          tableRows.push({
+            event_id: event.id,
+            table_number: i,
+            table_name: `Table ${i}`,
+          })
+        }
 
-      // Auto-register available users
-      if (availableVotes?.length) {
-        const registrations = availableVotes.map(v => ({
-          event_id: event.id,
-          user_id: v.user_id,
-          status: 'confirmed',
-        }))
+        const { data: createdTables, error: tableError } = await supabase
+          .from('event_tables')
+          .insert(tableRows)
+          .select('id, table_number')
 
-        await supabase.from('event_registrations').insert(registrations)
+        if (tableError) return errorResponse(tableError.message, 500)
+
+        // Create a map of table_number to table_id
+        const tableIdMap = new Map<number, string>()
+        for (const t of createdTables ?? []) {
+          tableIdMap.set(t.table_number, t.id)
+        }
+
+        // Get suggestion details for scheduled sessions
+        const scheduledSessions = session.scheduled_sessions as Array<{
+          suggestionId: string
+          tableNumber: number
+          slotIndex: number
+          durationOverride?: number
+        }>
+
+        const suggestionIds = scheduledSessions.map(s => s.suggestionId)
+        const { data: suggestionDetails } = await supabase
+          .from('planning_game_suggestions')
+          .select('id, bgg_id, game_name, thumbnail_url, min_players, max_players, playing_time')
+          .in('id', suggestionIds)
+
+        const suggestionMap = new Map<string, Record<string, unknown>>()
+        for (const s of suggestionDetails ?? []) {
+          suggestionMap.set(s.id, s)
+        }
+
+        // Create event_game_sessions
+        const sessionRows = []
+        for (const sched of scheduledSessions) {
+          const suggestion = suggestionMap.get(sched.suggestionId)
+          if (!suggestion) continue
+
+          const tableId = tableIdMap.get(sched.tableNumber)
+          if (!tableId) continue
+
+          sessionRows.push({
+            event_id: event.id,
+            table_id: tableId,
+            bgg_id: suggestion.bgg_id,
+            game_name: suggestion.game_name,
+            thumbnail_url: suggestion.thumbnail_url,
+            min_players: suggestion.min_players,
+            max_players: suggestion.max_players,
+            slot_index: sched.slotIndex,
+            duration_minutes: sched.durationOverride || (suggestion.playing_time as number) || 60,
+            status: 'scheduled',
+          })
+        }
+
+        const { data: createdSessions, error: sessionError } = await supabase
+          .from('event_game_sessions')
+          .insert(sessionRows)
+          .select('id, table_id, slot_index')
+
+        if (sessionError) return errorResponse(sessionError.message, 500)
+
+        // Create map for session lookup by table+slot
+        const gameSessionMap = new Map<string, string>()
+        for (const gs of createdSessions ?? []) {
+          // Find table number from table_id
+          for (const [tableNum, tableId] of tableIdMap.entries()) {
+            if (tableId === gs.table_id) {
+              gameSessionMap.set(`${tableNum}-${gs.slot_index}`, gs.id)
+              break
+            }
+          }
+        }
+
+        // Auto-register host for their preferred sessions
+        const hostPreferences = session.host_session_preferences as Array<{
+          tableNumber: number
+          slotIndex: number
+        }> | null
+
+        if (hostPreferences && hostPreferences.length > 0) {
+          const hostRegistrations = []
+          for (const pref of hostPreferences) {
+            const sessionKey = `${pref.tableNumber}-${pref.slotIndex}`
+            const gameSessionId = gameSessionMap.get(sessionKey)
+            if (gameSessionId) {
+              hostRegistrations.push({
+                session_id: gameSessionId,
+                user_id: user.id,
+                is_host_reserved: true,
+              })
+            }
+          }
+
+          if (hostRegistrations.length > 0) {
+            await supabase.from('game_session_registrations').insert(hostRegistrations)
+          }
+        }
+
+        // For multi-table events, skip event_registrations (users register for sessions)
+      } else {
+        // Standard single-table flow: auto-register available users
+        const { data: availableVotes } = await supabase
+          .from('planning_date_votes')
+          .select('user_id')
+          .eq('date_id', finalDate.id)
+          .eq('is_available', true)
+
+        if (availableVotes?.length) {
+          const registrations = availableVotes.map(v => ({
+            event_id: event.id,
+            user_id: v.user_id,
+            status: 'confirmed',
+          }))
+
+          await supabase.from('event_registrations').insert(registrations)
+        }
       }
 
       // Copy items to bring from planning session to event

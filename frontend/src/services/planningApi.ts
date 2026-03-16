@@ -299,3 +299,40 @@ export async function addPlanningInvitees(
     }
   )
 }
+
+// Schedule games to tables/time slots (multi-table mode, before finalize)
+export async function scheduleGameSessions(
+  token: string,
+  sessionId: string,
+  schedule: Array<{
+    suggestionId: string
+    tableNumber: number
+    slotIndex: number
+    durationOverride?: number
+  }>
+): Promise<{ message: string; schedule: typeof schedule }> {
+  return authenticatedRequest<{ message: string; schedule: typeof schedule }>(
+    `/planning?id=${sessionId}&action=schedule-sessions`,
+    token,
+    {
+      method: 'POST',
+      body: JSON.stringify({ schedule }),
+    }
+  )
+}
+
+// Set host preferences for which sessions they want to play
+export async function setHostSessionPreferences(
+  token: string,
+  sessionId: string,
+  preferences: Array<{ tableNumber: number; slotIndex: number }>
+): Promise<{ message: string; preferences: typeof preferences }> {
+  return authenticatedRequest<{ message: string; preferences: typeof preferences }>(
+    `/planning?id=${sessionId}&action=set-host-preferences`,
+    token,
+    {
+      method: 'POST',
+      body: JSON.stringify({ preferences }),
+    }
+  )
+}

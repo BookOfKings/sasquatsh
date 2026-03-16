@@ -18,6 +18,8 @@ import {
   unclaimPlanningItem,
   removePlanningItem,
   addPlanningInvitees,
+  scheduleGameSessions,
+  setHostSessionPreferences,
 } from '@/services/planningApi'
 import { getGroupMembers } from '@/services/groupsApi'
 import { supabase } from '@/services/supabase'
@@ -25,9 +27,11 @@ import type { GroupMember } from '@/types/groups'
 import { searchBggGames, getBggGame } from '@/services/bggApi'
 import type { PlanningSession, GameSuggestion, PlanningItem, ItemCategory } from '@/types/planning'
 import type { BggSearchResult } from '@/types/bgg'
+import type { ScheduleEntry, HostPreference } from '@/types/sessions'
 import DateAvailabilityMatrix from '@/components/planning/DateAvailabilityMatrix.vue'
 import DateAvailabilitySummary from '@/components/planning/DateAvailabilitySummary.vue'
 import GameSuggestionCard from '@/components/planning/GameSuggestionCard.vue'
+import SessionScheduler from '@/components/planning/SessionScheduler.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 
 const route = useRoute()
@@ -63,6 +67,16 @@ const showGameSearch = ref(false)
 const finalizing = ref(false)
 const selectedDateId = ref<string | null>(null)
 const selectedGameId = ref<string | null>(null)
+
+// Multi-table scheduling state
+const savingSchedule = ref(false)
+const scheduleEntries = ref<ScheduleEntry[]>([])
+const hostPreferences = ref<HostPreference[]>([])
+
+// Computed: is this a multi-table session?
+const isMultiTable = computed(() => {
+  return (session.value?.tableCount ?? 0) >= 2
+})
 
 // Items to bring state
 const showAddItemForm = ref(false)
@@ -371,8 +385,41 @@ async function handleRemoveSuggestion(suggestion: GameSuggestion) {
   }
 }
 
+async function handleSaveSchedule(schedule: ScheduleEntry[], preferences: HostPreference[]) {
+  if (!session.value) return
+
+  savingSchedule.value = true
+  errorMessage.value = ''
+
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+
+    // Save both schedule and preferences
+    await scheduleGameSessions(token, session.value.id, schedule)
+    await setHostSessionPreferences(token, session.value.id, preferences)
+
+    // Update local state
+    scheduleEntries.value = schedule
+    hostPreferences.value = preferences
+
+    successMessage.value = 'Schedule saved successfully'
+    setTimeout(() => { successMessage.value = '' }, 3000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to save schedule'
+  } finally {
+    savingSchedule.value = false
+  }
+}
+
 async function handleFinalize() {
   if (!session.value || !selectedDateId.value) return
+
+  // For multi-table sessions, ensure schedule is saved
+  if (isMultiTable.value && scheduleEntries.value.length === 0) {
+    errorMessage.value = 'Please schedule games to tables before finalizing'
+    return
+  }
 
   finalizing.value = true
   errorMessage.value = ''
@@ -1254,6 +1301,28 @@ function getStatusBadgeClass(status: string) {
           </div>
         </div>
 
+        <!-- Multi-Table Session Scheduler (for creator) -->
+        <div v-if="isCreator && isMultiTable && session.gameSuggestions && session.gameSuggestions.length > 0" class="card">
+          <div class="p-6 border-b border-gray-100">
+            <div class="flex items-center gap-2">
+              <h2 class="font-semibold">Schedule Games to Tables</h2>
+              <span class="px-2 py-0.5 bg-primary-100 text-primary-700 text-xs rounded-full">
+                {{ session.tableCount }} tables
+              </span>
+            </div>
+          </div>
+          <div class="p-6">
+            <SessionScheduler
+              :table-count="session.tableCount || 2"
+              :game-suggestions="session.gameSuggestions"
+              :initial-schedule="session.scheduledSessions || []"
+              :initial-preferences="session.hostSessionPreferences || []"
+              :saving="savingSchedule"
+              @save="handleSaveSchedule"
+            />
+          </div>
+        </div>
+
         <!-- Finalize Section (for creator) -->
         <div v-if="isCreator" class="card">
           <div class="p-6 border-b border-gray-100">
@@ -1264,6 +1333,12 @@ function getStatusBadgeClass(status: string) {
               When you're ready, finalize this session to create a draft event with the selected date and game.
             </p>
 
+            <!-- Multi-table note -->
+            <div v-if="isMultiTable" class="bg-blue-50 text-blue-700 text-sm p-3 rounded-lg mb-4">
+              This is a multi-table session. Make sure you've scheduled games to tables above before finalizing.
+              Members will sign up for specific game sessions after finalization.
+            </div>
+
             <div class="grid grid-cols-2 gap-4 mb-6">
               <div>
                 <label class="label">Selected Date</label>
@@ -1273,7 +1348,7 @@ function getStatusBadgeClass(status: string) {
                   </option>
                 </select>
               </div>
-              <div>
+              <div v-if="!isMultiTable">
                 <label class="label">Selected Game</label>
                 <select v-model="selectedGameId" class="input">
                   <option :value="null">No game selected</option>
@@ -1286,7 +1361,7 @@ function getStatusBadgeClass(status: string) {
 
             <button
               class="btn-primary"
-              :disabled="!selectedDateId || finalizing"
+              :disabled="!selectedDateId || finalizing || (isMultiTable && scheduleEntries.length === 0)"
               @click="handleFinalize"
             >
               <svg v-if="finalizing" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">

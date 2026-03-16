@@ -46,6 +46,8 @@ const form = reactive({
   sendEmailInvites: false,
   hasParticipantLimit: false,
   maxParticipants: 8,
+  isMultiTable: false,
+  tableCount: 2,
 })
 
 const slug = computed(() => route.params.slug as string)
@@ -195,6 +197,7 @@ async function handleSubmit() {
       sendEmailInvites: form.sendEmailInvites,
       initialGameSuggestions: suggestedGames.value.length > 0 ? suggestedGames.value : undefined,
       maxParticipants: form.hasParticipantLimit ? form.maxParticipants : undefined,
+      tableCount: form.isMultiTable ? form.tableCount : undefined,
     })
 
     router.push(`/planning/${session.id}`)
@@ -577,6 +580,39 @@ function formatDate(dateStr: string): string {
             </div>
             <p class="text-sm text-gray-500 mt-2">
               You automatically get 1 spot. {{ form.maxParticipants - 1 }} spots available for others.
+            </p>
+          </div>
+        </div>
+
+        <!-- Multi-Table Mode -->
+        <div class="card p-6">
+          <h2 class="font-semibold mb-4">Multi-Table Mode (Optional)</h2>
+          <label class="flex items-center gap-3 cursor-pointer mb-4">
+            <input
+              v-model="form.isMultiTable"
+              type="checkbox"
+              class="w-5 h-5 rounded border-gray-300 text-primary-500 focus:ring-primary-500"
+            />
+            <div>
+              <span class="font-medium text-gray-900">Enable multi-table scheduling</span>
+              <p class="text-sm text-gray-500">Run multiple game sessions at different tables during the event</p>
+            </div>
+          </label>
+          <div v-if="form.isMultiTable" class="ml-8">
+            <div class="flex items-center gap-3">
+              <label for="tableCount" class="text-sm text-gray-600">Number of tables:</label>
+              <input
+                id="tableCount"
+                v-model.number="form.tableCount"
+                type="number"
+                min="2"
+                max="20"
+                class="input w-24"
+              />
+            </div>
+            <p class="text-sm text-gray-500 mt-2">
+              You'll be able to schedule different games at each table before finalizing.
+              Members will then sign up for specific game sessions.
             </p>
           </div>
         </div>
