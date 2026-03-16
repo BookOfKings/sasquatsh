@@ -6,6 +6,8 @@ export interface UserSummary {
   avatarUrl: string | null
   isFoundingMember?: boolean
   isAdmin?: boolean
+  subscriptionTier?: 'free' | 'basic' | 'pro' | 'premium'
+  subscriptionOverrideTier?: 'free' | 'basic' | 'pro' | 'premium'
 }
 
 export interface EventSummary {
@@ -104,6 +106,8 @@ export interface Event {
   items: EventItem[] | null
   games: EventGameSummary[] | null
   plannedGames: PlannedGame[] | null // Games from multi-game planning (2+ interested)
+  groupId: string | null
+  fromPlanningSessionId: string | null // Set if event was created from planning session
   createdAt: string
 }
 
@@ -168,6 +172,7 @@ export interface CreateEventItemInput {
   itemName: string
   itemCategory?: string
   quantityNeeded?: number
+  bringingItem?: boolean // Auto-claim when adding (for "I'm bringing this" flow)
 }
 
 export type DifficultyLevel = 'beginner' | 'intermediate' | 'advanced'

@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
         .from('events')
         .select(`
           *,
-          host:users!host_user_id(id, display_name, avatar_url, is_founding_member, is_admin),
+          host:users!host_user_id(id, display_name, avatar_url, is_founding_member, is_admin, subscription_tier, subscription_override_tier),
           venue:event_locations!event_location_id(id, name, city, state, postal_code),
           registrations:event_registrations(
             id, user_id, status, registered_at,
@@ -79,13 +79,26 @@ Deno.serve(async (req) => {
       }
 
       // Check access: public+published, or user is host, or user is registered, or user is admin
+      // Also allow group members to see planned events from their group
       const isHost = data.host_user_id === user.id
       const isAdmin = user.is_admin === true
       const isPublicAndPublished = data.is_public && data.status === 'published'
       const isRegistered = Array.isArray(data.registrations) &&
         data.registrations.some((r: { user_id: string }) => r.user_id === user.id)
 
-      if (!isHost && !isAdmin && !isPublicAndPublished && !isRegistered) {
+      // Check if user is a group member for planned events
+      let isGroupMember = false
+      if (data.group_id && data.from_planning_session_id) {
+        const { data: membership } = await supabase
+          .from('group_memberships')
+          .select('id')
+          .eq('group_id', data.group_id)
+          .eq('user_id', user.id)
+          .single()
+        isGroupMember = !!membership
+      }
+
+      if (!isHost && !isAdmin && !isPublicAndPublished && !isRegistered && !isGroupMember) {
         return errorResponse('Event not found', 404)
       }
 
@@ -522,6 +535,8 @@ function transformEvent(row: Record<string, unknown>) {
     isCharityEvent: row.is_charity_event,
     minAge: row.min_age,
     status: row.status,
+    groupId: row.group_id,
+    fromPlanningSessionId: row.from_planning_session_id,
     host: row.host
       ? {
           id: (row.host as Record<string, unknown>).id,
@@ -529,6 +544,8 @@ function transformEvent(row: Record<string, unknown>) {
           avatarUrl: (row.host as Record<string, unknown>).avatar_url,
           isFoundingMember: (row.host as Record<string, unknown>).is_founding_member,
           isAdmin: (row.host as Record<string, unknown>).is_admin,
+          subscriptionTier: (row.host as Record<string, unknown>).subscription_tier,
+          subscriptionOverrideTier: (row.host as Record<string, unknown>).subscription_override_tier,
         }
       : null,
     venue: row.venue

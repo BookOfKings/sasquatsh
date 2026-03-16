@@ -317,39 +317,147 @@ async function saveToCache(supabase: ReturnType<typeof createClient>, game: BggG
     })
 }
 
-// Cache search results (basic info only - full details fetched when user selects)
-async function cacheSearchResults(supabase: ReturnType<typeof createClient>, results: BggSearchResult[]): Promise<void> {
-  // Only insert games that don't already exist (don't overwrite full details with partial data)
+// Enrich cached results that are missing thumbnails
+async function enrichWithThumbnails(supabase: ReturnType<typeof createClient>, results: BggSearchResult[]): Promise<BggSearchResult[]> {
+  const missingThumbnails = results.filter(r => !r.thumbnailUrl)
+  if (missingThumbnails.length === 0) return results
+
+  const idsToFetch = missingThumbnails.slice(0, 10).map(g => g.bggId)
+  console.log(`Enriching ${idsToFetch.length} cached results with thumbnails`)
+
+  try {
+    const bggUrl = `${BGG_API_BASE}/thing?id=${idsToFetch.join(',')}`
+    const response = await fetchWithRetry(bggUrl)
+
+    if (response) {
+      const xml = await response.text()
+      const items = getAllElements(xml, 'item')
+
+      for (const item of items) {
+        const bggId = parseInt(getAttributeFromElement(item, 'id') || '0', 10)
+        if (!bggId) continue
+
+        const thumbnailUrl = getElementText(item, 'thumbnail')
+        const imageUrl = getElementText(item, 'image')
+        const minPlayers = parseInt(getAttribute(item, 'minplayers', 'value') || '0', 10) || null
+        const maxPlayers = parseInt(getAttribute(item, 'maxplayers', 'value') || '0', 10) || null
+        const playingTime = parseInt(getAttribute(item, 'playingtime', 'value') || '0', 10) || null
+
+        // Update cache
+        await supabase
+          .from('bgg_games_cache')
+          .update({
+            thumbnail_url: thumbnailUrl,
+            image_url: imageUrl,
+            min_players: minPlayers,
+            max_players: maxPlayers,
+            playing_time: playingTime,
+            cached_at: new Date().toISOString(),
+          })
+          .eq('bgg_id', bggId)
+
+        // Update result in memory
+        const resultToUpdate = results.find(r => r.bggId === bggId)
+        if (resultToUpdate) {
+          resultToUpdate.thumbnailUrl = thumbnailUrl
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Failed to enrich thumbnails:', err)
+  }
+
+  return results
+}
+
+// Cache search results with thumbnails by batch-fetching from BGG
+async function cacheSearchResults(supabase: ReturnType<typeof createClient>, results: BggSearchResult[]): Promise<BggSearchResult[]> {
+  // Only process games that don't already exist (don't overwrite full details with partial data)
   const bggIds = results.map(r => r.bggId)
 
-  // Check which games already exist
+  // Check which games already exist with complete data (have thumbnails)
   const { data: existing } = await supabase
     .from('bgg_games_cache')
-    .select('bgg_id')
+    .select('bgg_id, thumbnail_url')
     .in('bgg_id', bggIds)
 
-  const existingIds = new Set(existing?.map(e => e.bgg_id) || [])
+  const existingMap = new Map(existing?.map(e => [e.bgg_id, e.thumbnail_url]) || [])
 
-  // Filter to only new games
-  const newGames = results.filter(r => !existingIds.has(r.bggId))
+  // Filter to games that need thumbnails (new or missing thumbnail)
+  const gamesNeedingThumbnails = results.filter(r => !existingMap.has(r.bggId) || !existingMap.get(r.bggId))
 
-  if (newGames.length === 0) return
+  // Batch fetch details for games needing thumbnails (limit to 15 to avoid timeout)
+  if (gamesNeedingThumbnails.length > 0) {
+    const idsToFetch = gamesNeedingThumbnails.slice(0, 15).map(g => g.bggId)
+    console.log(`Batch fetching thumbnails for ${idsToFetch.length} games`)
 
-  // Insert basic info for new games
-  const { error } = await supabase
-    .from('bgg_games_cache')
-    .insert(newGames.map(game => ({
-      bgg_id: game.bggId,
-      name: game.name,
-      year_published: game.yearPublished,
-      cached_at: new Date().toISOString(),
-    })))
+    try {
+      const bggUrl = `${BGG_API_BASE}/thing?id=${idsToFetch.join(',')}`
+      const response = await fetchWithRetry(bggUrl)
 
-  if (error) {
-    console.error('Failed to cache search results:', error)
-  } else {
-    console.log(`Cached ${newGames.length} new games from search`)
+      if (response) {
+        const xml = await response.text()
+        const items = getAllElements(xml, 'item')
+
+        for (const item of items) {
+          const bggId = parseInt(getAttributeFromElement(item, 'id') || '0', 10)
+          if (!bggId) continue
+
+          const thumbnailUrl = getElementText(item, 'thumbnail')
+          const imageUrl = getElementText(item, 'image')
+          const minPlayers = parseInt(getAttribute(item, 'minplayers', 'value') || '0', 10) || null
+          const maxPlayers = parseInt(getAttribute(item, 'maxplayers', 'value') || '0', 10) || null
+          const playingTime = parseInt(getAttribute(item, 'playingtime', 'value') || '0', 10) || null
+
+          // Get name
+          const nameElements = getAllElements(item, 'name')
+          let name = ''
+          for (const nameEl of nameElements) {
+            if (getAttributeFromElement(nameEl, 'type') === 'primary') {
+              name = getAttributeFromElement(nameEl, 'value') || ''
+              break
+            }
+          }
+
+          const yearPublished = parseInt(getAttribute(item, 'yearpublished', 'value') || '0', 10) || null
+
+          // Upsert to cache with thumbnail data
+          await supabase
+            .from('bgg_games_cache')
+            .upsert({
+              bgg_id: bggId,
+              name: name || results.find(r => r.bggId === bggId)?.name || '',
+              year_published: yearPublished,
+              thumbnail_url: thumbnailUrl,
+              image_url: imageUrl,
+              min_players: minPlayers,
+              max_players: maxPlayers,
+              playing_time: playingTime,
+              cached_at: new Date().toISOString(),
+            })
+
+          // Update the result with the thumbnail
+          const resultToUpdate = results.find(r => r.bggId === bggId)
+          if (resultToUpdate) {
+            resultToUpdate.thumbnailUrl = thumbnailUrl
+          }
+        }
+
+        console.log(`Cached ${items.length} games with thumbnails`)
+      }
+    } catch (err) {
+      console.error('Failed to batch fetch thumbnails:', err)
+    }
   }
+
+  // Add existing thumbnails to results
+  for (const result of results) {
+    if (!result.thumbnailUrl && existingMap.get(result.bggId)) {
+      result.thumbnailUrl = existingMap.get(result.bggId)
+    }
+  }
+
+  return results
 }
 
 Deno.serve(async (req) => {
@@ -380,6 +488,16 @@ Deno.serve(async (req) => {
         const cachedResults = await searchLocalCache(supabase, searchQuery)
         if (cachedResults.length > 0) {
           console.log(`Cache hit for search: "${searchQuery}" (${cachedResults.length} results)`)
+
+          // Check if any results are missing thumbnails
+          const missingThumbnails = cachedResults.filter(r => !r.thumbnailUrl)
+          if (missingThumbnails.length > 0 && missingThumbnails.length <= 10) {
+            // Batch fetch missing thumbnails (fire and forget, return cached results immediately)
+            // but also try to enrich current results
+            const enriched = await enrichWithThumbnails(supabase, cachedResults)
+            return jsonResponse(enriched)
+          }
+
           return jsonResponse(cachedResults)
         }
       }
@@ -399,15 +517,13 @@ Deno.serve(async (req) => {
       const xml = await response.text()
       const results = parseSearchResults(xml)
 
-      // Cache the search results for future queries (fire and forget)
+      // Cache the search results with thumbnails and return enriched results
       if (results.length > 0) {
-        cacheSearchResults(supabase, results).catch(err => {
-          console.error('Failed to cache search results:', err)
-        })
+        const enrichedResults = await cacheSearchResults(supabase, results.slice(0, 20))
+        return jsonResponse(enrichedResults)
       }
 
-      // Limit to 20 results
-      return jsonResponse(results.slice(0, 20))
+      return jsonResponse([])
     } catch (err) {
       console.error('BGG search error:', err)
       // Return empty results instead of error to not break UI

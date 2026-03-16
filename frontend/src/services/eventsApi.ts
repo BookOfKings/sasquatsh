@@ -122,6 +122,8 @@ function toEvent(row: Record<string, unknown>): Event {
           id: (row.host as Record<string, unknown>).id as string,
           displayName: (row.host as Record<string, unknown>).display_name as string | null,
           avatarUrl: (row.host as Record<string, unknown>).avatar_url as string | null,
+          subscriptionTier: (row.host as Record<string, unknown>).subscription_tier as 'free' | 'basic' | 'pro' | 'premium' | undefined,
+          subscriptionOverrideTier: (row.host as Record<string, unknown>).subscription_override_tier as 'free' | 'basic' | 'pro' | 'premium' | undefined,
         }
       : null,
     venue: row.venue
@@ -169,6 +171,8 @@ function toEvent(row: Record<string, unknown>): Event {
       isAlternative: g.is_alternative as boolean,
     })) ?? null,
     plannedGames: row.plannedGames as Event['plannedGames'] ?? null,
+    groupId: row.groupId as string | null ?? null,
+    fromPlanningSessionId: row.fromPlanningSessionId as string | null ?? null,
     createdAt: row.created_at as string,
   }
 }
@@ -363,4 +367,30 @@ export async function unclaimItem(
   return authenticatedRequest<void>(`/items?id=${itemId}&action=unclaim`, token, {
     method: 'PUT',
   })
+}
+
+export async function updateItem(
+  token: string,
+  itemId: string,
+  data: { itemName?: string; itemCategory?: string }
+): Promise<EventItem> {
+  return authenticatedRequest<EventItem>(`/items?id=${itemId}&action=update`, token, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function inviteGroupMembersToEvent(
+  token: string,
+  eventId: string,
+  userIds: string[]
+): Promise<{ message: string; addedCount: number }> {
+  return authenticatedRequest<{ message: string; addedCount: number }>(
+    `/invitations?action=invite-group-member`,
+    token,
+    {
+      method: 'POST',
+      body: JSON.stringify({ eventId, userIds }),
+    }
+  )
 }

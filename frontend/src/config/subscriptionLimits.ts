@@ -30,7 +30,7 @@ export const TIER_LIMITS: Record<SubscriptionTier, TierLimits> = {
     features: {
       tableInfo: true,
       planning: true,
-      items: false,
+      items: true,
       showAds: false,
     },
   },
@@ -84,6 +84,7 @@ export const TIER_FEATURES: Record<SubscriptionTier, string[]> = {
     'Create up to 5 groups',
     'Specify table locations per game',
     'Game night planning feature',
+    'Items to bring lists',
     'No ads',
   ],
   pro: [

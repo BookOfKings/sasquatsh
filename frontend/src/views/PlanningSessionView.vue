@@ -20,6 +20,7 @@ import {
   addPlanningInvitees,
 } from '@/services/planningApi'
 import { getGroupMembers } from '@/services/groupsApi'
+import { supabase } from '@/services/supabase'
 import type { GroupMember } from '@/types/groups'
 import { searchBggGames, getBggGame } from '@/services/bggApi'
 import type { PlanningSession, GameSuggestion, PlanningItem, ItemCategory } from '@/types/planning'
@@ -87,6 +88,32 @@ const isCreator = computed(() => {
   if (!session.value || !auth.user.value) return false
   return session.value.createdByUserId === auth.user.value.id
 })
+
+// Check if user can invite members (creator OR group admin)
+const canInviteMembers = ref(false)
+
+async function checkCanInviteMembers() {
+  if (!session.value?.groupId || !auth.user.value) {
+    canInviteMembers.value = isCreator.value
+    return
+  }
+
+  // Creator can always invite
+  if (isCreator.value) {
+    canInviteMembers.value = true
+    return
+  }
+
+  // Check if user is group admin
+  const { data: membership } = await supabase
+    .from('group_memberships')
+    .select('role')
+    .eq('group_id', session.value.groupId)
+    .eq('user_id', auth.user.value.id)
+    .single()
+
+  canInviteMembers.value = membership?.role === 'owner' || membership?.role === 'admin'
+}
 
 // Check if user can use items feature (Pro+ only)
 const canUseItems = computed(() => {
@@ -181,6 +208,9 @@ async function loadSession(preserveFormState = false) {
     }
 
     session.value = await getPlanningSession(token, sessionId.value)
+
+    // Check if user can invite members (creator or group admin)
+    checkCanInviteMembers()
 
     // Restore or initialize date availability
     if (session.value.dates) {
@@ -1170,7 +1200,7 @@ function getStatusBadgeClass(status: string) {
               </p>
             </div>
             <button
-              v-if="isCreator && isOpen"
+              v-if="canInviteMembers && isOpen"
               class="btn btn-sm btn-outline flex items-center gap-1"
               @click="openInviteModal"
             >

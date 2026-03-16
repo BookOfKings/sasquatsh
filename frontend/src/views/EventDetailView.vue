@@ -3,8 +3,9 @@ import { onMounted, computed, ref, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useEventStore } from '@/stores/useEventStore'
 import { useAuthStore } from '@/stores/useAuthStore'
-import { getEffectiveTier } from '@/types/user'
 import { hasFeature } from '@/config/subscriptionLimits'
+import { inviteGroupMembersToEvent } from '@/services/eventsApi'
+import { supabase } from '@/services/supabase'
 import ShareModal from '@/components/common/ShareModal.vue'
 import D20Spinner from '@/components/common/D20Spinner.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
@@ -22,8 +23,15 @@ const toast = reactive({
 
 const addItemDialog = ref(false)
 const newItemName = ref('')
-const newItemCategory = ref('other')
+const newItemCategory = ref('games')
+const newItemBringing = ref(false) // Toggle for "I'm bringing this"
 const showShareModal = ref(false)
+
+// Invite group members state
+const inviteMembersDialog = ref(false)
+const groupMembers = ref<{ id: string; displayName: string; avatarUrl: string | null; selected: boolean }[]>([])
+const loadingGroupMembers = ref(false)
+const invitingMembers = ref(false)
 
 const eventId = computed(() => route.params.id as string)
 const event = computed(() => eventStore.currentEvent.value)
@@ -52,15 +60,197 @@ const canSeeFullAddress = computed(() => {
   return isHost.value || isRegistered.value || auth.isAdmin.value
 })
 
-// Check if user can see/use items feature (Pro+ only)
+// Check if user can see/use items feature
+// Items are available if the HOST has Pro+ (not the viewing user)
+// This allows free users to participate in paid hosts' events
 const canUseItems = computed(() => {
-  if (!auth.user.value) return false
-  const tier = getEffectiveTier(auth.user.value)
-  return hasFeature(tier, 'items')
+  if (!event.value?.host) return false
+  // Get host's effective tier (override takes precedence)
+  const hostTier = event.value.host.subscriptionOverrideTier || event.value.host.subscriptionTier || 'free'
+  return hasFeature(hostTier, 'items')
 })
 
-onMounted(() => {
-  eventStore.loadEvent(eventId.value)
+// Check if user can add items (host or registered player)
+const canAddItems = computed(() => {
+  if (!auth.isAuthenticated.value) return false
+  return isHost.value || isRegistered.value
+})
+
+// Check if this is a planned event that allows inviting group members
+const isPlannedGroupEvent = computed(() => {
+  return event.value?.fromPlanningSessionId && event.value?.groupId
+})
+
+// Whether user can invite group members (set via async check on mount)
+const canInviteMembers = ref(false)
+
+// Items grouped by status
+const neededItems = computed(() => {
+  return event.value?.items?.filter(item => !item.claimedByUserId) ?? []
+})
+
+const claimedItems = computed(() => {
+  // Exclude current user's items (they appear in "What You're Bringing" section)
+  const currentUserId = auth.user.value?.id
+  return event.value?.items?.filter(item => item.claimedByUserId && item.claimedByUserId !== currentUserId) ?? []
+})
+
+// Get items a specific user is bringing
+function getItemsForUser(userId: string) {
+  return event.value?.items?.filter(item => item.claimedByUserId === userId) ?? []
+}
+
+// Get current user's items
+const myItems = computed(() => {
+  if (!auth.user.value) return []
+  return event.value?.items?.filter(item => item.claimedByUserId === auth.user.value?.id) ?? []
+})
+
+// Edit item state
+const editItemDialog = ref(false)
+const editingItem = ref<{ id: string; itemName: string; itemCategory: string } | null>(null)
+
+function openEditItem(item: { id: string; itemName: string; itemCategory: string }) {
+  editingItem.value = { ...item }
+  editItemDialog.value = true
+}
+
+async function handleUpdateItem() {
+  if (!editingItem.value || !editingItem.value.itemName.trim()) return
+
+  const result = await eventStore.updateItem(eventId.value, editingItem.value.id, {
+    itemName: editingItem.value.itemName.trim(),
+    itemCategory: editingItem.value.itemCategory,
+  })
+  showMessage(result.ok, result.message)
+
+  if (result.ok) {
+    editItemDialog.value = false
+    editingItem.value = null
+  }
+}
+
+async function handleRemoveMyItem(itemId: string) {
+  // Unclaim the item (removes it from "my items")
+  const result = await eventStore.unclaimItem(eventId.value, itemId)
+  showMessage(result.ok, result.ok ? 'Item removed from your list' : result.message)
+}
+
+// Check if user can invite members (host or group admin)
+async function checkCanInviteMembers() {
+  if (!event.value?.fromPlanningSessionId || !event.value?.groupId || !auth.user.value) {
+    canInviteMembers.value = false
+    return
+  }
+
+  // Host can always invite
+  if (isHost.value) {
+    canInviteMembers.value = true
+    return
+  }
+
+  // Check if user is group admin
+  const { data: membership } = await supabase
+    .from('group_memberships')
+    .select('role')
+    .eq('group_id', event.value.groupId)
+    .eq('user_id', auth.user.value.id)
+    .single()
+
+  canInviteMembers.value = membership?.role === 'owner' || membership?.role === 'admin'
+}
+
+// Load group members for invite modal
+async function loadGroupMembers() {
+  if (!event.value?.groupId) return
+
+  loadingGroupMembers.value = true
+  try {
+    // Get all group members
+    const { data: memberships } = await supabase
+      .from('group_memberships')
+      .select(`
+        user_id,
+        user:users!user_id(id, display_name, avatar_url)
+      `)
+      .eq('group_id', event.value.groupId)
+
+    if (!memberships) {
+      groupMembers.value = []
+      return
+    }
+
+    // Get already registered users
+    const registeredIds = new Set(event.value.registrations?.map(r => r.userId) || [])
+    // Also exclude the host
+    registeredIds.add(event.value.hostUserId)
+
+    // Filter out already registered and map to our format
+    type UserData = { id: string; display_name: string | null; avatar_url: string | null }
+    groupMembers.value = memberships
+      .filter(m => !registeredIds.has(m.user_id))
+      .map(m => {
+        const user = m.user as unknown as UserData
+        return {
+          id: user.id,
+          displayName: user.display_name || 'Anonymous',
+          avatarUrl: user.avatar_url,
+          selected: false,
+        }
+      })
+  } finally {
+    loadingGroupMembers.value = false
+  }
+}
+
+// Open invite members modal
+async function openInviteMembersModal() {
+  inviteMembersDialog.value = true
+  await loadGroupMembers()
+}
+
+// Handle inviting selected members
+async function handleInviteMembers() {
+  const selectedIds = groupMembers.value.filter(m => m.selected).map(m => m.id)
+  if (selectedIds.length === 0) {
+    showMessage(false, 'Please select at least one member to invite')
+    return
+  }
+
+  invitingMembers.value = true
+  try {
+    const token = await auth.getIdToken()
+    if (!token) {
+      showMessage(false, 'Authentication error')
+      return
+    }
+
+    const result = await inviteGroupMembersToEvent(token, eventId.value, selectedIds)
+    showMessage(true, result.message)
+    inviteMembersDialog.value = false
+
+    // Reload event to show new registrations
+    await eventStore.loadEvent(eventId.value)
+  } catch (error) {
+    showMessage(false, error instanceof Error ? error.message : 'Failed to invite members')
+  } finally {
+    invitingMembers.value = false
+  }
+}
+
+// Toggle all members selection
+function toggleAllMembers(selectAll: boolean) {
+  groupMembers.value.forEach(m => {
+    m.selected = selectAll
+  })
+}
+
+const selectedMembersCount = computed(() => groupMembers.value.filter(m => m.selected).length)
+
+onMounted(async () => {
+  await eventStore.loadEvent(eventId.value)
+  // Check invite permissions after event loads
+  checkCanInviteMembers()
 })
 
 function formatDate(dateStr: string): string {
@@ -119,6 +309,7 @@ async function handleAddItem() {
   const result = await eventStore.addItem(eventId.value, {
     itemName: newItemName.value.trim(),
     itemCategory: newItemCategory.value,
+    bringingItem: newItemBringing.value,
   })
   showMessage(result.ok, result.message)
 
@@ -126,6 +317,7 @@ async function handleAddItem() {
     addItemDialog.value = false
     newItemName.value = ''
     newItemCategory.value = 'other'
+    newItemBringing.value = false
   }
 }
 
@@ -231,6 +423,17 @@ function goToLogin() {
             </p>
           </div>
           <div class="flex gap-2">
+            <!-- Invite Group Members (for planned events) -->
+            <button
+              v-if="isPlannedGroupEvent && canInviteMembers && spotsLeft > 0"
+              class="btn-outline text-purple-600 hover:bg-purple-50"
+              @click="openInviteMembersModal"
+            >
+              <svg class="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z"/>
+              </svg>
+              Invite Members
+            </button>
             <button
               v-if="auth.isAuthenticated.value"
               class="btn-outline"
@@ -506,7 +709,7 @@ function goToLogin() {
           <div
             v-for="reg in event.registrations"
             :key="reg.id"
-            class="flex items-center gap-3 p-4"
+            class="flex items-start gap-3 p-4"
           >
             <UserAvatar
               :avatar-url="reg.user?.avatarUrl"
@@ -514,10 +717,24 @@ function goToLogin() {
               :is-founding-member="reg.user?.isFoundingMember"
               :is-admin="reg.user?.isAdmin"
               size="md"
+              class="flex-shrink-0"
             />
-            <div class="flex-1">
+            <div class="flex-1 min-w-0">
               <div class="font-medium">{{ reg.user?.displayName || 'Anonymous' }}</div>
               <div class="text-sm text-gray-500">{{ reg.status }}</div>
+              <!-- Items this player is bringing -->
+              <div v-if="canUseItems && getItemsForUser(reg.userId).length > 0" class="mt-2 flex flex-wrap gap-1">
+                <span
+                  v-for="item in getItemsForUser(reg.userId)"
+                  :key="item.id"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700"
+                >
+                  <svg class="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M5,21H19V19H5M19,10H15V3H9V10H5L12,17L19,10Z"/>
+                  </svg>
+                  {{ item.itemName }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -533,7 +750,7 @@ function goToLogin() {
             Items to Bring
           </h2>
           <button
-            v-if="auth.isAuthenticated.value"
+            v-if="canAddItems"
             class="btn-ghost text-primary-500"
             @click="addItemDialog = true"
           >
@@ -543,47 +760,128 @@ function goToLogin() {
             Add Item
           </button>
         </div>
-        <div v-if="event.items && event.items.length > 0" class="divide-y divide-gray-100">
-          <div
-            v-for="item in event.items"
-            :key="item.id"
-            class="flex items-center gap-3 p-4"
-          >
-            <svg
-              class="w-5 h-5"
-              :class="item.claimedByUserId ? 'text-green-500' : 'text-gray-300'"
-              viewBox="0 0 24 24"
-              fill="currentColor"
+
+        <!-- What You're Bringing Section -->
+        <div v-if="myItems.length > 0">
+          <div class="px-4 py-2 bg-primary-50 border-b border-primary-100">
+            <h3 class="text-sm font-medium text-primary-800 flex items-center gap-2">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
+              </svg>
+              What You're Bringing ({{ myItems.length }})
+            </h3>
+          </div>
+          <div class="divide-y divide-gray-100">
+            <div
+              v-for="item in myItems"
+              :key="item.id"
+              class="flex items-center gap-3 p-4 bg-primary-50/30"
             >
-              <path v-if="item.claimedByUserId" d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M11,16.5L6.5,12L7.91,10.59L11,13.67L16.59,8.09L18,9.5L11,16.5Z"/>
-              <path v-else d="M12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
-            </svg>
-            <div class="flex-1">
-              <div class="font-medium">{{ item.itemName }}</div>
-              <div class="flex items-center gap-2 text-sm text-gray-500">
-                <span class="chip bg-gray-100 text-gray-600 text-xs">{{ item.itemCategory }}</span>
-                <span v-if="item.claimedByName">Claimed by {{ item.claimedByName }}</span>
-                <span v-else>Unclaimed</span>
+              <svg class="w-5 h-5 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M5,21H19V19H5M19,10H15V3H9V10H5L12,17L19,10Z"/>
+              </svg>
+              <div class="flex-1">
+                <div class="font-medium text-primary-900">{{ item.itemName }}</div>
+                <span class="chip bg-primary-100 text-primary-700 text-xs">{{ item.itemCategory }}</span>
+              </div>
+              <div class="flex items-center gap-1">
+                <button
+                  class="btn-sm btn-ghost text-primary-600 hover:bg-primary-100"
+                  @click="openEditItem(item)"
+                  title="Edit item"
+                >
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
+                  </svg>
+                </button>
+                <button
+                  class="btn-sm btn-ghost text-red-500 hover:bg-red-50"
+                  @click="handleRemoveMyItem(item.id)"
+                  title="Remove from your list"
+                >
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
+                  </svg>
+                </button>
               </div>
             </div>
-            <button
-              v-if="auth.isAuthenticated.value && !item.claimedByUserId"
-              class="btn-sm btn-ghost text-primary-500"
-              @click="handleClaimItem(item.id)"
-            >
-              Claim
-            </button>
-            <button
-              v-else-if="item.claimedByUserId === auth.user.value?.id"
-              class="btn-sm btn-ghost text-red-500"
-              @click="handleUnclaimItem(item.id)"
-            >
-              Unclaim
-            </button>
           </div>
         </div>
-        <p v-else class="text-gray-500 text-center py-8">
-          No items added yet
+
+        <!-- Still Needed Section -->
+        <div v-if="neededItems.length > 0">
+          <div class="px-4 py-2 bg-amber-50 border-b border-amber-100">
+            <h3 class="text-sm font-medium text-amber-800 flex items-center gap-2">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20M12,6A4,4 0 0,0 8,10H10A2,2 0 0,1 12,8A2,2 0 0,1 14,10C14,12 11,11.75 11,15H13C13,12.75 16,12.5 16,10A4,4 0 0,0 12,6M11,16V18H13V16H11Z"/>
+              </svg>
+              Still Needed ({{ neededItems.length }})
+            </h3>
+          </div>
+          <div class="divide-y divide-gray-100">
+            <div
+              v-for="item in neededItems"
+              :key="item.id"
+              class="flex items-center gap-3 p-4"
+            >
+              <svg class="w-5 h-5 text-amber-400" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
+              </svg>
+              <div class="flex-1">
+                <div class="font-medium">{{ item.itemName }}</div>
+                <span class="chip bg-gray-100 text-gray-600 text-xs">{{ item.itemCategory }}</span>
+              </div>
+              <button
+                v-if="auth.isAuthenticated.value"
+                class="btn-sm btn-primary"
+                @click="handleClaimItem(item.id)"
+              >
+                I'll Bring It
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Being Brought Section -->
+        <div v-if="claimedItems.length > 0">
+          <div class="px-4 py-2 bg-green-50 border-b border-green-100" :class="{ 'border-t': neededItems.length > 0 }">
+            <h3 class="text-sm font-medium text-green-800 flex items-center gap-2">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M11,16.5L6.5,12L7.91,10.59L11,13.67L16.59,8.09L18,9.5L11,16.5Z"/>
+              </svg>
+              Being Brought ({{ claimedItems.length }})
+            </h3>
+          </div>
+          <div class="divide-y divide-gray-100">
+            <div
+              v-for="item in claimedItems"
+              :key="item.id"
+              class="flex items-center gap-3 p-4"
+            >
+              <svg class="w-5 h-5 text-green-500" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M11,16.5L6.5,12L7.91,10.59L11,13.67L16.59,8.09L18,9.5L11,16.5Z"/>
+              </svg>
+              <div class="flex-1">
+                <div class="font-medium">{{ item.itemName }}</div>
+                <div class="flex items-center gap-2 text-sm text-gray-500">
+                  <span class="chip bg-gray-100 text-gray-600 text-xs">{{ item.itemCategory }}</span>
+                  <span class="text-green-600">{{ item.claimedByName }} is bringing this</span>
+                </div>
+              </div>
+              <button
+                v-if="item.claimedByUserId === auth.user.value?.id"
+                class="btn-sm btn-ghost text-red-500"
+                @click="handleUnclaimItem(item.id)"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Empty state -->
+        <p v-if="!event.items || event.items.length === 0" class="text-gray-500 text-center py-8">
+          No items added yet. {{ canAddItems ? 'Add items the group should bring!' : '' }}
         </p>
       </div>
     </template>
@@ -606,6 +904,53 @@ function goToLogin() {
           <div>
             <label class="label">Category</label>
             <select v-model="newItemCategory" class="input">
+              <option value="games">Games</option>
+              <option value="food">Food</option>
+              <option value="drinks">Drinks</option>
+              <option value="supplies">Supplies</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
+            <input
+              id="bringing-item"
+              v-model="newItemBringing"
+              type="checkbox"
+              class="w-5 h-5 rounded border-green-300 text-green-600 focus:ring-green-500"
+            />
+            <label for="bringing-item" class="flex-1 cursor-pointer">
+              <span class="font-medium text-green-800">I'm bringing this</span>
+              <span class="block text-sm text-green-600">Check this if you'll bring this item yourself</span>
+            </label>
+          </div>
+        </div>
+        <div class="flex justify-end gap-3 mt-6">
+          <button class="btn-ghost" @click="addItemDialog = false">Cancel</button>
+          <button class="btn-primary" @click="handleAddItem">
+            {{ newItemBringing ? "Add & Claim" : "Add Item" }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Item Dialog -->
+    <div v-if="editItemDialog && editingItem" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div class="fixed inset-0 bg-black/50" @click="editItemDialog = false; editingItem = null"></div>
+      <div class="card p-6 w-full max-w-md relative z-10">
+        <h3 class="text-lg font-semibold mb-4">Edit Item</h3>
+        <div class="space-y-4">
+          <div>
+            <label class="label">Item name</label>
+            <input
+              v-model="editingItem.itemName"
+              type="text"
+              class="input"
+              placeholder="What are you bringing?"
+            />
+          </div>
+          <div>
+            <label class="label">Category</label>
+            <select v-model="editingItem.itemCategory" class="input">
               <option value="food">Food</option>
               <option value="drinks">Drinks</option>
               <option value="supplies">Supplies</option>
@@ -614,8 +959,101 @@ function goToLogin() {
           </div>
         </div>
         <div class="flex justify-end gap-3 mt-6">
-          <button class="btn-ghost" @click="addItemDialog = false">Cancel</button>
-          <button class="btn-primary" @click="handleAddItem">Add</button>
+          <button class="btn-ghost" @click="editItemDialog = false; editingItem = null">Cancel</button>
+          <button class="btn-primary" @click="handleUpdateItem">
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Invite Group Members Dialog -->
+    <div v-if="inviteMembersDialog" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div class="fixed inset-0 bg-black/50" @click="inviteMembersDialog = false"></div>
+      <div class="card p-6 w-full max-w-lg relative z-10 max-h-[80vh] flex flex-col">
+        <h3 class="text-lg font-semibold mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5 text-purple-500" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z"/>
+          </svg>
+          Invite Group Members
+        </h3>
+        <p class="text-sm text-gray-500 mb-4">
+          Select group members to invite to this game. They will be added directly as confirmed players.
+        </p>
+
+        <!-- Loading state -->
+        <div v-if="loadingGroupMembers" class="flex items-center justify-center py-8">
+          <D20Spinner size="md" />
+        </div>
+
+        <!-- Empty state -->
+        <div v-else-if="groupMembers.length === 0" class="text-center py-8 text-gray-500">
+          <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
+          </svg>
+          <p>All group members are already registered for this event.</p>
+        </div>
+
+        <!-- Members list -->
+        <div v-else class="flex-1 overflow-y-auto">
+          <!-- Select all toggle -->
+          <div class="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg mb-3">
+            <span class="text-sm font-medium text-gray-700">
+              {{ selectedMembersCount }} of {{ groupMembers.length }} selected
+            </span>
+            <button
+              class="text-sm text-purple-600 hover:text-purple-800 font-medium"
+              @click="toggleAllMembers(selectedMembersCount !== groupMembers.length)"
+            >
+              {{ selectedMembersCount === groupMembers.length ? 'Deselect All' : 'Select All' }}
+            </button>
+          </div>
+
+          <div class="space-y-2">
+            <label
+              v-for="member in groupMembers"
+              :key="member.id"
+              class="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors"
+              :class="member.selected ? 'border-purple-300 bg-purple-50' : 'border-gray-200 hover:border-purple-200 hover:bg-purple-50/50'"
+            >
+              <input
+                v-model="member.selected"
+                type="checkbox"
+                class="w-5 h-5 rounded border-purple-300 text-purple-600 focus:ring-purple-500"
+              />
+              <UserAvatar
+                :avatar-url="member.avatarUrl"
+                :display-name="member.displayName"
+                size="sm"
+              />
+              <span class="font-medium">{{ member.displayName }}</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Spots left warning -->
+        <div v-if="spotsLeft < groupMembers.length && groupMembers.length > 0" class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <p class="text-sm text-amber-800">
+            <svg class="w-4 h-4 inline mr-1" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M13,13H11V7H13M13,17H11V15H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
+            </svg>
+            Only {{ spotsLeft }} spot{{ spotsLeft === 1 ? '' : 's' }} remaining. Only the first {{ spotsLeft }} selected member{{ spotsLeft === 1 ? '' : 's' }} will be added.
+          </p>
+        </div>
+
+        <div class="flex justify-end gap-3 mt-6 pt-4 border-t">
+          <button class="btn-ghost" @click="inviteMembersDialog = false">Cancel</button>
+          <button
+            class="btn-primary bg-purple-600 hover:bg-purple-700"
+            :disabled="selectedMembersCount === 0 || invitingMembers"
+            @click="handleInviteMembers"
+          >
+            <svg v-if="invitingMembers" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            {{ invitingMembers ? 'Inviting...' : `Invite ${selectedMembersCount} Member${selectedMembersCount === 1 ? '' : 's'}` }}
+          </button>
         </div>
       </div>
     </div>

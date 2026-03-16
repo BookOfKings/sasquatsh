@@ -51,6 +51,24 @@ Deno.serve(async (req) => {
     const includeAll = url.searchParams.get('all') === 'true'
     const hotOnly = url.searchParams.get('hot') === 'true'
     const statusFilter = url.searchParams.get('status')
+    const forEventCreation = url.searchParams.get('forEvent') === 'true'
+
+    // For event creation: return ALL approved venues (no day-of-week filtering)
+    // Users need to see recurring venues even on days they're not active
+    if (forEventCreation) {
+      const { data, error } = await supabase
+        .from('event_locations')
+        .select('*')
+        .eq('status', 'approved')
+        .order('is_permanent', { ascending: false })
+        .order('name', { ascending: true })
+
+      if (error) {
+        return errorResponse(error.message, 500)
+      }
+
+      return jsonResponse(data.map(toEventLocation))
+    }
 
     // Hot locations endpoint - returns popular active venues
     if (hotOnly) {

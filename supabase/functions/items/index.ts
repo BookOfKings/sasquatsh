@@ -50,16 +50,36 @@ Deno.serve(async (req) => {
       return errorResponse('Event ID required', 400)
     }
 
-    // Verify user is host of the event
+    // Verify user is host or registered player for the event
     const { data: event } = await supabase
       .from('events')
       .select('host_user_id')
       .eq('id', eventId)
       .single()
 
-    if (!event || event.host_user_id !== user.id) {
-      return errorResponse('Only the host can add items', 403)
+    if (!event) {
+      return errorResponse('Event not found', 404)
     }
+
+    const isHost = event.host_user_id === user.id
+
+    // If not host, check if registered
+    if (!isHost) {
+      const { data: registration } = await supabase
+        .from('event_registrations')
+        .select('id')
+        .eq('event_id', eventId)
+        .eq('user_id', user.id)
+        .in('status', ['confirmed', 'pending'])
+        .single()
+
+      if (!registration) {
+        return errorResponse('Only the host or registered players can add items', 403)
+      }
+    }
+
+    // If bringingItem flag is set, auto-claim it for the user adding it
+    const autoClaim = body.bringingItem === true
 
     const { data, error } = await supabase
       .from('event_items')
@@ -68,8 +88,13 @@ Deno.serve(async (req) => {
         item_name: body.itemName,
         item_category: body.itemCategory ?? 'other',
         quantity_needed: body.quantityNeeded ?? 1,
+        claimed_by_user_id: autoClaim ? user.id : null,
+        claimed_at: autoClaim ? new Date().toISOString() : null,
       })
-      .select()
+      .select(`
+        *,
+        claimed_by:users!claimed_by_user_id(display_name)
+      `)
       .single()
 
     if (error) {
@@ -81,9 +106,9 @@ Deno.serve(async (req) => {
       itemName: data.item_name,
       itemCategory: data.item_category,
       quantityNeeded: data.quantity_needed,
-      claimedByUserId: null,
-      claimedByName: null,
-      claimedAt: null,
+      claimedByUserId: data.claimed_by_user_id,
+      claimedByName: data.claimed_by?.display_name ?? null,
+      claimedAt: data.claimed_at,
     })
   }
 
@@ -145,6 +170,70 @@ Deno.serve(async (req) => {
       }
 
       return new Response(null, { status: 204, headers: getCorsHeaders(req) })
+    }
+
+    if (action === 'update') {
+      // Verify user owns the claim (only can edit items you're bringing)
+      const { data: item } = await supabase
+        .from('event_items')
+        .select('claimed_by_user_id, event_id')
+        .eq('id', itemId)
+        .single()
+
+      if (!item) {
+        return errorResponse('Item not found', 404)
+      }
+
+      // Check if user is the one bringing it OR is the host
+      const { data: event } = await supabase
+        .from('events')
+        .select('host_user_id')
+        .eq('id', item.event_id)
+        .single()
+
+      const isHost = event?.host_user_id === user.id
+      const isOwner = item.claimed_by_user_id === user.id
+
+      if (!isOwner && !isHost) {
+        return errorResponse('You can only edit items you are bringing', 403)
+      }
+
+      const body = await req.json()
+      const updates: Record<string, unknown> = {}
+
+      if (body.itemName !== undefined) {
+        if (!body.itemName.trim()) {
+          return errorResponse('Item name is required', 400)
+        }
+        updates.item_name = body.itemName.trim()
+      }
+      if (body.itemCategory !== undefined) {
+        updates.item_category = body.itemCategory
+      }
+
+      const { data, error } = await supabase
+        .from('event_items')
+        .update(updates)
+        .eq('id', itemId)
+        .select(`
+          *,
+          claimed_by:users!claimed_by_user_id(display_name)
+        `)
+        .single()
+
+      if (error) {
+        return errorResponse(error.message, 500)
+      }
+
+      return jsonResponse({
+        id: data.id,
+        itemName: data.item_name,
+        itemCategory: data.item_category,
+        quantityNeeded: data.quantity_needed,
+        claimedByUserId: data.claimed_by_user_id,
+        claimedByName: data.claimed_by?.display_name ?? null,
+        claimedAt: data.claimed_at,
+      })
     }
 
     return errorResponse('Invalid action', 400)

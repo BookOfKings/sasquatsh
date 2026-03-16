@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from 'vue'
-import { getActiveLocations } from '@/services/venuesApi'
+import { getLocationsForEventCreation } from '@/services/venuesApi'
 import type { EventLocation } from '@/types/social'
 
 const props = defineProps<{
@@ -36,7 +36,9 @@ const filteredLocations = computed(() => {
 
 onMounted(async () => {
   try {
-    locations.value = await getActiveLocations()
+    // Use getLocationsForEventCreation to show all approved venues
+    // including recurring venues regardless of current day-of-week
+    locations.value = await getLocationsForEventCreation()
   } catch (err) {
     console.error('Failed to load locations:', err)
   } finally {

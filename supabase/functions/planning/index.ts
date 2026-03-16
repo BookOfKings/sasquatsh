@@ -953,9 +953,18 @@ Deno.serve(async (req) => {
         return errorResponse('Session is no longer open', 400)
       }
 
-      // Only creator can add invitees
+      // Check if user is creator OR group admin
       if (!isCreator) {
-        return errorResponse('Only the session creator can invite more people', 403)
+        const { data: membership } = await supabase
+          .from('group_memberships')
+          .select('role')
+          .eq('group_id', session.group_id)
+          .eq('user_id', user.id)
+          .single()
+
+        if (!membership || !['owner', 'admin'].includes(membership.role)) {
+          return errorResponse('Only the session creator or group admins can invite', 403)
+        }
       }
 
       const body = await req.json()
@@ -1219,8 +1228,9 @@ Deno.serve(async (req) => {
           event_date: finalDate.proposed_date,
           start_time: finalDate.start_time || '19:00',
           duration_minutes: 180,
-          status: 'draft',
+          status: 'published',
           is_public: false,
+          from_planning_session_id: sessionId,
           planned_games: qualifyingGames.length > 0 ? qualifyingGames : null,
         })
         .select('id')

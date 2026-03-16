@@ -13,6 +13,7 @@ import {
   addEventItem as addItemApi,
   claimItem as claimItemApi,
   unclaimItem as unclaimItemApi,
+  updateItem as updateItemApi,
 } from '@/services/eventsApi'
 import { useAuthStore } from '@/stores/useAuthStore'
 import type {
@@ -296,6 +297,35 @@ async function unclaimItem(eventId: string, itemId: string): Promise<ActionResul
   }
 }
 
+async function updateItem(
+  eventId: string,
+  itemId: string,
+  data: { itemName?: string; itemCategory?: string }
+): Promise<ActionResult> {
+  const auth = useAuthStore()
+  const token = await auth.getIdToken()
+  if (!token) {
+    return { ok: false, message: 'You must be logged in' }
+  }
+
+  try {
+    const updatedItem = await updateItemApi(token, itemId, data)
+    // Update the item in place
+    if (currentEvent.value && currentEvent.value.id === eventId && currentEvent.value.items) {
+      const index = currentEvent.value.items.findIndex(i => i.id === itemId)
+      if (index >= 0) {
+        currentEvent.value.items[index] = updatedItem
+      }
+    }
+    return { ok: true, message: 'Item updated!' }
+  } catch (err) {
+    return {
+      ok: false,
+      message: err instanceof Error ? err.message : 'Unable to update item',
+    }
+  }
+}
+
 export function useEventStore() {
   return {
     publicEvents: computed(() => publicEvents.value),
@@ -316,5 +346,6 @@ export function useEventStore() {
     addItem,
     claimItem,
     unclaimItem,
+    updateItem,
   }
 }

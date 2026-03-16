@@ -96,3 +96,19 @@ export async function getLocationById(id: string): Promise<EventLocation> {
 
   return response.json() as Promise<EventLocation>
 }
+
+// Get ALL approved locations for event creation (includes recurring venues on any day)
+export async function getLocationsForEventCreation(): Promise<EventLocation[]> {
+  const response = await fetch(`${FUNCTIONS_URL}/event-locations?forEvent=true`, {
+    headers: {
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+    },
+  })
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch locations')
+  }
+
+  return response.json() as Promise<EventLocation[]>
+}

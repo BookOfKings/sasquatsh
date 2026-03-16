@@ -185,6 +185,103 @@ Deno.serve(async (req) => {
     return jsonResponse({ message: 'Successfully joined the game!', eventId })
   }
 
+  // POST with action=invite-group-member - Invite group members to a planned event
+  if (req.method === 'POST' && action === 'invite-group-member') {
+    const body = await req.json()
+    const { eventId, userIds } = body
+
+    if (!eventId || !userIds?.length) {
+      return errorResponse('eventId and userIds required', 400)
+    }
+
+    // Get event and verify it's from planning
+    const { data: event } = await supabase
+      .from('events')
+      .select('id, host_user_id, group_id, from_planning_session_id, max_players')
+      .eq('id', eventId)
+      .single()
+
+    if (!event) {
+      return errorResponse('Event not found', 404)
+    }
+
+    if (!event.from_planning_session_id || !event.group_id) {
+      return errorResponse('This action is only for planned group events', 400)
+    }
+
+    // Check if user is host or group admin
+    const isHost = event.host_user_id === user.id
+    if (!isHost) {
+      const { data: membership } = await supabase
+        .from('group_memberships')
+        .select('role')
+        .eq('group_id', event.group_id)
+        .eq('user_id', user.id)
+        .single()
+
+      if (!membership || !['owner', 'admin'].includes(membership.role)) {
+        return errorResponse('Only host or group admins can invite members', 403)
+      }
+    }
+
+    // Verify all userIds are group members
+    const { data: validMembers } = await supabase
+      .from('group_memberships')
+      .select('user_id')
+      .eq('group_id', event.group_id)
+      .in('user_id', userIds)
+
+    const validUserIds = new Set(validMembers?.map(m => m.user_id) || [])
+    const invalidIds = userIds.filter((id: string) => !validUserIds.has(id))
+
+    if (invalidIds.length > 0) {
+      return errorResponse('Some users are not members of this group', 400)
+    }
+
+    // Get already registered users
+    const { data: existingRegs } = await supabase
+      .from('event_registrations')
+      .select('user_id')
+      .eq('event_id', eventId)
+
+    const registeredIds = new Set(existingRegs?.map(r => r.user_id) || [])
+    const newUserIds = userIds.filter((id: string) => !registeredIds.has(id))
+
+    if (newUserIds.length === 0) {
+      return jsonResponse({ message: 'All users are already registered', addedCount: 0 })
+    }
+
+    // Check capacity
+    const currentCount = existingRegs?.length || 0
+    const spotsLeft = event.max_players - currentCount
+    if (spotsLeft <= 0) {
+      return errorResponse('Event is full', 400)
+    }
+
+    // Only add up to available spots
+    const usersToAdd = newUserIds.slice(0, spotsLeft)
+
+    // Create registrations directly (auto-confirm since they're invited)
+    const registrations = usersToAdd.map((userId: string) => ({
+      event_id: eventId,
+      user_id: userId,
+      status: 'confirmed',
+    }))
+
+    const { error: regError } = await supabase
+      .from('event_registrations')
+      .insert(registrations)
+
+    if (regError) {
+      return errorResponse(regError.message, 500)
+    }
+
+    return jsonResponse({
+      message: `Added ${usersToAdd.length} members to the event`,
+      addedCount: usersToAdd.length,
+    })
+  }
+
   // POST - Create invitation
   if (req.method === 'POST') {
     const body = await req.json()
