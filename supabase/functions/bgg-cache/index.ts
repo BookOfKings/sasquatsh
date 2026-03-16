@@ -347,6 +347,99 @@ Deno.serve(async (req) => {
 
   const action = url.searchParams.get('action')
 
+  // GET: List cache entries with search/pagination
+  if (req.method === 'GET' && action === 'list') {
+    const search = url.searchParams.get('search') || ''
+    const page = parseInt(url.searchParams.get('page') || '1', 10)
+    const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10), 100)
+    const offset = (page - 1) * limit
+    const filter = url.searchParams.get('filter') // 'missing_thumbnail', 'missing_players', 'incomplete'
+
+    let query = supabase
+      .from('bgg_games_cache')
+      .select('bgg_id, name, year_published, thumbnail_url, min_players, max_players, bgg_rank, cached_at', { count: 'exact' })
+
+    // Apply search filter
+    if (search) {
+      query = query.ilike('name', `%${search}%`)
+    }
+
+    // Apply special filters
+    if (filter === 'missing_thumbnail') {
+      query = query.is('thumbnail_url', null)
+    } else if (filter === 'missing_players') {
+      query = query.is('min_players', null)
+    } else if (filter === 'incomplete') {
+      query = query.or('thumbnail_url.is.null,min_players.is.null')
+    }
+
+    // Order and paginate
+    const { data, count, error } = await query
+      .order('bgg_rank', { ascending: true, nullsFirst: false })
+      .order('name', { ascending: true })
+      .range(offset, offset + limit - 1)
+
+    if (error) {
+      return errorResponse(`Failed to list cache: ${error.message}`, 500)
+    }
+
+    return jsonResponse({
+      games: data?.map(g => ({
+        bggId: g.bgg_id,
+        name: g.name,
+        yearPublished: g.year_published,
+        thumbnailUrl: g.thumbnail_url,
+        minPlayers: g.min_players,
+        maxPlayers: g.max_players,
+        bggRank: g.bgg_rank,
+        cachedAt: g.cached_at,
+      })) || [],
+      total: count ?? 0,
+      page,
+      limit,
+      totalPages: Math.ceil((count ?? 0) / limit),
+    })
+  }
+
+  // GET: Get single cache entry
+  if (req.method === 'GET' && action === 'get') {
+    const bggId = parseInt(url.searchParams.get('bggId') || '0', 10)
+    if (!bggId) {
+      return errorResponse('bggId required', 400)
+    }
+
+    const { data, error } = await supabase
+      .from('bgg_games_cache')
+      .select('*')
+      .eq('bgg_id', bggId)
+      .single()
+
+    if (error || !data) {
+      return errorResponse('Game not found in cache', 404)
+    }
+
+    return jsonResponse({
+      bggId: data.bgg_id,
+      name: data.name,
+      yearPublished: data.year_published,
+      thumbnailUrl: data.thumbnail_url,
+      imageUrl: data.image_url,
+      minPlayers: data.min_players,
+      maxPlayers: data.max_players,
+      minPlaytime: data.min_playtime,
+      maxPlaytime: data.max_playtime,
+      playingTime: data.playing_time,
+      weight: data.weight,
+      description: data.description,
+      categories: data.categories,
+      mechanics: data.mechanics,
+      bggRank: data.bgg_rank,
+      numRatings: data.num_ratings,
+      averageRating: data.average_rating,
+      cachedAt: data.cached_at,
+    })
+  }
+
   // GET: Cache stats
   if (req.method === 'GET' && action === 'stats') {
     const { count: totalCount } = await supabase
@@ -533,6 +626,66 @@ Deno.serve(async (req) => {
       return jsonResponse({
         message: `Refreshed ${saved} stale entries`,
         refreshed: saved,
+      })
+    }
+
+    // Refresh a single game by BGG ID
+    if (action === 'refresh-game') {
+      const body = await req.json()
+      const { bggId } = body
+
+      if (!bggId || typeof bggId !== 'number') {
+        return errorResponse('bggId (number) required', 400)
+      }
+
+      console.log(`Refreshing game ${bggId} from BGG...`)
+      const games = await fetchGamesById([bggId])
+
+      if (games.length === 0) {
+        return errorResponse(`Game ${bggId} not found on BGG`, 404)
+      }
+
+      const saved = await saveGamesToCache(supabase, games)
+
+      return jsonResponse({
+        message: `Refreshed game ${bggId}`,
+        game: games[0],
+        saved: saved > 0,
+      })
+    }
+
+    // Manually update cache entry fields
+    if (action === 'update-game') {
+      const body = await req.json()
+      const { bggId, thumbnailUrl, imageUrl, minPlayers, maxPlayers, description } = body
+
+      if (!bggId || typeof bggId !== 'number') {
+        return errorResponse('bggId (number) required', 400)
+      }
+
+      const updates: Record<string, unknown> = {}
+      if (thumbnailUrl !== undefined) updates.thumbnail_url = thumbnailUrl
+      if (imageUrl !== undefined) updates.image_url = imageUrl
+      if (minPlayers !== undefined) updates.min_players = minPlayers
+      if (maxPlayers !== undefined) updates.max_players = maxPlayers
+      if (description !== undefined) updates.description = description
+
+      if (Object.keys(updates).length === 0) {
+        return errorResponse('No fields to update', 400)
+      }
+
+      const { error } = await supabase
+        .from('bgg_games_cache')
+        .update(updates)
+        .eq('bgg_id', bggId)
+
+      if (error) {
+        return errorResponse(`Failed to update game: ${error.message}`, 500)
+      }
+
+      return jsonResponse({
+        message: `Updated game ${bggId}`,
+        updated: true,
       })
     }
 

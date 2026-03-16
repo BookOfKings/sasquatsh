@@ -261,6 +261,70 @@ export async function importGamesByRange(
   })
 }
 
+export interface BggCacheEntry {
+  bggId: number
+  name: string
+  yearPublished: number | null
+  thumbnailUrl: string | null
+  imageUrl?: string | null
+  minPlayers: number | null
+  maxPlayers: number | null
+  bggRank: number | null
+  cachedAt: string
+}
+
+export interface BggCacheListResult {
+  games: BggCacheEntry[]
+  total: number
+  page: number
+  limit: number
+  totalPages: number
+}
+
+// List BGG cache entries with search and pagination
+export async function listBggCache(
+  token: string,
+  options: {
+    search?: string
+    page?: number
+    limit?: number
+    filter?: 'all' | 'missing_thumbnail' | 'missing_players' | 'incomplete'
+  } = {}
+): Promise<BggCacheListResult> {
+  const params = new URLSearchParams({ action: 'list' })
+  if (options.search) params.append('search', options.search)
+  if (options.page) params.append('page', options.page.toString())
+  if (options.limit) params.append('limit', options.limit.toString())
+  if (options.filter && options.filter !== 'all') params.append('filter', options.filter)
+
+  return authenticatedRequest<BggCacheListResult>(`/bgg-cache?${params}`, token)
+}
+
+// Refresh a single game from BGG
+export async function refreshBggGame(token: string, bggId: number): Promise<{ message: string; game: BggCacheEntry; saved: boolean }> {
+  return authenticatedRequest<{ message: string; game: BggCacheEntry; saved: boolean }>('/bgg-cache?action=refresh-game', token, {
+    method: 'POST',
+    body: JSON.stringify({ bggId }),
+  })
+}
+
+// Manually update a BGG cache entry
+export async function updateBggCacheEntry(
+  token: string,
+  bggId: number,
+  updates: {
+    thumbnailUrl?: string | null
+    imageUrl?: string | null
+    minPlayers?: number | null
+    maxPlayers?: number | null
+  }
+): Promise<{ message: string; updated: boolean }> {
+  return authenticatedRequest<{ message: string; updated: boolean }>('/bgg-cache?action=update-game', token, {
+    method: 'POST',
+    body: JSON.stringify({ bggId, ...updates }),
+  })
+}
+
 // ============ Admin Dashboard ============
 
 // Get full dashboard data (stats + health)

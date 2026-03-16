@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useEventStore } from '@/stores/useEventStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { getMyProfile } from '@/services/profileApi'
+import { getLocationById } from '@/services/venuesApi'
 import EventList from '@/components/events/EventList.vue'
 import AdBanner from '@/components/ads/AdBanner.vue'
 import HotLocationsBar from '@/components/venues/HotLocationsBar.vue'
@@ -171,17 +172,34 @@ onMounted(async () => {
         // Store postal code for nearby search
         userPostalCode.value = profile.homePostalCode || null
 
-        // Use active location if set, otherwise fall back to home location
-        const defaultCity = profile.activeCity || profile.homeCity
-        const defaultState = profile.activeState || profile.homeState
-        if (defaultCity) city.value = defaultCity
-        if (defaultState) state.value = defaultState
+        // Priority 1: If user has an active venue (e.g., at a convention), use that
+        if (profile.activeEventLocationId) {
+          try {
+            const venue = await getLocationById(profile.activeEventLocationId)
+            selectedVenue.value = venue
+            // When venue is selected, don't use other location filters
+            nearbyEnabled.value = false
+            city.value = ''
+            state.value = ''
+          } catch (venueErr) {
+            console.error('Failed to load active venue:', venueErr)
+            // Fall through to other location methods
+          }
+        }
 
-        // If user has a postal code, enable nearby by default
-        if (userPostalCode.value) {
-          nearbyEnabled.value = true
-          city.value = ''
-          state.value = ''
+        // Priority 2: If no venue selected, use active location or home location
+        if (!selectedVenue.value) {
+          const defaultCity = profile.activeCity || profile.homeCity
+          const defaultState = profile.activeState || profile.homeState
+          if (defaultCity) city.value = defaultCity
+          if (defaultState) state.value = defaultState
+
+          // If user has a postal code, enable nearby by default
+          if (userPostalCode.value) {
+            nearbyEnabled.value = true
+            city.value = ''
+            state.value = ''
+          }
         }
       }
     } catch (err) {

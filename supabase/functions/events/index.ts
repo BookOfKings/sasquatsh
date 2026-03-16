@@ -469,7 +469,8 @@ function transformEventSummary(row: Record<string, unknown>) {
     difficultyLevel: row.difficulty_level,
     maxPlayers: row.max_players,
     hostIsPlaying: row.host_is_playing ?? true,
-    confirmedCount: (row.registrations as { count: number }[])?.[0]?.count ?? 0,
+    // confirmedCount includes host if they're playing, plus registrations
+    confirmedCount: ((row.registrations as { count: number }[])?.[0]?.count ?? 0) + (row.host_is_playing !== false ? 1 : 0),
     isPublic: row.is_public,
     isCharityEvent: row.is_charity_event,
     minAge: row.min_age,
@@ -512,7 +513,8 @@ function transformEvent(row: Record<string, unknown>) {
     difficultyLevel: row.difficulty_level,
     maxPlayers: row.max_players,
     hostIsPlaying: row.host_is_playing ?? true,
-    confirmedCount: Array.isArray(row.registrations) ? row.registrations.length : 0,
+    // confirmedCount includes host if they're playing, plus registrations
+    confirmedCount: (Array.isArray(row.registrations) ? row.registrations.length : 0) + (row.host_is_playing !== false ? 1 : 0),
     isPublic: row.is_public,
     isCharityEvent: row.is_charity_event,
     minAge: row.min_age,

@@ -43,7 +43,8 @@ import {
   deleteAdminBug,
 } from '@/services/adminApi'
 import type { EventLocation } from '@/types/social'
-import type { BggCacheStats, AdminStats, ServiceHealth, AdminUser, AdminGroup, AdminGroupMember, AdminNote, AdminBug } from '@/services/adminApi'
+import type { BggCacheStats, BggCacheEntry, AdminStats, ServiceHealth, AdminUser, AdminGroup, AdminGroupMember, AdminNote, AdminBug } from '@/services/adminApi'
+import { listBggCache, refreshBggGame, updateBggCacheEntry } from '@/services/adminApi'
 import { getAllAds, getAdStats, createAd, updateAd, deleteAd, toggleAdActive } from '@/services/adsApi'
 import type { Ad, AdStats, CreateAdInput } from '@/services/adsApi'
 import D20Spinner from '@/components/common/D20Spinner.vue'
@@ -82,6 +83,22 @@ const successMessage = ref('')
 const cacheStats = ref<BggCacheStats | null>(null)
 const cacheLoading = ref(false)
 const cacheImporting = ref(false)
+const cacheGames = ref<BggCacheEntry[]>([])
+const cacheGamesTotal = ref(0)
+const cacheGamesPage = ref(1)
+const cacheGamesLoading = ref(false)
+const cacheSearch = ref('')
+const cacheFilter = ref<'all' | 'missing_thumbnail' | 'missing_players' | 'incomplete'>('all')
+const refreshingGameId = ref<number | null>(null)
+const showCacheEditDialog = ref(false)
+const editingCacheGame = ref<BggCacheEntry | null>(null)
+const cacheEditForm = reactive({
+  thumbnailUrl: '',
+  imageUrl: '',
+  minPlayers: null as number | null,
+  maxPlayers: null as number | null,
+})
+const savingCacheGame = ref(false)
 
 // User management state
 const users = ref<AdminUser[]>([])
@@ -235,6 +252,7 @@ onMounted(async () => {
   await loadDashboard()
   await loadLocations()
   await loadCacheStats()
+  await loadCacheGames()
 })
 
 async function loadDashboard() {
@@ -381,6 +399,102 @@ function formatCacheDate(dateStr: string | null): string {
     hour: 'numeric',
     minute: '2-digit',
   })
+}
+
+// BGG Cache Browse Functions
+async function loadCacheGames() {
+  cacheGamesLoading.value = true
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    const result = await listBggCache(token, {
+      search: cacheSearch.value || undefined,
+      page: cacheGamesPage.value,
+      limit: 20,
+      filter: cacheFilter.value === 'all' ? undefined : cacheFilter.value,
+    })
+    cacheGames.value = result.games
+    cacheGamesTotal.value = result.total
+  } catch (err) {
+    console.error('Failed to load cache games:', err)
+  } finally {
+    cacheGamesLoading.value = false
+  }
+}
+
+async function handleRefreshSingleGame(bggId: number) {
+  refreshingGameId.value = bggId
+  errorMessage.value = ''
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    const result = await refreshBggGame(token, bggId)
+    successMessage.value = result.message
+    await loadCacheGames()
+    await loadCacheStats()
+    setTimeout(() => successMessage.value = '', 3000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to refresh game'
+  } finally {
+    refreshingGameId.value = null
+  }
+}
+
+function openCacheEditDialog(game: BggCacheEntry) {
+  editingCacheGame.value = game
+  cacheEditForm.thumbnailUrl = game.thumbnailUrl || ''
+  cacheEditForm.imageUrl = game.imageUrl || ''
+  cacheEditForm.minPlayers = game.minPlayers
+  cacheEditForm.maxPlayers = game.maxPlayers
+  showCacheEditDialog.value = true
+}
+
+function closeCacheEditDialog() {
+  showCacheEditDialog.value = false
+  editingCacheGame.value = null
+}
+
+async function handleSaveCacheGame() {
+  if (!editingCacheGame.value) return
+  savingCacheGame.value = true
+  errorMessage.value = ''
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    await updateBggCacheEntry(token, editingCacheGame.value.bggId, {
+      thumbnailUrl: cacheEditForm.thumbnailUrl || null,
+      imageUrl: cacheEditForm.imageUrl || null,
+      minPlayers: cacheEditForm.minPlayers,
+      maxPlayers: cacheEditForm.maxPlayers,
+    })
+    successMessage.value = 'Game updated successfully'
+    closeCacheEditDialog()
+    await loadCacheGames()
+    setTimeout(() => successMessage.value = '', 3000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to update game'
+  } finally {
+    savingCacheGame.value = false
+  }
+}
+
+let cacheSearchTimeout: ReturnType<typeof setTimeout> | null = null
+function handleCacheSearchInput() {
+  if (cacheSearchTimeout) clearTimeout(cacheSearchTimeout)
+  cacheSearchTimeout = setTimeout(() => {
+    cacheGamesPage.value = 1
+    loadCacheGames()
+  }, 400)
+}
+
+function handleCacheFilterChange() {
+  cacheGamesPage.value = 1
+  loadCacheGames()
+}
+
+function handleCachePageChange(page: number) {
+  cacheGamesPage.value = page
+  loadCacheGames()
 }
 
 // User Management Functions
@@ -2914,6 +3028,185 @@ function getLocationTypeLabel(location: EventLocation): string {
               @click="handleRefreshThumbnails"
             >
               Refresh Thumbnails
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Browse Cache Entries -->
+      <div class="card p-6">
+        <h2 class="text-lg font-semibold mb-4">Browse Cache Entries</h2>
+
+        <!-- Search and Filter -->
+        <div class="flex flex-wrap gap-4 mb-4">
+          <div class="flex-1 min-w-[200px]">
+            <input
+              v-model="cacheSearch"
+              type="text"
+              class="input"
+              placeholder="Search games by name..."
+              @input="handleCacheSearchInput"
+            />
+          </div>
+          <select
+            v-model="cacheFilter"
+            class="input w-auto"
+            @change="handleCacheFilterChange"
+          >
+            <option value="all">All Games</option>
+            <option value="missing_thumbnail">Missing Thumbnail</option>
+            <option value="missing_players">Missing Players</option>
+            <option value="incomplete">Any Incomplete</option>
+          </select>
+          <button class="btn-outline" @click="loadCacheGames">
+            <svg class="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"/>
+            </svg>
+            Refresh
+          </button>
+        </div>
+
+        <!-- Results Count -->
+        <div class="text-sm text-gray-500 mb-4">
+          {{ cacheGamesTotal }} games found
+        </div>
+
+        <!-- Loading -->
+        <div v-if="cacheGamesLoading" class="text-center py-8">
+          <D20Spinner size="md" class="mx-auto" />
+        </div>
+
+        <!-- Games List -->
+        <div v-else-if="cacheGames.length > 0" class="space-y-2">
+          <div
+            v-for="game in cacheGames"
+            :key="game.bggId"
+            class="flex items-center gap-4 p-3 bg-gray-50 rounded-lg hover:bg-gray-100"
+          >
+            <!-- Thumbnail -->
+            <div class="w-12 h-12 rounded bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+              <img
+                v-if="game.thumbnailUrl"
+                :src="game.thumbnailUrl"
+                :alt="game.name"
+                class="w-full h-full object-cover"
+              />
+              <svg v-else class="w-6 h-6 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M21,5V11.59L18,8.58L14,12.59L10,8.59L6,12.59L3,9.58V5A2,2 0 0,1 5,3H19A2,2 0 0,1 21,5M18,11.42L21,14.43V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V12.42L6,15.41L10,11.41L14,15.41"/>
+              </svg>
+            </div>
+
+            <!-- Info -->
+            <div class="flex-1 min-w-0">
+              <div class="font-medium text-gray-900 truncate">{{ game.name }}</div>
+              <div class="text-sm text-gray-500">
+                BGG #{{ game.bggId }}
+                <span v-if="game.yearPublished"> &bull; {{ game.yearPublished }}</span>
+                <span v-if="game.minPlayers && game.maxPlayers"> &bull; {{ game.minPlayers }}-{{ game.maxPlayers }} players</span>
+                <span v-if="game.bggRank" class="text-primary-600"> &bull; Rank #{{ game.bggRank }}</span>
+              </div>
+            </div>
+
+            <!-- Status badges -->
+            <div class="flex gap-2 flex-shrink-0">
+              <span v-if="!game.thumbnailUrl" class="text-xs px-2 py-1 rounded bg-yellow-100 text-yellow-700">
+                No Image
+              </span>
+              <span v-if="!game.minPlayers" class="text-xs px-2 py-1 rounded bg-orange-100 text-orange-700">
+                No Players
+              </span>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex gap-2 flex-shrink-0">
+              <button
+                class="btn-sm btn-outline"
+                :disabled="refreshingGameId === game.bggId"
+                @click="handleRefreshSingleGame(game.bggId)"
+              >
+                <svg v-if="refreshingGameId === game.bggId" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                <svg v-else class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"/>
+                </svg>
+              </button>
+              <button
+                class="btn-sm btn-outline"
+                @click="openCacheEditDialog(game)"
+              >
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Empty State -->
+        <div v-else class="text-center py-8 text-gray-500">
+          No games found. Try a different search or filter.
+        </div>
+
+        <!-- Pagination -->
+        <div v-if="cacheGamesTotal > 20" class="flex justify-center gap-2 mt-4">
+          <button
+            class="btn-outline btn-sm"
+            :disabled="cacheGamesPage === 1"
+            @click="handleCachePageChange(cacheGamesPage - 1)"
+          >
+            Previous
+          </button>
+          <span class="px-3 py-1 text-sm text-gray-600">
+            Page {{ cacheGamesPage }} of {{ Math.ceil(cacheGamesTotal / 20) }}
+          </span>
+          <button
+            class="btn-outline btn-sm"
+            :disabled="cacheGamesPage >= Math.ceil(cacheGamesTotal / 20)"
+            @click="handleCachePageChange(cacheGamesPage + 1)"
+          >
+            Next
+          </button>
+        </div>
+      </div>
+
+      <!-- Edit Cache Entry Dialog -->
+      <div v-if="showCacheEditDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-xl max-w-lg w-full p-6">
+          <h3 class="text-lg font-semibold mb-4">Edit Game: {{ editingCacheGame?.name }}</h3>
+
+          <div class="space-y-4">
+            <div>
+              <label class="label">Thumbnail URL</label>
+              <input v-model="cacheEditForm.thumbnailUrl" type="url" class="input" placeholder="https://...">
+            </div>
+            <div>
+              <label class="label">Image URL</label>
+              <input v-model="cacheEditForm.imageUrl" type="url" class="input" placeholder="https://...">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="label">Min Players</label>
+                <input v-model.number="cacheEditForm.minPlayers" type="number" class="input" min="1">
+              </div>
+              <div>
+                <label class="label">Max Players</label>
+                <input v-model.number="cacheEditForm.maxPlayers" type="number" class="input" min="1">
+              </div>
+            </div>
+
+            <!-- Preview -->
+            <div v-if="cacheEditForm.thumbnailUrl" class="mt-4">
+              <label class="label">Preview</label>
+              <img :src="cacheEditForm.thumbnailUrl" class="w-24 h-24 rounded object-cover" />
+            </div>
+          </div>
+
+          <div class="flex justify-end gap-3 mt-6">
+            <button class="btn-outline" @click="closeCacheEditDialog">Cancel</button>
+            <button class="btn-primary" :disabled="savingCacheGame" @click="handleSaveCacheGame">
+              {{ savingCacheGame ? 'Saving...' : 'Save Changes' }}
             </button>
           </div>
         </div>
