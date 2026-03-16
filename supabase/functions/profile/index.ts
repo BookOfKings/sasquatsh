@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { verifyFirebaseToken, jsonResponse, errorResponse, getCorsHeaders, getFirebaseToken } from '../_shared/firebase.ts'
+import { verifyFirebaseToken, createResponders, getCorsHeaders, getFirebaseToken } from '../_shared/firebase.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -61,8 +61,11 @@ function toPublicProfile(row: Record<string, unknown>) {
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: getCorsHeaders() })
+    return new Response(null, { headers: getCorsHeaders(req) })
   }
+
+  // Create request-bound response functions for proper CORS
+  const { json: jsonResponse, error: errorResponse } = createResponders(req)
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
   const url = new URL(req.url)

@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { jsonResponse, errorResponse, getCorsHeaders, verifyFirebaseToken, getFirebaseToken, escapeFilterValue } from '../_shared/firebase.ts'
+import { createResponders, getCorsHeaders, verifyFirebaseToken, getFirebaseToken, escapeFilterValue } from '../_shared/firebase.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -423,8 +423,11 @@ async function checkServiceHealth(): Promise<ServiceHealth[]> {
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: getCorsHeaders() })
+    return new Response(null, { headers: getCorsHeaders(req) })
   }
+
+  // Create request-bound response functions for proper CORS
+  const { json: jsonResponse, error: errorResponse } = createResponders(req)
 
   // Verify admin access
   const token = getFirebaseToken(req)
@@ -484,6 +487,7 @@ Deno.serve(async (req) => {
           account_status, banned_at, ban_reason,
           subscription_tier, subscription_override_tier, subscription_override_reason,
           subscription_status, subscription_expires_at,
+          auth_provider,
           created_at
         `, { count: 'exact' })
 
@@ -527,6 +531,7 @@ Deno.serve(async (req) => {
           subscriptionStatus: u.subscription_status,
           subscriptionExpiresAt: u.subscription_expires_at,
           effectiveTier: u.subscription_override_tier || u.subscription_tier || 'free',
+          authProvider: u.auth_provider || 'password',
           createdAt: u.created_at,
         })),
         total: count ?? 0,
@@ -1228,7 +1233,8 @@ Deno.serve(async (req) => {
         return errorResponse('User not found', 404)
       }
 
-      // Use Firebase REST API to send password reset
+      // Use Firebase REST API to send password reset email
+      // Note: This uses Firebase's email delivery. To use SendGrid, configure SMTP in Firebase Console.
       const firebaseApiKey = Deno.env.get('FIREBASE_API_KEY')
       if (!firebaseApiKey) {
         return errorResponse('Firebase API key not configured', 500)
@@ -1249,7 +1255,6 @@ Deno.serve(async (req) => {
       if (!resetResponse.ok) {
         const errorData = await resetResponse.json().catch(() => ({}))
         const errorMessage = errorData?.error?.message || 'Failed to send password reset'
-        // Common Firebase errors
         if (errorMessage.includes('EMAIL_NOT_FOUND')) {
           return errorResponse('Email not registered with Firebase (may be OAuth-only user)', 400)
         }

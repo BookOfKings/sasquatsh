@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { verifyFirebaseToken, jsonResponse, errorResponse, getCorsHeaders, getFirebaseToken } from '../_shared/firebase.ts'
+import { verifyFirebaseToken, createResponders, getCorsHeaders, getFirebaseToken } from '../_shared/firebase.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -74,8 +74,11 @@ async function validateUsername(supabase: ReturnType<typeof createClient>, usern
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: getCorsHeaders() })
+    return new Response(null, { headers: getCorsHeaders(req) })
   }
+
+  // Create request-bound response functions for proper CORS
+  const { json: jsonResponse, error: errorResponse } = createResponders(req)
 
   // Get Firebase token from custom header
   const token = getFirebaseToken(req)
@@ -108,9 +111,11 @@ Deno.serve(async (req) => {
           display_name: firebaseUser.name || existingUser.display_name,
           // Only set avatar from Firebase if user doesn't have one
           avatar_url: existingUser.avatar_url || firebaseUser.picture,
+          // Update auth_provider if not set (for existing users)
+          auth_provider: existingUser.auth_provider || firebaseUser.signInProvider || 'password',
         })
         .eq('firebase_uid', firebaseUser.uid)
-        .select('id, firebase_uid, email, username, display_name, avatar_url, subscription_tier, subscription_expires_at, subscription_status, subscription_override_tier, account_status, is_admin, is_founding_member, blocked_user_ids, created_at')
+        .select('id, firebase_uid, email, username, display_name, avatar_url, subscription_tier, subscription_expires_at, subscription_status, subscription_override_tier, account_status, is_admin, is_founding_member, blocked_user_ids, created_at, auth_provider')
         .single()
 
       if (error) {
@@ -188,6 +193,7 @@ Deno.serve(async (req) => {
         display_name: firebaseUser.name || username,
         avatar_url: firebaseUser.picture,
         username: username,
+        auth_provider: firebaseUser.signInProvider || 'password',
       })
       .select()
       .single()
@@ -262,5 +268,6 @@ function transformUser(row: Record<string, unknown>) {
     isFoundingMember: row.is_founding_member ?? false,
     blockedUserIds: row.blocked_user_ids ?? [],
     createdAt: row.created_at,
+    authProvider: row.auth_provider ?? 'password',
   }
 }

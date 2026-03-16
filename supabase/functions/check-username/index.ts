@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { jsonResponse, errorResponse, getCorsHeaders } from '../_shared/firebase.ts'
+import { createResponders, getCorsHeaders } from '../_shared/firebase.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -10,8 +10,11 @@ const USERNAME_REGEX = /^[a-zA-Z][a-zA-Z0-9_]{2,29}$/
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: getCorsHeaders() })
+    return new Response(null, { headers: getCorsHeaders(req) })
   }
+
+  // Create request-bound response functions for proper CORS
+  const { json: jsonResponse, error: errorResponse } = createResponders(req)
 
   if (req.method !== 'GET') {
     return errorResponse('Method not allowed', 405)

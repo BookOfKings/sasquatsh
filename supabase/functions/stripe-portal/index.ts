@@ -1,6 +1,6 @@
 import Stripe from 'https://esm.sh/stripe@14.14.0?target=deno'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { verifyFirebaseToken, jsonResponse, errorResponse, getCorsHeaders, getFirebaseToken } from '../_shared/firebase.ts'
+import { verifyFirebaseToken, createResponders, getCorsHeaders, getFirebaseToken } from '../_shared/firebase.ts'
 
 const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY')!
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
@@ -14,8 +14,11 @@ const stripe = new Stripe(stripeSecretKey, {
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: getCorsHeaders() })
+    return new Response(null, { headers: getCorsHeaders(req) })
   }
+
+  // Create request-bound response functions for proper CORS
+  const { json: jsonResponse, error: errorResponse } = createResponders(req)
 
   if (req.method !== 'POST') {
     return errorResponse('Method not allowed', 405)

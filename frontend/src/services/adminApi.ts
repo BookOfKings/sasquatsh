@@ -364,6 +364,7 @@ export interface AdminUser {
   subscriptionStatus: 'active' | 'past_due' | 'canceled' | 'incomplete' | null
   subscriptionExpiresAt: string | null
   effectiveTier: 'free' | 'basic' | 'pro' | 'premium'
+  authProvider: string  // 'password', 'google.com', 'facebook.com', etc.
   createdAt: string
 }
 

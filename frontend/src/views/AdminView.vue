@@ -2208,7 +2208,13 @@ function getLocationTypeLabel(location: EventLocation): string {
                   <span v-if="user.subscriptionOverrideTier" class="opacity-75">(override)</span>
                 </span>
               </div>
-              <p class="text-sm text-gray-500 truncate">{{ user.email }}</p>
+              <p class="text-sm text-gray-500 truncate">
+                {{ user.email }}
+                <span v-if="user.authProvider && user.authProvider !== 'password'"
+                      class="ml-1 px-1.5 py-0.5 text-xs rounded bg-blue-100 text-blue-700">
+                  {{ user.authProvider === 'google.com' ? 'Google' : user.authProvider }}
+                </span>
+              </p>
               <p v-if="user.accountStatus === 'banned' && user.banReason" class="text-sm text-red-600 mt-1">
                 Ban reason: {{ user.banReason }}
               </p>
@@ -2271,8 +2277,9 @@ function getLocationTypeLabel(location: EventLocation): string {
                 </svg>
               </button>
 
-              <!-- Password Reset button -->
+              <!-- Password Reset button - only for email/password users -->
               <button
+                v-if="user.authProvider === 'password'"
                 class="btn-ghost text-gray-600 text-sm"
                 title="Send password reset email"
                 :disabled="sendingPasswordReset === user.id"

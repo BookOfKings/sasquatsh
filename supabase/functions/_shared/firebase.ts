@@ -355,3 +355,11 @@ export function jsonResponse(data: unknown, status = 200, req?: Request): Respon
 export function errorResponse(message: string, status = 400, req?: Request): Response {
   return jsonResponse({ error: message }, status, req)
 }
+
+// Helper to create request-bound response functions for cleaner code
+export function createResponders(req: Request) {
+  return {
+    json: (data: unknown, status = 200) => jsonResponse(data, status, req),
+    error: (message: string, status = 400) => errorResponse(message, status, req),
+  }
+}
