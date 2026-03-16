@@ -5,10 +5,12 @@ import {
   getChatMessages,
   sendChatMessage,
   deleteChatMessage,
+  reportChatMessage,
   subscribeToChatMessages,
   unsubscribeFromChat,
 } from '@/services/chatApi'
-import type { ChatMessage, ChatContextType } from '@/types/chat'
+import type { ChatMessage, ChatContextType, ChatReportReason } from '@/types/chat'
+import { REPORT_REASON_LABELS } from '@/types/chat'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 
@@ -30,6 +32,14 @@ const hasMore = ref(true)
 const error = ref('')
 const messagesContainer = ref<HTMLElement | null>(null)
 let channel: RealtimeChannel | null = null
+
+// Report modal state
+const showReportModal = ref(false)
+const reportingMessage = ref<ChatMessage | null>(null)
+const reportReason = ref<ChatReportReason>('inappropriate')
+const reportDetails = ref('')
+const reportSubmitting = ref(false)
+const reportSuccess = ref(false)
 
 // Computed
 const currentUserId = computed(() => auth.user.value?.id)
@@ -152,6 +162,50 @@ async function handleDelete(messageId: string) {
     messages.value = messages.value.filter(m => m.id !== messageId)
   } catch (err) {
     console.error('Failed to delete message:', err)
+  }
+}
+
+// Open report modal
+function openReportModal(message: ChatMessage) {
+  reportingMessage.value = message
+  reportReason.value = 'inappropriate'
+  reportDetails.value = ''
+  reportSuccess.value = false
+  showReportModal.value = true
+}
+
+// Close report modal
+function closeReportModal() {
+  showReportModal.value = false
+  reportingMessage.value = null
+}
+
+// Submit report
+async function handleReport() {
+  if (!reportingMessage.value) return
+
+  reportSubmitting.value = true
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+
+    await reportChatMessage(
+      token,
+      props.contextType,
+      props.contextId,
+      reportingMessage.value.id,
+      reportReason.value,
+      reportDetails.value.trim() || undefined
+    )
+
+    reportSuccess.value = true
+    setTimeout(() => {
+      closeReportModal()
+    }, 1500)
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to submit report'
+  } finally {
+    reportSubmitting.value = false
   }
 }
 
@@ -317,6 +371,7 @@ watch(
               :class="message.userId === currentUserId ? 'justify-end' : ''"
             >
               <span>{{ formatTime(message.createdAt) }}</span>
+              <!-- Delete own message -->
               <button
                 v-if="message.userId === currentUserId"
                 class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-500"
@@ -325,6 +380,17 @@ watch(
               >
                 <svg class="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
+                </svg>
+              </button>
+              <!-- Report others' messages -->
+              <button
+                v-if="message.userId !== currentUserId"
+                class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-orange-500"
+                title="Report message"
+                @click="openReportModal(message)"
+              >
+                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
                 </svg>
               </button>
             </div>
@@ -365,5 +431,82 @@ watch(
         </button>
       </div>
     </div>
+
+    <!-- Report Modal -->
+    <Teleport to="body">
+      <div
+        v-if="showReportModal"
+        class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+        @click.self="closeReportModal"
+      >
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+          <div class="px-4 py-3 border-b border-gray-200">
+            <h3 class="font-semibold text-gray-900">Report Message</h3>
+          </div>
+
+          <div class="p-4 space-y-4">
+            <!-- Success State -->
+            <div v-if="reportSuccess" class="text-center py-4">
+              <svg class="w-12 h-12 text-green-500 mx-auto mb-2" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M11,16.5L6.5,12L7.91,10.59L11,13.67L16.59,8.09L18,9.5L11,16.5Z"/>
+              </svg>
+              <p class="text-green-600 font-medium">Report submitted</p>
+              <p class="text-sm text-gray-500">Thank you for helping keep our community safe.</p>
+            </div>
+
+            <template v-else>
+              <!-- Reported Message Preview -->
+              <div class="bg-gray-50 rounded-lg p-3 text-sm">
+                <p class="text-gray-500 text-xs mb-1">Message from {{ reportingMessage?.user?.displayName || 'Unknown' }}:</p>
+                <p class="text-gray-700 line-clamp-3">{{ reportingMessage?.content }}</p>
+              </div>
+
+              <!-- Reason Select -->
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Reason for report</label>
+                <select
+                  v-model="reportReason"
+                  class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+                >
+                  <option v-for="(label, value) in REPORT_REASON_LABELS" :key="value" :value="value">
+                    {{ label }}
+                  </option>
+                </select>
+              </div>
+
+              <!-- Details (optional) -->
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                  Additional details <span class="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <textarea
+                  v-model="reportDetails"
+                  placeholder="Provide any additional context..."
+                  class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 resize-none"
+                  rows="3"
+                ></textarea>
+              </div>
+            </template>
+          </div>
+
+          <div v-if="!reportSuccess" class="px-4 py-3 border-t border-gray-200 flex justify-end gap-2">
+            <button
+              class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+              @click="closeReportModal"
+            >
+              Cancel
+            </button>
+            <button
+              class="px-4 py-2 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
+              :disabled="reportSubmitting"
+              @click="handleReport"
+            >
+              <span v-if="reportSubmitting">Submitting...</span>
+              <span v-else>Submit Report</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>

@@ -5,6 +5,8 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
 type ContextType = 'event' | 'group' | 'planning'
+type ReportReason = 'harassment' | 'spam' | 'hate_speech' | 'inappropriate' | 'threats' | 'other'
+type ModerationAction = 'warning' | 'mute_1h' | 'mute_24h' | 'mute_7d' | 'ban_chat'
 
 interface ChatMessage {
   id: string
@@ -79,8 +81,75 @@ Deno.serve(async (req) => {
 
   const blockedUserIds: string[] = user.blocked_user_ids ?? []
 
-  // GET - Fetch messages (with pagination)
+  // GET - Fetch messages or admin reports
   if (req.method === 'GET') {
+    const adminMode = url.searchParams.get('admin')
+
+    // Admin: Fetch reports
+    if (adminMode === 'reports') {
+      if (!user.is_admin) {
+        return errorResponse('Admin access required', 403)
+      }
+
+      const status = url.searchParams.get('status') // pending, reviewed, action_taken, dismissed
+      const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10), 100)
+
+      let query = supabase
+        .from('chat_reports')
+        .select(`
+          id, reason, details, status, admin_notes, created_at, reviewed_at,
+          message:chat_messages!message_id(id, content, context_type, context_id, created_at, is_deleted,
+            user:users!user_id(id, display_name, avatar_url)
+          ),
+          reporter:users!reporter_id(id, display_name, avatar_url),
+          reviewer:users!reviewed_by(id, display_name)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(limit)
+
+      if (status) {
+        query = query.eq('status', status)
+      }
+
+      const { data, error } = await query
+
+      if (error) {
+        console.error('Error fetching reports:', error)
+        return errorResponse(error.message, 500)
+      }
+
+      return jsonResponse({ reports: data })
+    }
+
+    // Admin: Fetch moderation history for a user
+    if (adminMode === 'moderation-history') {
+      if (!user.is_admin) {
+        return errorResponse('Admin access required', 403)
+      }
+
+      const targetUserId = url.searchParams.get('userId')
+      if (!targetUserId) {
+        return errorResponse('Missing userId', 400)
+      }
+
+      const { data, error } = await supabase
+        .from('chat_moderation_actions')
+        .select(`
+          id, action, reason, expires_at, created_at,
+          issuer:users!issued_by(id, display_name)
+        `)
+        .eq('user_id', targetUserId)
+        .order('created_at', { ascending: false })
+        .limit(20)
+
+      if (error) {
+        console.error('Error fetching moderation history:', error)
+        return errorResponse(error.message, 500)
+      }
+
+      return jsonResponse({ history: data })
+    }
+
     const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10), 100)
     const before = url.searchParams.get('before') // cursor for pagination (ISO timestamp)
 
@@ -118,8 +187,80 @@ Deno.serve(async (req) => {
     return jsonResponse({ messages })
   }
 
-  // POST - Send message
+  // POST - Send message or report
   if (req.method === 'POST') {
+    const action = url.searchParams.get('action')
+
+    // Handle report action
+    if (action === 'report') {
+      const messageId = url.searchParams.get('messageId')
+      if (!messageId) {
+        return errorResponse('Missing messageId', 400)
+      }
+
+      let body: { reason?: ReportReason; details?: string }
+      try {
+        body = await req.json()
+      } catch {
+        return errorResponse('Invalid JSON body', 400)
+      }
+
+      const validReasons: ReportReason[] = ['harassment', 'spam', 'hate_speech', 'inappropriate', 'threats', 'other']
+      if (!body.reason || !validReasons.includes(body.reason)) {
+        return errorResponse('Invalid or missing reason', 400)
+      }
+
+      // Verify message exists and is in this context
+      const { data: message, error: msgError } = await supabase
+        .from('chat_messages')
+        .select('id, user_id')
+        .eq('id', messageId)
+        .eq('context_type', contextType)
+        .eq('context_id', contextId)
+        .eq('is_deleted', false)
+        .single()
+
+      if (msgError || !message) {
+        return errorResponse('Message not found', 404)
+      }
+
+      // Cannot report own messages
+      if (message.user_id === user.id) {
+        return errorResponse('Cannot report your own message', 400)
+      }
+
+      // Check if already reported by this user
+      const { data: existingReport } = await supabase
+        .from('chat_reports')
+        .select('id')
+        .eq('message_id', messageId)
+        .eq('reporter_id', user.id)
+        .maybeSingle()
+
+      if (existingReport) {
+        return errorResponse('You have already reported this message', 400)
+      }
+
+      const { data: report, error: reportError } = await supabase
+        .from('chat_reports')
+        .insert({
+          message_id: messageId,
+          reporter_id: user.id,
+          reason: body.reason,
+          details: body.details?.trim() || null,
+        })
+        .select('id')
+        .single()
+
+      if (reportError) {
+        console.error('Error creating report:', reportError)
+        return errorResponse(reportError.message, 500)
+      }
+
+      return jsonResponse({ success: true, reportId: report.id })
+    }
+
+    // Regular message sending
     let body: { content?: string }
     try {
       body = await req.json()
@@ -135,6 +276,30 @@ Deno.serve(async (req) => {
 
     if (content.length > 1000) {
       return errorResponse('Message too long (max 1000 characters)', 400)
+    }
+
+    // Check if user is muted
+    const { data: muteCheck } = await supabase
+      .from('chat_moderation_actions')
+      .select('id, action, expires_at')
+      .eq('user_id', user.id)
+      .in('action', ['mute_1h', 'mute_24h', 'mute_7d', 'ban_chat'])
+      .or('expires_at.is.null,expires_at.gt.now()')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (muteCheck) {
+      const isBanned = muteCheck.action === 'ban_chat'
+      const expiresMsg = muteCheck.expires_at
+        ? ` until ${new Date(muteCheck.expires_at).toLocaleString()}`
+        : ''
+      return errorResponse(
+        isBanned
+          ? 'You are banned from chat'
+          : `You are muted from chat${expiresMsg}`,
+        403
+      )
     }
 
     const { data, error } = await supabase
@@ -194,6 +359,125 @@ Deno.serve(async (req) => {
     }
 
     return new Response(null, { status: 204, headers: getCorsHeaders(req) })
+  }
+
+  // PATCH - Admin moderation actions
+  if (req.method === 'PATCH') {
+    if (!user.is_admin) {
+      return errorResponse('Admin access required', 403)
+    }
+
+    const action = url.searchParams.get('action')
+
+    // Update report status
+    if (action === 'review-report') {
+      const reportId = url.searchParams.get('reportId')
+      if (!reportId) {
+        return errorResponse('Missing reportId', 400)
+      }
+
+      let body: { status?: string; adminNotes?: string }
+      try {
+        body = await req.json()
+      } catch {
+        return errorResponse('Invalid JSON body', 400)
+      }
+
+      const validStatuses = ['reviewed', 'action_taken', 'dismissed']
+      if (!body.status || !validStatuses.includes(body.status)) {
+        return errorResponse('Invalid status', 400)
+      }
+
+      const { error } = await supabase
+        .from('chat_reports')
+        .update({
+          status: body.status,
+          reviewed_by: user.id,
+          reviewed_at: new Date().toISOString(),
+          admin_notes: body.adminNotes || null,
+        })
+        .eq('id', reportId)
+
+      if (error) {
+        console.error('Error updating report:', error)
+        return errorResponse(error.message, 500)
+      }
+
+      return jsonResponse({ success: true })
+    }
+
+    // Issue moderation action (warn/mute/ban)
+    if (action === 'moderate') {
+      let body: { userId?: string; action?: ModerationAction; reason?: string; reportId?: string }
+      try {
+        body = await req.json()
+      } catch {
+        return errorResponse('Invalid JSON body', 400)
+      }
+
+      if (!body.userId) {
+        return errorResponse('Missing userId', 400)
+      }
+
+      const validActions: ModerationAction[] = ['warning', 'mute_1h', 'mute_24h', 'mute_7d', 'ban_chat']
+      if (!body.action || !validActions.includes(body.action)) {
+        return errorResponse('Invalid moderation action', 400)
+      }
+
+      if (!body.reason?.trim()) {
+        return errorResponse('Reason is required', 400)
+      }
+
+      // Calculate expiration for temporary mutes
+      let expiresAt: string | null = null
+      const now = new Date()
+      switch (body.action) {
+        case 'mute_1h':
+          expiresAt = new Date(now.getTime() + 60 * 60 * 1000).toISOString()
+          break
+        case 'mute_24h':
+          expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString()
+          break
+        case 'mute_7d':
+          expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
+          break
+        // warning and ban_chat have no expiration
+      }
+
+      const { data: modAction, error } = await supabase
+        .from('chat_moderation_actions')
+        .insert({
+          user_id: body.userId,
+          action: body.action,
+          reason: body.reason.trim(),
+          report_id: body.reportId || null,
+          issued_by: user.id,
+          expires_at: expiresAt,
+        })
+        .select('id')
+        .single()
+
+      if (error) {
+        console.error('Error creating moderation action:', error)
+        return errorResponse(error.message, 500)
+      }
+
+      // If action came from a report, update report status
+      if (body.reportId) {
+        await supabase
+          .from('chat_reports')
+          .update({
+            status: 'action_taken',
+            reviewed_by: user.id,
+            reviewed_at: new Date().toISOString(),
+          })
+          .eq('id', body.reportId)
+      }
+
+      return jsonResponse({ success: true, actionId: modAction.id })
+    }
+
+    return errorResponse('Invalid admin action', 400)
   }
 
   return errorResponse('Method not allowed', 405)

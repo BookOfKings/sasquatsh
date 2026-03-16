@@ -47,6 +47,9 @@ import type { BggCacheStats, BggCacheEntry, AdminStats, ServiceHealth, AdminUser
 import { listBggCache, refreshBggGame, updateBggCacheEntry } from '@/services/adminApi'
 import { getAllAds, getAdStats, createAd, updateAd, deleteAd, toggleAdActive } from '@/services/adsApi'
 import type { Ad, AdStats, CreateAdInput } from '@/services/adsApi'
+import { getChatReports, reviewChatReport, issueModerationAction, getChatModerationHistory } from '@/services/chatApi'
+import type { ChatReport, ChatModerationHistoryItem, ChatModerationAction } from '@/types/chat'
+import { REPORT_REASON_LABELS, MODERATION_ACTION_LABELS } from '@/types/chat'
 import D20Spinner from '@/components/common/D20Spinner.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 
@@ -66,7 +69,7 @@ function withMinLoadingTime<T>(promise: Promise<T>, startTime: number): Promise<
   })
 }
 
-const activeTab = ref<'dashboard' | 'users' | 'groups' | 'notes' | 'bugs' | 'ads' | 'locations' | 'bggCache'>('dashboard')
+const activeTab = ref<'dashboard' | 'users' | 'groups' | 'notes' | 'bugs' | 'chatReports' | 'ads' | 'locations' | 'bggCache'>('dashboard')
 
 // Dashboard state
 const dashboardLoading = ref(false)
@@ -192,6 +195,21 @@ const bugForm = reactive({
 })
 const savingBug = ref(false)
 const deletingBugId = ref<string | null>(null)
+
+// Chat Reports state
+const chatReports = ref<ChatReport[]>([])
+const chatReportsLoading = ref(false)
+const chatReportStatusFilter = ref('pending')
+const showModerationDialog = ref(false)
+const selectedReport = ref<ChatReport | null>(null)
+const moderationForm = reactive({
+  action: 'warning' as ChatModerationAction,
+  reason: '',
+})
+const issuingModeration = ref(false)
+const dismissingReportId = ref<string | null>(null)
+const moderationHistory = ref<ChatModerationHistoryItem[]>([])
+const moderationHistoryLoading = ref(false)
 
 // Ads state
 const ads = ref<Ad[]>([])
@@ -1221,6 +1239,127 @@ function getStatusColor(status: string): string {
   }
 }
 
+// ============ Chat Reports Functions ============
+
+async function loadChatReports() {
+  chatReportsLoading.value = true
+  errorMessage.value = ''
+  const startTime = Date.now()
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    chatReports.value = await getChatReports(token, {
+      status: chatReportStatusFilter.value || undefined,
+      limit: 50,
+    })
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to load chat reports'
+  } finally {
+    const elapsed = Date.now() - startTime
+    if (elapsed < MIN_LOADING_TIME) {
+      await new Promise(resolve => setTimeout(resolve, MIN_LOADING_TIME - elapsed))
+    }
+    chatReportsLoading.value = false
+  }
+}
+
+function openModerationDialog(report: ChatReport) {
+  selectedReport.value = report
+  moderationForm.action = 'warning'
+  moderationForm.reason = ''
+  moderationHistory.value = []
+  showModerationDialog.value = true
+
+  // Load moderation history for this user
+  if (report.message?.user?.id) {
+    loadModerationHistory(report.message.user.id)
+  }
+}
+
+async function loadModerationHistory(userId: string) {
+  moderationHistoryLoading.value = true
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    moderationHistory.value = await getChatModerationHistory(token, userId)
+  } catch (err) {
+    console.error('Failed to load moderation history:', err)
+  } finally {
+    moderationHistoryLoading.value = false
+  }
+}
+
+async function handleIssueModeration() {
+  if (!selectedReport.value?.message?.user?.id) return
+  if (!moderationForm.reason.trim()) {
+    errorMessage.value = 'Reason is required'
+    return
+  }
+
+  issuingModeration.value = true
+  errorMessage.value = ''
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+
+    await issueModerationAction(
+      token,
+      selectedReport.value.message.user.id,
+      moderationForm.action,
+      moderationForm.reason.trim(),
+      selectedReport.value.id
+    )
+
+    successMessage.value = `Moderation action issued: ${MODERATION_ACTION_LABELS[moderationForm.action]}`
+    showModerationDialog.value = false
+    await loadChatReports()
+    setTimeout(() => successMessage.value = '', 3000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to issue moderation action'
+  } finally {
+    issuingModeration.value = false
+  }
+}
+
+async function handleDismissReport(report: ChatReport) {
+  if (!confirm('Dismiss this report? The message will remain visible.')) return
+
+  dismissingReportId.value = report.id
+  errorMessage.value = ''
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+
+    await reviewChatReport(token, report.id, 'dismissed')
+    successMessage.value = 'Report dismissed'
+    await loadChatReports()
+    setTimeout(() => successMessage.value = '', 3000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to dismiss report'
+  } finally {
+    dismissingReportId.value = null
+  }
+}
+
+function getContextLabel(contextType: string): string {
+  switch (contextType) {
+    case 'event': return 'Event Chat'
+    case 'group': return 'Group Chat'
+    case 'planning': return 'Planning Session'
+    default: return contextType
+  }
+}
+
+function getReportStatusColor(status: string): string {
+  switch (status) {
+    case 'pending': return 'bg-orange-100 text-orange-800'
+    case 'reviewed': return 'bg-blue-100 text-blue-800'
+    case 'action_taken': return 'bg-green-100 text-green-800'
+    case 'dismissed': return 'bg-gray-100 text-gray-600'
+    default: return 'bg-gray-100 text-gray-800'
+  }
+}
+
 // ============ Ads Functions ============
 
 async function loadAds() {
@@ -1672,6 +1811,15 @@ function getLocationTypeLabel(location: EventLocation): string {
         @click="activeTab = 'bugs'; loadBugs()"
       >
         Bugs
+      </button>
+      <button
+        class="px-4 py-2 text-sm font-medium transition-colors -mb-px"
+        :class="activeTab === 'chatReports'
+          ? 'text-primary-600 border-b-2 border-primary-500'
+          : 'text-gray-500 hover:text-gray-700'"
+        @click="activeTab = 'chatReports'; loadChatReports()"
+      >
+        Chat Reports
       </button>
       <button
         class="px-4 py-2 text-sm font-medium transition-colors -mb-px"
@@ -2699,6 +2847,212 @@ function getLocationTypeLabel(location: EventLocation): string {
           </div>
         </div>
       </template>
+    </div>
+
+    <!-- Chat Reports Tab -->
+    <div v-if="activeTab === 'chatReports'">
+      <div class="flex items-center justify-between mb-6">
+        <div class="flex gap-4 items-center">
+          <label class="text-sm text-gray-600">Status:</label>
+          <select v-model="chatReportStatusFilter" class="form-select text-sm" @change="loadChatReports()">
+            <option value="">All</option>
+            <option value="pending">Pending</option>
+            <option value="reviewed">Reviewed</option>
+            <option value="action_taken">Action Taken</option>
+            <option value="dismissed">Dismissed</option>
+          </select>
+        </div>
+        <button class="btn-outline" @click="loadChatReports()">
+          <svg class="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"/>
+          </svg>
+          Refresh
+        </button>
+      </div>
+
+      <!-- Loading -->
+      <div v-if="chatReportsLoading" class="text-center py-12">
+        <D20Spinner size="lg" class="mx-auto" />
+      </div>
+
+      <template v-else>
+        <div v-if="chatReports.length === 0" class="text-center py-12 text-gray-500">
+          <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M11,16.5L6.5,12L7.91,10.59L11,13.67L16.59,8.09L18,9.5L11,16.5Z"/>
+          </svg>
+          <p class="text-lg font-medium">No chat reports</p>
+          <p>All clear! No reports to review.</p>
+        </div>
+
+        <div v-else class="space-y-4">
+          <div
+            v-for="report in chatReports"
+            :key="report.id"
+            class="card p-4"
+            :class="{
+              'border-l-4 border-l-orange-500': report.status === 'pending',
+              'border-l-4 border-l-green-500': report.status === 'action_taken',
+            }"
+          >
+            <div class="flex items-start gap-4">
+              <div class="flex-1 min-w-0">
+                <!-- Report Header -->
+                <div class="flex items-center gap-2 mb-2">
+                  <span
+                    class="text-xs font-medium px-2 py-0.5 rounded-full"
+                    :class="getReportStatusColor(report.status)"
+                  >
+                    {{ report.status.replace('_', ' ') }}
+                  </span>
+                  <span class="text-xs px-2 py-0.5 rounded-full bg-red-50 text-red-700">
+                    {{ REPORT_REASON_LABELS[report.reason] }}
+                  </span>
+                  <span class="text-xs text-gray-400">
+                    {{ getContextLabel(report.message?.contextType || '') }}
+                  </span>
+                </div>
+
+                <!-- Reported Message -->
+                <div class="bg-gray-50 rounded-lg p-3 mb-3">
+                  <div class="flex items-center gap-2 mb-1">
+                    <UserAvatar
+                      v-if="report.message?.user"
+                      :avatar-url="report.message.user.avatarUrl"
+                      :display-name="report.message.user.displayName"
+                      size="xs"
+                    />
+                    <span class="text-sm font-medium text-gray-700">
+                      {{ report.message?.user?.displayName || 'Unknown User' }}
+                    </span>
+                    <span v-if="report.message?.isDeleted" class="text-xs text-red-500">(deleted)</span>
+                  </div>
+                  <p class="text-sm text-gray-800">{{ report.message?.content }}</p>
+                </div>
+
+                <!-- Report Details -->
+                <div v-if="report.details" class="text-sm text-gray-600 mb-2">
+                  <span class="font-medium">Details:</span> {{ report.details }}
+                </div>
+
+                <!-- Reporter and Time -->
+                <div class="flex items-center gap-4 text-xs text-gray-500">
+                  <span>
+                    Reported by {{ report.reporter?.displayName || 'Unknown' }}
+                  </span>
+                  <span>
+                    {{ new Date(report.createdAt).toLocaleString() }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Actions -->
+              <div v-if="report.status === 'pending'" class="flex flex-col gap-2 flex-shrink-0">
+                <button
+                  class="btn-primary text-sm py-1.5 px-3"
+                  @click="openModerationDialog(report)"
+                >
+                  Take Action
+                </button>
+                <button
+                  class="btn-ghost text-gray-600 text-sm py-1.5 px-3"
+                  :disabled="dismissingReportId === report.id"
+                  @click="handleDismissReport(report)"
+                >
+                  <svg v-if="dismissingReportId === report.id" class="animate-spin -ml-1 mr-1 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                  </svg>
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- Moderation Dialog -->
+    <div
+      v-if="showModerationDialog"
+      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      @click.self="showModerationDialog = false"
+    >
+      <div class="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        <div class="px-4 py-3 border-b border-gray-200">
+          <h3 class="font-semibold text-gray-900">Issue Moderation Action</h3>
+        </div>
+
+        <div class="p-4 space-y-4">
+          <!-- User Info -->
+          <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+            <UserAvatar
+              v-if="selectedReport?.message?.user"
+              :avatar-url="selectedReport.message.user.avatarUrl"
+              :display-name="selectedReport.message.user.displayName"
+              size="md"
+            />
+            <div>
+              <div class="font-medium">{{ selectedReport?.message?.user?.displayName || 'Unknown User' }}</div>
+              <div class="text-sm text-gray-500">User to moderate</div>
+            </div>
+          </div>
+
+          <!-- Moderation History -->
+          <div v-if="moderationHistory.length > 0" class="border rounded-lg p-3">
+            <h4 class="text-sm font-medium text-gray-700 mb-2">Previous Actions</h4>
+            <div class="space-y-2 max-h-32 overflow-y-auto">
+              <div v-for="item in moderationHistory" :key="item.id" class="text-xs text-gray-600 flex justify-between">
+                <span>{{ MODERATION_ACTION_LABELS[item.action] }} - {{ item.reason }}</span>
+                <span class="text-gray-400">{{ new Date(item.createdAt).toLocaleDateString() }}</span>
+              </div>
+            </div>
+          </div>
+          <div v-else-if="moderationHistoryLoading" class="text-sm text-gray-500 text-center py-2">
+            Loading history...
+          </div>
+          <div v-else class="text-sm text-gray-500 text-center py-2">
+            No previous moderation actions
+          </div>
+
+          <!-- Action Select -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Action</label>
+            <select v-model="moderationForm.action" class="form-select w-full">
+              <option v-for="(label, value) in MODERATION_ACTION_LABELS" :key="value" :value="value">
+                {{ label }}
+              </option>
+            </select>
+          </div>
+
+          <!-- Reason -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Reason</label>
+            <textarea
+              v-model="moderationForm.reason"
+              placeholder="Explain the reason for this action..."
+              class="form-textarea w-full"
+              rows="3"
+            ></textarea>
+          </div>
+        </div>
+
+        <div class="px-4 py-3 border-t border-gray-200 flex justify-end gap-2">
+          <button class="btn-ghost" @click="showModerationDialog = false">
+            Cancel
+          </button>
+          <button
+            class="btn-primary"
+            :disabled="issuingModeration || !moderationForm.reason.trim()"
+            @click="handleIssueModeration"
+          >
+            <svg v-if="issuingModeration" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            Issue Action
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Ads Tab -->

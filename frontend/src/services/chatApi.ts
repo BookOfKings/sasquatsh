@@ -3,7 +3,11 @@ import type {
   ChatMessage,
   ChatContextType,
   ChatMessagesResponse,
-  SendMessageResponse
+  SendMessageResponse,
+  ChatReportReason,
+  ChatReport,
+  ChatModerationHistoryItem,
+  ChatModerationAction,
 } from '@/types/chat'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
@@ -180,4 +184,171 @@ export function subscribeToChatMessages(
 // Unsubscribe from chat updates
 export function unsubscribeFromChat(channel: RealtimeChannel): void {
   supabase.removeChannel(channel)
+}
+
+// Report a message
+export async function reportChatMessage(
+  token: string,
+  contextType: ChatContextType,
+  contextId: string,
+  messageId: string,
+  reason: ChatReportReason,
+  details?: string
+): Promise<{ reportId: string }> {
+  const params = new URLSearchParams({ contextType, contextId, messageId, action: 'report' })
+
+  return authenticatedRequest<{ success: boolean; reportId: string }>(
+    `/chat?${params.toString()}`,
+    token,
+    {
+      method: 'POST',
+      body: JSON.stringify({ reason, details }),
+    }
+  )
+}
+
+// Admin: Get chat reports
+export async function getChatReports(
+  token: string,
+  options?: { status?: string; limit?: number }
+): Promise<ChatReport[]> {
+  // Use dummy context params (admin endpoints don't actually use them for reports)
+  const params = new URLSearchParams({
+    contextType: 'event',
+    contextId: '00000000-0000-0000-0000-000000000000',
+    admin: 'reports',
+  })
+
+  if (options?.status) params.append('status', options.status)
+  if (options?.limit) params.append('limit', String(options.limit))
+
+  const response = await authenticatedRequest<{ reports: Record<string, unknown>[] }>(
+    `/chat?${params.toString()}`,
+    token
+  )
+
+  return response.reports.map(transformReport)
+}
+
+// Admin: Get moderation history for a user
+export async function getChatModerationHistory(
+  token: string,
+  userId: string
+): Promise<ChatModerationHistoryItem[]> {
+  const params = new URLSearchParams({
+    contextType: 'event',
+    contextId: '00000000-0000-0000-0000-000000000000',
+    admin: 'moderation-history',
+    userId,
+  })
+
+  const response = await authenticatedRequest<{ history: Record<string, unknown>[] }>(
+    `/chat?${params.toString()}`,
+    token
+  )
+
+  return response.history.map((item) => ({
+    id: item.id as string,
+    action: item.action as ChatModerationAction,
+    reason: item.reason as string,
+    expiresAt: item.expires_at as string | null,
+    createdAt: item.created_at as string,
+    issuer: item.issuer as { id: string; displayName: string | null } | null,
+  }))
+}
+
+// Admin: Review a report
+export async function reviewChatReport(
+  token: string,
+  reportId: string,
+  status: 'reviewed' | 'action_taken' | 'dismissed',
+  adminNotes?: string
+): Promise<void> {
+  const params = new URLSearchParams({
+    contextType: 'event',
+    contextId: '00000000-0000-0000-0000-000000000000',
+    action: 'review-report',
+    reportId,
+  })
+
+  await authenticatedRequest<{ success: boolean }>(
+    `/chat?${params.toString()}`,
+    token,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ status, adminNotes }),
+    }
+  )
+}
+
+// Admin: Issue moderation action
+export async function issueModerationAction(
+  token: string,
+  userId: string,
+  action: ChatModerationAction,
+  reason: string,
+  reportId?: string
+): Promise<{ actionId: string }> {
+  const params = new URLSearchParams({
+    contextType: 'event',
+    contextId: '00000000-0000-0000-0000-000000000000',
+    action: 'moderate',
+  })
+
+  return authenticatedRequest<{ success: boolean; actionId: string }>(
+    `/chat?${params.toString()}`,
+    token,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ userId, action, reason, reportId }),
+    }
+  )
+}
+
+// Transform report from API response
+function transformReport(row: Record<string, unknown>): ChatReport {
+  const message = row.message as Record<string, unknown> | null
+  const messageUser = message?.user as Record<string, unknown> | null
+  const reporter = row.reporter as Record<string, unknown> | null
+  const reviewer = row.reviewer as Record<string, unknown> | null
+
+  return {
+    id: row.id as string,
+    reason: row.reason as ChatReportReason,
+    details: row.details as string | null,
+    status: row.status as 'pending' | 'reviewed' | 'action_taken' | 'dismissed',
+    adminNotes: row.admin_notes as string | null,
+    createdAt: row.created_at as string,
+    reviewedAt: row.reviewed_at as string | null,
+    message: message
+      ? {
+          id: message.id as string,
+          content: message.content as string,
+          contextType: message.context_type as ChatContextType,
+          contextId: message.context_id as string,
+          createdAt: message.created_at as string,
+          isDeleted: message.is_deleted as boolean,
+          user: messageUser
+            ? {
+                id: messageUser.id as string,
+                displayName: messageUser.display_name as string | null,
+                avatarUrl: messageUser.avatar_url as string | null,
+              }
+            : null,
+        }
+      : null,
+    reporter: reporter
+      ? {
+          id: reporter.id as string,
+          displayName: reporter.display_name as string | null,
+          avatarUrl: reporter.avatar_url as string | null,
+        }
+      : null,
+    reviewer: reviewer
+      ? {
+          id: reviewer.id as string,
+          displayName: reviewer.display_name as string | null,
+        }
+      : null,
+  }
 }
