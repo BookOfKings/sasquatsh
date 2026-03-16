@@ -11,6 +11,7 @@ import ShareModal from '@/components/common/ShareModal.vue'
 import D20Spinner from '@/components/common/D20Spinner.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 import SessionScheduleGrid from '@/components/events/SessionScheduleGrid.vue'
+import ChatPanel from '@/components/chat/ChatPanel.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -37,6 +38,9 @@ const invitingMembers = ref(false)
 
 // Session registration state (multi-table mode)
 const registeringSession = ref(false)
+
+// Chat state
+const showChat = ref(false)
 
 const eventId = computed(() => route.params.id as string)
 const event = computed(() => eventStore.currentEvent.value)
@@ -952,6 +956,38 @@ function goToLogin() {
         </p>
       </div>
     </template>
+
+    <!-- Event Chat (visible to host and registered users) -->
+    <div v-if="isHost || isRegistered" class="card mb-6">
+      <div class="p-4 border-b border-gray-100">
+        <button
+          class="w-full flex items-center justify-between text-left"
+          @click="showChat = !showChat"
+        >
+          <h2 class="font-semibold flex items-center gap-2">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M20,2H4A2,2 0 0,0 2,4V22L6,18H20A2,2 0 0,0 22,16V4A2,2 0 0,0 20,2M20,16H6L4,18V4H20"/>
+            </svg>
+            Event Chat
+          </h2>
+          <svg
+            class="w-5 h-5 text-gray-400 transition-transform"
+            :class="{ 'rotate-180': showChat }"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+          >
+            <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
+          </svg>
+        </button>
+      </div>
+      <div v-if="showChat" class="h-96">
+        <ChatPanel
+          context-type="event"
+          :context-id="eventId"
+          title="Event Chat"
+        />
+      </div>
+    </div>
 
     <!-- Add Item Dialog -->
     <div v-if="addItemDialog" class="fixed inset-0 z-50 flex items-center justify-center p-4">

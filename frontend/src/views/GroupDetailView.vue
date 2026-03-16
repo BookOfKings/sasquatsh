@@ -7,6 +7,7 @@ import { getGroupPlanningSessions } from '@/services/planningApi'
 import type { PlanningSession } from '@/types/planning'
 import GroupAdminPanel from '@/components/groups/GroupAdminPanel.vue'
 import EditGroupModal from '@/components/groups/EditGroupModal.vue'
+import ChatPanel from '@/components/chat/ChatPanel.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -29,6 +30,7 @@ const isMember = computed(() => !!userMembership.value)
 const showEditModal = ref(false)
 const planningSessions = ref<PlanningSession[]>([])
 const loadingPlans = ref(false)
+const showChat = ref(false)
 
 onMounted(async () => {
   await groupStore.loadGroup(groupSlug.value)
@@ -386,7 +388,7 @@ async function handleGroupUpdated() {
       </div>
 
       <!-- Upcoming Games Section -->
-      <div class="card">
+      <div class="card mb-6">
         <div class="p-4 border-b border-gray-100">
           <h2 class="font-semibold flex items-center gap-2">
             <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
@@ -398,6 +400,38 @@ async function handleGroupUpdated() {
         <p class="text-gray-500 text-center py-8">
           No upcoming games scheduled for this group yet.
         </p>
+      </div>
+
+      <!-- Group Chat (visible to members only) -->
+      <div v-if="isMember && group" class="card">
+        <div class="p-4 border-b border-gray-100">
+          <button
+            class="w-full flex items-center justify-between text-left"
+            @click="showChat = !showChat"
+          >
+            <h2 class="font-semibold flex items-center gap-2">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20,2H4A2,2 0 0,0 2,4V22L6,18H20A2,2 0 0,0 22,16V4A2,2 0 0,0 20,2M20,16H6L4,18V4H20"/>
+              </svg>
+              Group Chat
+            </h2>
+            <svg
+              class="w-5 h-5 text-gray-400 transition-transform"
+              :class="{ 'rotate-180': showChat }"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
+            </svg>
+          </button>
+        </div>
+        <div v-if="showChat" class="h-96">
+          <ChatPanel
+            context-type="group"
+            :context-id="group.id"
+            title="Group Discussion"
+          />
+        </div>
       </div>
     </template>
 

@@ -33,6 +33,7 @@ import DateAvailabilitySummary from '@/components/planning/DateAvailabilitySumma
 import GameSuggestionCard from '@/components/planning/GameSuggestionCard.vue'
 import SessionScheduler from '@/components/planning/SessionScheduler.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
+import ChatPanel from '@/components/chat/ChatPanel.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -41,6 +42,7 @@ const auth = useAuthStore()
 const loading = ref(true)
 const session = ref<PlanningSession | null>(null)
 const errorMessage = ref('')
+const showChat = ref(false)
 
 // Responsive detection for availability view
 const isMobile = ref(false)
@@ -1373,6 +1375,38 @@ function getStatusBadgeClass(status: string) {
           </div>
         </div>
       </template>
+
+      <!-- Planning Chat (for coordination) -->
+      <div v-if="session" class="card">
+        <div class="p-4 border-b border-gray-100">
+          <button
+            class="w-full flex items-center justify-between text-left"
+            @click="showChat = !showChat"
+          >
+            <h2 class="font-semibold flex items-center gap-2">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20,2H4A2,2 0 0,0 2,4V22L6,18H20A2,2 0 0,0 22,16V4A2,2 0 0,0 20,2M20,16H6L4,18V4H20"/>
+              </svg>
+              Planning Chat
+            </h2>
+            <svg
+              class="w-5 h-5 text-gray-400 transition-transform"
+              :class="{ 'rotate-180': showChat }"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
+            </svg>
+          </button>
+        </div>
+        <div v-if="showChat" class="h-96">
+          <ChatPanel
+            context-type="planning"
+            :context-id="session.id"
+            title="Planning Discussion"
+          />
+        </div>
+      </div>
     </template>
 
     <!-- Invite More Members Modal -->
