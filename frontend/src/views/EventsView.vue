@@ -12,6 +12,29 @@ import type { EventSummary, EventSearchFilter } from '@/types/events'
 import type { EventLocation } from '@/types/social'
 
 const router = useRouter()
+
+// Check if a venue is currently active (not expired)
+function isVenueActive(venue: EventLocation): boolean {
+  // Permanent venues are always active
+  if (venue.isPermanent) return true
+
+  const todayParts = new Date().toISOString().split('T')
+  const today = todayParts[0] ?? '' // YYYY-MM-DD
+
+  // Recurring venues: active if today is one of the recurring days
+  if (venue.recurringDays && venue.recurringDays.length > 0) {
+    const currentDayOfWeek = new Date().getDay() // 0=Sunday, 1=Monday, etc.
+    return venue.recurringDays.includes(currentDayOfWeek)
+  }
+
+  // Dated venues: check if within date range
+  if (venue.endDate) {
+    return today <= venue.endDate
+  }
+
+  // No end date and not permanent - consider active
+  return true
+}
 const eventStore = useEventStore()
 const auth = useAuthStore()
 
@@ -173,14 +196,19 @@ onMounted(async () => {
         userPostalCode.value = profile.homePostalCode || null
 
         // Priority 1: If user has an active venue (e.g., at a convention), use that
+        // But only if the venue is still active (not expired)
         if (profile.activeEventLocationId) {
           try {
             const venue = await getLocationById(profile.activeEventLocationId)
-            selectedVenue.value = venue
-            // When venue is selected, don't use other location filters
-            nearbyEnabled.value = false
-            city.value = ''
-            state.value = ''
+            // Only use venue if it's still active
+            if (isVenueActive(venue)) {
+              selectedVenue.value = venue
+              // When venue is selected, don't use other location filters
+              nearbyEnabled.value = false
+              city.value = ''
+              state.value = ''
+            }
+            // If venue is expired, fall through to other location methods
           } catch (venueErr) {
             console.error('Failed to load active venue:', venueErr)
             // Fall through to other location methods
