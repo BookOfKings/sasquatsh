@@ -70,7 +70,7 @@ function toEventSummary(row: Record<string, unknown>): EventSummary {
     difficultyLevel: row.difficulty_level as string | null,
     maxPlayers: row.max_players as number,
     hostIsPlaying: (row.host_is_playing as boolean) ?? true,
-    confirmedCount: (row.registrations as { count: number }[])?.[0]?.count ?? 0,
+    confirmedCount: ((row.registrations as { count: number }[])?.[0]?.count ?? 0) + (row.host_is_playing !== false ? 1 : 0),
     isPublic: row.is_public as boolean,
     isCharityEvent: row.is_charity_event as boolean,
     minAge: row.min_age as number | null,
@@ -112,7 +112,7 @@ function toEvent(row: Record<string, unknown>): Event {
     difficultyLevel: row.difficulty_level as string | null,
     maxPlayers: row.max_players as number,
     hostIsPlaying: (row.host_is_playing as boolean) ?? true,
-    confirmedCount: (row.registrations as unknown[])?.length ?? 0,
+    confirmedCount: ((row.registrations as unknown[])?.length ?? 0) + (row.host_is_playing !== false ? 1 : 0),
     isPublic: row.is_public as boolean,
     isCharityEvent: row.is_charity_event as boolean,
     minAge: row.min_age as number | null,
@@ -181,7 +181,7 @@ export async function getPublicEvents(
     .from('events')
     .select(`
       id, title, game_title, game_category, event_date, start_time,
-      duration_minutes, city, state, difficulty_level, max_players,
+      duration_minutes, city, state, difficulty_level, max_players, host_is_playing,
       is_public, is_charity_event, min_age, status,
       host:users!host_user_id(id, display_name, avatar_url),
       registrations:event_registrations(count),
