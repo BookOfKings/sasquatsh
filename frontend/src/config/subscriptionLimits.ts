@@ -9,6 +9,7 @@ export interface TierLimits {
     tableInfo: boolean      // Can specify hall/room/table per game
     planning: boolean       // Access to game night planning feature
     items: boolean          // Access to items to bring feature
+    chat: boolean           // Access to chat feature
     showAds: boolean        // Show upgrade advertisements
   }
 }
@@ -21,6 +22,7 @@ export const TIER_LIMITS: Record<SubscriptionTier, TierLimits> = {
       tableInfo: false,
       planning: false,
       items: false,
+      chat: false,
       showAds: true,
     },
   },
@@ -31,6 +33,7 @@ export const TIER_LIMITS: Record<SubscriptionTier, TierLimits> = {
       tableInfo: true,
       planning: true,
       items: true,
+      chat: true,
       showAds: false,
     },
   },
@@ -41,6 +44,7 @@ export const TIER_LIMITS: Record<SubscriptionTier, TierLimits> = {
       tableInfo: true,
       planning: true,
       items: true,
+      chat: true,
       showAds: false,
     },
   },
@@ -52,6 +56,7 @@ export const TIER_LIMITS: Record<SubscriptionTier, TierLimits> = {
       tableInfo: true,
       planning: true,
       items: true,
+      chat: true,
       showAds: false,
     },
   },
@@ -85,6 +90,7 @@ export const TIER_FEATURES: Record<SubscriptionTier, string[]> = {
     'Specify table locations per game',
     'Game night planning feature',
     'Items to bring lists',
+    'Event chat',
     'No ads',
   ],
   pro: [
@@ -93,6 +99,7 @@ export const TIER_FEATURES: Record<SubscriptionTier, string[]> = {
     'Specify table locations per game',
     'Game night planning feature',
     'Items to bring lists',
+    'Event chat',
     'No ads',
   ],
   premium: [

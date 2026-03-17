@@ -79,6 +79,13 @@ const canUseItems = computed(() => {
   return hasFeature(hostTier, 'items')
 })
 
+// Check if chat is available (host has Basic+ subscription)
+const canUseChat = computed(() => {
+  if (!event.value?.host) return false
+  const hostTier = event.value.host.subscriptionOverrideTier || event.value.host.subscriptionTier || 'free'
+  return hasFeature(hostTier, 'chat')
+})
+
 // Check if user can add items (host or registered player)
 const canAddItems = computed(() => {
   if (!auth.isAuthenticated.value) return false
@@ -957,8 +964,8 @@ function goToLogin() {
       </div>
     </template>
 
-    <!-- Event Chat (visible to host and registered users) -->
-    <div v-if="isHost || isRegistered" class="card mb-6">
+    <!-- Event Chat (visible to host and registered users if host has Basic+) -->
+    <div v-if="canUseChat && (isHost || isRegistered)" class="card mb-6">
       <div class="p-4 border-b border-gray-100">
         <button
           class="w-full flex items-center justify-between text-left"
@@ -984,7 +991,6 @@ function goToLogin() {
         <ChatPanel
           context-type="event"
           :context-id="eventId"
-          title="Event Chat"
         />
       </div>
     </div>

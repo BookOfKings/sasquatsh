@@ -34,6 +34,7 @@ import GameSuggestionCard from '@/components/planning/GameSuggestionCard.vue'
 import SessionScheduler from '@/components/planning/SessionScheduler.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 import ChatPanel from '@/components/chat/ChatPanel.vue'
+import { getChatStats } from '@/services/chatApi'
 
 const route = useRoute()
 const router = useRouter()
@@ -43,6 +44,7 @@ const loading = ref(true)
 const session = ref<PlanningSession | null>(null)
 const errorMessage = ref('')
 const showChat = ref(false)
+const chatStats = ref<{ count: number; lastMessageAt: string | null }>({ count: 0, lastMessageAt: null })
 
 // Responsive detection for availability view
 const isMobile = ref(false)
@@ -254,6 +256,9 @@ async function loadSession(preserveFormState = false) {
     if (topGame.value) {
       selectedGameId.value = topGame.value.id
     }
+
+    // Load chat stats
+    chatStats.value = await getChatStats('planning', sessionId.value)
   } catch (err) {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to load session'
   } finally {
@@ -667,6 +672,23 @@ function getStatusBadgeClass(status: string) {
     default:
       return 'chip bg-gray-100 text-gray-700'
   }
+}
+
+function formatRelativeTime(isoString: string | null): string {
+  if (!isoString) return ''
+  const date = new Date(isoString)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMins = Math.floor(diffMs / (1000 * 60))
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+  if (diffMins < 1) return 'just now'
+  if (diffMins < 60) return `${diffMins}m ago`
+  if (diffHours < 24) return `${diffHours}h ago`
+  if (diffDays === 1) return 'yesterday'
+  if (diffDays < 7) return `${diffDays}d ago`
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 </script>
 
@@ -1373,18 +1395,26 @@ function getStatusBadgeClass(status: string) {
       </template>
 
       <!-- Planning Chat (for coordination) -->
-      <div v-if="session" class="card">
+      <div v-if="session" class="card mt-6">
         <div class="p-4 border-b border-gray-100">
           <button
             class="w-full flex items-center justify-between text-left"
             @click="showChat = !showChat"
           >
-            <h2 class="font-semibold flex items-center gap-2">
-              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M20,2H4A2,2 0 0,0 2,4V22L6,18H20A2,2 0 0,0 22,16V4A2,2 0 0,0 20,2M20,16H6L4,18V4H20"/>
-              </svg>
-              Planning Chat
-            </h2>
+            <div>
+              <h2 class="font-semibold flex items-center gap-2">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M20,2H4A2,2 0 0,0 2,4V22L6,18H20A2,2 0 0,0 22,16V4A2,2 0 0,0 20,2M20,16H6L4,18V4H20"/>
+                </svg>
+                Planning Chat
+                <span v-if="chatStats.count > 0" class="text-xs font-normal text-gray-500">
+                  ({{ chatStats.count }} message{{ chatStats.count !== 1 ? 's' : '' }})
+                </span>
+              </h2>
+              <p v-if="chatStats.lastMessageAt" class="text-xs text-gray-500 mt-0.5 ml-7">
+                Last message {{ formatRelativeTime(chatStats.lastMessageAt) }}
+              </p>
+            </div>
             <svg
               class="w-5 h-5 text-gray-400 transition-transform"
               :class="{ 'rotate-180': showChat }"
@@ -1399,7 +1429,6 @@ function getStatusBadgeClass(status: string) {
           <ChatPanel
             context-type="planning"
             :context-id="session.id"
-            title="Planning Discussion"
           />
         </div>
       </div>

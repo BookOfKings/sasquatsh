@@ -186,6 +186,34 @@ export function unsubscribeFromChat(channel: RealtimeChannel): void {
   supabase.removeChannel(channel)
 }
 
+// Get chat stats (message count and last message time)
+export async function getChatStats(
+  contextType: ChatContextType,
+  contextId: string
+): Promise<{ count: number; lastMessageAt: string | null }> {
+  const { count, error: countError } = await supabase
+    .from('chat_messages')
+    .select('*', { count: 'exact', head: true })
+    .eq('context_type', contextType)
+    .eq('context_id', contextId)
+    .eq('is_deleted', false)
+
+  const { data: lastMessage } = await supabase
+    .from('chat_messages')
+    .select('created_at')
+    .eq('context_type', contextType)
+    .eq('context_id', contextId)
+    .eq('is_deleted', false)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  return {
+    count: countError ? 0 : (count ?? 0),
+    lastMessageAt: lastMessage?.created_at ?? null,
+  }
+}
+
 // Report a message
 export async function reportChatMessage(
   token: string,

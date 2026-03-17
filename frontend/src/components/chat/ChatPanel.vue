@@ -17,7 +17,6 @@ import UserAvatar from '@/components/common/UserAvatar.vue'
 const props = defineProps<{
   contextType: ChatContextType
   contextId: string
-  title?: string
 }>()
 
 const auth = useAuthStore()
@@ -45,21 +44,30 @@ const reportSuccess = ref(false)
 const currentUserId = computed(() => auth.user.value?.id)
 const canSend = computed(() => newMessage.value.trim().length > 0 && !sending.value)
 
-// Format timestamp
+// Get short timezone abbreviation
+function getTimezoneAbbr(): string {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+  // Get abbreviation like "EST", "PST", etc.
+  const abbr = new Date().toLocaleTimeString('en-US', { timeZoneName: 'short' }).split(' ').pop() || tz
+  return abbr
+}
+
+// Format timestamp with timezone
 function formatTime(isoString: string): string {
   const date = new Date(isoString)
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  const tz = getTimezoneAbbr()
 
   if (diffDays === 0) {
-    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    return `${date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} ${tz}`
   } else if (diffDays === 1) {
-    return `Yesterday ${date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+    return `Yesterday ${date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} ${tz}`
   } else if (diffDays < 7) {
-    return date.toLocaleDateString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })
+    return `${date.toLocaleDateString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })} ${tz}`
   } else {
-    return date.toLocaleDateString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    return `${date.toLocaleDateString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} ${tz}`
   }
 }
 
@@ -278,17 +286,7 @@ watch(
 </script>
 
 <template>
-  <div class="flex flex-col h-full bg-white rounded-lg border border-gray-200 overflow-hidden">
-    <!-- Header -->
-    <div class="flex-shrink-0 px-4 py-3 border-b border-gray-200 bg-gray-50">
-      <h3 class="font-semibold text-gray-900 flex items-center gap-2">
-        <svg class="w-5 h-5 text-gray-500" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M20,2H4A2,2 0 0,0 2,4V22L6,18H20A2,2 0 0,0 22,16V4A2,2 0 0,0 20,2M20,16H6L4,18V4H20"/>
-        </svg>
-        {{ title || 'Chat' }}
-      </h3>
-    </div>
-
+  <div class="flex flex-col h-full bg-white overflow-hidden">
     <!-- Messages Container -->
     <div
       ref="messagesContainer"
@@ -337,6 +335,7 @@ watch(
             :is-founding-member="message.user?.isFoundingMember"
             :is-admin="message.user?.isAdmin"
             size="sm"
+            :show-badge="false"
             class="flex-shrink-0"
           />
 

@@ -61,35 +61,45 @@ Deno.serve(async (req) => {
   }
 
   const url = new URL(req.url)
+  const adminMode = url.searchParams.get('admin')
+  const adminAction = url.searchParams.get('action')
+
+  // Admin endpoints - skip context validation for admin-only operations
+  const isAdminEndpoint = adminMode === 'reports' || adminMode === 'moderation-history' ||
+    adminAction === 'review-report' || adminAction === 'moderate'
+
+  if (isAdminEndpoint) {
+    if (!user.is_admin) {
+      return errorResponse('Admin access required', 403)
+    }
+  }
+
   const contextType = url.searchParams.get('contextType') as ContextType | null
   const contextId = url.searchParams.get('contextId')
 
-  // Validate context parameters
-  if (!contextType || !['event', 'group', 'planning'].includes(contextType)) {
-    return errorResponse('Invalid or missing contextType (must be event, group, or planning)', 400)
-  }
+  // Validate context parameters (skip for admin endpoints)
+  if (!isAdminEndpoint) {
+    if (!contextType || !['event', 'group', 'planning'].includes(contextType)) {
+      return errorResponse('Invalid or missing contextType (must be event, group, or planning)', 400)
+    }
 
-  if (!contextId) {
-    return errorResponse('Missing contextId', 400)
-  }
+    if (!contextId) {
+      return errorResponse('Missing contextId', 400)
+    }
 
-  // Verify user has access to this context
-  const hasAccess = await verifyContextAccess(supabase, contextType, contextId, user.id)
-  if (!hasAccess) {
-    return errorResponse('Not authorized to access this chat', 403)
+    // Verify user has access to this context
+    const hasAccess = await verifyContextAccess(supabase, contextType, contextId, user.id)
+    if (!hasAccess) {
+      return errorResponse('Not authorized to access this chat', 403)
+    }
   }
 
   const blockedUserIds: string[] = user.blocked_user_ids ?? []
 
   // GET - Fetch messages or admin reports
   if (req.method === 'GET') {
-    const adminMode = url.searchParams.get('admin')
-
     // Admin: Fetch reports
     if (adminMode === 'reports') {
-      if (!user.is_admin) {
-        return errorResponse('Admin access required', 403)
-      }
 
       const status = url.searchParams.get('status') // pending, reviewed, action_taken, dismissed
       const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10), 100)
@@ -123,10 +133,6 @@ Deno.serve(async (req) => {
 
     // Admin: Fetch moderation history for a user
     if (adminMode === 'moderation-history') {
-      if (!user.is_admin) {
-        return errorResponse('Admin access required', 403)
-      }
-
       const targetUserId = url.searchParams.get('userId')
       if (!targetUserId) {
         return errorResponse('Missing userId', 400)
@@ -492,14 +498,22 @@ async function verifyContextAccess(
 ): Promise<boolean> {
   switch (contextType) {
     case 'event': {
-      // Check if user is host
+      // Check if user is host and get host's subscription tier
       const { data: event } = await supabase
         .from('events')
-        .select('host_user_id')
+        .select('host_user_id, host:users!host_user_id(subscription_tier)')
         .eq('id', contextId)
         .single()
 
-      if (event?.host_user_id === userId) return true
+      if (!event) return false
+
+      // Chat requires host to have Basic+ subscription
+      const hostTier = (event.host as { subscription_tier: string } | null)?.subscription_tier
+      const hasChatAccess = hostTier && ['basic', 'pro', 'premium'].includes(hostTier)
+      if (!hasChatAccess) return false
+
+      // Host always has access if they have Basic+
+      if (event.host_user_id === userId) return true
 
       // Check if user is registered
       const { data: registration } = await supabase
@@ -514,6 +528,21 @@ async function verifyContextAccess(
     }
 
     case 'group': {
+      // Get group and owner's subscription tier
+      const { data: group } = await supabase
+        .from('groups')
+        .select('created_by_user_id, owner:users!created_by_user_id(subscription_tier, subscription_override_tier)')
+        .eq('id', contextId)
+        .single()
+
+      if (!group) return false
+
+      // Chat requires owner to have Basic+ subscription
+      const ownerData = group.owner as { subscription_tier: string; subscription_override_tier: string | null } | null
+      const ownerTier = ownerData?.subscription_override_tier || ownerData?.subscription_tier || 'free'
+      const hasChatAccess = ['basic', 'pro', 'premium'].includes(ownerTier)
+      if (!hasChatAccess) return false
+
       // Check if user is a group member
       const { data: membership } = await supabase
         .from('group_memberships')
@@ -526,14 +555,23 @@ async function verifyContextAccess(
     }
 
     case 'planning': {
-      // Check if user is creator
+      // Get session and creator's subscription tier
       const { data: session } = await supabase
         .from('planning_sessions')
-        .select('created_by_user_id')
+        .select('created_by_user_id, creator:users!created_by_user_id(subscription_tier, subscription_override_tier)')
         .eq('id', contextId)
         .single()
 
-      if (session?.created_by_user_id === userId) return true
+      if (!session) return false
+
+      // Chat requires creator to have Basic+ subscription
+      const creatorData = session.creator as { subscription_tier: string; subscription_override_tier: string | null } | null
+      const creatorTier = creatorData?.subscription_override_tier || creatorData?.subscription_tier || 'free'
+      const hasChatAccess = ['basic', 'pro', 'premium'].includes(creatorTier)
+      if (!hasChatAccess) return false
+
+      // Creator always has access
+      if (session.created_by_user_id === userId) return true
 
       // Check if user is invitee
       const { data: invitee } = await supabase

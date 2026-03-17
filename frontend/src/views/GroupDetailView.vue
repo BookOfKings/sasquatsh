@@ -429,7 +429,6 @@ async function handleGroupUpdated() {
           <ChatPanel
             context-type="group"
             :context-id="group.id"
-            title="Group Discussion"
           />
         </div>
       </div>
