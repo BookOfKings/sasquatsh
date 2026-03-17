@@ -909,6 +909,21 @@ function getStatusBadgeClass(status: string) {
                   <span class="text-sm text-gray-500">{{ date.availableCount ?? 0 }} available</span>
                 </label>
               </div>
+
+              <!-- Save Availability Button -->
+              <div class="mt-4">
+                <button
+                  class="btn-primary"
+                  :disabled="responding"
+                  @click="submitResponse"
+                >
+                  <svg v-if="responding" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                  </svg>
+                  {{ hasResponded ? 'Update My Availability' : 'Save My Availability' }}
+                </button>
+              </div>
             </div>
 
             <!-- Game Suggestions Section (inline) -->
@@ -922,8 +937,8 @@ function getStatusBadgeClass(status: string) {
                   <span class="text-sm font-normal text-gray-500">(vote for games you want to play)</span>
                 </h3>
                 <!-- Game count indicator -->
-                <span v-if="session.maxGames" class="text-sm text-gray-500">
-                  {{ session.gameSuggestions?.length ?? 0 }} / {{ session.maxGames }} games
+                <span v-if="session.gameSuggestions?.length" class="text-sm text-gray-500">
+                  {{ session.gameSuggestions.length }} game{{ session.gameSuggestions.length === 1 ? '' : 's' }} suggested
                 </span>
               </div>
 
@@ -931,7 +946,7 @@ function getStatusBadgeClass(status: string) {
               <div v-if="!showGameSearch" class="mb-4">
                 <button
                   class="btn-outline text-sm"
-                  :disabled="!!(session.maxParticipants && !currentUserHasSlot) || !!(session.maxGames && (session.gameSuggestions?.length ?? 0) >= session.maxGames)"
+                  :disabled="!!(session.maxParticipants && !currentUserHasSlot)"
                   @click="showGameSearch = true"
                 >
                   <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="currentColor">
@@ -941,9 +956,6 @@ function getStatusBadgeClass(status: string) {
                 </button>
                 <p v-if="session.maxParticipants && !currentUserHasSlot" class="text-sm text-red-500 mt-2">
                   You need a participation slot to suggest games
-                </p>
-                <p v-else-if="session.maxGames && (session.gameSuggestions?.length ?? 0) >= session.maxGames" class="text-sm text-orange-600 mt-2">
-                  Game suggestion limit reached ({{ session.maxGames }} max)
                 </p>
               </div>
               <div v-else class="mb-4">
@@ -1164,22 +1176,6 @@ function getStatusBadgeClass(status: string) {
                 No items added yet.
                 <span v-if="isCreator && isOpen">Add items that attendees can volunteer to bring!</span>
               </div>
-            </div>
-
-            <!-- Save Button -->
-            <div class="pt-4 border-t border-gray-200">
-              <button
-                class="btn-primary"
-                :disabled="responding"
-                @click="submitResponse"
-              >
-                <svg v-if="responding" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                </svg>
-                {{ hasResponded ? 'Update My Availability' : 'Save My Availability' }}
-              </button>
-              <p class="text-xs text-gray-500 mt-2">Game votes are saved automatically when you click them</p>
             </div>
           </div>
         </div>

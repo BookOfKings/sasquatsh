@@ -29,7 +29,9 @@ async function handleEmailLogin() {
 
   if (result.ok) {
     const redirect = route.query.redirect as string
-    router.push(redirect || '/dashboard')
+    // Admin users go to admin panel by default, others go to dashboard
+    const defaultRoute = auth.user.value?.isAdmin ? '/admin' : '/dashboard'
+    router.push(redirect || defaultRoute)
   } else {
     errorMessage.value = result.message
   }
@@ -45,7 +47,9 @@ async function handleGoogleLogin() {
 
   if (result.ok) {
     const redirect = route.query.redirect as string
-    router.push(redirect || '/dashboard')
+    // Admin users go to admin panel by default, others go to dashboard
+    const defaultRoute = auth.user.value?.isAdmin ? '/admin' : '/dashboard'
+    router.push(redirect || defaultRoute)
   } else {
     errorMessage.value = result.message
   }
