@@ -3,6 +3,8 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
   signOut,
   onAuthStateChanged,
@@ -21,12 +23,43 @@ const isLoading = ref(true)
 const error = ref<string | null>(null)
 const isInitialized = ref(false)
 
+// Detect if user is on a mobile device
+function isMobileDevice(): boolean {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+}
+
 // Initialize auth state listener
 function initializeAuth(): Promise<void> {
   return new Promise((resolve) => {
     if (isInitialized.value) {
       resolve()
       return
+    }
+
+    // Handle Google redirect result (for mobile sign-in)
+    // Always check on mobile - sessionStorage doesn't persist across domain redirects
+    if (isMobileDevice()) {
+      getRedirectResult(auth)
+        .then(async (result) => {
+          // result is null if there was no redirect
+          if (result?.user) {
+            console.log('Google redirect successful, syncing user...')
+            try {
+              const idToken = await result.user.getIdToken()
+              user.value = await getCurrentUser(idToken)
+            } catch (syncErr: any) {
+              console.error('Failed to sync Google user with backend:', syncErr)
+              await signOut(auth)
+              error.value = syncErr?.message || 'Failed to create account. Please try again.'
+            }
+          }
+        })
+        .catch((err) => {
+          console.error('Google redirect error:', err.code, err.message)
+          if (err.code) {
+            error.value = getAuthErrorMessage(err.code)
+          }
+        })
     }
 
     onAuthStateChanged(auth, async (fbUser) => {
@@ -130,6 +163,15 @@ async function loginWithGoogle(): Promise<{ ok: boolean; message: string }> {
 
   try {
     const provider = new GoogleAuthProvider()
+
+    // Use redirect for mobile devices (popup doesn't work well on mobile)
+    if (isMobileDevice()) {
+      await signInWithRedirect(auth, provider)
+      // Redirect happens, result handled in initializeAuth via getRedirectResult
+      return { ok: true, message: 'Redirecting to Google...' }
+    }
+
+    // Use popup for desktop
     const result = await signInWithPopup(auth, provider)
 
     // Wait for backend sync to complete

@@ -7,6 +7,8 @@ const showBanner = ref(false)
 
 const CONSENT_KEY = 'sasquatsh_cookie_consent'
 
+type CookieConsentLevel = 'all' | 'essential'
+
 onMounted(() => {
   const consent = localStorage.getItem(CONSENT_KEY)
   if (!consent) {
@@ -14,12 +16,20 @@ onMounted(() => {
   }
 })
 
-function acceptAll() {
+function saveConsent(level: CookieConsentLevel) {
   localStorage.setItem(CONSENT_KEY, JSON.stringify({
-    accepted: true,
+    level,
     timestamp: new Date().toISOString(),
   }))
   showBanner.value = false
+}
+
+function acceptAll() {
+  saveConsent('all')
+}
+
+function essentialOnly() {
+  saveConsent('essential')
 }
 
 function goToCookiePolicy() {
@@ -53,16 +63,22 @@ function goToCookiePolicy() {
               </button>
             </p>
           </div>
-          <div class="flex items-center gap-3 flex-shrink-0">
+          <div class="flex items-center gap-2 sm:gap-3 flex-shrink-0 flex-wrap">
             <button
               @click="goToCookiePolicy"
-              class="px-4 py-2 text-sm text-gray-300 hover:text-white transition-colors"
+              class="px-3 py-2 text-sm text-gray-300 hover:text-white transition-colors"
             >
               Cookie Policy
             </button>
             <button
+              @click="essentialOnly"
+              class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              Essential Only
+            </button>
+            <button
               @click="acceptAll"
-              class="px-6 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors"
+              class="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors"
             >
               Accept All
             </button>

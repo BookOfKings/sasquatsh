@@ -177,19 +177,36 @@ export async function removeSuggestion(
   )
 }
 
+// Update session settings (enable/disable multi-table)
+export async function updateSessionSettings(
+  token: string,
+  sessionId: string,
+  tableCount: number | null
+): Promise<{ message: string; tableCount: number | null }> {
+  return authenticatedRequest<{ message: string; tableCount: number | null }>(
+    `/planning?id=${sessionId}&action=update-settings`,
+    token,
+    {
+      method: 'POST',
+      body: JSON.stringify({ tableCount }),
+    }
+  )
+}
+
 // Finalize planning session and create event
 export async function finalizePlanningSession(
   token: string,
   sessionId: string,
   selectedDateId?: string,
-  selectedGameId?: string
+  selectedGameId?: string,
+  mode?: 'single' | 'multi-table'
 ): Promise<{ eventId: string; message: string }> {
   return authenticatedRequest<{ eventId: string; message: string }>(
     `/planning?id=${sessionId}&action=finalize`,
     token,
     {
       method: 'PUT',
-      body: JSON.stringify({ selectedDateId, selectedGameId }),
+      body: JSON.stringify({ selectedDateId, selectedGameId, mode }),
     }
   )
 }

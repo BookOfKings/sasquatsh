@@ -7,7 +7,7 @@
       <h1 class="text-2xl font-bold text-gray-900 mb-6">Terms of Service</h1>
 
       <div class="prose prose-gray max-w-none">
-        <p class="text-gray-600 mb-4">Last updated: February 2026</p>
+        <p class="text-gray-600 mb-4">Last updated: March 2026</p>
 
         <h2 class="text-lg font-semibold mt-6 mb-3">1. Acceptance of Terms</h2>
         <p class="text-gray-600 mb-4">
@@ -55,14 +55,36 @@
           incidental, or consequential damages.
         </p>
 
-        <h2 class="text-lg font-semibold mt-6 mb-3">7. Changes to Terms</h2>
+        <h2 class="text-lg font-semibold mt-6 mb-3">7. Third-Party Content and Services</h2>
+        <p class="text-gray-600 mb-4">
+          Sasquatsh displays board game information, including images, descriptions, and metadata,
+          sourced from BoardGameGeek (BGG). BoardGameGeek is a separate company and is not affiliated
+          with, endorsed by, or connected to Sasquatsh in any way. All board game data is provided
+          for informational purposes to help users organize their gaming events.
+        </p>
+        <p class="text-gray-600 mb-4">
+          Board game names, logos, images, and related content displayed on Sasquatsh are the property
+          of their respective publishers and rights holders. This content is displayed under fair use
+          principles for the purpose of identification, commentary, and to facilitate the organization
+          of gaming events. Sasquatsh does not claim ownership of any third-party intellectual property.
+        </p>
+
+        <h2 class="text-lg font-semibold mt-6 mb-3">8. Age Requirements</h2>
+        <p class="text-gray-600 mb-4">
+          Sasquatsh is intended for users who are at least 13 years of age. By creating an account,
+          you confirm that you are at least 13 years old. We do not knowingly collect personal
+          information from children under 13. If we become aware that a user is under 13, we will
+          take steps to remove their account and personal information.
+        </p>
+
+        <h2 class="text-lg font-semibold mt-6 mb-3">9. Changes to Terms</h2>
         <p class="text-gray-600 mb-4">
           We reserve the right to modify these terms at any time. We will notify users of significant
           changes by posting a notice on our website. Your continued use of the service after changes
           constitutes acceptance of the modified terms.
         </p>
 
-        <h2 class="text-lg font-semibold mt-6 mb-3">8. Contact Us</h2>
+        <h2 class="text-lg font-semibold mt-6 mb-3">10. Contact Us</h2>
         <p class="text-gray-600 mb-4">
           If you have any questions about these Terms of Service, please contact us at
           support@sasquatsh.com.

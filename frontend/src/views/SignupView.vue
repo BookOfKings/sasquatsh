@@ -14,6 +14,7 @@ const form = reactive({
   email: '',
   password: '',
   confirmPassword: '',
+  ageConfirmed: false,
 })
 
 // Pre-fill email from query param (e.g., from invitation link)
@@ -115,6 +116,11 @@ async function getRecaptchaToken(): Promise<string | undefined> {
 async function handleEmailSignup() {
   if (!form.displayName || !form.username || !form.email || !form.password) {
     errorMessage.value = 'Please fill in all fields'
+    return
+  }
+
+  if (!form.ageConfirmed) {
+    errorMessage.value = 'You must confirm you are at least 13 years old'
     return
   }
 
@@ -316,7 +322,21 @@ function goToLogin() {
           />
         </div>
 
-        <button type="submit" class="btn-primary w-full" :disabled="loading">
+        <div class="flex items-start gap-2">
+          <input
+            id="ageConfirmed"
+            v-model="form.ageConfirmed"
+            type="checkbox"
+            class="mt-1 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            :disabled="loading"
+          />
+          <label for="ageConfirmed" class="text-sm text-gray-600">
+            I confirm that I am at least 13 years old and agree to the
+            <router-link to="/terms" class="text-primary-500 hover:text-primary-600">Terms of Service</router-link>
+          </label>
+        </div>
+
+        <button type="submit" class="btn-primary w-full" :disabled="loading || !form.ageConfirmed">
           <svg v-if="loading" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>

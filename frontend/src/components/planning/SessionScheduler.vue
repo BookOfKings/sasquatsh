@@ -13,6 +13,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'save', schedule: ScheduleEntry[], preferences: HostPreference[]): void
+  (e: 'update:scheduleCount', count: number): void
 }>()
 
 // Schedule grid state: key = "tableNumber-slotIndex", value = suggestionId
@@ -217,23 +218,21 @@ function onDrop(e: DragEvent, tableNumber: number, slotIndex: number) {
 
 // Count scheduled games
 const scheduledCount = computed(() => scheduleMap.value.size)
+
+// Emit schedule count changes for parent validation
+watch(
+  scheduledCount,
+  (count) => {
+    emit('update:scheduleCount', count)
+  },
+  { immediate: true }
+)
 </script>
 
 <template>
   <div class="space-y-6">
-    <div class="flex items-center justify-between">
+    <div>
       <h3 class="font-semibold text-lg">Schedule Games to Tables</h3>
-      <button
-        class="btn-primary"
-        :disabled="saving || scheduledCount === 0"
-        @click="handleSave"
-      >
-        <svg v-if="saving" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-        </svg>
-        Save Schedule
-      </button>
     </div>
 
     <p class="text-sm text-gray-600">
@@ -391,17 +390,30 @@ const scheduledCount = computed(() => scheduleMap.value.size)
       </div>
     </div>
 
-    <!-- Summary -->
+    <!-- Summary & Save -->
     <div class="bg-gray-50 rounded-lg p-4">
-      <div class="flex items-center gap-6 text-sm">
-        <div>
-          <span class="text-gray-500">Scheduled:</span>
-          <span class="font-medium ml-1">{{ scheduledCount }} game{{ scheduledCount === 1 ? '' : 's' }}</span>
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-6 text-sm">
+          <div>
+            <span class="text-gray-500">Scheduled:</span>
+            <span class="font-medium ml-1">{{ scheduledCount }} game{{ scheduledCount === 1 ? '' : 's' }}</span>
+          </div>
+          <div>
+            <span class="text-gray-500">Host playing:</span>
+            <span class="font-medium ml-1">{{ hostPreferenceSet.size }} session{{ hostPreferenceSet.size === 1 ? '' : 's' }}</span>
+          </div>
         </div>
-        <div>
-          <span class="text-gray-500">Host playing:</span>
-          <span class="font-medium ml-1">{{ hostPreferenceSet.size }} session{{ hostPreferenceSet.size === 1 ? '' : 's' }}</span>
-        </div>
+        <button
+          class="btn-primary"
+          :disabled="saving || scheduledCount === 0"
+          @click="handleSave"
+        >
+          <svg v-if="saving" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+          Save Schedule
+        </button>
       </div>
     </div>
   </div>

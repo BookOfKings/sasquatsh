@@ -2,7 +2,6 @@
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
-import { getEffectiveTier } from '@/types/user'
 import { hasFeature } from '@/config/subscriptionLimits'
 import {
   getPlanningSession,
@@ -20,6 +19,7 @@ import {
   addPlanningInvitees,
   scheduleGameSessions,
   setHostSessionPreferences,
+  updateSessionSettings,
 } from '@/services/planningApi'
 import { getGroupMembers } from '@/services/groupsApi'
 import { supabase } from '@/services/supabase'
@@ -71,15 +71,27 @@ const showGameSearch = ref(false)
 const finalizing = ref(false)
 const selectedDateId = ref<string | null>(null)
 const selectedGameId = ref<string | null>(null)
+const finalizeMode = ref<'single' | 'multi-table'>('single') // Mode override for finalization
 
 // Multi-table scheduling state
 const savingSchedule = ref(false)
 const scheduleEntries = ref<ScheduleEntry[]>([])
 const hostPreferences = ref<HostPreference[]>([])
+const localScheduleCount = ref(0) // Track live schedule count from SessionScheduler
+
+// Multi-table settings state
+const updatingSettings = ref(false)
+const desiredTableCount = ref<number>(2)
 
 // Computed: is this a multi-table session?
 const isMultiTable = computed(() => {
   return (session.value?.tableCount ?? 0) >= 2
+})
+
+// Computed: max tables based on creator's subscription tier
+const maxTables = computed(() => {
+  const tier = session.value?.createdBy?.subscriptionOverrideTier || session.value?.createdBy?.subscriptionTier || 'free'
+  return tier === 'pro' || tier === 'premium' ? 10 : 5
 })
 
 // Items to bring state
@@ -97,6 +109,31 @@ const showInviteModal = ref(false)
 const loadingMembers = ref(false)
 const groupMembers = ref<GroupMember[]>([])
 const selectedMemberIds = ref<string[]>([])
+
+// Wizard step state
+const currentStep = ref(1)
+const steps = computed(() => {
+  const baseSteps = [
+    { id: 1, name: 'Dates', icon: 'M19,19H5V8H19M16,1V3H8V1H6V3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3H18V1' },
+    { id: 2, name: 'Games', icon: 'M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z' },
+    { id: 3, name: 'Items', icon: 'M20,6H16V4C16,2.89 15.11,2 14,2H10C8.89,2 8,2.89 8,4V6H4C2.89,6 2,6.89 2,8V19C2,20.11 2.89,21 4,21H20C21.11,21 22,20.11 22,19V8C22,6.89 21.11,6 20,6M10,4H14V6H10V4Z' },
+    { id: 4, name: 'People', icon: 'M16,13C15.71,13 15.38,13 15.03,13.05C16.19,13.89 17,15 17,16.5V19H23V16.5C23,14.17 18.33,13 16,13M8,13C5.67,13 1,14.17 1,16.5V19H15V16.5C15,14.17 10.33,13 8,13M8,11A3,3 0 0,0 11,8A3,3 0 0,0 8,5A3,3 0 0,0 5,8A3,3 0 0,0 8,11M16,11A3,3 0 0,0 19,8A3,3 0 0,0 16,5A3,3 0 0,0 13,8A3,3 0 0,0 16,11Z' },
+  ]
+  // Add finalize step for creator
+  if (isCreator.value) {
+    baseSteps.push({ id: 5, name: 'Finalize', icon: 'M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z' })
+  }
+  return baseSteps
+})
+
+// Step completion status
+const stepCompletion = computed((): Record<number, boolean> => ({
+  1: hasResponded.value, // Dates - completed if user responded
+  2: (session.value?.gameSuggestions?.length ?? 0) > 0, // Games - completed if any games suggested
+  3: (session.value?.items?.length ?? 0) > 0, // Items - completed if any items exist
+  4: true, // People - always "complete" (just viewing)
+  5: session.value?.status === 'finalized', // Finalize - completed if finalized
+}))
 const invitingMembers = ref(false)
 const sendInviteEmails = ref(true)
 
@@ -133,11 +170,13 @@ async function checkCanInviteMembers() {
   canInviteMembers.value = membership?.role === 'owner' || membership?.role === 'admin'
 }
 
-// Check if user can use items feature (Pro+ only)
-const canUseItems = computed(() => {
-  if (!auth.user.value) return false
-  const tier = getEffectiveTier(auth.user.value)
-  return hasFeature(tier, 'items')
+// Check if session creator has paid tier (Basic+) - grants all participants access to items feature
+const creatorHasPaidTier = computed(() => {
+  if (!session.value?.createdBy) return false
+  const creatorTier = session.value.createdBy.subscriptionOverrideTier
+    || session.value.createdBy.subscriptionTier
+    || 'free'
+  return hasFeature(creatorTier, 'items')
 })
 
 const currentUserInvitee = computed(() => {
@@ -256,6 +295,10 @@ async function loadSession(preserveFormState = false) {
     if (topGame.value) {
       selectedGameId.value = topGame.value.id
     }
+
+    // Initialize finalize mode and table count based on session type
+    finalizeMode.value = isMultiTable.value ? 'multi-table' : 'single'
+    desiredTableCount.value = session.value.tableCount ?? 2
 
     // Load chat stats
     chatStats.value = await getChatStats('planning', sessionId.value)
@@ -410,6 +453,9 @@ async function handleSaveSchedule(schedule: ScheduleEntry[], preferences: HostPr
     scheduleEntries.value = schedule
     hostPreferences.value = preferences
 
+    // Reload session to get updated scheduledSessions from server
+    await loadSession(true)
+
     successMessage.value = 'Schedule saved successfully'
     setTimeout(() => { successMessage.value = '' }, 3000)
   } catch (err) {
@@ -422,7 +468,7 @@ async function handleSaveSchedule(schedule: ScheduleEntry[], preferences: HostPr
 async function handleFinalize() {
   if (!session.value || !selectedDateId.value) return
 
-  // For multi-table sessions, ensure schedule is saved
+  // For multi-table mode, ensure schedule is saved
   if (isMultiTable.value && scheduleEntries.value.length === 0) {
     errorMessage.value = 'Please schedule games to tables before finalizing'
     return
@@ -435,11 +481,13 @@ async function handleFinalize() {
     const token = await auth.getIdToken()
     if (!token) return
 
+    const mode = isMultiTable.value ? 'multi-table' : 'single'
     const result = await finalizePlanningSession(
       token,
       session.value.id,
       selectedDateId.value,
-      selectedGameId.value || undefined
+      !isMultiTable.value ? (selectedGameId.value || undefined) : undefined,
+      mode // Pass the mode to backend
     )
 
     router.push(`/games/${result.eventId}`)
@@ -462,6 +510,54 @@ async function handleCancel() {
     await loadSession()
   } catch (err) {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to cancel session'
+  }
+}
+
+async function handleToggleMultiTable(enable: boolean) {
+  if (!session.value) return
+
+  updatingSettings.value = true
+  errorMessage.value = ''
+
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+
+    const tableCount = enable ? desiredTableCount.value : null
+    await updateSessionSettings(token, session.value.id, tableCount)
+
+    // Update finalize mode to match
+    finalizeMode.value = enable ? 'multi-table' : 'single'
+
+    successMessage.value = enable ? 'Multi-table mode enabled!' : 'Multi-table mode disabled'
+    await loadSession(true)
+    setTimeout(() => { successMessage.value = '' }, 3000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to update session settings'
+  } finally {
+    updatingSettings.value = false
+  }
+}
+
+async function handleUpdateTableCount() {
+  if (!session.value || !isMultiTable.value) return
+
+  updatingSettings.value = true
+  errorMessage.value = ''
+
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+
+    await updateSessionSettings(token, session.value.id, desiredTableCount.value)
+
+    successMessage.value = 'Table count updated!'
+    await loadSession(true)
+    setTimeout(() => { successMessage.value = '' }, 3000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to update table count'
+  } finally {
+    updatingSettings.value = false
   }
 }
 
@@ -661,19 +757,6 @@ function formatTime(timeStr: string): string {
   return `${hour12}:${minutes.toString().padStart(2, '0')} ${period}`
 }
 
-function getStatusBadgeClass(status: string) {
-  switch (status) {
-    case 'open':
-      return 'chip-success'
-    case 'finalized':
-      return 'chip bg-blue-100 text-blue-700'
-    case 'cancelled':
-      return 'chip-error'
-    default:
-      return 'chip bg-gray-100 text-gray-700'
-  }
-}
-
 function formatRelativeTime(isoString: string | null): string {
   if (!isoString) return ''
   const date = new Date(isoString)
@@ -774,34 +857,77 @@ function formatRelativeTime(isoString: string | null): string {
       <!-- Header -->
       <div class="card mb-6">
         <div class="p-6">
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <div class="flex items-center gap-3 mb-2">
-                <h1 class="text-2xl font-bold">{{ session.title }}</h1>
-                <span :class="getStatusBadgeClass(session.status)">{{ session.status }}</span>
-              </div>
-              <p v-if="session.description" class="text-gray-600 mb-3">{{ session.description }}</p>
-              <div class="flex items-center gap-4 text-sm text-gray-500">
-                <span class="flex items-center gap-1">
-                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
-                  </svg>
-                  Created by {{ session.createdBy?.displayName || session.createdBy?.username || 'Unknown' }}
-                </span>
-                <span class="flex items-center gap-1">
-                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22C6.47,22 2,17.5 2,12A10,10 0 0,1 12,2M12.5,7V12.25L17,14.92L16.25,16.15L11,13V7H12.5Z"/>
-                  </svg>
-                  Deadline: {{ formatDateTime(session.responseDeadline) }}
-                  <span v-if="deadlinePassed" class="text-red-500 font-medium">(Passed)</span>
-                </span>
-              </div>
-            </div>
-            <div v-if="isCreator && isOpen" class="flex gap-2">
-              <button class="btn-ghost text-red-500" @click="handleCancel">
-                Cancel
-              </button>
-            </div>
+          <!-- Title row with cancel button -->
+          <div class="flex items-start justify-between gap-4 mb-3">
+            <h1 class="text-2xl font-bold text-gray-900">{{ session.title }}</h1>
+            <button
+              v-if="isCreator && isOpen"
+              class="text-sm text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
+              @click="handleCancel"
+            >
+              Cancel Session
+            </button>
+          </div>
+
+          <!-- Description -->
+          <p v-if="session.description" class="text-gray-600 mb-4">{{ session.description }}</p>
+
+          <!-- Metadata row -->
+          <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-500">
+            <!-- Status indicator -->
+            <span class="flex items-center gap-1.5">
+              <span
+                class="w-2 h-2 rounded-full"
+                :class="{
+                  'bg-green-500': session.status === 'open',
+                  'bg-blue-500': session.status === 'finalized',
+                  'bg-red-500': session.status === 'cancelled',
+                  'bg-gray-400': !['open', 'finalized', 'cancelled'].includes(session.status)
+                }"
+              />
+              <span class="capitalize">{{ session.status }}</span>
+            </span>
+
+            <!-- Multi-table indicator -->
+            <span v-if="isMultiTable" class="flex items-center gap-1.5 text-purple-600">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M4,4H20A2,2 0 0,1 22,6V18A2,2 0 0,1 20,20H4A2,2 0 0,1 2,18V6A2,2 0 0,1 4,4M4,6V18H11V6H4M20,18V6H18V18H20M13,6V18H16V6H13Z"/>
+              </svg>
+              <span>Multi-Table</span>
+            </span>
+
+            <!-- Separator dot -->
+            <span class="text-gray-300 hidden sm:inline">·</span>
+
+            <!-- Creator -->
+            <span class="flex items-center gap-1.5">
+              <UserAvatar
+                :avatar-url="session.createdBy?.avatarUrl ?? undefined"
+                :display-name="session.createdBy?.displayName ?? undefined"
+                :username="session.createdBy?.username ?? undefined"
+                size="xs"
+                :is-founding-member="session.createdBy?.isFoundingMember"
+                :is-admin="session.createdBy?.isAdmin"
+              />
+              <span>{{ session.createdBy?.displayName || session.createdBy?.username || 'Unknown' }}</span>
+            </span>
+
+            <!-- Separator dot -->
+            <span class="text-gray-300 hidden sm:inline">·</span>
+
+            <!-- Deadline -->
+            <span
+              class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium"
+              :class="deadlinePassed
+                ? 'bg-red-100 text-red-700'
+                : 'bg-amber-50 text-amber-700 border border-amber-200'"
+            >
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22C6.47,22 2,17.5 2,12A10,10 0 0,1 12,2M12.5,7V12.25L17,14.92L16.25,16.15L11,13V7H12.5Z"/>
+              </svg>
+              <span v-if="deadlinePassed">Deadline passed</span>
+              <span v-else>Respond by {{ formatDateTime(session.responseDeadline) }}</span>
+            </span>
           </div>
 
           <!-- Response Progress -->
@@ -874,28 +1000,66 @@ function formatRelativeTime(isoString: string | null): string {
 
       <!-- Active Session -->
       <template v-else>
-        <!-- Your Preferences (for all participants) -->
-        <div v-if="currentUserInvitee || isCreator" class="card mb-6">
+        <!-- Stepper Navigation -->
+        <div class="card mb-6">
+          <div class="p-4">
+            <div class="flex items-center justify-between">
+              <button
+                v-for="(step, index) in steps"
+                :key="step.id"
+                class="flex-1 flex flex-col items-center gap-1 py-2 px-1 rounded-lg transition-colors relative"
+                :class="[
+                  currentStep === step.id ? 'bg-primary-50' : 'hover:bg-gray-50',
+                  index < steps.length - 1 ? '' : ''
+                ]"
+                @click="currentStep = step.id"
+              >
+                <!-- Step circle with icon -->
+                <div
+                  class="w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+                  :class="[
+                    currentStep === step.id ? 'bg-primary-500 text-white' :
+                    stepCompletion[step.id] ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'
+                  ]"
+                >
+                  <svg v-if="stepCompletion[step.id] && currentStep !== step.id" class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+                  </svg>
+                  <svg v-else class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                    <path :d="step.icon"/>
+                  </svg>
+                </div>
+                <!-- Step label -->
+                <span
+                  class="text-xs font-medium"
+                  :class="currentStep === step.id ? 'text-primary-700' : 'text-gray-500'"
+                >
+                  {{ step.name }}
+                </span>
+                <!-- Connector line -->
+                <div
+                  v-if="index < steps.length - 1"
+                  class="absolute top-6 left-[60%] w-[80%] h-0.5"
+                  :class="stepCompletion[step.id] ? 'bg-green-200' : 'bg-gray-200'"
+                />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 1: Dates -->
+        <div v-show="currentStep === 1" class="card mb-6">
           <div class="p-6 border-b border-gray-100">
-            <h2 class="font-semibold">Your Preferences</h2>
-            <p class="text-sm text-gray-500 mt-1">Select your available dates and suggest/vote on games</p>
+            <h2 class="font-semibold">Date Availability</h2>
+            <p class="text-sm text-gray-500 mt-1">Select which dates work for you</p>
           </div>
           <div class="p-6">
             <div v-if="hasResponded" class="text-green-600 flex items-center gap-2 mb-4">
               <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M11,16.5L6.5,12L7.91,10.59L11,13.67L16.59,8.09L18,9.5L11,16.5Z"/>
               </svg>
-              You have already responded. You can update your preferences below.
+              You have already responded. You can update your availability below.
             </div>
-
-            <!-- Date Availability Section -->
-            <div class="mb-6">
-              <h3 class="font-medium text-gray-700 mb-3 flex items-center gap-2">
-                <svg class="w-5 h-5 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19,19H5V8H19M16,1V3H8V1H6V3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3H18V1"/>
-                </svg>
-                Date Availability
-              </h3>
 
               <!-- Cannot Attend Checkbox -->
               <label class="flex items-center gap-3 mb-4 p-4 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50">
@@ -932,40 +1096,71 @@ function formatRelativeTime(isoString: string | null): string {
                 </label>
               </div>
 
-              <!-- Save Availability Button -->
-              <div class="mt-4">
-                <button
-                  class="btn-primary"
-                  :disabled="responding"
-                  @click="submitResponse"
-                >
-                  <svg v-if="responding" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                  </svg>
-                  {{ hasResponded ? 'Update My Availability' : 'Save My Availability' }}
-                </button>
-              </div>
+            <!-- Save Availability Button -->
+            <div class="mt-4 flex items-center gap-4">
+              <button
+                class="btn-primary"
+                :disabled="responding"
+                @click="submitResponse"
+              >
+                <svg v-if="responding" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                {{ hasResponded ? 'Update My Availability' : 'Save My Availability' }}
+              </button>
+              <button class="btn-outline" @click="currentStep = 2">
+                Next: Games
+                <svg class="w-4 h-4 ml-1" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"/>
+                </svg>
+              </button>
             </div>
 
-            <!-- Game Suggestions Section (inline) -->
-            <div class="mb-6 pt-6 border-t border-gray-200">
-              <div class="flex items-center justify-between mb-3">
-                <h3 class="font-medium text-gray-700 flex items-center gap-2">
-                  <svg class="w-5 h-5 text-secondary-500" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
-                  </svg>
-                  Game Suggestions
-                  <span class="text-sm font-normal text-gray-500">(vote for games you want to play)</span>
-                </h3>
-                <!-- Game count indicator -->
-                <span v-if="session.gameSuggestions?.length" class="text-sm text-gray-500">
-                  {{ session.gameSuggestions.length }} game{{ session.gameSuggestions.length === 1 ? '' : 's' }} suggested
-                </span>
+            <!-- Creator: Availability Overview -->
+            <div v-if="isCreator && session.dates && session.invitees" class="mt-6 pt-6 border-t border-gray-200">
+              <h3 class="font-medium text-gray-700 mb-3">Everyone's Availability</h3>
+              <div :class="{ 'overflow-x-auto': !useSummaryView }">
+                <DateAvailabilitySummary
+                  v-if="useSummaryView"
+                  :dates="session.dates"
+                  :invitees="session.invitees"
+                  :selected-date-id="selectedDateId"
+                  :current-user-id="auth.user.value?.id"
+                  :pending-availability="responseForm.dateAvailability"
+                  @select-date="selectedDateId = $event"
+                />
+                <DateAvailabilityMatrix
+                  v-else
+                  :dates="session.dates"
+                  :invitees="session.invitees"
+                  :selected-date-id="selectedDateId"
+                  :current-user-id="auth.user.value?.id"
+                  :pending-availability="responseForm.dateAvailability"
+                  @select-date="selectedDateId = $event"
+                />
               </div>
+            </div>
+          </div>
+        </div>
 
-              <!-- Game Search -->
-              <div v-if="!showGameSearch" class="mb-4">
+        <!-- Step 2: Games -->
+        <div v-show="currentStep === 2" class="card mb-6">
+          <div class="p-6 border-b border-gray-100">
+            <h2 class="font-semibold">Game Suggestions</h2>
+            <p class="text-sm text-gray-500 mt-1">Suggest and vote on games you want to play</p>
+          </div>
+          <div class="p-6">
+            <!-- Game count header -->
+            <div class="flex items-center justify-between mb-4">
+              <span class="text-sm text-gray-500">Vote for all games you'd like to play. Games with 2+ votes will be included!</span>
+              <span v-if="session.gameSuggestions?.length" class="text-sm text-gray-500">
+                {{ session.gameSuggestions.length }} game{{ session.gameSuggestions.length === 1 ? '' : 's' }}
+              </span>
+            </div>
+
+            <!-- Game Search -->
+            <div v-if="!showGameSearch" class="mb-4">
                 <button
                   class="btn-outline text-sm"
                   :disabled="!!(session.maxParticipants && !currentUserHasSlot)"
@@ -1038,27 +1233,52 @@ function formatRelativeTime(isoString: string | null): string {
                 Vote for all games you'd like to play. Games with 2+ votes will be included in the event!
               </p>
 
-              <!-- Suggested Games List (compact) -->
-              <div v-if="session.gameSuggestions && session.gameSuggestions.length > 0" class="space-y-2">
-                <GameSuggestionCard
-                  v-for="suggestion in [...session.gameSuggestions].sort((a, b) => b.voteCount - a.voteCount)"
-                  :key="suggestion.id"
-                  :suggestion="suggestion"
-                  :selectable="false"
-                  :selected="false"
-                  :removable="canRemoveSuggestion(suggestion)"
-                  :voting-disabled="!!(session.maxParticipants && !currentUserHasSlot)"
-                  @vote="handleVoteGame(suggestion)"
-                  @remove="handleRemoveSuggestion(suggestion)"
-                />
-              </div>
-              <div v-else class="text-gray-500 text-sm py-2">
-                No games suggested yet. Be the first to suggest a game!
-              </div>
+            <!-- Suggested Games List (compact) -->
+            <div v-if="session.gameSuggestions && session.gameSuggestions.length > 0" class="space-y-2">
+              <GameSuggestionCard
+                v-for="suggestion in [...session.gameSuggestions].sort((a, b) => b.voteCount - a.voteCount)"
+                :key="suggestion.id"
+                :suggestion="suggestion"
+                :selectable="isCreator"
+                :selected="selectedGameId === suggestion.id"
+                :removable="canRemoveSuggestion(suggestion)"
+                :voting-disabled="!!(session.maxParticipants && !currentUserHasSlot)"
+                @vote="handleVoteGame(suggestion)"
+                @select="selectedGameId = suggestion.id"
+                @remove="handleRemoveSuggestion(suggestion)"
+              />
+            </div>
+            <div v-else class="text-gray-500 text-sm py-2">
+              No games suggested yet. Be the first to suggest a game!
             </div>
 
-            <!-- Items to Bring Section (Pro+ feature) -->
-            <div v-if="canUseItems" class="mb-6 pt-6 border-t border-gray-200">
+            <!-- Navigation buttons -->
+            <div class="mt-6 pt-4 border-t border-gray-200 flex items-center justify-between">
+              <button class="btn-ghost" @click="currentStep = 1">
+                <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M15.41,16.58L10.83,12L15.41,7.41L14,6L8,12L14,18L15.41,16.58Z"/>
+                </svg>
+                Back: Dates
+              </button>
+              <button class="btn-outline" @click="currentStep = 3">
+                Next: Items
+                <svg class="w-4 h-4 ml-1" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: Items -->
+        <div v-show="currentStep === 3" class="card mb-6">
+          <div class="p-6 border-b border-gray-100">
+            <h2 class="font-semibold">Items to Bring</h2>
+            <p class="text-sm text-gray-500 mt-1">Claim items you'll bring to the event</p>
+          </div>
+          <div class="p-6">
+            <!-- Items to Bring Section (available when creator has Basic+ tier) -->
+            <div v-if="creatorHasPaidTier" class="mb-6 pt-6 border-t border-gray-200">
               <h3 class="font-medium text-gray-700 mb-3 flex items-center gap-2">
                 <svg class="w-5 h-5 text-green-500" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M20,6H16V4C16,2.89 15.11,2 14,2H10C8.89,2 8,2.89 8,4V6H4C2.89,6 2,6.89 2,8V19C2,20.11 2.89,21 4,21H20C21.11,21 22,20.11 22,19V8C22,6.89 21.11,6 20,6M10,4H14V6H10V4Z"/>
@@ -1067,8 +1287,8 @@ function formatRelativeTime(isoString: string | null): string {
                 <span class="text-sm font-normal text-gray-500">(claim items you'll bring)</span>
               </h3>
 
-              <!-- Add Item Form (Creator only) -->
-              <div v-if="isCreator && isOpen" class="mb-4">
+              <!-- Add Item Form (available to all participants when creator has Basic+ tier) -->
+              <div v-if="creatorHasPaidTier && isOpen" class="mb-4">
                 <button v-if="!showAddItemForm" class="btn-outline text-sm" @click="showAddItemForm = true">
                   <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/>
@@ -1180,9 +1400,9 @@ function formatRelativeTime(isoString: string | null): string {
                       </button>
                     </template>
 
-                    <!-- Remove Button (Creator only) -->
+                    <!-- Remove Button (Creator or item adder) -->
                     <button
-                      v-if="isCreator && isOpen"
+                      v-if="(isCreator || item.addedByUserId === auth.user.value?.id) && isOpen"
                       class="btn-ghost text-gray-400 hover:text-red-500 p-1"
                       title="Remove item"
                       @click="handleRemoveItem(item)"
@@ -1196,69 +1416,35 @@ function formatRelativeTime(isoString: string | null): string {
               </div>
               <div v-else class="text-gray-500 text-sm py-2">
                 No items added yet.
-                <span v-if="isCreator && isOpen">Add items that attendees can volunteer to bring!</span>
+                <span v-if="creatorHasPaidTier && isOpen">Add items that attendees can volunteer to bring!</span>
               </div>
             </div>
-          </div>
-        </div>
 
-        <!-- Date Availability (for creator overview) -->
-        <div v-if="isCreator && session.dates && session.invitees" class="card mb-6">
-          <div class="p-6 border-b border-gray-100">
-            <h2 class="font-semibold">Availability Overview</h2>
-            <p class="text-sm text-gray-500">
-              {{ useSummaryView ? 'Click a date to see who\'s available' : 'Overview of everyone\'s availability' }}
-            </p>
-          </div>
-          <div class="p-6" :class="{ 'overflow-x-auto': !useSummaryView }">
-            <!-- Summary View (mobile or >10 invitees) -->
-            <DateAvailabilitySummary
-              v-if="useSummaryView"
-              :dates="session.dates"
-              :invitees="session.invitees"
-              :selected-date-id="selectedDateId"
-              :current-user-id="auth.user.value?.id"
-              :pending-availability="responseForm.dateAvailability"
-              @select-date="selectedDateId = $event"
-            />
-            <!-- Matrix View (desktop with <=10 invitees) -->
-            <DateAvailabilityMatrix
-              v-else
-              :dates="session.dates"
-              :invitees="session.invitees"
-              :selected-date-id="selectedDateId"
-              :current-user-id="auth.user.value?.id"
-              :pending-availability="responseForm.dateAvailability"
-              @select-date="selectedDateId = $event"
-            />
-          </div>
-        </div>
+            <!-- Items feature not available message -->
+            <div v-if="!creatorHasPaidTier" class="bg-gray-50 rounded-lg p-4 text-center">
+              <p class="text-gray-600 text-sm">Items feature requires the session host to have a Basic subscription or higher.</p>
+            </div>
 
-        <!-- Game Suggestions Overview (for creator to select final game) -->
-        <div v-if="isCreator && session.gameSuggestions && session.gameSuggestions.length > 0" class="card mb-6">
-          <div class="p-6 border-b border-gray-100">
-            <h2 class="font-semibold">Game Selection</h2>
-            <p class="text-sm text-gray-500">Select a game to include in the final event</p>
-          </div>
-          <div class="p-6">
-            <div class="space-y-3">
-              <GameSuggestionCard
-                v-for="suggestion in [...session.gameSuggestions].sort((a, b) => b.voteCount - a.voteCount)"
-                :key="suggestion.id"
-                :suggestion="suggestion"
-                :selectable="true"
-                :selected="selectedGameId === suggestion.id"
-                :removable="canRemoveSuggestion(suggestion)"
-                @vote="handleVoteGame(suggestion)"
-                @select="selectedGameId = suggestion.id"
-                @remove="handleRemoveSuggestion(suggestion)"
-              />
+            <!-- Navigation buttons -->
+            <div class="mt-6 pt-4 border-t border-gray-200 flex items-center justify-between">
+              <button class="btn-ghost" @click="currentStep = 2">
+                <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M15.41,16.58L10.83,12L15.41,7.41L14,6L8,12L14,18L15.41,16.58Z"/>
+                </svg>
+                Back: Games
+              </button>
+              <button class="btn-outline" @click="currentStep = 4">
+                Next: People
+                <svg class="w-4 h-4 ml-1" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"/>
+                </svg>
+              </button>
             </div>
           </div>
         </div>
 
-        <!-- Invitees List -->
-        <div class="card mb-6">
+        <!-- Step 4: People/Invitees -->
+        <div v-show="currentStep === 4" class="card mb-6">
           <div class="p-6 border-b border-gray-100 flex items-start justify-between">
             <div>
               <h2 class="font-semibold">Invited Members</h2>
@@ -1285,7 +1471,13 @@ function formatRelativeTime(isoString: string | null): string {
                 class="flex flex-col items-center text-center"
               >
                 <div class="relative">
-                  <div :class="session.maxParticipants && invitee.hasSlot ? 'ring-2 ring-green-500 rounded-full' : ''">
+                  <!-- Grayscale filter for non-responders (except creator who is always attending) -->
+                  <div
+                    :class="[
+                      session.maxParticipants && invitee.hasSlot ? 'ring-2 ring-green-500 rounded-full' : '',
+                      !(invitee.hasResponded || invitee.userId === session.createdByUserId) ? 'grayscale opacity-50' : ''
+                    ]"
+                  >
                     <UserAvatar
                       :avatar-url="invitee.user?.avatarUrl"
                       :display-name="invitee.user?.displayName"
@@ -1294,12 +1486,13 @@ function formatRelativeTime(isoString: string | null): string {
                       size="lg"
                     />
                   </div>
+                  <!-- Status badge: creator always shows as attending, others show their response status -->
                   <div
-                    v-if="invitee.hasResponded"
+                    v-if="invitee.hasResponded || invitee.userId === session.createdByUserId"
                     class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center"
-                    :class="invitee.cannotAttendAny ? 'bg-red-500' : 'bg-green-500'"
+                    :class="invitee.cannotAttendAny && invitee.userId !== session.createdByUserId ? 'bg-red-500' : 'bg-green-500'"
                   >
-                    <svg v-if="invitee.cannotAttendAny" class="w-3 h-3 text-white" viewBox="0 0 24 24" fill="currentColor">
+                    <svg v-if="invitee.cannotAttendAny && invitee.userId !== session.createdByUserId" class="w-3 h-3 text-white" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
                     </svg>
                     <svg v-else class="w-3 h-3 text-white" viewBox="0 0 24 24" fill="currentColor">
@@ -1309,7 +1502,10 @@ function formatRelativeTime(isoString: string | null): string {
                 </div>
                 <span class="text-sm mt-2 truncate w-full">{{ invitee.user?.displayName || invitee.user?.username || 'Unknown' }}</span>
                 <span class="text-xs text-gray-400">
-                  <template v-if="session.maxParticipants && invitee.hasSlot">
+                  <template v-if="invitee.userId === session.createdByUserId">
+                    <span class="text-primary-600">Organizer</span>
+                  </template>
+                  <template v-else-if="session.maxParticipants && invitee.hasSlot">
                     <span class="text-green-600">Has Slot</span>
                   </template>
                   <template v-else>
@@ -1318,10 +1514,102 @@ function formatRelativeTime(isoString: string | null): string {
                 </span>
               </div>
             </div>
+
+            <!-- Navigation buttons -->
+            <div class="mt-6 pt-4 border-t border-gray-200 flex items-center justify-between">
+              <button class="btn-ghost" @click="currentStep = 3">
+                <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M15.41,16.58L10.83,12L15.41,7.41L14,6L8,12L14,18L15.41,16.58Z"/>
+                </svg>
+                Back: Items
+              </button>
+              <button v-if="isCreator" class="btn-primary" @click="currentStep = 5">
+                Next: Finalize
+                <svg class="w-4 h-4 ml-1" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"/>
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
 
-        <!-- Multi-Table Session Scheduler (for creator) -->
+        <!-- Step 5: Finalize (Creator only) -->
+        <div v-show="currentStep === 5 && isCreator" class="space-y-6">
+          <!-- Event Mode Toggle -->
+          <div class="card">
+            <div class="p-6 border-b border-gray-100">
+              <h2 class="font-semibold">Event Mode</h2>
+              <p class="text-sm text-gray-500 mt-1">Choose how you want to organize this game night</p>
+            </div>
+            <div class="p-6">
+              <div class="flex gap-3">
+                <button
+                  type="button"
+                  class="flex-1 px-4 py-3 rounded-lg border-2 transition-colors text-left"
+                  :class="!isMultiTable ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'"
+                  :disabled="updatingSettings"
+                  @click="isMultiTable && handleToggleMultiTable(false)"
+                >
+                  <div class="flex items-center gap-2">
+                    <svg class="w-5 h-5" :class="!isMultiTable ? 'text-primary-600' : 'text-gray-400'" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M19,19H5V8H19M16,1V3H8V1H6V3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3H18V1"/>
+                    </svg>
+                    <span class="font-medium" :class="!isMultiTable ? 'text-primary-700' : 'text-gray-700'">Single Event</span>
+                    <svg v-if="!isMultiTable" class="w-4 h-4 text-primary-600" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+                    </svg>
+                  </div>
+                  <p class="text-sm text-gray-500 mt-1">Everyone attends the same game session</p>
+                </button>
+                <button
+                  type="button"
+                  class="flex-1 px-4 py-3 rounded-lg border-2 transition-colors text-left"
+                  :class="isMultiTable ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-gray-300'"
+                  :disabled="updatingSettings"
+                  @click="!isMultiTable && handleToggleMultiTable(true)"
+                >
+                  <div class="flex items-center gap-2">
+                    <svg class="w-5 h-5" :class="isMultiTable ? 'text-purple-600' : 'text-gray-400'" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M4,4H20A2,2 0 0,1 22,6V18A2,2 0 0,1 20,20H4A2,2 0 0,1 2,18V6A2,2 0 0,1 4,4M4,6V18H11V6H4M20,18V6H18V18H20M13,6V18H16V6H13Z"/>
+                    </svg>
+                    <span class="font-medium" :class="isMultiTable ? 'text-purple-700' : 'text-gray-700'">Multi-Table</span>
+                    <svg v-if="isMultiTable" class="w-4 h-4 text-purple-600" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+                    </svg>
+                  </div>
+                  <p class="text-sm text-gray-500 mt-1">Multiple games run simultaneously on different tables</p>
+                </button>
+              </div>
+
+              <!-- Table count selector (when multi-table is enabled) -->
+              <div v-if="isMultiTable" class="mt-4 pt-4 border-t border-gray-200">
+                <div class="flex items-center gap-4">
+                  <label class="text-sm font-medium text-gray-700">Number of Tables:</label>
+                  <select
+                    v-model.number="desiredTableCount"
+                    class="input w-24"
+                    :disabled="updatingSettings"
+                  >
+                    <option v-for="n in (maxTables - 1)" :key="n + 1" :value="n + 1">{{ n + 1 }}</option>
+                  </select>
+                  <button
+                    v-if="desiredTableCount !== session.tableCount"
+                    class="btn-sm btn-outline"
+                    :disabled="updatingSettings"
+                    @click="handleUpdateTableCount"
+                  >
+                    <svg v-if="updatingSettings" class="animate-spin w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                    Update
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Multi-Table Session Scheduler (for creator) -->
         <div v-if="isCreator && isMultiTable && session.gameSuggestions && session.gameSuggestions.length > 0" class="card">
           <div class="p-6 border-b border-gray-100">
             <div class="flex items-center gap-2">
@@ -1339,6 +1627,7 @@ function formatRelativeTime(isoString: string | null): string {
               :initial-preferences="session.hostSessionPreferences || []"
               :saving="savingSchedule"
               @save="handleSaveSchedule"
+              @update:schedule-count="localScheduleCount = $event"
             />
           </div>
         </div>
@@ -1355,8 +1644,8 @@ function formatRelativeTime(isoString: string | null): string {
 
             <!-- Multi-table note -->
             <div v-if="isMultiTable" class="bg-blue-50 text-blue-700 text-sm p-3 rounded-lg mb-4">
-              This is a multi-table session. Make sure you've scheduled games to tables above before finalizing.
-              Members will sign up for specific game sessions after finalization.
+              This will create a multi-table event. Make sure you've scheduled games to tables above before finalizing.
+              Members will sign up for specific game sessions after the event is created.
             </div>
 
             <div class="grid grid-cols-2 gap-4 mb-6">
@@ -1379,18 +1668,46 @@ function formatRelativeTime(isoString: string | null): string {
               </div>
             </div>
 
-            <button
-              class="btn-primary"
-              :disabled="!selectedDateId || finalizing || (isMultiTable && scheduleEntries.length === 0)"
-              @click="handleFinalize"
-            >
-              <svg v-if="finalizing" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-              </svg>
-              Create Game Event
-            </button>
+            <!-- Validation Messages -->
+            <div v-if="!selectedDateId || (isMultiTable && localScheduleCount === 0)" class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <p class="text-sm font-medium text-amber-800 mb-2">Before you can create the event:</p>
+              <ul class="text-sm text-amber-700 space-y-1">
+                <li v-if="!selectedDateId" class="flex items-center gap-2">
+                  <svg class="w-4 h-4 text-amber-500" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M11,16.5L6.5,12L7.91,10.59L11,13.67L16.59,8.09L18,9.5L11,16.5Z"/>
+                  </svg>
+                  Select a date from the dropdown above
+                </li>
+                <li v-if="isMultiTable && localScheduleCount === 0" class="flex items-center gap-2">
+                  <svg class="w-4 h-4 text-amber-500" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M11,16.5L6.5,12L7.91,10.59L11,13.67L16.59,8.09L18,9.5L11,16.5Z"/>
+                  </svg>
+                  Schedule at least one game to a table (use the scheduler above)
+                </li>
+              </ul>
+            </div>
+
+            <div class="flex items-center gap-4">
+              <button
+                class="btn-primary"
+                :disabled="!selectedDateId || finalizing || (isMultiTable && localScheduleCount === 0)"
+                @click="handleFinalize"
+              >
+                <svg v-if="finalizing" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                Create Game Event
+              </button>
+              <button class="btn-ghost" @click="currentStep = 4">
+                <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M15.41,16.58L10.83,12L15.41,7.41L14,6L8,12L14,18L15.41,16.58Z"/>
+                </svg>
+                Back to People
+              </button>
+            </div>
           </div>
+        </div>
         </div>
       </template>
 

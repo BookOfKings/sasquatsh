@@ -14,6 +14,7 @@ import {
   claimItem as claimItemApi,
   unclaimItem as unclaimItemApi,
   updateItem as updateItemApi,
+  deleteItem as deleteItemApi,
 } from '@/services/eventsApi'
 import { useAuthStore } from '@/stores/useAuthStore'
 import type {
@@ -326,6 +327,28 @@ async function updateItem(
   }
 }
 
+async function deleteItem(eventId: string, itemId: string): Promise<ActionResult> {
+  const auth = useAuthStore()
+  const token = await auth.getIdToken()
+  if (!token) {
+    return { ok: false, message: 'You must be logged in' }
+  }
+
+  try {
+    await deleteItemApi(token, itemId)
+    // Remove the item from the current event
+    if (currentEvent.value && currentEvent.value.id === eventId && currentEvent.value.items) {
+      currentEvent.value.items = currentEvent.value.items.filter(i => i.id !== itemId)
+    }
+    return { ok: true, message: 'Item deleted' }
+  } catch (err) {
+    return {
+      ok: false,
+      message: err instanceof Error ? err.message : 'Unable to delete item',
+    }
+  }
+}
+
 export function useEventStore() {
   return {
     publicEvents: computed(() => publicEvents.value),
@@ -347,5 +370,6 @@ export function useEventStore() {
     claimItem,
     unclaimItem,
     updateItem,
+    deleteItem,
   }
 }

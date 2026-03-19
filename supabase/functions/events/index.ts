@@ -414,6 +414,21 @@ Deno.serve(async (req) => {
       .single()
 
     if (error) return errorResponse(error.message, 500)
+
+    // Award raffle entry for hosting an event (only if published)
+    if (data.status === 'published') {
+      try {
+        await supabase.rpc('award_raffle_entry', {
+          p_user_id: user.id,
+          p_entry_type: 'host_event',
+          p_source_id: data.id,
+        })
+      } catch (err) {
+        // Don't fail event creation if raffle entry fails
+        console.error('Failed to award raffle entry:', err)
+      }
+    }
+
     return jsonResponse(transformEvent(data))
   }
 
@@ -501,6 +516,21 @@ Deno.serve(async (req) => {
       .single()
 
     if (error) return errorResponse(error.message, 500)
+
+    // Award raffle entry if event just became published
+    if (body.status === 'published') {
+      try {
+        await supabase.rpc('award_raffle_entry', {
+          p_user_id: existing.host_user_id,
+          p_entry_type: 'host_event',
+          p_source_id: eventId,
+        })
+      } catch (err) {
+        // Don't fail event update if raffle entry fails
+        console.error('Failed to award raffle entry:', err)
+      }
+    }
+
     return jsonResponse(transformEvent(data))
   }
 

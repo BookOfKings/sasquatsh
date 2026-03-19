@@ -236,3 +236,38 @@ Add a session note with `add_note()`:
 - Do NOT use local SESSION.md files - all session data goes to Project Oracle
 - Always check recent notes at session start for context
 - Log meaningful progress notes, not every small change
+
+## Bug Tracking Workflow
+
+Bugs are submitted via the **website admin UI** and stored in the production database (`admin_bugs` table).
+
+### Fetching Bugs from Production Database
+
+1. Get the `SUPABASE_SERVICE_ROLE_KEY` from Project Oracle:
+   ```
+   mcp__project-oracle__get_secret(secret_id=36)
+   ```
+
+2. Query the `admin_bugs` table directly via Supabase REST API:
+   ```bash
+   curl -s "https://yyfukoddeyiaxiufztdx.supabase.co/rest/v1/admin_bugs?select=*&order=created_at.desc" \
+     -H "apikey: <SERVICE_ROLE_KEY>" \
+     -H "Authorization: Bearer <SERVICE_ROLE_KEY>"
+   ```
+
+3. Filter by status if needed:
+   - `?status=eq.open` - Open bugs only
+   - `?status=eq.in_progress` - In progress
+   - `?status=eq.resolved` - Resolved
+   - `?status=eq.closed` - Closed
+
+### Bug Status Flow
+- `open` → `in_progress` → `resolved` → `closed`
+- `wont_fix` - For bugs that won't be addressed
+
+### After Fixing a Bug
+1. Update the bug status in the production database (via admin UI or direct query)
+2. Add the bug to Project Oracle for historical tracking:
+   ```
+   mcp__project-oracle__create_task(project_id=1, title="Bug: <title>", task_type="bug", status="done")
+   ```

@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/useAuthStore'
 import { useRouter } from 'vue-router'
 import { getStats, type Stats } from '@/services/statsApi'
 import { getEffectiveTier } from '@/types/user'
+import RaffleBanner from '@/components/raffle/RaffleBanner.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -96,6 +97,9 @@ function goToPricing() {
           and share your passion for tabletop gaming.
         </p>
       </div>
+
+      <!-- Raffle Banner -->
+      <RaffleBanner />
 
       <hr class="border-gray-200 mb-6" />
 

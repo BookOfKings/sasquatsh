@@ -50,6 +50,11 @@ import type { Ad, AdStats, CreateAdInput } from '@/services/adsApi'
 import { getChatReports, reviewChatReport, issueModerationAction, getChatModerationHistory } from '@/services/chatApi'
 import type { ChatReport, ChatModerationHistoryItem, ChatModerationAction } from '@/types/chat'
 import { REPORT_REASON_LABELS, MODERATION_ACTION_LABELS } from '@/types/chat'
+import { getAllRaffles, getRaffleEntries, createRaffle, updateRaffle, deleteRaffle, selectRaffleWinner, markWinnerNotified, markPrizeClaimed } from '@/services/raffleApi'
+import type { RaffleWithDetails, RaffleEntryWithUser, CreateRaffleInput, RaffleStatus } from '@/types/raffle'
+import { ENTRY_TYPE_LABELS } from '@/types/raffle'
+import GameSearch from '@/components/common/GameSearch.vue'
+import type { BggGame } from '@/types/bgg'
 import D20Spinner from '@/components/common/D20Spinner.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 
@@ -69,7 +74,7 @@ function withMinLoadingTime<T>(promise: Promise<T>, startTime: number): Promise<
   })
 }
 
-const activeTab = ref<'dashboard' | 'users' | 'groups' | 'notes' | 'bugs' | 'chatReports' | 'ads' | 'locations' | 'bggCache'>('dashboard')
+const activeTab = ref<'dashboard' | 'users' | 'groups' | 'notes' | 'bugs' | 'chatReports' | 'ads' | 'raffles' | 'locations' | 'bggCache'>('dashboard')
 
 // Dashboard state
 const dashboardLoading = ref(false)
@@ -238,6 +243,37 @@ const savingAd = ref(false)
 const deletingAdId = ref<string | null>(null)
 const togglingAdId = ref<string | null>(null)
 const showAdStats = ref(false)
+
+// Raffles state
+const raffles = ref<RaffleWithDetails[]>([])
+const rafflesLoading = ref(false)
+const showRaffleDialog = ref(false)
+const editingRaffle = ref<RaffleWithDetails | null>(null)
+const previewingRaffle = ref<RaffleWithDetails | null>(null)
+const raffleForm = reactive({
+  title: '',
+  description: '',
+  prizeName: '',
+  prizeDescription: '',
+  prizeImageUrl: '',
+  prizeBggId: null as number | null,
+  prizeValueCents: null as number | null,
+  startDate: '',
+  endDate: '',
+  termsConditions: '',
+  mailInInstructions: '',
+  bannerImageUrl: '',
+  status: 'draft' as RaffleStatus,
+})
+const savingRaffle = ref(false)
+const deletingRaffleId = ref<string | null>(null)
+const selectingWinnerId = ref<string | null>(null)
+const showRaffleEntries = ref(false)
+const selectedRaffleForEntries = ref<RaffleWithDetails | null>(null)
+const raffleEntries = ref<RaffleEntryWithUser[]>([])
+const raffleEntriesLoading = ref(false)
+const selectedPrizeGame = ref<BggGame | null>(null)
+const prizeGameSearch = ref('')
 
 // Create/Edit dialog
 const showDialog = ref(false)
@@ -1514,6 +1550,244 @@ function getAdStatsById(adId: string): AdStats | undefined {
   return adStats.value.find(s => s.id === adId)
 }
 
+// Raffle functions
+async function loadRaffles() {
+  rafflesLoading.value = true
+  errorMessage.value = ''
+  const startTime = Date.now()
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    raffles.value = await getAllRaffles(token)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to load raffles'
+  } finally {
+    const elapsed = Date.now() - startTime
+    if (elapsed < MIN_LOADING_TIME) {
+      await new Promise(resolve => setTimeout(resolve, MIN_LOADING_TIME - elapsed))
+    }
+    rafflesLoading.value = false
+  }
+}
+
+function openRaffleDialog(raffle?: RaffleWithDetails) {
+  if (raffle) {
+    editingRaffle.value = raffle
+    raffleForm.title = raffle.title
+    raffleForm.description = raffle.description || ''
+    raffleForm.prizeName = raffle.prizeName
+    raffleForm.prizeDescription = raffle.prizeDescription || ''
+    raffleForm.prizeImageUrl = raffle.prizeImageUrl || ''
+    raffleForm.prizeBggId = raffle.prizeBggId
+    raffleForm.prizeValueCents = raffle.prizeValueCents
+    raffleForm.startDate = raffle.startDate ? new Date(raffle.startDate).toISOString().slice(0, 16) : ''
+    raffleForm.endDate = raffle.endDate ? new Date(raffle.endDate).toISOString().slice(0, 16) : ''
+    raffleForm.termsConditions = raffle.termsConditions || ''
+    raffleForm.mailInInstructions = raffle.mailInInstructions || ''
+    raffleForm.bannerImageUrl = raffle.bannerImageUrl || ''
+    raffleForm.status = raffle.status
+    prizeGameSearch.value = raffle.prizeName
+    // Create a partial game object for display if we have the data
+    if (raffle.prizeBggId) {
+      selectedPrizeGame.value = {
+        bggId: raffle.prizeBggId,
+        name: raffle.prizeName,
+        thumbnailUrl: raffle.prizeImageUrl,
+        imageUrl: raffle.prizeImageUrl,
+        yearPublished: null,
+        minPlayers: null,
+        maxPlayers: null,
+        minPlaytime: null,
+        maxPlaytime: null,
+        playingTime: null,
+        weight: null,
+        description: raffle.prizeDescription,
+        categories: [],
+        mechanics: [],
+      }
+    } else {
+      selectedPrizeGame.value = null
+    }
+  } else {
+    editingRaffle.value = null
+    raffleForm.title = ''
+    raffleForm.description = ''
+    raffleForm.prizeName = ''
+    raffleForm.prizeDescription = ''
+    raffleForm.prizeImageUrl = ''
+    raffleForm.prizeBggId = null
+    raffleForm.prizeValueCents = null
+    raffleForm.startDate = ''
+    raffleForm.endDate = ''
+    raffleForm.termsConditions = ''
+    raffleForm.mailInInstructions = ''
+    raffleForm.bannerImageUrl = ''
+    raffleForm.status = 'draft'
+    selectedPrizeGame.value = null
+    prizeGameSearch.value = ''
+  }
+  showRaffleDialog.value = true
+}
+
+function handlePrizeGameSelect(game: BggGame) {
+  selectedPrizeGame.value = game
+  raffleForm.prizeName = game.name
+  raffleForm.prizeBggId = game.bggId
+  raffleForm.prizeImageUrl = game.imageUrl || game.thumbnailUrl || ''
+  if (game.description) {
+    // Strip HTML tags and truncate
+    const plainText = game.description.replace(/<[^>]*>/g, '').trim()
+    raffleForm.prizeDescription = plainText.length > 500 ? plainText.slice(0, 500) + '...' : plainText
+  }
+}
+
+function clearPrizeGame() {
+  selectedPrizeGame.value = null
+  prizeGameSearch.value = ''
+  raffleForm.prizeName = ''
+  raffleForm.prizeBggId = null
+  raffleForm.prizeImageUrl = ''
+  raffleForm.prizeDescription = ''
+}
+
+async function handleSaveRaffle() {
+  if (!raffleForm.title || !raffleForm.prizeName || !raffleForm.startDate || !raffleForm.endDate) {
+    errorMessage.value = 'Title, prize name, start date, and end date are required'
+    return
+  }
+
+  savingRaffle.value = true
+  errorMessage.value = ''
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+
+    const input: CreateRaffleInput = {
+      title: raffleForm.title,
+      description: raffleForm.description || undefined,
+      prizeName: raffleForm.prizeName,
+      prizeDescription: raffleForm.prizeDescription || undefined,
+      prizeImageUrl: raffleForm.prizeImageUrl || undefined,
+      prizeBggId: raffleForm.prizeBggId || undefined,
+      prizeValueCents: raffleForm.prizeValueCents || undefined,
+      startDate: new Date(raffleForm.startDate).toISOString(),
+      endDate: new Date(raffleForm.endDate).toISOString(),
+      termsConditions: raffleForm.termsConditions || undefined,
+      mailInInstructions: raffleForm.mailInInstructions || undefined,
+      bannerImageUrl: raffleForm.bannerImageUrl || undefined,
+      status: raffleForm.status,
+    }
+
+    if (editingRaffle.value) {
+      await updateRaffle(token, editingRaffle.value.id, input)
+      successMessage.value = 'Raffle updated'
+    } else {
+      await createRaffle(token, input)
+      successMessage.value = 'Raffle created'
+    }
+    showRaffleDialog.value = false
+    await loadRaffles()
+    setTimeout(() => successMessage.value = '', 3000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to save raffle'
+  } finally {
+    savingRaffle.value = false
+  }
+}
+
+async function handleDeleteRaffle(raffle: RaffleWithDetails) {
+  if (!confirm(`Delete raffle "${raffle.title}"? This cannot be undone.`)) return
+
+  deletingRaffleId.value = raffle.id
+  errorMessage.value = ''
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    await deleteRaffle(token, raffle.id)
+    successMessage.value = 'Raffle deleted'
+    await loadRaffles()
+    setTimeout(() => successMessage.value = '', 3000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to delete raffle'
+  } finally {
+    deletingRaffleId.value = null
+  }
+}
+
+async function handleSelectWinner(raffle: RaffleWithDetails) {
+  if (!confirm(`Select a random winner for "${raffle.title}"? This will end the raffle.`)) return
+
+  selectingWinnerId.value = raffle.id
+  errorMessage.value = ''
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    const result = await selectRaffleWinner(token, raffle.id)
+    successMessage.value = `Winner selected: ${result.winner.displayName || result.winner.email} (${result.winnerEntries}/${result.totalEntries} entries)`
+    await loadRaffles()
+    setTimeout(() => successMessage.value = '', 5000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to select winner'
+  } finally {
+    selectingWinnerId.value = null
+  }
+}
+
+async function handleMarkNotified(raffle: RaffleWithDetails) {
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    await markWinnerNotified(token, raffle.id)
+    successMessage.value = 'Winner marked as notified'
+    await loadRaffles()
+    setTimeout(() => successMessage.value = '', 3000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to update'
+  }
+}
+
+async function handleMarkClaimed(raffle: RaffleWithDetails) {
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    await markPrizeClaimed(token, raffle.id)
+    successMessage.value = 'Prize marked as claimed'
+    await loadRaffles()
+    setTimeout(() => successMessage.value = '', 3000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to update'
+  }
+}
+
+async function openRaffleEntries(raffle: RaffleWithDetails) {
+  selectedRaffleForEntries.value = raffle
+  showRaffleEntries.value = true
+  raffleEntriesLoading.value = true
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    raffleEntries.value = await getRaffleEntries(token, raffle.id)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to load entries'
+  } finally {
+    raffleEntriesLoading.value = false
+  }
+}
+
+function getRaffleStatusColor(status: RaffleStatus): string {
+  switch (status) {
+    case 'draft': return 'bg-gray-100 text-gray-600'
+    case 'active': return 'bg-green-100 text-green-800'
+    case 'ended': return 'bg-blue-100 text-blue-800'
+    case 'cancelled': return 'bg-red-100 text-red-800'
+    default: return 'bg-gray-100 text-gray-600'
+  }
+}
+
+function canSelectWinner(raffle: RaffleWithDetails): boolean {
+  return raffle.status === 'active' && new Date(raffle.endDate) <= new Date()
+}
+
 async function loadLocations() {
   loading.value = true
   errorMessage.value = ''
@@ -1829,6 +2103,15 @@ function getLocationTypeLabel(location: EventLocation): string {
         @click="activeTab = 'ads'; loadAds()"
       >
         Ads
+      </button>
+      <button
+        class="px-4 py-2 text-sm font-medium transition-colors -mb-px"
+        :class="activeTab === 'raffles'
+          ? 'text-primary-600 border-b-2 border-primary-500'
+          : 'text-gray-500 hover:text-gray-700'"
+        @click="activeTab = 'raffles'; loadRaffles()"
+      >
+        Raffles
       </button>
       <button
         class="px-4 py-2 text-sm font-medium transition-colors -mb-px"
@@ -3284,6 +3567,510 @@ function getLocationTypeLabel(location: EventLocation): string {
           <button class="btn-outline" @click="showAdDialog = false">Cancel</button>
           <button class="btn-primary" :disabled="savingAd" @click="handleSaveAd">
             {{ savingAd ? 'Saving...' : (editingAd ? 'Save Changes' : 'Create Ad') }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Raffles Tab -->
+    <div v-if="activeTab === 'raffles'">
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="text-lg font-semibold">Monthly Raffles</h2>
+        <button class="btn-primary" @click="openRaffleDialog()">
+          <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/>
+          </svg>
+          Create Raffle
+        </button>
+      </div>
+
+      <!-- Loading -->
+      <div v-if="rafflesLoading" class="text-center py-12">
+        <D20Spinner size="lg" class="mx-auto" />
+      </div>
+
+      <template v-else>
+        <div v-if="raffles.length === 0" class="text-center py-12 text-gray-500">
+          <p class="text-lg font-medium">No raffles yet</p>
+          <p>Create your first raffle to engage users.</p>
+        </div>
+
+        <div v-else class="space-y-4">
+          <div
+            v-for="raffle in raffles"
+            :key="raffle.id"
+            class="card p-4"
+          >
+            <div class="flex items-start justify-between gap-4">
+              <div class="flex gap-4 flex-1">
+                <!-- Prize Image -->
+                <div v-if="raffle.prizeImageUrl" class="w-20 h-20 rounded overflow-hidden flex-shrink-0 bg-gray-100">
+                  <img :src="raffle.prizeImageUrl" :alt="raffle.prizeName" class="w-full h-full object-cover" />
+                </div>
+                <div v-else class="w-20 h-20 rounded flex-shrink-0 bg-gray-100 flex items-center justify-center">
+                  <svg class="w-10 h-10 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M9.06,1.93C7.17,1.92 5.33,3.74 6.17,6H3A2,2 0 0,0 1,8V10A1,1 0 0,0 2,11H11V8H13V11H22A1,1 0 0,0 23,10V8A2,2 0 0,0 21,6H17.83C18.67,3.74 16.83,1.92 14.94,1.93C13.5,1.93 12.71,2.71 12,3.5C11.29,2.71 10.5,1.93 9.06,1.93M9.06,3.93C9.57,3.93 10.13,4.26 10.74,4.87L12,6.13L13.26,4.87C13.87,4.26 14.43,3.93 14.94,3.93C15.46,3.93 16,4.5 16,5.19C16,5.9 15.5,6.5 15,6.87L14.5,7.2L13.4,8H10.6L9.5,7.2L9,6.87C8.5,6.5 8,5.9 8,5.19C8,4.5 8.54,3.93 9.06,3.93M2,12V20A2,2 0 0,0 4,22H20A2,2 0 0,0 22,20V12H13V20H11V12H2Z"/>
+                  </svg>
+                </div>
+
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2 mb-1 flex-wrap">
+                    <h3 class="font-semibold text-gray-900">{{ raffle.title }}</h3>
+                    <span
+                      class="text-xs px-2 py-0.5 rounded-full"
+                      :class="getRaffleStatusColor(raffle.status)"
+                    >
+                      {{ raffle.status.charAt(0).toUpperCase() + raffle.status.slice(1) }}
+                    </span>
+                  </div>
+                  <p class="text-gray-700 font-medium">Prize: {{ raffle.prizeName }}</p>
+                  <p v-if="raffle.description" class="text-sm text-gray-600 line-clamp-2">{{ raffle.description }}</p>
+
+                  <div class="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                    <span>
+                      {{ new Date(raffle.startDate).toLocaleDateString() }} -
+                      {{ new Date(raffle.endDate).toLocaleDateString() }}
+                    </span>
+                    <span v-if="raffle.stats">
+                      {{ raffle.stats.entries || raffle.stats.totalEntries || 0 }} entries from {{ raffle.stats.users || raffle.stats.uniqueParticipants || 0 }} users
+                    </span>
+                  </div>
+
+                  <!-- Winner Info -->
+                  <div v-if="raffle.winner" class="mt-2 p-2 bg-green-50 rounded-lg">
+                    <div class="flex items-center gap-2">
+                      <UserAvatar :user="{ avatarUrl: raffle.winner.avatarUrl, displayName: raffle.winner.displayName }" size="sm" :show-badge="false" />
+                      <span class="font-medium text-green-800">Winner: {{ raffle.winner.displayName || 'Unknown' }}</span>
+                      <span v-if="raffle.winnerNotifiedAt" class="text-xs text-green-600">Notified</span>
+                      <span v-if="raffle.winnerClaimedAt" class="text-xs text-green-600">Claimed</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex gap-2 flex-shrink-0 flex-wrap">
+                <button
+                  v-if="canSelectWinner(raffle)"
+                  class="btn-primary text-sm"
+                  :disabled="selectingWinnerId === raffle.id"
+                  @click="handleSelectWinner(raffle)"
+                >
+                  {{ selectingWinnerId === raffle.id ? 'Selecting...' : 'Select Winner' }}
+                </button>
+                <button
+                  v-if="raffle.winner && !raffle.winnerNotifiedAt"
+                  class="btn-outline text-sm text-blue-600"
+                  @click="handleMarkNotified(raffle)"
+                >
+                  Mark Notified
+                </button>
+                <button
+                  v-if="raffle.winner && raffle.winnerNotifiedAt && !raffle.winnerClaimedAt"
+                  class="btn-outline text-sm text-green-600"
+                  @click="handleMarkClaimed(raffle)"
+                >
+                  Mark Claimed
+                </button>
+                <button class="btn-ghost text-sm" @click="openRaffleEntries(raffle)">
+                  View Entries
+                </button>
+                <button class="btn-ghost text-purple-600 text-sm" @click="previewingRaffle = raffle">
+                  Preview
+                </button>
+                <button class="btn-ghost text-gray-600 text-sm" @click="openRaffleDialog(raffle)">
+                  Edit
+                </button>
+                <button
+                  v-if="raffle.status === 'draft' || raffle.status === 'cancelled'"
+                  class="btn-ghost text-red-600 text-sm"
+                  :disabled="deletingRaffleId === raffle.id"
+                  @click="handleDeleteRaffle(raffle)"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- Raffle Create/Edit Dialog -->
+    <div v-if="showRaffleDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="showRaffleDialog = false">
+      <div class="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
+        <h2 class="text-xl font-semibold mb-4">
+          {{ editingRaffle ? 'Edit Raffle' : 'Create Raffle' }}
+        </h2>
+
+        <div class="grid grid-cols-2 gap-4">
+          <!-- Title -->
+          <div class="col-span-2">
+            <label class="block text-sm font-medium mb-1">Title *</label>
+            <input v-model="raffleForm.title" type="text" class="input" placeholder="March 2026 Raffle">
+          </div>
+
+          <!-- Description -->
+          <div class="col-span-2">
+            <label class="block text-sm font-medium mb-1">Description</label>
+            <textarea v-model="raffleForm.description" class="input" rows="2" placeholder="Enter to win this month's prize!"></textarea>
+          </div>
+
+          <!-- Prize Search -->
+          <div class="col-span-2">
+            <label class="block text-sm font-medium mb-1">Search for Prize (Board Game) *</label>
+            <GameSearch
+              v-model="prizeGameSearch"
+              placeholder="Search BoardGameGeek..."
+              @select="handlePrizeGameSelect"
+            />
+          </div>
+
+          <!-- Selected Prize Preview -->
+          <div v-if="selectedPrizeGame" class="col-span-2 bg-gray-50 rounded-lg p-4">
+            <div class="flex items-start gap-4">
+              <img
+                v-if="selectedPrizeGame.imageUrl || selectedPrizeGame.thumbnailUrl"
+                :src="selectedPrizeGame.imageUrl || selectedPrizeGame.thumbnailUrl || ''"
+                :alt="selectedPrizeGame.name"
+                class="w-20 h-20 object-cover rounded-lg bg-white"
+              />
+              <div v-else class="w-20 h-20 bg-gray-200 rounded-lg flex items-center justify-center">
+                <svg class="w-8 h-8 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
+                </svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between">
+                  <h4 class="font-semibold text-gray-900">{{ selectedPrizeGame.name }}</h4>
+                  <button type="button" class="text-red-500 hover:text-red-700 text-sm" @click="clearPrizeGame">
+                    Clear
+                  </button>
+                </div>
+                <p v-if="selectedPrizeGame.yearPublished" class="text-sm text-gray-500">{{ selectedPrizeGame.yearPublished }}</p>
+                <div v-if="selectedPrizeGame.minPlayers || selectedPrizeGame.maxPlayers" class="text-sm text-gray-600 mt-1">
+                  <span v-if="selectedPrizeGame.minPlayers && selectedPrizeGame.maxPlayers">
+                    {{ selectedPrizeGame.minPlayers }}-{{ selectedPrizeGame.maxPlayers }} players
+                  </span>
+                  <span v-if="selectedPrizeGame.playingTime" class="ml-2">
+                    &bull; {{ selectedPrizeGame.playingTime }} min
+                  </span>
+                </div>
+                <p class="text-xs text-gray-400 mt-1">BGG ID: {{ selectedPrizeGame.bggId }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Manual Prize Name (if no game selected) -->
+          <div v-if="!selectedPrizeGame" class="col-span-2">
+            <label class="block text-sm font-medium mb-1">Or Enter Prize Name Manually *</label>
+            <input v-model="raffleForm.prizeName" type="text" class="input" placeholder="e.g., Gift Card, Custom Prize">
+          </div>
+
+          <!-- Prize Description -->
+          <div class="col-span-2">
+            <label class="block text-sm font-medium mb-1">Prize Description</label>
+            <textarea v-model="raffleForm.prizeDescription" class="input" rows="2" placeholder="A beautiful bird-themed engine building game..."></textarea>
+          </div>
+
+          <!-- Prize Image URL (only show if no game selected or to override) -->
+          <div>
+            <label class="block text-sm font-medium mb-1">Prize Image URL</label>
+            <input v-model="raffleForm.prizeImageUrl" type="url" class="input" placeholder="https://...">
+            <p v-if="selectedPrizeGame" class="text-xs text-gray-400 mt-1">Auto-filled from BGG, edit to override</p>
+          </div>
+
+          <!-- Prize Value -->
+          <div>
+            <label class="block text-sm font-medium mb-1">Prize Value (cents)</label>
+            <div class="flex items-center gap-2">
+              <input v-model.number="raffleForm.prizeValueCents" type="number" class="input flex-1" placeholder="e.g., 5999">
+              <span v-if="raffleForm.prizeValueCents" class="text-sm font-medium text-primary-600 whitespace-nowrap">
+                = ${{ (raffleForm.prizeValueCents / 100).toFixed(2) }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Start Date -->
+          <div>
+            <label class="block text-sm font-medium mb-1">Start Date *</label>
+            <input v-model="raffleForm.startDate" type="datetime-local" class="input">
+          </div>
+
+          <!-- End Date -->
+          <div>
+            <label class="block text-sm font-medium mb-1">End Date *</label>
+            <input v-model="raffleForm.endDate" type="datetime-local" class="input">
+          </div>
+
+          <!-- Banner Image URL -->
+          <div class="col-span-2">
+            <label class="block text-sm font-medium mb-1">Custom Banner Image URL <span class="text-gray-400 font-normal">(optional)</span></label>
+            <input v-model="raffleForm.bannerImageUrl" type="url" class="input" placeholder="e.g., /BrassRaffleBanner.png or https://...">
+            <p class="text-xs text-gray-500 mt-1">Full custom banner for home page. If empty, dynamic banner is shown.</p>
+          </div>
+
+          <!-- Terms & Conditions -->
+          <div class="col-span-2">
+            <label class="block text-sm font-medium mb-1">Terms & Conditions</label>
+            <textarea v-model="raffleForm.termsConditions" class="input" rows="3" placeholder="Official rules and eligibility..."></textarea>
+          </div>
+
+          <!-- Mail-in Instructions -->
+          <div class="col-span-2">
+            <label class="block text-sm font-medium mb-1">Mail-in Instructions</label>
+            <textarea v-model="raffleForm.mailInInstructions" class="input" rows="2" placeholder="No purchase necessary. To enter by mail..."></textarea>
+            <p class="text-xs text-gray-500 mt-1">Required for legal compliance. Leave empty to disable mail-in entries.</p>
+          </div>
+
+          <!-- Status -->
+          <div>
+            <label class="block text-sm font-medium mb-1">Status</label>
+            <select v-model="raffleForm.status" class="input">
+              <option value="draft">Draft</option>
+              <option value="active">Active</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-3 mt-6">
+          <button class="btn-outline" @click="showRaffleDialog = false">Cancel</button>
+          <button class="btn-primary" :disabled="savingRaffle" @click="handleSaveRaffle">
+            {{ savingRaffle ? 'Saving...' : (editingRaffle ? 'Save Changes' : 'Create Raffle') }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Raffle Entries Dialog -->
+    <div v-if="showRaffleEntries" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="showRaffleEntries = false">
+      <div class="bg-white rounded-xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto mx-4">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xl font-semibold">
+            Entries for {{ selectedRaffleForEntries?.title }}
+          </h2>
+          <button class="btn-ghost" @click="showRaffleEntries = false">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
+            </svg>
+          </button>
+        </div>
+
+        <div v-if="raffleEntriesLoading" class="text-center py-8">
+          <D20Spinner size="md" class="mx-auto" />
+        </div>
+
+        <template v-else>
+          <div v-if="raffleEntries.length === 0" class="text-center py-8 text-gray-500">
+            No entries yet.
+          </div>
+
+          <div v-else class="space-y-2">
+            <div
+              v-for="entry in raffleEntries"
+              :key="entry.id"
+              class="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+            >
+              <div class="flex items-center gap-3">
+                <UserAvatar
+                  v-if="entry.user"
+                  :user="{ avatarUrl: entry.user.avatarUrl, displayName: entry.user.displayName }"
+                  size="sm"
+                  :show-badge="false"
+                />
+                <div>
+                  <p class="font-medium">{{ entry.user?.displayName || entry.mailInName || 'Anonymous' }}</p>
+                  <p class="text-xs text-gray-500">{{ ENTRY_TYPE_LABELS[entry.entryType] }}</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-4">
+                <span class="text-sm font-semibold text-primary-600">{{ entry.entryCount }} {{ entry.entryCount === 1 ? 'entry' : 'entries' }}</span>
+                <span class="text-xs text-gray-400">{{ new Date(entry.createdAt).toLocaleString() }}</span>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- Raffle Preview Modal -->
+    <div v-if="previewingRaffle" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="previewingRaffle = null">
+      <div class="bg-gray-100 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
+        <!-- Header -->
+        <div class="bg-white border-b px-6 py-4 flex items-center justify-between sticky top-0 z-10">
+          <div>
+            <h2 class="text-xl font-semibold">Customer Preview</h2>
+            <p class="text-sm text-gray-500">What users will see</p>
+          </div>
+          <button class="btn-ghost" @click="previewingRaffle = null">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="p-6 space-y-6">
+          <!-- Step 1: Home Page Banner -->
+          <div>
+            <div class="flex items-center gap-2 mb-3">
+              <span class="w-6 h-6 rounded-full bg-primary-500 text-white text-sm font-bold flex items-center justify-center">1</span>
+              <h3 class="font-semibold text-gray-900">Home Page Banner</h3>
+              <span class="text-xs text-gray-400">sasquatsh.com</span>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm p-4">
+              <!-- Custom Banner -->
+              <div v-if="previewingRaffle.bannerImageUrl" class="w-full max-w-lg mx-auto cursor-pointer">
+                <div class="rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-shadow">
+                  <img
+                    :src="previewingRaffle.bannerImageUrl"
+                    :alt="previewingRaffle.title"
+                    class="w-full h-auto"
+                  />
+                </div>
+              </div>
+
+              <!-- Dynamic Banner (fallback) -->
+              <div v-else class="w-full max-w-lg mx-auto">
+                <div class="w-full bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 rounded-xl p-4 text-white shadow-lg hover:shadow-xl transition-shadow cursor-pointer text-left">
+                  <div class="flex items-center gap-4">
+                    <div class="relative flex-shrink-0">
+                      <div v-if="previewingRaffle.prizeImageUrl" class="w-16 h-16 rounded-lg overflow-hidden bg-white/20 shadow-inner">
+                        <img :src="previewingRaffle.prizeImageUrl" :alt="previewingRaffle.prizeName" class="w-full h-full object-cover" />
+                      </div>
+                      <div v-else class="w-16 h-16 rounded-lg bg-white/20 flex items-center justify-center">
+                        <svg class="w-8 h-8 text-white/80" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M9.06,1.93C7.17,1.92 5.33,3.74 6.17,6H3A2,2 0 0,0 1,8V10A1,1 0 0,0 2,11H11V8H13V11H22A1,1 0 0,0 23,10V8A2,2 0 0,0 21,6H17.83C18.67,3.74 16.83,1.92 14.94,1.93C13.5,1.93 12.71,2.71 12,3.5C11.29,2.71 10.5,1.93 9.06,1.93M9.06,3.93C9.57,3.93 10.13,4.26 10.74,4.87L12,6.13L13.26,4.87C13.87,4.26 14.43,3.93 14.94,3.93C15.46,3.93 16,4.5 16,5.19C16,5.9 15.5,6.5 15,6.87L14.5,7.2L13.4,8H10.6L9.5,7.2L9,6.87C8.5,6.5 8,5.9 8,5.19C8,4.5 8.54,3.93 9.06,3.93M2,12V20A2,2 0 0,0 4,22H20A2,2 0 0,0 22,20V12H13V20H11V12H2Z"/>
+                        </svg>
+                      </div>
+                      <div class="absolute -top-1 -right-1 w-4 h-4 bg-yellow-300 rounded-full animate-pulse"></div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2 mb-1">
+                        <span class="text-xs font-bold uppercase tracking-wider text-yellow-200">Monthly Raffle</span>
+                        <span class="text-xs bg-white/20 px-2 py-0.5 rounded-full">30d left</span>
+                      </div>
+                      <p class="font-bold text-lg truncate">Win: {{ previewingRaffle.prizeName }}</p>
+                      <p class="text-sm text-white/80">
+                        Sign up to enter
+                        <svg class="w-4 h-4 inline ml-1" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M4,11V13H16L10.5,18.5L11.92,19.92L19.84,12L11.92,4.08L10.5,5.5L16,11H4Z"/>
+                        </svg>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <p class="text-center text-xs text-gray-400 mt-2">User clicks to sign up or view dashboard</p>
+            </div>
+          </div>
+
+          <!-- Arrow -->
+          <div class="flex justify-center">
+            <svg class="w-8 h-8 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
+            </svg>
+          </div>
+
+          <!-- Step 2: Dashboard Card -->
+          <div>
+            <div class="flex items-center gap-2 mb-3">
+              <span class="w-6 h-6 rounded-full bg-primary-500 text-white text-sm font-bold flex items-center justify-center">2</span>
+              <h3 class="font-semibold text-gray-900">Dashboard View</h3>
+              <span class="text-xs text-gray-400">After login/signup</span>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+              <!-- Dashboard Card Header -->
+              <div
+                class="relative bg-gradient-to-r from-primary-500 to-primary-600 text-white p-4"
+                :style="previewingRaffle.bannerImageUrl ? { backgroundImage: `url(${previewingRaffle.bannerImageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}"
+              >
+                <div :class="previewingRaffle.bannerImageUrl ? 'bg-black/40 -m-4 p-4' : ''">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                      <svg class="w-8 h-8 text-yellow-300" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M9.06,1.93C7.17,1.92 5.33,3.74 6.17,6H3A2,2 0 0,0 1,8V10A1,1 0 0,0 2,11H11V8H13V11H22A1,1 0 0,0 23,10V8A2,2 0 0,0 21,6H17.83C18.67,3.74 16.83,1.92 14.94,1.93C13.5,1.93 12.71,2.71 12,3.5C11.29,2.71 10.5,1.93 9.06,1.93M9.06,3.93C9.57,3.93 10.13,4.26 10.74,4.87L12,6.13L13.26,4.87C13.87,4.26 14.43,3.93 14.94,3.93C15.46,3.93 16,4.5 16,5.19C16,5.9 15.5,6.5 15,6.87L14.5,7.2L13.4,8H10.6L9.5,7.2L9,6.87C8.5,6.5 8,5.9 8,5.19C8,4.5 8.54,3.93 9.06,3.93M2,12V20A2,2 0 0,0 4,22H20A2,2 0 0,0 22,20V12H13V20H11V12H2Z"/>
+                      </svg>
+                      <div>
+                        <h3 class="font-bold text-lg">{{ previewingRaffle.title }}</h3>
+                        <p class="text-white/90 text-sm">30d left</p>
+                      </div>
+                    </div>
+                    <div class="text-right">
+                      <p class="text-3xl font-bold">3</p>
+                      <p class="text-sm text-white/80">entries</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Dashboard Card Content -->
+              <div class="p-4">
+                <div class="flex items-start gap-4 mb-4">
+                  <div v-if="previewingRaffle.prizeImageUrl" class="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
+                    <img :src="previewingRaffle.prizeImageUrl" :alt="previewingRaffle.prizeName" class="w-full h-full object-cover" />
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="font-semibold text-gray-900">Prize: {{ previewingRaffle.prizeName }}</p>
+                    <p v-if="previewingRaffle.prizeDescription" class="text-sm text-gray-600 line-clamp-2">{{ previewingRaffle.prizeDescription }}</p>
+                    <p v-if="previewingRaffle.prizeValueCents" class="text-sm text-primary-600 font-medium mt-1">
+                      Value: ${{ (previewingRaffle.prizeValueCents / 100).toFixed(2) }}
+                    </p>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-4 text-sm text-gray-500 mb-4">
+                  <span>47 total entries</span>
+                  <span>&bull;</span>
+                  <span>12 participants</span>
+                </div>
+
+                <div class="mb-4">
+                  <p class="text-sm font-medium text-gray-700 mb-2">Your entries:</p>
+                  <div class="flex flex-wrap gap-2">
+                    <span class="text-xs bg-primary-50 text-primary-700 px-2 py-1 rounded-full">Hosted Event (+2)</span>
+                    <span class="text-xs bg-primary-50 text-primary-700 px-2 py-1 rounded-full">Attended Event (+1)</span>
+                  </div>
+                </div>
+
+                <div class="bg-gray-50 rounded-lg p-3">
+                  <p class="text-sm font-medium text-gray-700 mb-2">Earn more entries:</p>
+                  <ul class="text-sm text-gray-600 space-y-1">
+                    <li class="flex items-center gap-2">
+                      <svg class="w-4 h-4 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/>
+                      </svg>
+                      Host a game night (1-2 entries)
+                    </li>
+                    <li class="flex items-center gap-2">
+                      <svg class="w-4 h-4 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19,19H5V8H19M16,1V3H8V1H6V3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3H18V1"/>
+                      </svg>
+                      Plan a group session (1-2 entries)
+                    </li>
+                    <li class="flex items-center gap-2">
+                      <svg class="w-4 h-4 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
+                      </svg>
+                      Attend a game (1 entry)
+                    </li>
+                  </ul>
+                  <p class="text-xs text-gray-400 mt-2">Paid subscribers earn 2x entries for hosting and planning!</p>
+                </div>
+
+                <div v-if="previewingRaffle.termsConditions || previewingRaffle.mailInInstructions" class="mt-3 flex items-center justify-between text-xs text-gray-400">
+                  <span v-if="previewingRaffle.termsConditions">View Terms & Conditions</span>
+                  <span v-if="previewingRaffle.mailInInstructions">Mail-in entry available</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="bg-white border-t px-6 py-4 flex justify-end gap-2 sticky bottom-0">
+          <button class="btn-outline" @click="previewingRaffle = null">Close</button>
+          <button class="btn-primary" @click="openRaffleDialog(previewingRaffle); previewingRaffle = null">
+            Edit Raffle
           </button>
         </div>
       </div>

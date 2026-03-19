@@ -100,6 +100,20 @@ Deno.serve(async (req) => {
       return errorResponse(error.message, 500)
     }
 
+    // Award raffle entry for attending an event (only if confirmed, not waitlisted)
+    if (status === 'confirmed') {
+      try {
+        await supabase.rpc('award_raffle_entry', {
+          p_user_id: user.id,
+          p_entry_type: 'attend_event',
+          p_source_id: targetEventId,
+        })
+      } catch (err) {
+        // Don't fail registration if raffle entry fails
+        console.error('Failed to award raffle entry:', err)
+      }
+    }
+
     return jsonResponse({
       message: status === 'waitlist'
         ? 'Added to waitlist'

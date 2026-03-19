@@ -54,7 +54,11 @@ function getTimezoneAbbr(): string {
 
 // Format timestamp with timezone
 function formatTime(isoString: string): string {
-  const date = new Date(isoString)
+  // Ensure the ISO string is treated as UTC if no timezone specified
+  const normalizedString = isoString.endsWith('Z') || isoString.includes('+') || isoString.includes('-', 10)
+    ? isoString
+    : isoString + 'Z'
+  const date = new Date(normalizedString)
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))

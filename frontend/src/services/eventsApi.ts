@@ -384,6 +384,15 @@ export async function updateItem(
   })
 }
 
+export async function deleteItem(
+  token: string,
+  itemId: string
+): Promise<void> {
+  return authenticatedRequest<void>(`/items?id=${itemId}`, token, {
+    method: 'DELETE',
+  })
+}
+
 export async function inviteGroupMembersToEvent(
   token: string,
   eventId: string,

@@ -382,6 +382,12 @@ async function handleUnclaimItem(itemId: string) {
   showMessage(result.ok, result.message)
 }
 
+async function handleDeleteItem(itemId: string) {
+  if (!confirm('Are you sure you want to delete this item?')) return
+  const result = await eventStore.deleteItem(eventId.value, itemId)
+  showMessage(result.ok, result.ok ? 'Item deleted' : result.message)
+}
+
 function goToEdit() {
   router.push(`/games/${eventId.value}/edit`)
 }
@@ -656,8 +662,14 @@ function goToLogin() {
               </div>
               <div class="flex-1 min-w-0">
                 <div class="font-medium text-gray-900">{{ game.name }}</div>
-                <div class="text-sm text-green-600">
-                  {{ game.interestedCount }} interested
+                <div class="flex flex-wrap gap-x-3 gap-y-1 text-sm">
+                  <span class="text-green-600">{{ game.interestedCount }} interested</span>
+                  <span v-if="game.minPlayers || game.maxPlayers" class="text-gray-500">
+                    {{ game.minPlayers === game.maxPlayers ? `${game.minPlayers}p` : `${game.minPlayers}-${game.maxPlayers}p` }}
+                  </span>
+                  <span v-if="game.playingTime" class="text-gray-500">
+                    {{ game.playingTime }}min
+                  </span>
                 </div>
               </div>
             </div>
@@ -909,13 +921,25 @@ function goToLogin() {
                 <div class="font-medium">{{ item.itemName }}</div>
                 <span class="chip bg-gray-100 text-gray-600 text-xs">{{ item.itemCategory }}</span>
               </div>
-              <button
-                v-if="auth.isAuthenticated.value"
-                class="btn-sm btn-primary"
-                @click="handleClaimItem(item.id)"
-              >
-                I'll Bring It
-              </button>
+              <div class="flex items-center gap-2">
+                <button
+                  v-if="auth.isAuthenticated.value"
+                  class="btn-sm btn-primary"
+                  @click="handleClaimItem(item.id)"
+                >
+                  I'll Bring It
+                </button>
+                <button
+                  v-if="isHost"
+                  class="btn-sm btn-ghost text-red-500"
+                  @click="handleDeleteItem(item.id)"
+                  title="Delete item"
+                >
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -946,13 +970,25 @@ function goToLogin() {
                   <span class="text-green-600">{{ item.claimedByName }} is bringing this</span>
                 </div>
               </div>
-              <button
-                v-if="item.claimedByUserId === auth.user.value?.id"
-                class="btn-sm btn-ghost text-red-500"
-                @click="handleUnclaimItem(item.id)"
-              >
-                Cancel
-              </button>
+              <div class="flex items-center gap-2">
+                <button
+                  v-if="item.claimedByUserId === auth.user.value?.id"
+                  class="btn-sm btn-ghost text-red-500"
+                  @click="handleUnclaimItem(item.id)"
+                >
+                  Cancel
+                </button>
+                <button
+                  v-if="isHost"
+                  class="btn-sm btn-ghost text-red-500"
+                  @click="handleDeleteItem(item.id)"
+                  title="Delete item"
+                >
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1060,6 +1096,7 @@ function goToLogin() {
           <div>
             <label class="label">Category</label>
             <select v-model="editingItem.itemCategory" class="input">
+              <option value="games">Games</option>
               <option value="food">Food</option>
               <option value="drinks">Drinks</option>
               <option value="supplies">Supplies</option>

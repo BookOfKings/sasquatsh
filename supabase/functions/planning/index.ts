@@ -96,9 +96,9 @@ Deno.serve(async (req) => {
         .select(`
           id, group_id, created_by_user_id, title, description,
           response_deadline, status, finalized_date, created_event_id, created_at,
-          max_participants,
+          max_participants, table_count,
           group:groups(id, name, slug),
-          created_by:users!created_by_user_id(id, display_name, username, avatar_url, is_founding_member, is_admin),
+          created_by:users!created_by_user_id(id, display_name, username, avatar_url, is_founding_member, is_admin, subscription_tier, subscription_override_tier),
           invitees:planning_invitees(count)
         `)
         .eq('group_id', groupId)
@@ -115,9 +115,9 @@ Deno.serve(async (req) => {
         .select(`
           id, group_id, created_by_user_id, title, description,
           response_deadline, status, finalized_date, finalized_game_id, created_event_id, created_at,
-          max_participants, max_games,
+          max_participants, max_games, table_count, scheduled_sessions, host_session_preferences,
           group:groups(id, name, slug),
-          created_by:users!created_by_user_id(id, display_name, username, avatar_url, is_founding_member, is_admin)
+          created_by:users!created_by_user_id(id, display_name, username, avatar_url, is_founding_member, is_admin, subscription_tier, subscription_override_tier)
         `)
         .eq('id', sessionId)
         .single()
@@ -177,7 +177,7 @@ Deno.serve(async (req) => {
       const { data: items } = await supabase
         .from('planning_session_items')
         .select(`
-          id, item_name, item_category, quantity_needed, claimed_by_user_id, claimed_at, created_at,
+          id, item_name, item_category, quantity_needed, claimed_by_user_id, claimed_at, created_at, added_by_user_id,
           claimed_by:users!claimed_by_user_id(id, display_name, username, avatar_url, is_founding_member, is_admin)
         `)
         .eq('session_id', sessionId)
@@ -267,9 +267,11 @@ Deno.serve(async (req) => {
         return errorResponse('Some invitees are not members of this group', 400)
       }
 
-      // Calculate max_games based on host's tier
-      const tierGameLimits: Record<string, number> = { free: 0, basic: 5, pro: 10, premium: 10 }
-      const maxGames = tierGameLimits[effectiveTier] || 5
+      // Game suggestions are unlimited during planning.
+      // The tier-based limit (5 for basic, 10 for pro) is applied when creating the event.
+      // We store the limit for informational display purposes only.
+      const tierGameLimits: Record<string, number> = { free: 5, basic: 5, pro: 10, premium: 999 }
+      const maxGamesForDisplay = tierGameLimits[effectiveTier] || 5
 
       // Validate tableCount if provided
       if (body.tableCount !== undefined && body.tableCount !== null) {
@@ -289,7 +291,7 @@ Deno.serve(async (req) => {
           description: body.description || null,
           response_deadline: body.responseDeadline,
           max_participants: body.maxParticipants || null,
-          max_games: maxGames,
+          max_games: maxGamesForDisplay,
           table_count: body.tableCount || null,
         })
         .select()
@@ -406,6 +408,18 @@ Deno.serve(async (req) => {
             })
           }
         }
+      }
+
+      // Award raffle entry for creating a planning session
+      try {
+        await supabase.rpc('award_raffle_entry', {
+          p_user_id: user.id,
+          p_entry_type: 'plan_session',
+          p_source_id: session.id,
+        })
+      } catch (err) {
+        // Don't fail session creation if raffle entry fails
+        console.error('Failed to award raffle entry:', err)
       }
 
       // Fetch full session to return
@@ -610,16 +624,8 @@ Deno.serve(async (req) => {
         return errorResponse('You must have a participation slot to suggest games', 403)
       }
 
-      // Check tier-based game limit
-      const maxGames = sessionData?.max_games || 5
-      const { count: currentCount } = await supabase
-        .from('planning_game_suggestions')
-        .select('*', { count: 'exact', head: true })
-        .eq('session_id', sessionId)
-
-      if ((currentCount ?? 0) >= maxGames) {
-        return errorResponse(`Maximum ${maxGames} games allowed for this session`, 400)
-      }
+      // Note: Game suggestions are unlimited during planning.
+      // The tier-based limit (5 for basic, 10 for pro) is applied when creating the event.
 
       const body = await req.json()
 
@@ -814,8 +820,18 @@ Deno.serve(async (req) => {
         return errorResponse('Session is no longer open', 400)
       }
 
-      // Only creator can add items
-      if (!isCreator) {
+      // Check if creator has paid tier (Basic+) - if so, all participants can add items
+      const { data: creator } = await supabase
+        .from('users')
+        .select('subscription_tier, subscription_override_tier')
+        .eq('id', session.created_by_user_id)
+        .single()
+
+      const creatorTier = creator?.subscription_override_tier || creator?.subscription_tier || 'free'
+      const creatorHasPaidTier = ['basic', 'pro', 'premium'].includes(creatorTier)
+
+      // If creator has paid tier, any participant can add items; otherwise only creator
+      if (!creatorHasPaidTier && !isCreator) {
         return errorResponse('Only the session creator can add items', 403)
       }
 
@@ -835,9 +851,10 @@ Deno.serve(async (req) => {
           item_name: body.itemName.trim(),
           item_category: category,
           quantity_needed: body.quantityNeeded || 1,
+          added_by_user_id: user.id,
         })
         .select(`
-          id, item_name, item_category, quantity_needed, claimed_by_user_id, claimed_at, created_at
+          id, item_name, item_category, quantity_needed, claimed_by_user_id, claimed_at, created_at, added_by_user_id
         `)
         .single()
 
@@ -923,25 +940,26 @@ Deno.serve(async (req) => {
         return errorResponse('Session is no longer open', 400)
       }
 
-      // Only creator can remove items
-      if (!isCreator) {
-        return errorResponse('Only the session creator can remove items', 403)
-      }
-
       const itemId = url.searchParams.get('itemId')
       if (!itemId) {
         return errorResponse('itemId required', 400)
       }
 
-      // Verify item belongs to this session
+      // Verify item belongs to this session and check who added it
       const { data: item } = await supabase
         .from('planning_session_items')
-        .select('id, session_id')
+        .select('id, session_id, added_by_user_id')
         .eq('id', itemId)
         .single()
 
       if (!item || item.session_id !== sessionId) {
         return errorResponse('Item not found', 404)
+      }
+
+      // Only the person who added the item OR the session creator can remove it
+      const isItemAdder = item.added_by_user_id === user.id
+      if (!isCreator && !isItemAdder) {
+        return errorResponse('Only the session creator or item adder can remove items', 403)
       }
 
       const { error } = await supabase
@@ -1103,6 +1121,52 @@ Deno.serve(async (req) => {
     }
 
     // ============ Multi-Table Session Scheduling ============
+
+    // Update session settings (enable/disable multi-table, change table count)
+    if (action === 'update-settings') {
+      if (session.status !== 'open') {
+        return errorResponse('Session is no longer open', 400)
+      }
+
+      if (!isCreator) {
+        return errorResponse('Only the session creator can update settings', 403)
+      }
+
+      const body = await req.json()
+      const tableCount = body.tableCount
+
+      // Determine max tables based on subscription tier
+      const effectiveTier = user.subscription_override_tier || user.subscription_tier || 'free'
+      const maxTables = effectiveTier === 'pro' || effectiveTier === 'premium' ? 10 : 5
+
+      // Validate table count (null to disable, or 2-maxTables to enable)
+      if (tableCount !== null && (typeof tableCount !== 'number' || tableCount < 2 || tableCount > maxTables)) {
+        return errorResponse(`tableCount must be null (to disable) or a number between 2 and ${maxTables}`, 400)
+      }
+
+      // If disabling multi-table, clear scheduled sessions
+      const updateData: Record<string, unknown> = { table_count: tableCount }
+      if (tableCount === null || tableCount < 2) {
+        updateData.scheduled_sessions = null
+        updateData.host_session_preferences = null
+      }
+
+      const { error: updateError } = await supabase
+        .from('planning_sessions')
+        .update(updateData)
+        .eq('id', sessionId)
+
+      if (updateError) {
+        return errorResponse('Failed to update session settings', 500)
+      }
+
+      return jsonResponse({
+        message: tableCount && tableCount >= 2
+          ? `Multi-table enabled with ${tableCount} tables`
+          : 'Multi-table disabled',
+        tableCount: tableCount
+      })
+    }
 
     // Schedule games to tables/time slots (host only, before finalize)
     if (action === 'schedule-sessions') {
@@ -1305,14 +1369,23 @@ Deno.serve(async (req) => {
       }))
 
       // Get games with 2+ interested players (will "fire")
+      // Apply tier-based limit: basic = 5, pro = 10, premium = unlimited
+      const effectiveTier = user.subscription_override_tier || user.subscription_tier || 'free'
+      const tierGameLimits: Record<string, number> = { free: 5, basic: 5, pro: 10, premium: 999 }
+      const maxGamesForEvent = tierGameLimits[effectiveTier] || 5
+
       const qualifyingGames = suggestionsWithCounts
         .filter(s => s.voteCount >= 2)
         .sort((a, b) => b.voteCount - a.voteCount)
+        .slice(0, maxGamesForEvent) // Apply tier limit to top-voted games
         .map(s => ({
           bggId: s.bgg_id,
           name: s.game_name,
           image: s.thumbnail_url,
           interestedCount: s.voteCount,
+          minPlayers: s.min_players,
+          maxPlayers: s.max_players,
+          playingTime: s.playing_time,
         }))
 
       // Get primary game (top-voted or selected)
@@ -1333,7 +1406,16 @@ Deno.serve(async (req) => {
       }
 
       // Check if this is a multi-table session
-      const isMultiTable = (session.table_count ?? 0) >= 2 && session.scheduled_sessions
+      // Allow mode override: if user selects 'single' mode, create single event even if tables were set up
+      const isMultiTable = body.mode !== 'single' && (session.table_count ?? 0) >= 2 && session.scheduled_sessions
+
+      // Determine max players for the event
+      // Use session's maxParticipants if set, otherwise use a reasonable default based on invitees
+      const inviteeCount = (await supabase
+        .from('planning_invitees')
+        .select('id', { count: 'exact', head: true })
+        .eq('session_id', sessionId)).count ?? 0
+      const maxPlayers = session.max_participants || Math.max(inviteeCount + 1, 8) // +1 for host, min 8
 
       // Create draft event with planned_games for multi-game support
       const { data: event, error: eventError } = await supabase
@@ -1347,6 +1429,7 @@ Deno.serve(async (req) => {
           event_date: finalDate.proposed_date,
           start_time: finalDate.start_time || '19:00',
           duration_minutes: 180,
+          max_players: maxPlayers,
           status: 'published',
           is_public: false,
           from_planning_session_id: sessionId,
@@ -1569,6 +1652,9 @@ function transformSessionSummary(row: Record<string, unknown>) {
     createdAt: row.created_at,
     maxParticipants: row.max_participants ?? null,
     maxGames: row.max_games ?? 5,
+    tableCount: row.table_count ?? null,
+    scheduledSessions: row.scheduled_sessions ?? null,
+    hostSessionPreferences: row.host_session_preferences ?? null,
     inviteeCount: (row.invitees as { count: number }[])?.[0]?.count ?? 0,
     group: row.group ? {
       id: (row.group as Record<string, unknown>).id,
@@ -1582,6 +1668,8 @@ function transformSessionSummary(row: Record<string, unknown>) {
       avatarUrl: (row.created_by as Record<string, unknown>).avatar_url,
       isFoundingMember: (row.created_by as Record<string, unknown>).is_founding_member,
       isAdmin: (row.created_by as Record<string, unknown>).is_admin,
+      subscriptionTier: (row.created_by as Record<string, unknown>).subscription_tier,
+      subscriptionOverrideTier: (row.created_by as Record<string, unknown>).subscription_override_tier,
     } : null,
   }
 }
@@ -1651,6 +1739,7 @@ function transformItem(
     claimedByUserId: row.claimed_by_user_id,
     claimedAt: row.claimed_at,
     createdAt: row.created_at,
+    addedByUserId: row.added_by_user_id,
     claimedBy: claimedBy ? {
       id: claimedBy.id,
       displayName: claimedBy.display_name,

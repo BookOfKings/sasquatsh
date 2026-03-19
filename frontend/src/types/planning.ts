@@ -31,6 +31,8 @@ export interface PlanningSession {
     avatarUrl: string | null
     isFoundingMember?: boolean
     isAdmin?: boolean
+    subscriptionTier?: 'free' | 'basic' | 'pro' | 'premium'
+    subscriptionOverrideTier?: 'free' | 'basic' | 'pro' | 'premium'
   } | null
   invitees?: PlanningInvitee[]
   dates?: PlanningDate[]
@@ -55,6 +57,7 @@ export interface PlanningItem {
   claimedByUserId: string | null
   claimedAt: string | null
   createdAt: string
+  addedByUserId: string | null
   claimedBy?: {
     id: string
     displayName: string | null
@@ -161,4 +164,7 @@ export interface PlannedGame {
   name: string
   image: string | null
   interestedCount: number
+  minPlayers: number | null
+  maxPlayers: number | null
+  playingTime: number | null
 }
