@@ -171,6 +171,7 @@ export interface UpdateEventInput {
   isCharityEvent: boolean
   minAge: number | null
   status: string
+  plannedGames?: PlannedGame[] | null
 }
 
 export interface CreateEventItemInput {

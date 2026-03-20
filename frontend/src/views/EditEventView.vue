@@ -28,6 +28,7 @@ import SubmitVenueModal from '@/components/venues/SubmitVenueModal.vue'
 import { hasFeature, TIER_NAMES, type SubscriptionTier } from '@/config/subscriptionLimits'
 import { getEffectiveTier } from '@/types/user'
 import type { UpdateEventInput } from '@/types/events'
+import type { PlannedGame } from '@/types/planning'
 import type { BggGame } from '@/types/bgg'
 import type { EventLocation } from '@/types/social'
 
@@ -49,6 +50,20 @@ const today = computed(() => new Date().toISOString().split('T')[0])
 // Selected games for this event
 const selectedGames = ref<BggGame[]>([])
 const gameSearchQuery = ref('')
+
+// Planned games from planning session
+const plannedGames = ref<PlannedGame[]>([])
+const showAddPlannedGameDialog = ref(false)
+const editingPlannedGameIndex = ref<number | null>(null)
+const plannedGameForm = ref({
+  name: '',
+  interestedCount: 2,
+  minPlayers: null as number | null,
+  maxPlayers: null as number | null,
+  playingTime: null as number | null,
+})
+const plannedGameSearchQuery = ref('')
+const failedPlannedGameImages = ref<Set<string>>(new Set())
 
 // Venue selection state
 const locationMode = ref<'venue' | 'custom'>('custom')
@@ -167,6 +182,11 @@ async function loadEvent() {
           categories: [],
           mechanics: [],
         }))
+    }
+
+    // Load planned games from planning session
+    if (event.plannedGames) {
+      plannedGames.value = [...event.plannedGames]
     }
   } else {
     errorMessage.value = 'Event not found'
@@ -289,6 +309,7 @@ async function handleSubmit() {
     ...form,
     gameCategory: form.gameCategory || null,
     difficultyLevel: form.difficultyLevel || null,
+    plannedGames: plannedGames.value.length > 0 ? plannedGames.value : null,
   }
 
   const result = await eventStore.updateEvent(eventId.value, submitData)
@@ -335,6 +356,91 @@ function setPrimaryGame(index: number) {
   selectedGames.value.splice(index, 1)
   selectedGames.value.unshift(game)
   form.gameTitle = game.name
+}
+
+// Planned games management
+function openAddPlannedGameDialog() {
+  plannedGameForm.value = {
+    name: '',
+    interestedCount: 2,
+    minPlayers: null,
+    maxPlayers: null,
+    playingTime: null,
+  }
+  plannedGameSearchQuery.value = ''
+  editingPlannedGameIndex.value = null
+  showAddPlannedGameDialog.value = true
+}
+
+function openEditPlannedGameDialog(index: number) {
+  const game = plannedGames.value[index]
+  if (!game) return
+  plannedGameForm.value = {
+    name: game.name,
+    interestedCount: game.interestedCount,
+    minPlayers: game.minPlayers,
+    maxPlayers: game.maxPlayers,
+    playingTime: game.playingTime,
+  }
+  editingPlannedGameIndex.value = index
+  showAddPlannedGameDialog.value = true
+}
+
+function handlePlannedGameSelect(game: BggGame) {
+  plannedGameForm.value.name = game.name
+  plannedGameForm.value.minPlayers = game.minPlayers
+  plannedGameForm.value.maxPlayers = game.maxPlayers
+  plannedGameForm.value.playingTime = game.playingTime
+  plannedGameSearchQuery.value = ''
+
+  // If adding new, add it directly
+  if (editingPlannedGameIndex.value === null) {
+    plannedGames.value.push({
+      bggId: game.bggId,
+      name: game.name,
+      image: game.thumbnailUrl,
+      interestedCount: plannedGameForm.value.interestedCount,
+      minPlayers: game.minPlayers,
+      maxPlayers: game.maxPlayers,
+      playingTime: game.playingTime,
+    })
+    showAddPlannedGameDialog.value = false
+  }
+}
+
+function savePlannedGame() {
+  if (!plannedGameForm.value.name.trim()) return
+
+  if (editingPlannedGameIndex.value !== null) {
+    // Update existing
+    const existing = plannedGames.value[editingPlannedGameIndex.value]
+    if (!existing) return
+    plannedGames.value[editingPlannedGameIndex.value] = {
+      bggId: existing.bggId,
+      image: existing.image,
+      name: plannedGameForm.value.name,
+      interestedCount: plannedGameForm.value.interestedCount,
+      minPlayers: plannedGameForm.value.minPlayers,
+      maxPlayers: plannedGameForm.value.maxPlayers,
+      playingTime: plannedGameForm.value.playingTime,
+    }
+  } else {
+    // Add new (manual entry without BGG)
+    plannedGames.value.push({
+      bggId: null,
+      name: plannedGameForm.value.name,
+      image: null,
+      interestedCount: plannedGameForm.value.interestedCount,
+      minPlayers: plannedGameForm.value.minPlayers,
+      maxPlayers: plannedGameForm.value.maxPlayers,
+      playingTime: plannedGameForm.value.playingTime,
+    })
+  }
+  showAddPlannedGameDialog.value = false
+}
+
+function removePlannedGame(index: number) {
+  plannedGames.value.splice(index, 1)
 }
 
 function handleVenueSelect(venue: EventLocation) {
@@ -845,6 +951,94 @@ function handleVenueSubmitted(venue: EventLocation) {
             </div>
           </div>
 
+          <!-- Planned Games Section -->
+          <div v-if="plannedGames.length > 0 || true" class="border-t border-gray-200 pt-6">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h3 class="font-semibold text-gray-900">Planned Games</h3>
+                <p class="text-sm text-gray-500">Games from planning session or added manually</p>
+              </div>
+              <button
+                type="button"
+                class="btn-outline text-sm"
+                @click="openAddPlannedGameDialog"
+                :disabled="loading"
+              >
+                <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/>
+                </svg>
+                Add Game
+              </button>
+            </div>
+
+            <div v-if="plannedGames.length === 0" class="text-center py-8 text-gray-500 border-2 border-dashed border-gray-200 rounded-lg">
+              <svg class="w-12 h-12 mx-auto text-gray-300 mb-2" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
+              </svg>
+              <p>No planned games yet</p>
+              <p class="text-sm">Click "Add Game" to add games for this event</p>
+            </div>
+
+            <div v-else class="space-y-2">
+              <div
+                v-for="(game, index) in plannedGames"
+                :key="game.bggId || index"
+                class="flex items-center gap-3 p-3 border border-green-200 rounded-lg bg-green-50"
+              >
+                <div class="w-12 h-12 rounded bg-white flex-shrink-0 overflow-hidden">
+                  <img
+                    v-if="game.image && !failedPlannedGameImages.has(game.image)"
+                    :src="game.image"
+                    :alt="game.name"
+                    class="w-full h-full object-cover"
+                    @error="() => game.image && failedPlannedGameImages.add(game.image)"
+                  />
+                  <div v-if="!game.image || failedPlannedGameImages.has(game.image || '')" class="w-full h-full flex items-center justify-center">
+                    <svg class="w-6 h-6 text-gray-300" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
+                    </svg>
+                  </div>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="font-medium text-gray-900">{{ game.name }}</div>
+                  <div class="flex flex-wrap gap-x-3 gap-y-1 text-sm">
+                    <span class="text-green-600">{{ game.interestedCount }} interested</span>
+                    <span v-if="game.minPlayers || game.maxPlayers" class="text-gray-500">
+                      {{ game.minPlayers === game.maxPlayers ? `${game.minPlayers}p` : `${game.minPlayers}-${game.maxPlayers}p` }}
+                    </span>
+                    <span v-if="game.playingTime" class="text-gray-500">
+                      {{ game.playingTime }}min
+                    </span>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1">
+                  <button
+                    type="button"
+                    class="p-2 text-gray-400 hover:text-primary-600 hover:bg-white rounded"
+                    title="Edit game"
+                    @click="openEditPlannedGameDialog(index)"
+                    :disabled="loading"
+                  >
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    class="p-2 text-gray-400 hover:text-red-600 hover:bg-white rounded"
+                    title="Remove game"
+                    @click="removePlannedGame(index)"
+                    :disabled="loading"
+                  >
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Actions -->
           <div class="border-t border-gray-200 pt-6 flex justify-end gap-3">
             <button
@@ -870,6 +1064,120 @@ function handleVenueSubmitted(venue: EventLocation) {
         </form>
       </div>
     </div>
+
+    <!-- Add/Edit Planned Game Dialog -->
+    <Teleport to="body">
+      <div
+        v-if="showAddPlannedGameDialog"
+        class="fixed inset-0 z-50 flex items-center justify-center"
+      >
+        <div class="absolute inset-0 bg-black/50" @click="showAddPlannedGameDialog = false"></div>
+        <div class="relative bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+          <div class="p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-semibold text-gray-900">
+                {{ editingPlannedGameIndex !== null ? 'Edit Planned Game' : 'Add Planned Game' }}
+              </h3>
+              <button
+                type="button"
+                class="p-1 text-gray-400 hover:text-gray-600"
+                @click="showAddPlannedGameDialog = false"
+              >
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
+                </svg>
+              </button>
+            </div>
+
+            <!-- BGG Search (only for new games) -->
+            <div v-if="editingPlannedGameIndex === null" class="mb-4">
+              <label class="label">Search BoardGameGeek</label>
+              <GameSearch
+                v-model="plannedGameSearchQuery"
+                @select="handlePlannedGameSelect"
+                placeholder="Search for a board game..."
+              />
+              <p class="text-sm text-gray-500 mt-1">Or enter game details manually below</p>
+            </div>
+
+            <div class="space-y-4">
+              <div>
+                <label class="label">Game Name *</label>
+                <input
+                  v-model="plannedGameForm.name"
+                  type="text"
+                  class="input"
+                  placeholder="Enter game name"
+                />
+              </div>
+
+              <div>
+                <label class="label">Interested Players</label>
+                <input
+                  v-model.number="plannedGameForm.interestedCount"
+                  type="number"
+                  class="input"
+                  min="1"
+                  placeholder="Number of interested players"
+                />
+              </div>
+
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="label">Min Players</label>
+                  <input
+                    v-model.number="plannedGameForm.minPlayers"
+                    type="number"
+                    class="input"
+                    min="1"
+                    placeholder="Min"
+                  />
+                </div>
+                <div>
+                  <label class="label">Max Players</label>
+                  <input
+                    v-model.number="plannedGameForm.maxPlayers"
+                    type="number"
+                    class="input"
+                    min="1"
+                    placeholder="Max"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label class="label">Playing Time (minutes)</label>
+                <input
+                  v-model.number="plannedGameForm.playingTime"
+                  type="number"
+                  class="input"
+                  min="1"
+                  placeholder="e.g., 60"
+                />
+              </div>
+            </div>
+
+            <div class="flex justify-end gap-3 mt-6 pt-4 border-t">
+              <button
+                type="button"
+                class="btn-ghost"
+                @click="showAddPlannedGameDialog = false"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                class="btn-primary"
+                :disabled="!plannedGameForm.name.trim()"
+                @click="savePlannedGame"
+              >
+                {{ editingPlannedGameIndex !== null ? 'Save Changes' : 'Add Game' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- Submit Venue Modal -->
     <SubmitVenueModal

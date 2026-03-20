@@ -42,6 +42,9 @@ const registeringSession = ref(false)
 // Chat state
 const showChat = ref(false)
 
+// Track failed image URLs
+const failedImageUrls = ref<Set<string>>(new Set())
+
 const eventId = computed(() => route.params.id as string)
 const event = computed(() => eventStore.currentEvent.value)
 const isHost = computed(() => event.value?.hostUserId === auth.user.value?.id)
@@ -649,12 +652,13 @@ function goToLogin() {
             >
               <div class="w-12 h-12 rounded bg-white flex-shrink-0 overflow-hidden">
                 <img
-                  v-if="game.image"
+                  v-if="game.image && !failedImageUrls.has(game.image)"
                   :src="game.image"
                   :alt="game.name"
                   class="w-full h-full object-cover"
+                  @error="() => game.image && failedImageUrls.add(game.image)"
                 />
-                <div v-else class="w-full h-full flex items-center justify-center">
+                <div v-if="!game.image || failedImageUrls.has(game.image || '')" class="w-full h-full flex items-center justify-center">
                   <svg class="w-6 h-6 text-gray-300" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
                   </svg>
@@ -688,12 +692,13 @@ function goToLogin() {
             >
               <div class="w-12 h-12 rounded bg-gray-100 flex-shrink-0 overflow-hidden">
                 <img
-                  v-if="game.thumbnailUrl"
+                  v-if="game.thumbnailUrl && !failedImageUrls.has(game.thumbnailUrl)"
                   :src="game.thumbnailUrl"
                   :alt="game.gameName"
                   class="w-full h-full object-cover"
+                  @error="() => game.thumbnailUrl && failedImageUrls.add(game.thumbnailUrl)"
                 />
-                <div v-else class="w-full h-full flex items-center justify-center">
+                <div v-if="!game.thumbnailUrl || failedImageUrls.has(game.thumbnailUrl || '')" class="w-full h-full flex items-center justify-center">
                   <svg class="w-6 h-6 text-gray-300" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
                   </svg>

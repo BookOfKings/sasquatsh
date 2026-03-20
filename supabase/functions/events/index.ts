@@ -492,6 +492,7 @@ Deno.serve(async (req) => {
         is_charity_event: body.isCharityEvent,
         min_age: body.minAge,
         status: body.status,
+        planned_games: body.plannedGames !== undefined ? body.plannedGames : undefined,
         updated_at: new Date().toISOString(),
       })
       .eq('id', eventId)
