@@ -1357,7 +1357,7 @@ Deno.serve(async (req) => {
       const { data: allSuggestions } = await supabase
         .from('planning_game_suggestions')
         .select(`
-          id, game_name, bgg_id, thumbnail_url,
+          id, game_name, bgg_id, thumbnail_url, min_players, max_players, playing_time,
           votes:planning_game_votes(id)
         `)
         .eq('session_id', sessionId)
@@ -1374,19 +1374,42 @@ Deno.serve(async (req) => {
       const tierGameLimits: Record<string, number> = { free: 5, basic: 5, pro: 10, premium: 999 }
       const maxGamesForEvent = tierGameLimits[effectiveTier] || 5
 
-      const qualifyingGames = suggestionsWithCounts
+      // Get games that qualify (2+ votes)
+      const qualifyingRaw = suggestionsWithCounts
         .filter(s => s.voteCount >= 2)
         .sort((a, b) => b.voteCount - a.voteCount)
-        .slice(0, maxGamesForEvent) // Apply tier limit to top-voted games
-        .map(s => ({
+        .slice(0, maxGamesForEvent)
+
+      // For games missing data, try to fill from BGG cache
+      const bggIdsToLookup = qualifyingRaw
+        .filter(s => s.bgg_id && (!s.thumbnail_url || !s.min_players))
+        .map(s => s.bgg_id)
+
+      let bggCacheMap = new Map<number, { thumbnail_url: string | null; min_players: number | null; max_players: number | null; playing_time: number | null }>()
+      if (bggIdsToLookup.length > 0) {
+        const { data: cachedGames } = await supabase
+          .from('bgg_games_cache')
+          .select('bgg_id, thumbnail_url, min_players, max_players, playing_time')
+          .in('bgg_id', bggIdsToLookup)
+
+        for (const g of cachedGames ?? []) {
+          bggCacheMap.set(g.bgg_id, g)
+        }
+      }
+
+      // Build qualifying games with fallback to BGG cache
+      const qualifyingGames = qualifyingRaw.map(s => {
+        const cached = s.bgg_id ? bggCacheMap.get(s.bgg_id) : null
+        return {
           bggId: s.bgg_id,
           name: s.game_name,
-          image: s.thumbnail_url,
+          image: s.thumbnail_url || cached?.thumbnail_url || null,
           interestedCount: s.voteCount,
-          minPlayers: s.min_players,
-          maxPlayers: s.max_players,
-          playingTime: s.playing_time,
-        }))
+          minPlayers: s.min_players ?? cached?.min_players ?? null,
+          maxPlayers: s.max_players ?? cached?.max_players ?? null,
+          playingTime: s.playing_time ?? cached?.playing_time ?? null,
+        }
+      })
 
       // Get primary game (top-voted or selected)
       let finalGame: { id: string; game_name: string; bgg_id: number | null } | null = null
