@@ -232,6 +232,17 @@ Add a session note with `add_note()`:
 - `update_secret(secret_id, ...)` - Update secret
 - `delete_secret(secret_id)` - Delete secret
 
+#### Tests (Given/When/Then format)
+- `get_tests(project_id, status?)` - Get all tests with their steps
+- `add_test(project_id, name, description?, status?, steps?, test_file_path?)` - Add a test with optional steps
+- `add_test_step(test_id, step_number, description, step_type?, expected_result?)` - Add step to existing test (step_type: given/when/then/and/but)
+- `delete_test(test_id)` - Delete a test and all its steps
+
+#### Test Accounts (for automated testing)
+- `get_test_accounts(project_id, environment?)` - Get test accounts (environment: dev/staging/prod/all)
+- `add_test_account(project_id, email, password, role?, environment?, api_key?, two_factor_secret?, notes?)` - Add test account
+- `delete_test_account(account_id)` - Delete test account
+
 ### Important
 - Do NOT use local SESSION.md files - all session data goes to Project Oracle
 - Always check recent notes at session start for context
