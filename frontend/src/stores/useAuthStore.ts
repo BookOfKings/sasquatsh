@@ -29,39 +29,42 @@ function isMobileDevice(): boolean {
 }
 
 // Initialize auth state listener
-function initializeAuth(): Promise<void> {
+async function initializeAuth(): Promise<void> {
+  if (isInitialized.value) {
+    return
+  }
+
+  // Handle Google redirect result FIRST (for mobile sign-in)
+  // This must complete before we check auth state to ensure proper routing
+  if (isMobileDevice()) {
+    try {
+      const result = await getRedirectResult(auth)
+      // result is null if there was no redirect
+      if (result?.user) {
+        console.log('Google redirect successful, syncing user...')
+        try {
+          const idToken = await result.user.getIdToken()
+          user.value = await getCurrentUser(idToken)
+          firebaseUser.value = result.user
+          isLoading.value = false
+          isInitialized.value = true
+          return // User is synced, we're done
+        } catch (syncErr: any) {
+          console.error('Failed to sync Google user with backend:', syncErr)
+          await signOut(auth)
+          error.value = syncErr?.message || 'Failed to create account. Please try again.'
+        }
+      }
+    } catch (err: any) {
+      console.error('Google redirect error:', err.code, err.message)
+      if (err.code) {
+        error.value = getAuthErrorMessage(err.code)
+      }
+    }
+  }
+
+  // Set up auth state listener for normal auth flow
   return new Promise((resolve) => {
-    if (isInitialized.value) {
-      resolve()
-      return
-    }
-
-    // Handle Google redirect result (for mobile sign-in)
-    // Always check on mobile - sessionStorage doesn't persist across domain redirects
-    if (isMobileDevice()) {
-      getRedirectResult(auth)
-        .then(async (result) => {
-          // result is null if there was no redirect
-          if (result?.user) {
-            console.log('Google redirect successful, syncing user...')
-            try {
-              const idToken = await result.user.getIdToken()
-              user.value = await getCurrentUser(idToken)
-            } catch (syncErr: any) {
-              console.error('Failed to sync Google user with backend:', syncErr)
-              await signOut(auth)
-              error.value = syncErr?.message || 'Failed to create account. Please try again.'
-            }
-          }
-        })
-        .catch((err) => {
-          console.error('Google redirect error:', err.code, err.message)
-          if (err.code) {
-            error.value = getAuthErrorMessage(err.code)
-          }
-        })
-    }
-
     onAuthStateChanged(auth, async (fbUser) => {
       firebaseUser.value = fbUser
 
