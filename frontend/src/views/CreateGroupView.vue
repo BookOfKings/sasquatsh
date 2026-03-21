@@ -306,6 +306,7 @@ function goBack() {
       limit-type="groups"
       :current-count="ownedGroupCount"
       :limit="groupLimit"
+      :blocking="isAtLimit"
       @close="showUpgradePrompt = false"
     />
   </div>
