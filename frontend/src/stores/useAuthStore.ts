@@ -34,12 +34,12 @@ async function initializeAuth(): Promise<void> {
     return
   }
 
-  // Handle Google redirect result FIRST (for mobile sign-in)
-  // This must complete before we check auth state to ensure proper routing
-  if (isMobileDevice()) {
+  // Check if we're returning from a Google redirect (fallback for blocked popups)
+  const pendingRedirect = sessionStorage.getItem('pendingGoogleRedirect')
+  if (pendingRedirect) {
+    sessionStorage.removeItem('pendingGoogleRedirect')
     try {
       const result = await getRedirectResult(auth)
-      // result is null if there was no redirect
       if (result?.user) {
         console.log('Google redirect successful, syncing user...')
         try {
@@ -167,15 +167,22 @@ async function loginWithGoogle(): Promise<{ ok: boolean; message: string }> {
   try {
     const provider = new GoogleAuthProvider()
 
-    // Use redirect for mobile devices (popup doesn't work well on mobile)
-    if (isMobileDevice()) {
-      await signInWithRedirect(auth, provider)
-      // Redirect happens, result handled in initializeAuth via getRedirectResult
-      return { ok: true, message: 'Redirecting to Google...' }
+    // Try popup first (works on most modern mobile browsers now)
+    // Fall back to redirect only if popup is blocked
+    let result
+    try {
+      result = await signInWithPopup(auth, provider)
+    } catch (popupErr: any) {
+      // If popup was blocked or closed, try redirect on mobile
+      if (isMobileDevice() && (popupErr.code === 'auth/popup-blocked' || popupErr.code === 'auth/popup-closed-by-user')) {
+        console.log('Popup blocked/closed on mobile, falling back to redirect')
+        // Store a flag so we know to check for redirect result
+        sessionStorage.setItem('pendingGoogleRedirect', 'true')
+        await signInWithRedirect(auth, provider)
+        return { ok: true, message: 'Redirecting to Google...' }
+      }
+      throw popupErr
     }
-
-    // Use popup for desktop
-    const result = await signInWithPopup(auth, provider)
 
     // Wait for backend sync to complete
     if (result.user) {
