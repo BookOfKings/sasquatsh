@@ -9,6 +9,7 @@ const props = defineProps<{
   limitType: 'games' | 'groups'
   currentCount: number
   limit: number
+  blocking?: boolean // When true, user cannot dismiss - must upgrade or go back
 }>()
 
 const emit = defineEmits<{
@@ -51,6 +52,10 @@ function goToPricing() {
   emit('close')
   router.push('/pricing')
 }
+
+function goBack() {
+  router.back()
+}
 </script>
 
 <template>
@@ -58,7 +63,7 @@ function goToPricing() {
     <div
       v-if="visible"
       class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-      @click.self="emit('close')"
+      @click.self="!blocking && emit('close')"
     >
       <div class="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden">
         <!-- Header -->
@@ -119,6 +124,14 @@ function goToPricing() {
           <!-- Actions -->
           <div class="flex gap-3">
             <button
+              v-if="blocking"
+              @click="goBack"
+              class="flex-1 btn btn-secondary"
+            >
+              Go Back
+            </button>
+            <button
+              v-else
               @click="emit('close')"
               class="flex-1 btn btn-secondary"
             >

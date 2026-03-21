@@ -890,6 +890,7 @@ function handleVenueSubmitted(venue: EventLocation) {
       limit-type="games"
       :current-count="activeEventCount"
       :limit="eventLimit"
+      :blocking="isAtLimit"
       @close="showUpgradePrompt = false"
     />
   </div>
