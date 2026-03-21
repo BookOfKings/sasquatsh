@@ -3696,7 +3696,7 @@ function getLocationTypeLabel(location: EventLocation): string {
     </div>
 
     <!-- Raffle Create/Edit Dialog -->
-    <div v-if="showRaffleDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="showRaffleDialog = false">
+    <div v-if="showRaffleDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @mousedown.self="showRaffleDialog = false">
       <div class="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
         <h2 class="text-xl font-semibold mb-4">
           {{ editingRaffle ? 'Edit Raffle' : 'Create Raffle' }}
@@ -3843,7 +3843,7 @@ function getLocationTypeLabel(location: EventLocation): string {
     </div>
 
     <!-- Raffle Entries Dialog -->
-    <div v-if="showRaffleEntries" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="showRaffleEntries = false">
+    <div v-if="showRaffleEntries" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @mousedown.self="showRaffleEntries = false">
       <div class="bg-white rounded-xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto mx-4">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-xl font-semibold">
@@ -3894,7 +3894,7 @@ function getLocationTypeLabel(location: EventLocation): string {
     </div>
 
     <!-- Raffle Preview Modal -->
-    <div v-if="previewingRaffle" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="previewingRaffle = null">
+    <div v-if="previewingRaffle" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @mousedown.self="previewingRaffle = null">
       <div class="bg-gray-100 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
         <!-- Header -->
         <div class="bg-white border-b px-6 py-4 flex items-center justify-between sticky top-0 z-10">
