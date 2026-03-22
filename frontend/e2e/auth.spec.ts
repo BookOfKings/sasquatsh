@@ -1,6 +1,13 @@
 import { test, expect } from '@playwright/test'
+import { dismissCookieConsent } from './fixtures/test-helpers'
 
 test.describe('Authentication', () => {
+  // Dismiss cookie banner before each test (not using auth storage state)
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/')
+    await dismissCookieConsent(page)
+  })
+
   test.describe('Login Page', () => {
     test('should display login form', async ({ page }) => {
       await page.goto('/login')
@@ -106,12 +113,15 @@ test.describe('Authentication', () => {
     test('should show validation errors for empty form', async ({ page }) => {
       await page.goto('/signup')
 
-      // Click Create Account submit without filling form
-      await page.getByRole('button', { name: 'Create Account' }).click()
+      // The Create Account button should be disabled when the form is empty
+      const submitButton = page.getByRole('button', { name: 'Create Account' })
+      await expect(submitButton).toBeDisabled()
 
-      // Should show validation error (username, email, or password required)
-      const errorMessage = page.getByText(/required|fill|please|must/i)
-      await expect(errorMessage).toBeVisible()
+      // Fill in just username to partially complete form
+      await page.locator('#username').fill('testuser')
+
+      // Button should still be disabled (missing email and password)
+      await expect(submitButton).toBeDisabled()
     })
   })
 })

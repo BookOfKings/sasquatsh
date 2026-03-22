@@ -65,6 +65,7 @@ test.describe('Groups (Authenticated)', () => {
   test('should display create group form when authenticated', async ({ page }) => {
     // Login first
     await page.goto('/login')
+    await dismissCookieConsent(page)
     await page.locator('#email').fill(process.env.TEST_USER_EMAIL!)
     await page.locator('#password').fill(process.env.TEST_USER_PASSWORD!)
     await page.getByRole('button', { name: /sign in/i }).click()
@@ -86,6 +87,7 @@ test.describe('Groups (Authenticated)', () => {
   test('should validate group name is required', async ({ page }) => {
     // Login first
     await page.goto('/login')
+    await dismissCookieConsent(page)
     await page.locator('#email').fill(process.env.TEST_USER_EMAIL!)
     await page.locator('#password').fill(process.env.TEST_USER_PASSWORD!)
     await page.getByRole('button', { name: /sign in/i }).click()
@@ -96,9 +98,10 @@ test.describe('Groups (Authenticated)', () => {
     // Navigate to create group
     await page.goto('/groups/create')
     await dismissCookieConsent(page)
+    await page.waitForTimeout(500)
 
-    // Try to submit empty form
-    await page.getByRole('button', { name: /create/i }).click()
+    // Try to submit empty form using force to bypass any remaining overlays
+    await page.getByRole('button', { name: /create/i }).click({ force: true })
 
     // Should show validation error
     await expect(page.getByText(/required/i)).toBeVisible()

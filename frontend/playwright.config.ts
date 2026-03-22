@@ -14,6 +14,7 @@ const __dirname = path.dirname(__filename)
 const STORAGE_STATE_DIR = path.join(__dirname, 'playwright/.auth')
 const MAIN_USER_AUTH = path.join(STORAGE_STATE_DIR, 'main-user.json')
 const BASIC_USER_AUTH = path.join(STORAGE_STATE_DIR, 'basic-user.json')
+const PRO_USER_AUTH = path.join(STORAGE_STATE_DIR, 'pro-user.json')
 
 /**
  * Playwright E2E Test Configuration
@@ -73,7 +74,7 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
       dependencies: ['setup'],
-      testIgnore: /basic-tier\.spec\.ts/,
+      testIgnore: /(basic-tier|pro-tier)\.spec\.ts/,
     },
     {
       name: 'chromium-basic-tier',
@@ -84,13 +85,22 @@ export default defineConfig({
       dependencies: ['setup'],
       testMatch: /basic-tier\.spec\.ts/,
     },
+    {
+      name: 'chromium-pro-tier',
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: PRO_USER_AUTH,
+      },
+      dependencies: ['setup'],
+      testMatch: /pro-tier\.spec\.ts/,
+    },
 
     // === FIREFOX PROJECTS ===
     {
       name: 'firefox',
       use: { ...devices['Desktop Firefox'] },
       dependencies: ['setup'],
-      testIgnore: /basic-tier\.spec\.ts/,
+      testIgnore: /(basic-tier|pro-tier)\.spec\.ts/,
     },
 
     // === WEBKIT PROJECTS ===
@@ -98,7 +108,7 @@ export default defineConfig({
       name: 'webkit',
       use: { ...devices['Desktop Safari'] },
       dependencies: ['setup'],
-      testIgnore: /basic-tier\.spec\.ts/,
+      testIgnore: /(basic-tier|pro-tier)\.spec\.ts/,
     },
 
     // === MOBILE PROJECTS ===
@@ -106,13 +116,13 @@ export default defineConfig({
       name: 'mobile-chrome',
       use: { ...devices['Pixel 5'] },
       dependencies: ['setup'],
-      testIgnore: /basic-tier\.spec\.ts/,
+      testIgnore: /(basic-tier|pro-tier)\.spec\.ts/,
     },
     {
       name: 'mobile-safari',
       use: { ...devices['iPhone 12'] },
       dependencies: ['setup'],
-      testIgnore: /basic-tier\.spec\.ts/,
+      testIgnore: /(basic-tier|pro-tier)\.spec\.ts/,
     },
   ],
 

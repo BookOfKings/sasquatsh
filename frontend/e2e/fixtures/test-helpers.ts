@@ -115,6 +115,19 @@ export function getFutureDate(daysFromNow: number): string {
 }
 
 /**
+ * Dismiss cookie consent banner if visible
+ * Note: This is also called during auth setup, so storage state should have it dismissed
+ * Use this for unauthenticated tests or when storage state is not loaded
+ */
+export async function dismissCookieConsent(page: Page): Promise<void> {
+  const acceptCookies = page.getByRole('button', { name: /accept all/i })
+  if (await acceptCookies.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await acceptCookies.click()
+    await page.waitForTimeout(500)
+  }
+}
+
+/**
  * Wait for network idle
  */
 export async function waitForNetworkIdle(page: Page, timeout = 5000): Promise<void> {
