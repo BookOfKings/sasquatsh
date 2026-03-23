@@ -176,3 +176,26 @@ export async function searchUsersByUsername(
     token
   )
 }
+
+// ============ Account Deletion ============
+
+// Delete current user's account and all associated data
+export async function deleteMyAccount(token: string): Promise<void> {
+  await authenticatedRequest<{ message: string }>(
+    '/profile?action=delete-account',
+    token,
+    { method: 'DELETE' }
+  )
+}
+
+// ============ Password Change Tracking ============
+
+// Record that the user changed their password
+export async function recordPasswordChange(token: string): Promise<UserProfile> {
+  const response = await authenticatedRequest<{ message: string; user: UserProfile }>(
+    '/profile?action=password-changed',
+    token,
+    { method: 'POST' }
+  )
+  return response.user
+}

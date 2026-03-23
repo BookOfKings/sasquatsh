@@ -6,9 +6,12 @@ import {
   signInWithRedirect,
   getRedirectResult,
   GoogleAuthProvider,
+  EmailAuthProvider,
   signOut,
   onAuthStateChanged,
   updateProfile,
+  updatePassword,
+  reauthenticateWithCredential,
   sendEmailVerification,
   sendPasswordResetEmail,
   type User as FirebaseUser,
@@ -225,6 +228,66 @@ async function resetPassword(email: string): Promise<{ ok: boolean; message: str
   }
 }
 
+async function changePassword(currentPassword: string, newPassword: string): Promise<{ ok: boolean; message: string }> {
+  if (!firebaseUser.value || !firebaseUser.value.email) {
+    return { ok: false, message: 'You must be logged in to change your password' }
+  }
+
+  try {
+    // Re-authenticate with current password first
+    const credential = EmailAuthProvider.credential(firebaseUser.value.email, currentPassword)
+    await reauthenticateWithCredential(firebaseUser.value, credential)
+
+    // Now update the password
+    await updatePassword(firebaseUser.value, newPassword)
+    return { ok: true, message: 'Password changed successfully!' }
+  } catch (err: any) {
+    const message = getAuthErrorMessage(err.code)
+    return { ok: false, message }
+  }
+}
+
+async function deleteAccount(deleteAccountFn: (token: string) => Promise<void>): Promise<{ ok: boolean; message: string }> {
+  if (!firebaseUser.value) {
+    return { ok: false, message: 'You must be logged in to delete your account' }
+  }
+
+  try {
+    // Get token FIRST before any deletion
+    const token = await firebaseUser.value.getIdToken()
+
+    // Try to delete Firebase account FIRST
+    // This checks if re-auth is needed BEFORE we touch backend data
+    try {
+      await firebaseUser.value.delete()
+    } catch (firebaseErr: any) {
+      if (firebaseErr.code === 'auth/requires-recent-login') {
+        return { ok: false, message: 'For security, please sign out and sign back in before deleting your account' }
+      }
+      throw firebaseErr
+    }
+
+    // Firebase account deleted successfully
+    // Now clean up backend data using the token we already obtained
+    try {
+      await deleteAccountFn(token)
+    } catch (backendErr) {
+      // Backend cleanup failed, but Firebase account is already gone
+      // Log this but don't fail - user account is effectively deleted
+      console.error('Backend cleanup failed after Firebase deletion:', backendErr)
+    }
+
+    // Clear local state
+    user.value = null
+    firebaseUser.value = null
+
+    return { ok: true, message: 'Account deleted successfully' }
+  } catch (err: any) {
+    const message = err.message || 'Failed to delete account'
+    return { ok: false, message }
+  }
+}
+
 async function refreshUser(): Promise<void> {
   if (firebaseUser.value) {
     try {
@@ -288,6 +351,8 @@ export function useAuthStore() {
     loginWithGoogle,
     logout,
     resetPassword,
+    changePassword,
+    deleteAccount,
     getIdToken,
     refreshUser,
     updateUserData,

@@ -3,7 +3,7 @@ import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useEventStore } from '@/stores/useEventStore'
-import { getMyProfile, updateProfile, getBlockedUsers, unblockUser, uploadAvatar, deleteAvatar } from '@/services/profileApi'
+import { getMyProfile, updateProfile, getBlockedUsers, unblockUser, uploadAvatar, deleteAvatar, deleteMyAccount, recordPasswordChange } from '@/services/profileApi'
 import { checkUsernameAvailable } from '@/services/authApi'
 import { getLocationById } from '@/services/venuesApi'
 import type { UserProfile, UpdateProfileInput, BlockedUser } from '@/types/profile'
@@ -48,6 +48,23 @@ const avatarUploading = ref(false)
 const avatarDeleting = ref(false)
 const avatarError = ref('')
 const avatarFileInput = ref<HTMLInputElement | null>(null)
+
+// Password change state
+const showPasswordChange = ref(false)
+const passwordChanging = ref(false)
+const passwordError = ref('')
+const passwordSuccess = ref('')
+const passwordForm = reactive({
+  currentPassword: '',
+  newPassword: '',
+  confirmPassword: '',
+})
+
+// Delete account state
+const showDeleteConfirm = ref(false)
+const deleteConfirmText = ref('')
+const deleting = ref(false)
+const deleteError = ref('')
 
 const form = reactive<UpdateProfileInput>({
   username: '',
@@ -278,6 +295,98 @@ async function handleUnblock(userId: string) {
   } catch (err) {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to unblock user'
   }
+}
+
+async function handlePasswordChange() {
+  passwordError.value = ''
+  passwordSuccess.value = ''
+
+  // Validate passwords match
+  if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+    passwordError.value = 'New passwords do not match'
+    return
+  }
+
+  // Validate password length
+  if (passwordForm.newPassword.length < 6) {
+    passwordError.value = 'New password must be at least 6 characters'
+    return
+  }
+
+  passwordChanging.value = true
+
+  try {
+    const result = await auth.changePassword(passwordForm.currentPassword, passwordForm.newPassword)
+    if (result.ok) {
+      passwordSuccess.value = result.message
+      // Clear form
+      passwordForm.currentPassword = ''
+      passwordForm.newPassword = ''
+      passwordForm.confirmPassword = ''
+
+      // Record password change timestamp in backend
+      try {
+        const token = await auth.getIdToken()
+        if (token && profile.value) {
+          const updatedProfile = await recordPasswordChange(token)
+          profile.value = updatedProfile
+        }
+      } catch (err) {
+        console.error('Failed to record password change:', err)
+      }
+
+      // Hide form after success
+      setTimeout(() => {
+        showPasswordChange.value = false
+        passwordSuccess.value = ''
+      }, 3000)
+    } else {
+      passwordError.value = result.message
+    }
+  } catch (err) {
+    passwordError.value = 'Failed to change password. Please try again.'
+  } finally {
+    passwordChanging.value = false
+  }
+}
+
+function cancelPasswordChange() {
+  showPasswordChange.value = false
+  passwordForm.currentPassword = ''
+  passwordForm.newPassword = ''
+  passwordForm.confirmPassword = ''
+  passwordError.value = ''
+  passwordSuccess.value = ''
+}
+
+async function handleDeleteAccount() {
+  if (deleteConfirmText.value !== 'DELETE') {
+    deleteError.value = 'Please type DELETE to confirm'
+    return
+  }
+
+  deleting.value = true
+  deleteError.value = ''
+
+  try {
+    const result = await auth.deleteAccount(deleteMyAccount)
+    if (result.ok) {
+      // Redirect to home page after successful deletion
+      router.push('/')
+    } else {
+      deleteError.value = result.message
+    }
+  } catch (err) {
+    deleteError.value = err instanceof Error ? err.message : 'Failed to delete account'
+  } finally {
+    deleting.value = false
+  }
+}
+
+function cancelDeleteAccount() {
+  showDeleteConfirm.value = false
+  deleteConfirmText.value = ''
+  deleteError.value = ''
 }
 
 function triggerAvatarUpload() {
@@ -604,7 +713,15 @@ function goToGroup(slug: string) {
             <div class="flex-1">
               <h2 class="text-xl font-bold">{{ profile.displayName || 'No name set' }}</h2>
               <p class="text-primary-600 font-medium">@{{ profile.username }}</p>
-              <p class="text-gray-500 text-sm">{{ profile.email }}</p>
+              <p class="text-gray-500 text-sm flex items-center gap-2">
+                {{ profile.email }}
+                <span v-if="profile.authProvider === 'google.com'" class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 border border-blue-200 rounded-full text-xs text-blue-700">
+                  <svg class="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M21.35,11.1H12.18V13.83H18.69C18.36,17.64 15.19,19.27 12.19,19.27C8.36,19.27 5,16.25 5,12C5,7.9 8.2,4.73 12.2,4.73C15.29,4.73 17.1,6.7 17.1,6.7L19,4.72C19,4.72 16.56,2 12.1,2C6.42,2 2.03,6.8 2.03,12C2.03,17.05 6.16,22 12.25,22C17.6,22 21.5,18.33 21.5,12.91C21.5,11.76 21.35,11.1 21.35,11.1Z"/>
+                  </svg>
+                  Google
+                </span>
+              </p>
               <p class="text-sm text-gray-400 mt-1">Member since {{ memberSince }}</p>
 
               <!-- Founding Member Badge -->
@@ -1202,6 +1319,193 @@ function goToGroup(slug: string) {
               >
                 {{ currentTier === 'free' ? 'View Plans' : 'Manage' }}
               </router-link>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Account Security -->
+      <div class="card mb-6">
+        <div class="p-4 border-b border-gray-100">
+          <h3 class="font-semibold flex items-center gap-2">
+            <svg class="w-5 h-5 text-gray-500" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.9,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z"/>
+            </svg>
+            Account Security
+          </h3>
+        </div>
+        <div class="p-4">
+          <!-- OAuth users -->
+          <div v-if="profile?.authProvider && profile.authProvider !== 'password'" class="text-center py-4">
+            <div class="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+              <svg v-if="profile.authProvider === 'google.com'" class="w-5 h-5 text-blue-600" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M21.35,11.1H12.18V13.83H18.69C18.36,17.64 15.19,19.27 12.19,19.27C8.36,19.27 5,16.25 5,12C5,7.9 8.2,4.73 12.2,4.73C15.29,4.73 17.1,6.7 17.1,6.7L19,4.72C19,4.72 16.56,2 12.1,2C6.42,2 2.03,6.8 2.03,12C2.03,17.05 6.16,22 12.25,22C17.6,22 21.5,18.33 21.5,12.91C21.5,11.76 21.35,11.1 21.35,11.1Z"/>
+              </svg>
+              <span class="text-sm text-blue-700">
+                You're signed in with {{ profile.authProvider === 'google.com' ? 'Google' : profile.authProvider }}.
+                Manage your password in your {{ profile.authProvider === 'google.com' ? 'Google' : 'provider' }} account settings.
+              </span>
+            </div>
+          </div>
+
+          <!-- Password users -->
+          <div v-else>
+            <div v-if="!showPasswordChange" class="flex items-center justify-between">
+              <div>
+                <p class="text-sm text-gray-600">Password</p>
+                <p class="text-sm text-gray-400">
+                  Last changed: {{ profile.passwordChangedAt ? new Date(profile.passwordChangedAt).toLocaleDateString() : 'Never' }}
+                </p>
+              </div>
+              <button
+                class="btn-outline text-sm"
+                @click="showPasswordChange = true"
+              >
+                Change Password
+              </button>
+            </div>
+
+            <!-- Password change form -->
+            <div v-else class="space-y-4">
+              <div v-if="passwordError" class="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+                {{ passwordError }}
+              </div>
+              <div v-if="passwordSuccess" class="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-600">
+                {{ passwordSuccess }}
+              </div>
+
+              <div>
+                <label class="label">Current Password</label>
+                <input
+                  v-model="passwordForm.currentPassword"
+                  type="password"
+                  class="input"
+                  placeholder="Enter current password"
+                  :disabled="passwordChanging"
+                />
+              </div>
+
+              <div>
+                <label class="label">New Password</label>
+                <input
+                  v-model="passwordForm.newPassword"
+                  type="password"
+                  class="input"
+                  placeholder="Enter new password (min 6 characters)"
+                  :disabled="passwordChanging"
+                />
+              </div>
+
+              <div>
+                <label class="label">Confirm New Password</label>
+                <input
+                  v-model="passwordForm.confirmPassword"
+                  type="password"
+                  class="input"
+                  placeholder="Confirm new password"
+                  :disabled="passwordChanging"
+                />
+              </div>
+
+              <div class="flex gap-3 justify-end pt-2">
+                <button
+                  type="button"
+                  class="btn-ghost"
+                  :disabled="passwordChanging"
+                  @click="cancelPasswordChange"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  class="btn-primary"
+                  :disabled="passwordChanging || !passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword"
+                  @click="handlePasswordChange"
+                >
+                  <svg v-if="passwordChanging" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                  </svg>
+                  {{ passwordChanging ? 'Changing...' : 'Change Password' }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Delete Account -->
+          <div class="mt-6 pt-6 border-t border-gray-200">
+            <div v-if="!showDeleteConfirm" class="flex items-center justify-between">
+              <div>
+                <p class="text-sm font-medium text-red-600">Delete Account</p>
+                <p class="text-sm text-gray-500">Permanently delete your account and all data</p>
+              </div>
+              <button
+                class="btn-outline text-red-600 border-red-300 hover:bg-red-50 text-sm"
+                @click="showDeleteConfirm = true"
+              >
+                Delete Account
+              </button>
+            </div>
+
+            <!-- Delete confirmation -->
+            <div v-else class="space-y-4">
+              <div class="p-4 bg-red-50 border border-red-200 rounded-lg">
+                <div class="flex gap-3">
+                  <svg class="w-6 h-6 text-red-500 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
+                  </svg>
+                  <div>
+                    <p class="font-medium text-red-800">This action cannot be undone</p>
+                    <p class="text-sm text-red-700 mt-1">
+                      Deleting your account will permanently remove:
+                    </p>
+                    <ul class="text-sm text-red-700 mt-2 list-disc list-inside space-y-1">
+                      <li>Your profile and all personal data</li>
+                      <li>All events you're hosting (will be cancelled)</li>
+                      <li>Your registrations and group memberships</li>
+                      <li>Groups you own with no other owners</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="deleteError" class="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+                {{ deleteError }}
+              </div>
+
+              <div>
+                <label class="label">Type DELETE to confirm</label>
+                <input
+                  v-model="deleteConfirmText"
+                  type="text"
+                  class="input"
+                  placeholder="DELETE"
+                  :disabled="deleting"
+                />
+              </div>
+
+              <div class="flex gap-3 justify-end">
+                <button
+                  type="button"
+                  class="btn-ghost"
+                  :disabled="deleting"
+                  @click="cancelDeleteAccount"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  class="btn-primary bg-red-600 hover:bg-red-700"
+                  :disabled="deleting || deleteConfirmText !== 'DELETE'"
+                  @click="handleDeleteAccount"
+                >
+                  <svg v-if="deleting" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                  </svg>
+                  {{ deleting ? 'Deleting...' : 'Delete My Account' }}
+                </button>
+              </div>
             </div>
           </div>
         </div>

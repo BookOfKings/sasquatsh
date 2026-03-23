@@ -13,6 +13,7 @@ export interface User {
   isFoundingMember: boolean
   blockedUserIds: string[]
   createdAt: string
+  authProvider?: 'password' | 'google.com' | 'facebook.com' | string
 }
 
 // Helper to get the effective tier (override takes precedence)

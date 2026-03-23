@@ -466,23 +466,25 @@ function goToLogin() {
       <!-- Main Event Card -->
       <div class="card p-6 mb-6">
         <!-- Header -->
-        <div class="flex items-start gap-4 mb-4">
-          <UserAvatar
-            :avatar-url="event.host?.avatarUrl"
-            :display-name="event.host?.displayName"
-            :is-founding-member="event.host?.isFoundingMember"
-            :is-admin="event.host?.isAdmin"
-            size="lg"
-            class="flex-shrink-0"
-          />
-          <div class="flex-1 min-w-0">
-            <h1 class="text-2xl font-bold text-gray-900">{{ event.title }}</h1>
-            <p class="text-gray-500">
-              <span v-if="event.gameTitle">{{ event.gameTitle }} &bull; </span>
-              Hosted by {{ event.host?.displayName || 'Unknown' }}
-            </p>
+        <div class="flex flex-col sm:flex-row sm:items-start gap-4 mb-4">
+          <div class="flex items-start gap-4 flex-1 min-w-0">
+            <UserAvatar
+              :avatar-url="event.host?.avatarUrl"
+              :display-name="event.host?.displayName"
+              :is-founding-member="event.host?.isFoundingMember"
+              :is-admin="event.host?.isAdmin"
+              size="lg"
+              class="flex-shrink-0"
+            />
+            <div class="min-w-0">
+              <h1 class="text-2xl font-bold text-gray-900">{{ event.title }}</h1>
+              <p class="text-gray-500">
+                <span v-if="event.gameTitle">{{ event.gameTitle }} &bull; </span>
+                Hosted by {{ event.host?.displayName || 'Unknown' }}
+              </p>
+            </div>
           </div>
-          <div class="flex gap-2">
+          <div class="flex flex-wrap gap-2 flex-shrink-0">
             <!-- Invite Group Members (for planned events) -->
             <button
               v-if="isPlannedGroupEvent && canInviteMembers && spotsLeft > 0"

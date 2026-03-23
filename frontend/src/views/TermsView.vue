@@ -9,6 +9,13 @@
       <div class="prose prose-gray max-w-none">
         <p class="text-gray-600 mb-4">Last updated: March 2026</p>
 
+        <p class="text-gray-600 mb-4">
+          These Terms of Service ("Terms") constitute a legal agreement between you and
+          <strong>Carpathian Digital LLC</strong>, a company registered in Arizona, USA,
+          doing business as <strong>Sasquatsh</strong> ("Company," "we," "us," or "our").
+          Sasquatsh is a product owned and operated by Carpathian Digital LLC.
+        </p>
+
         <h2 class="text-lg font-semibold mt-6 mb-3">1. Acceptance of Terms</h2>
         <p class="text-gray-600 mb-4">
           By accessing and using Sasquatsh, you accept and agree to be bound by the terms and
@@ -84,10 +91,19 @@
           constitutes acceptance of the modified terms.
         </p>
 
-        <h2 class="text-lg font-semibold mt-6 mb-3">10. Contact Us</h2>
+        <h2 class="text-lg font-semibold mt-6 mb-3">10. Governing Law</h2>
         <p class="text-gray-600 mb-4">
-          If you have any questions about these Terms of Service, please contact us at
-          support@sasquatsh.com.
+          These Terms shall be governed by and construed in accordance with the laws of the State of
+          Arizona, United States, without regard to its conflict of law provisions.
+        </p>
+
+        <h2 class="text-lg font-semibold mt-6 mb-3">11. Contact Us</h2>
+        <p class="text-gray-600 mb-4">
+          If you have any questions about these Terms of Service, please contact us at:
+        </p>
+        <p class="text-gray-600 mb-4">
+          <strong>Carpathian Digital LLC</strong><br>
+          Email: support@sasquatsh.com
         </p>
       </div>
     </div>

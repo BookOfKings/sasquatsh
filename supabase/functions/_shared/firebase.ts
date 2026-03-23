@@ -301,6 +301,7 @@ const ALLOWED_ORIGINS = [
   'https://www.sasquatsh.com',
   'https://sasquatsh.web.app',
   'http://localhost:5173', // Vite dev server
+  'http://localhost:5174', // Vite dev server (alternate port)
   'http://localhost:4173', // Vite preview
 ]
 

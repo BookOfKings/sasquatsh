@@ -38,6 +38,8 @@ function toUserProfile(row: Record<string, unknown>) {
     blockedUserIds: row.blocked_user_ids as string[] ?? [],
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
+    authProvider: (row.auth_provider as string) ?? 'password',
+    passwordChangedAt: row.password_changed_at as string | null,
   }
 }
 
@@ -437,6 +439,28 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Handle password changed notification
+    if (action === 'password-changed') {
+      const { data, error } = await supabase
+        .from('users')
+        .update({
+          password_changed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', user.id)
+        .select()
+        .single()
+
+      if (error) {
+        return errorResponse(error.message, 500)
+      }
+
+      return jsonResponse({
+        message: 'Password change recorded',
+        user: toUserProfile(data),
+      })
+    }
+
     const targetUserId = url.searchParams.get('userId')
 
     if (!targetUserId) {
@@ -507,6 +531,112 @@ Deno.serve(async (req) => {
     }
 
     return errorResponse('Invalid action. Use block or unblock', 400)
+  }
+
+  // DELETE - Delete account
+  if (req.method === 'DELETE' && action === 'delete-account') {
+    // Prevent admin users from self-deleting (must be done by another admin)
+    if (user.is_admin) {
+      return errorResponse('Admin accounts cannot be self-deleted. Contact another admin.', 400)
+    }
+
+    try {
+      // Delete in order to handle foreign key constraints
+      // Note: Many tables have ON DELETE CASCADE, but we explicitly delete to ensure clean removal
+
+      // 1. Chat messages will cascade delete with user (ON DELETE CASCADE)
+      // 2. Chat reports - delete reports they made or are about them
+      await supabase.from('chat_reports').delete().eq('reporter_user_id', user.id)
+      await supabase.from('chat_reports').delete().eq('reported_user_id', user.id)
+
+      // 3. Planning votes and suggestions
+      await supabase.from('planning_game_votes').delete().eq('user_id', user.id)
+      await supabase.from('planning_date_votes').delete().eq('user_id', user.id)
+      await supabase.from('planning_game_suggestions').delete().eq('suggested_by_user_id', user.id)
+
+      // 4. Planning session invitations
+      await supabase.from('planning_session_invitations').delete().eq('user_id', user.id)
+
+      // 5. Event registrations
+      await supabase.from('event_registrations').delete().eq('user_id', user.id)
+
+      // 6. Event items - unclaim items they claimed
+      await supabase.from('event_items').update({ claimed_by_user_id: null, claimed_at: null }).eq('claimed_by_user_id', user.id)
+
+      // 7. Player requests
+      await supabase.from('player_requests').delete().eq('user_id', user.id)
+
+      // 8. Groups they own - handle before memberships
+      const { data: ownedGroups } = await supabase
+        .from('group_memberships')
+        .select('group_id')
+        .eq('user_id', user.id)
+        .eq('role', 'owner')
+
+      if (ownedGroups) {
+        for (const membership of ownedGroups) {
+          // Check if there are other owners
+          const { data: otherOwners } = await supabase
+            .from('group_memberships')
+            .select('user_id')
+            .eq('group_id', membership.group_id)
+            .eq('role', 'owner')
+            .neq('user_id', user.id)
+
+          if (!otherOwners || otherOwners.length === 0) {
+            // No other owners - delete the group and all related data
+            await supabase.from('group_invitations').delete().eq('group_id', membership.group_id)
+            await supabase.from('group_join_requests').delete().eq('group_id', membership.group_id)
+            await supabase.from('group_memberships').delete().eq('group_id', membership.group_id)
+            await supabase.from('groups').delete().eq('id', membership.group_id)
+          }
+        }
+      }
+
+      // 9. Group memberships (remaining ones where they're not sole owner)
+      await supabase.from('group_memberships').delete().eq('user_id', user.id)
+
+      // 10. Group join requests
+      await supabase.from('group_join_requests').delete().eq('user_id', user.id)
+
+      // 11. Group invitations
+      await supabase.from('group_invitations').delete().eq('invited_user_id', user.id)
+
+      // 12. Events they host - mark as cancelled
+      await supabase.from('events').update({ status: 'cancelled' }).eq('created_by_user_id', user.id)
+
+      // 13. Planning sessions they created - cancel
+      await supabase.from('planning_sessions').update({ status: 'cancelled' }).eq('created_by_user_id', user.id)
+
+      // 14. Delete avatar from storage
+      try {
+        const { data: avatarFiles } = await supabase.storage
+          .from('avatars')
+          .list(user.id)
+
+        if (avatarFiles && avatarFiles.length > 0) {
+          const filesToDelete = avatarFiles.map(f => `${user.id}/${f.name}`)
+          await supabase.storage.from('avatars').remove(filesToDelete)
+        }
+      } catch {
+        // Avatar deletion is non-critical, continue
+      }
+
+      // Finally delete the user (this will cascade delete chat_messages)
+      const { error } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', user.id)
+
+      if (error) {
+        return errorResponse(`Failed to delete account: ${error.message}`, 500)
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error during account deletion'
+      return errorResponse(`Failed to delete account: ${message}`, 500)
+    }
+
+    return jsonResponse({ message: 'Account deleted successfully' })
   }
 
   return errorResponse('Method not allowed', 405)

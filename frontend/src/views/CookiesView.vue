@@ -7,7 +7,13 @@
       <h1 class="text-2xl font-bold text-gray-900 mb-6">Cookie Policy</h1>
 
       <div class="prose prose-gray max-w-none">
-        <p class="text-gray-600 mb-4">Last updated: February 2026</p>
+        <p class="text-gray-600 mb-4">Last updated: March 2026</p>
+
+        <p class="text-gray-600 mb-4">
+          This Cookie Policy explains how <strong>Carpathian Digital LLC</strong>, doing business as
+          <strong>Sasquatsh</strong> ("Company," "we," "us," or "our"), uses cookies and similar
+          technologies on our website at sasquatsh.com.
+        </p>
 
         <h2 class="text-lg font-semibold mt-6 mb-3">1. What Are Cookies</h2>
         <p class="text-gray-600 mb-4">
@@ -78,8 +84,11 @@
 
         <h2 class="text-lg font-semibold mt-6 mb-3">8. Contact Us</h2>
         <p class="text-gray-600 mb-4">
-          If you have questions about our use of cookies, please contact us at
-          privacy@sasquatsh.com.
+          If you have questions about our use of cookies, please contact us at:
+        </p>
+        <p class="text-gray-600 mb-4">
+          <strong>Carpathian Digital LLC</strong><br>
+          Email: privacy@sasquatsh.com
         </p>
       </div>
     </div>

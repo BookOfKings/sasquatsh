@@ -26,6 +26,8 @@ export interface UserProfile {
   blockedUserIds: string[]
   createdAt: string
   updatedAt: string
+  authProvider?: 'password' | 'google.com' | 'facebook.com' | string
+  passwordChangedAt?: string | null
   groups?: UserGroupMembership[]
   upcomingEvents?: UserUpcomingEvent[]
   stats?: UserStats

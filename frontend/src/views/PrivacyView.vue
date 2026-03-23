@@ -7,7 +7,13 @@
       <h1 class="text-2xl font-bold text-gray-900 mb-6">Privacy Policy</h1>
 
       <div class="prose prose-gray max-w-none">
-        <p class="text-gray-600 mb-4">Last updated: February 2026</p>
+        <p class="text-gray-600 mb-4">Last updated: March 2026</p>
+
+        <p class="text-gray-600 mb-4">
+          This Privacy Policy describes how <strong>Carpathian Digital LLC</strong>, doing business as
+          <strong>Sasquatsh</strong> ("Company," "we," "us," or "our"), collects, uses, and shares
+          information about you when you use our website and services at sasquatsh.com ("Service").
+        </p>
 
         <h2 class="text-lg font-semibold mt-6 mb-3">1. Information We Collect</h2>
         <p class="text-gray-600 mb-4">
@@ -82,8 +88,12 @@
 
         <h2 class="text-lg font-semibold mt-6 mb-3">9. Contact Us</h2>
         <p class="text-gray-600 mb-4">
-          If you have any questions about this Privacy Policy, please contact us at
-          privacy@sasquatsh.com.
+          If you have any questions about this Privacy Policy or wish to exercise your privacy rights,
+          please contact us at:
+        </p>
+        <p class="text-gray-600 mb-4">
+          <strong>Carpathian Digital LLC</strong><br>
+          Email: privacy@sasquatsh.com
         </p>
       </div>
     </div>
