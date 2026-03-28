@@ -159,6 +159,31 @@ const routes: RouteRecordRaw[] = [
     name: 'contact',
     component: () => import('@/views/ContactView.vue'),
   },
+  // MTG Deck Management
+  {
+    path: '/mtg/decks',
+    name: 'my-decks',
+    component: () => import('@/views/MyDecksView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/mtg/decks/new',
+    name: 'create-deck',
+    component: () => import('@/views/MtgDeckBuilderView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/mtg/decks/:id',
+    name: 'view-deck',
+    component: () => import('@/views/MtgDeckBuilderView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/mtg/decks/:id/edit',
+    name: 'edit-deck',
+    component: () => import('@/views/MtgDeckBuilderView.vue'),
+    meta: { requiresAuth: true },
+  },
   // Catch-all redirect to home
   {
     path: '/:pathMatch(.*)*',
