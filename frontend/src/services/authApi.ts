@@ -37,33 +37,33 @@ export async function getCurrentUser(idToken: string, options?: SyncUserOptions)
     // Decode the Firebase ID token to get basic user info
     // Firebase ID tokens are JWTs - extract the payload
     try {
-      const payload = JSON.parse(atob(idToken.split('.')[1]))
+      const payload = JSON.parse(atob(idToken.split('.')[1] || ''))
       return {
         id: `emulator-${payload.user_id || payload.sub}`,
-        firebaseUid: payload.user_id || payload.sub,
         email: payload.email || 'emulator@test.com',
         displayName: payload.name || options?.username || 'Emulator User',
         username: options?.username || `emulator_${Date.now()}`,
-        avatarUrl: null,
+        avatarUrl: undefined,
         isAdmin: false,
+        isFoundingMember: false,
+        blockedUserIds: [],
         createdAt: new Date().toISOString(),
         subscriptionTier: 'free',
-        subscriptionOverrideTier: null,
-      } as User
+      }
     } catch (e) {
       console.warn('[Emulator Mode] Failed to decode token, using default mock user')
       return {
         id: `emulator-${Date.now()}`,
-        firebaseUid: `emulator-${Date.now()}`,
         email: 'emulator@test.com',
         displayName: options?.username || 'Emulator User',
         username: options?.username || `emulator_${Date.now()}`,
-        avatarUrl: null,
+        avatarUrl: undefined,
         isAdmin: false,
+        isFoundingMember: false,
+        blockedUserIds: [],
         createdAt: new Date().toISOString(),
         subscriptionTier: 'free',
-        subscriptionOverrideTier: null,
-      } as User
+      }
     }
   }
 
@@ -93,32 +93,32 @@ export async function updateUser(
   if (USE_FIREBASE_EMULATOR) {
     console.log('[Emulator Mode] Skipping auth-sync update, returning mock user')
     try {
-      const payload = JSON.parse(atob(idToken.split('.')[1]))
+      const payload = JSON.parse(atob(idToken.split('.')[1] || ''))
       return {
         id: `emulator-${payload.user_id || payload.sub}`,
-        firebaseUid: payload.user_id || payload.sub,
         email: payload.email || 'emulator@test.com',
         displayName: data.displayName || payload.name || 'Emulator User',
         username: `emulator_${Date.now()}`,
-        avatarUrl: null,
+        avatarUrl: undefined,
         isAdmin: false,
+        isFoundingMember: false,
+        blockedUserIds: [],
         createdAt: new Date().toISOString(),
         subscriptionTier: 'free',
-        subscriptionOverrideTier: null,
-      } as User
+      }
     } catch {
       return {
         id: `emulator-${Date.now()}`,
-        firebaseUid: `emulator-${Date.now()}`,
         email: 'emulator@test.com',
         displayName: data.displayName || 'Emulator User',
         username: `emulator_${Date.now()}`,
-        avatarUrl: null,
+        avatarUrl: undefined,
         isAdmin: false,
+        isFoundingMember: false,
+        blockedUserIds: [],
         createdAt: new Date().toISOString(),
         subscriptionTier: 'free',
-        subscriptionOverrideTier: null,
-      } as User
+      }
     }
   }
 
