@@ -619,7 +619,8 @@ export interface PokemonEventConfigInput {
   prizeStructure: string | null
   entryFee: number | null
   entryFeeCurrency: string
-  usePlayPoints: boolean
+  usePlayPoints: boolean  // Awards Championship Points (organizer intent)
+  organizerConfirmedOfficialLocation: boolean  // Self-attestation for Play! Pokemon location
 
   // Event materials
   providesBasicEnergy: boolean

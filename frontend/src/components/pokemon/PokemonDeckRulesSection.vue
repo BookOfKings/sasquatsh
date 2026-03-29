@@ -70,6 +70,11 @@ const formatRules = computed(() => {
   }
 })
 
+// Is this a competitive format that requires format legality?
+const isCompetitiveFormat = computed(() =>
+  props.formatId === 'standard' || props.formatId === 'expanded'
+)
+
 // Toggle proxy limit visibility
 function handleProxyToggle(checked: boolean) {
   emit('update:allowProxies', checked)
@@ -152,6 +157,10 @@ function handleDeckRegistrationToggle(checked: boolean) {
           <p class="text-xs text-gray-500">Decks must use only format-legal cards</p>
         </div>
       </label>
+      <!-- Competitive format helper -->
+      <p v-if="isCompetitiveFormat" class="text-xs text-amber-600 ml-7">
+        Required for official and competitive play
+      </p>
     </div>
 
     <!-- House Rules Section -->
@@ -227,7 +236,7 @@ function handleDeckRegistrationToggle(checked: boolean) {
         />
         <div>
           <span class="text-sm font-medium text-gray-700">Require Deck Registration</span>
-          <p class="text-xs text-gray-500">Players must submit their decklist before the event</p>
+          <p class="text-xs text-gray-500">Players must submit their decklist before joining</p>
         </div>
       </label>
 

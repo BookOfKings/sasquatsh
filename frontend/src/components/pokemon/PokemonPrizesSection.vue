@@ -10,7 +10,8 @@ const props = defineProps<{
   entryFee: number | null
   entryFeeCurrency: string
   usePlayPoints: boolean
-  isOfficialLocation?: boolean  // Whether venue is a registered Pokemon OP location
+  organizerConfirmedOfficialLocation: boolean  // Self-attestation for Play! Pokemon location
+  isPokemonOfficialVenue?: boolean  // Optional: venue-level flag if available
   disabled?: boolean
 }>()
 
@@ -20,6 +21,7 @@ const emit = defineEmits<{
   (e: 'update:entryFee', value: number | null): void
   (e: 'update:entryFeeCurrency', value: string): void
   (e: 'update:usePlayPoints', value: boolean): void
+  (e: 'update:organizerConfirmedOfficialLocation', value: boolean): void
 }>()
 
 // Is this a competitive tournament event?
@@ -46,16 +48,13 @@ const entryFeeSummary = computed(() => {
   return `${symbol}${props.entryFee.toFixed(2)} per player`
 })
 
-// Play Points eligibility status
-const playPointsStatus = computed(() => {
-  if (props.isOfficialLocation === true) {
-    return { type: 'eligible', message: 'This location is approved for Championship Points.' }
+// Toggle Play Points - reset confirmation when disabled
+function handlePlayPointsToggle(checked: boolean) {
+  emit('update:usePlayPoints', checked)
+  if (!checked) {
+    emit('update:organizerConfirmedOfficialLocation', false)
   }
-  if (props.isOfficialLocation === false) {
-    return { type: 'ineligible', message: 'This location is not registered for Pokemon Organized Play.' }
-  }
-  return { type: 'unknown', message: 'Championship Points can only be awarded at approved Pokemon Organized Play locations.' }
-})
+}
 
 // Toggle entry fee
 function handleEntryFeeToggle(checked: boolean) {
@@ -152,7 +151,7 @@ const prizeTemplates = [
           :checked="usePlayPoints"
           :disabled="disabled"
           class="h-4 w-4 rounded border-gray-300 text-yellow-500 focus:ring-yellow-500"
-          @change="$emit('update:usePlayPoints', ($event.target as HTMLInputElement).checked)"
+          @change="handlePlayPointsToggle(($event.target as HTMLInputElement).checked)"
         />
         <div>
           <span class="text-sm font-medium text-gray-700">Official Play! Points</span>
@@ -160,40 +159,47 @@ const prizeTemplates = [
         </div>
       </label>
 
-      <div v-if="usePlayPoints" class="ml-7">
-        <!-- Eligibility status -->
-        <div
-          class="rounded-lg p-3"
-          :class="{
-            'bg-green-50 border border-green-100': playPointsStatus.type === 'eligible',
-            'bg-red-50 border border-red-100': playPointsStatus.type === 'ineligible',
-            'bg-amber-50 border border-amber-100': playPointsStatus.type === 'unknown',
-          }"
-        >
-          <p
-            class="text-sm"
-            :class="{
-              'text-green-800': playPointsStatus.type === 'eligible',
-              'text-red-800': playPointsStatus.type === 'ineligible',
-              'text-amber-800': playPointsStatus.type === 'unknown',
-            }"
-          >
-            <svg
-              class="w-4 h-4 inline-block mr-1.5 -mt-0.5"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-            >
-              <path v-if="playPointsStatus.type === 'eligible'" d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z" />
-              <path v-else-if="playPointsStatus.type === 'ineligible'" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" />
-              <path v-else d="M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" />
+      <div v-if="usePlayPoints" class="ml-7 space-y-3">
+        <!-- Venue-level status (if available) -->
+        <div v-if="isPokemonOfficialVenue === true" class="bg-green-50 border border-green-100 rounded-lg p-3">
+          <p class="text-sm text-green-800">
+            <svg class="w-4 h-4 inline-block mr-1.5 -mt-0.5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z" />
             </svg>
-            {{ playPointsStatus.message }}
+            Verified Play! Pokemon location
           </p>
         </div>
 
-        <!-- Additional info about Play! Points -->
-        <p class="text-xs text-gray-500 mt-2">
-          To award Championship Points, you must be a registered Pokemon Organized Play location and sanctioned by Pokemon.
+        <!-- Informational warning (always shown when venue not verified) -->
+        <div v-if="isPokemonOfficialVenue !== true" class="bg-amber-50 border border-amber-100 rounded-lg p-3">
+          <p class="text-sm text-amber-800">
+            <svg class="w-4 h-4 inline-block mr-1.5 -mt-0.5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" />
+            </svg>
+            Championship Points can only be awarded at approved Play! Pokemon locations.
+          </p>
+        </div>
+
+        <!-- Self-attestation confirmation checkbox -->
+        <label class="flex items-start gap-3 cursor-pointer bg-gray-50 rounded-lg p-3">
+          <input
+            type="checkbox"
+            :checked="organizerConfirmedOfficialLocation"
+            :disabled="disabled"
+            class="h-4 w-4 mt-0.5 rounded border-gray-300 text-yellow-500 focus:ring-yellow-500"
+            @change="$emit('update:organizerConfirmedOfficialLocation', ($event.target as HTMLInputElement).checked)"
+          />
+          <div>
+            <span class="text-sm font-medium text-gray-700">I confirm this is a registered Play! Pokemon location</span>
+            <p class="text-xs text-gray-500 mt-1">
+              By checking this box, you attest that this venue is approved by Pokemon for official organized play and can award Championship Points.
+            </p>
+          </div>
+        </label>
+
+        <!-- Additional guidance -->
+        <p class="text-xs text-gray-500">
+          To become a Play! Pokemon location, contact your local Pokemon distributor or visit pokemon.com/organizer.
         </p>
       </div>
     </div>
@@ -213,6 +219,11 @@ const prizeTemplates = [
           <p class="text-xs text-gray-500">Offer prizes for winners</p>
         </div>
       </label>
+
+      <!-- No prizes helper when entry fee is on but prizes are off -->
+      <p v-if="hasEntryFee && !hasPrizes" class="text-xs text-amber-600 ml-7">
+        Entry fee enabled without prize support. Consider adding prizes or clarifying where fees go.
+      </p>
 
       <div v-if="hasPrizes" class="ml-7 space-y-3">
         <!-- Quick templates -->

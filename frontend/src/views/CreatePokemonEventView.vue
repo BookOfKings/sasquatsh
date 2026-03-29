@@ -78,6 +78,7 @@ const form = reactive<CreatePokemonEventInput>({
     entryFee: null,
     entryFeeCurrency: 'USD',
     usePlayPoints: false,
+    organizerConfirmedOfficialLocation: false,
     providesBasicEnergy: false,
     providesDamageCounters: false,
     sleevesRecommended: true,
@@ -89,6 +90,9 @@ const form = reactive<CreatePokemonEventInput>({
   },
 })
 
+// Track if form has been submitted (for showing validation errors)
+const hasAttemptedSubmit = ref(false)
+
 // Validation
 const validationErrors = computed(() => {
   const errors: string[] = []
@@ -97,10 +101,56 @@ const validationErrors = computed(() => {
   if (!form.pokemonConfig.formatId && !LIMITED_EVENT_TYPES.includes(form.pokemonConfig.eventType)) {
     errors.push('Format selection is required')
   }
+  if (!form.pokemonConfig.eventType) errors.push('Event type is required')
   return errors
 })
 
 const isValid = computed(() => validationErrors.value.length === 0)
+
+// Max player guidance based on event type
+const maxPlayerGuidance = computed(() => {
+  const type = form.pokemonConfig.eventType
+  switch (type) {
+    case 'draft':
+      return 'Recommended: 8 players (standard draft pod)'
+    case 'prerelease':
+      return 'Recommended: 24-32 players'
+    case 'casual':
+      return 'Recommended: 4-8 players'
+    case 'league':
+      return 'Recommended: 8-16 players'
+    case 'league_challenge':
+    case 'league_cup':
+      return 'Recommended: 16-32 players'
+    case 'regional':
+    case 'international':
+    case 'worlds':
+      return 'Large event - no typical limit'
+    default:
+      return null
+  }
+})
+
+// Scroll to first invalid field
+function scrollToFirstError() {
+  const selectors = [
+    { error: 'Event title is required', selector: 'input[placeholder*="Saturday Pokemon League"]' },
+    { error: 'Event date is required', selector: 'input[type="date"]' },
+    { error: 'Format selection is required', selector: '#format-section' },
+    { error: 'Event type is required', selector: '#event-structure-section' },
+  ]
+
+  for (const { error, selector } of selectors) {
+    if (validationErrors.value.includes(error)) {
+      const element = document.querySelector(selector) as HTMLElement
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        setTimeout(() => element.focus?.(), 500)
+        break
+      }
+    }
+  }
+}
 
 // Watch format changes to update selectedFormat object
 watch(() => form.pokemonConfig.formatId, (newFormatId) => {
@@ -132,9 +182,20 @@ function handleFormatChange(formatId: string | null) {
   }
 }
 
-// Handle event type changes
+// Handle event type changes with format-aware defaults
 function handleEventTypeChange(eventType: PokemonEventType) {
   form.pokemonConfig.eventType = eventType
+
+  // Update max players default
+  form.maxPlayers = DEFAULT_MAX_PLAYERS[eventType] || 16
+
+  // Set material defaults based on event type
+  if (eventType === 'prerelease') {
+    form.pokemonConfig.providesBasicEnergy = true
+    form.pokemonConfig.providesBuildBattleKits = true
+  } else if (eventType === 'draft') {
+    form.pokemonConfig.providesBasicEnergy = true
+  }
 }
 
 function handleTournamentStyleChange(style: PokemonTournamentStyle | null) {
@@ -203,6 +264,10 @@ function handlePlayPointsChange(use: boolean) {
   form.pokemonConfig.usePlayPoints = use
 }
 
+function handleOfficialLocationConfirmChange(confirmed: boolean) {
+  form.pokemonConfig.organizerConfirmedOfficialLocation = confirmed
+}
+
 function handleHasPrizesChange(has: boolean) {
   form.pokemonConfig.hasPrizes = has
 }
@@ -243,7 +308,12 @@ function handleLocationSelect(location: EventLocation | null) {
 
 // Submit form
 async function handleSubmit() {
-  if (!isValid.value) return
+  hasAttemptedSubmit.value = true
+
+  if (!isValid.value) {
+    scrollToFirstError()
+    return
+  }
 
   loading.value = true
   errorMessage.value = ''
@@ -349,14 +419,18 @@ async function handleSubmit() {
           />
 
           <!-- Format Selection -->
-          <PokemonFormatSelector
-            :model-value="form.pokemonConfig.formatId"
-            :custom-format-name="form.pokemonConfig.customFormatName"
-            @update:model-value="handleFormatChange"
-            @update:custom-format-name="(v) => form.pokemonConfig.customFormatName = v"
-          />
+          <section id="format-section">
+            <PokemonFormatSelector
+              :model-value="form.pokemonConfig.formatId"
+              :custom-format-name="form.pokemonConfig.customFormatName"
+              :has-error="hasAttemptedSubmit && !form.pokemonConfig.formatId && !LIMITED_EVENT_TYPES.includes(form.pokemonConfig.eventType)"
+              @update:model-value="handleFormatChange"
+              @update:custom-format-name="(v) => form.pokemonConfig.customFormatName = v"
+            />
+          </section>
 
           <!-- Event Structure -->
+          <section id="event-structure-section">
           <PokemonEventStructureSection
             :format-id="form.pokemonConfig.formatId"
             :event-type="form.pokemonConfig.eventType"
@@ -373,6 +447,7 @@ async function handleSubmit() {
             @update:top-cut="handleTopCutChange"
             @update:max-players="handleMaxPlayersChange"
           />
+          </section>
 
           <!-- Deck Rules -->
           <PokemonDeckRulesSection
@@ -414,11 +489,13 @@ async function handleSubmit() {
             :entry-fee="form.pokemonConfig.entryFee"
             :entry-fee-currency="form.pokemonConfig.entryFeeCurrency"
             :use-play-points="form.pokemonConfig.usePlayPoints"
+            :organizer-confirmed-official-location="form.pokemonConfig.organizerConfirmedOfficialLocation"
             :has-prizes="form.pokemonConfig.hasPrizes"
             :prize-structure="form.pokemonConfig.prizeStructure"
             @update:entry-fee="handleEntryFeeChange"
             @update:entry-fee-currency="handleCurrencyChange"
             @update:use-play-points="handlePlayPointsChange"
+            @update:organizer-confirmed-official-location="handleOfficialLocationConfirmChange"
             @update:has-prizes="handleHasPrizesChange"
             @update:prize-structure="handlePrizeStructureChange"
           />
@@ -443,6 +520,11 @@ async function handleSubmit() {
                   <span class="text-gray-500 ml-1">Let non-players watch</span>
                 </label>
               </div>
+            </template>
+            <template v-if="maxPlayerGuidance" #extra-row>
+              <p class="text-xs text-gray-500 -mt-2">
+                {{ maxPlayerGuidance }}
+              </p>
             </template>
           </EventPlayerSettingsSection>
 

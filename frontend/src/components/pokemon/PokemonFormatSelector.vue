@@ -7,6 +7,7 @@ const props = defineProps<{
   modelValue: string | null
   customFormatName: string | null
   disabled?: boolean
+  hasError?: boolean  // Show error state when format required but not selected
 }>()
 
 const emit = defineEmits<{
@@ -84,12 +85,19 @@ function selectFormat(formatId: string) {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <h3 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-      <svg class="w-5 h-5 text-yellow-500" viewBox="0 0 24 24" fill="currentColor">
+  <div
+    class="space-y-4 p-4 -m-4 rounded-lg transition-colors"
+    :class="{ 'bg-red-50 border border-red-200': hasError && !modelValue }"
+  >
+    <h3
+      class="text-lg font-semibold flex items-center gap-2"
+      :class="hasError && !modelValue ? 'text-red-700' : 'text-gray-900'"
+    >
+      <svg class="w-5 h-5" :class="hasError && !modelValue ? 'text-red-500' : 'text-yellow-500'" viewBox="0 0 24 24" fill="currentColor">
         <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6M12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8Z" />
       </svg>
       Format
+      <span v-if="hasError && !modelValue" class="text-sm font-normal text-red-600">(required)</span>
     </h3>
 
     <!-- Format selection grid -->
@@ -122,12 +130,18 @@ function selectFormat(formatId: string) {
       </div>
     </div>
 
-    <!-- Format description -->
-    <div v-if="formatDescription" class="bg-yellow-50 border border-yellow-100 rounded-lg p-3">
-      <p class="text-sm text-yellow-800">
-        <span class="font-medium">{{ selectedFormat?.name }}:</span>
-        {{ formatDescription }}
-      </p>
+    <!-- Format description with summary -->
+    <div v-if="selectedFormat" class="bg-yellow-50 border border-yellow-100 rounded-lg p-3">
+      <p class="text-sm text-yellow-800 font-medium mb-2">{{ selectedFormat.name }}:</p>
+      <ul class="text-sm text-yellow-700 space-y-1 ml-4">
+        <li class="list-disc">{{ selectedFormat.minDeckSize }}-card decks</li>
+        <li v-if="selectedFormat.isRotating" class="list-disc">Rotating format</li>
+        <li v-else class="list-disc">Non-rotating format</li>
+        <li v-if="modelValue === 'standard'" class="list-disc">Uses most recent sets</li>
+        <li v-if="modelValue === 'expanded'" class="list-disc">Larger card pool (Black & White onwards)</li>
+        <li v-if="modelValue === 'unlimited'" class="list-disc">All cards ever printed are legal</li>
+        <li v-if="modelValue === 'theme'" class="list-disc">Pre-constructed theme decks only</li>
+      </ul>
     </div>
 
     <!-- Rotating format notice -->
