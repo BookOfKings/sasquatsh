@@ -159,6 +159,13 @@ const routes: RouteRecordRaw[] = [
     name: 'contact',
     component: () => import('@/views/ContactView.vue'),
   },
+  // MTG Event Creation
+  {
+    path: '/mtg/events/create',
+    name: 'create-mtg-event',
+    component: () => import('@/views/CreateMtgEventView.vue'),
+    meta: { requiresAuth: true },
+  },
   // MTG Deck Management
   {
     path: '/mtg/decks',

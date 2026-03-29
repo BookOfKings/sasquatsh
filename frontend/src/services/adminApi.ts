@@ -713,3 +713,67 @@ export async function deleteAdminBug(token: string, bugId: string): Promise<{ me
     body: JSON.stringify({ bugId }),
   })
 }
+
+// ============ MTG/Scryfall Cache ============
+
+export interface MtgCacheStats {
+  totalCards: number
+  oldestEntry: string | null
+  newestEntry: string | null
+  staleCount: number
+  cacheTtlHours: number
+  staplesListSize: number
+}
+
+export interface MtgCacheWarmResult {
+  action: string
+  cached: number
+  skipped: number
+  failed: number
+  total: number
+  errors?: string[]
+}
+
+// Get MTG cache statistics (no auth required)
+export async function getMtgCacheStats(): Promise<MtgCacheStats> {
+  const response = await fetch(`${FUNCTIONS_URL}/scryfall-cache-warmer?action=status`, {
+    headers: {
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+    },
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to get MTG cache stats: ${response.statusText}`)
+  }
+
+  return response.json()
+}
+
+// Warm Commander staples
+export async function warmMtgStaples(token: string): Promise<MtgCacheWarmResult> {
+  return authenticatedRequest<MtgCacheWarmResult>('/scryfall-cache-warmer?action=warm-staples', token, {
+    method: 'POST',
+  })
+}
+
+// Warm commanders via search
+export async function warmMtgCommanders(token: string, pages = 5): Promise<MtgCacheWarmResult> {
+  return authenticatedRequest<MtgCacheWarmResult>(`/scryfall-cache-warmer?action=warm-commanders&pages=${pages}`, token, {
+    method: 'POST',
+  })
+}
+
+// Warm by custom search query
+export async function warmMtgBySearch(token: string, query: string, pages = 3): Promise<MtgCacheWarmResult> {
+  return authenticatedRequest<MtgCacheWarmResult>(`/scryfall-cache-warmer?action=warm-search&q=${encodeURIComponent(query)}&pages=${pages}`, token, {
+    method: 'POST',
+  })
+}
+
+// Refresh stale MTG cache entries
+export async function refreshMtgStaleCache(token: string, limit = 100): Promise<MtgCacheWarmResult> {
+  return authenticatedRequest<MtgCacheWarmResult>(`/scryfall-cache-warmer?action=refresh-stale&limit=${limit}`, token, {
+    method: 'POST',
+  })
+}
