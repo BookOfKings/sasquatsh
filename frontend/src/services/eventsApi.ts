@@ -181,6 +181,7 @@ function toEvent(row: Record<string, unknown>): Event {
     sessions: row.sessions as Event['sessions'] ?? null,
     // MTG event configuration
     mtgConfig: row.mtgConfig as Event['mtgConfig'] ?? null,
+    pokemonConfig: row.pokemonConfig as Event['pokemonConfig'] ?? null,
   }
 }
 
