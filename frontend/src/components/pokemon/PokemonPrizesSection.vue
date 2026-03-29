@@ -29,6 +29,9 @@ const isTournamentEvent = computed(() =>
 
 const hasEntryFee = computed(() => props.entryFee !== null && props.entryFee > 0)
 
+// Show disclaimer when either entry fee or prizes are enabled
+const showDisclaimer = computed(() => hasEntryFee.value || props.hasPrizes)
+
 // Format entry fee display
 const entryFeeSummary = computed(() => {
   if (!hasEntryFee.value || !props.entryFee) return null
@@ -248,6 +251,14 @@ const prizeTemplates = [
           Describe the prizes and how they'll be distributed. Be specific so players know what to expect.
         </p>
       </div>
+    </div>
+
+    <!-- Disclaimer -->
+    <div v-if="showDisclaimer" class="text-sm text-gray-500 flex items-start gap-2 bg-gray-50 rounded-lg p-3">
+      <svg class="w-4 h-4 mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
+      </svg>
+      Entry fees and prizes are collected at the event. Sasquatsh does not process payments.
     </div>
   </div>
 </template>
