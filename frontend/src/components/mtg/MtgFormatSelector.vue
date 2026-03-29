@@ -57,6 +57,10 @@ const selectedFormat = computed(() =>
 
 const isCustomFormat = computed(() => props.modelValue === 'custom')
 
+const isLimitedFormat = computed(() =>
+  props.modelValue && ['draft', 'sealed', 'cube'].includes(props.modelValue)
+)
+
 const formatDescription = computed(() => {
   if (!props.modelValue) return null
   return FORMAT_DESCRIPTIONS[props.modelValue] || selectedFormat.value?.description || null
@@ -109,10 +113,7 @@ watch(() => props.modelValue, (newVal) => {
 
 <template>
   <div class="space-y-4">
-    <div class="flex items-center justify-between">
-      <h3 class="text-lg font-semibold text-gray-900">Format</h3>
-      <span v-if="loadError" class="text-xs text-amber-600">Using offline format list</span>
-    </div>
+    <h3 class="text-lg font-semibold text-gray-900">Format</h3>
 
     <!-- Loading state -->
     <div v-if="loading" class="animate-pulse space-y-3">
@@ -156,6 +157,16 @@ watch(() => props.modelValue, (newVal) => {
         <p class="text-sm text-blue-800">
           <span class="font-medium">{{ selectedFormat?.name }}:</span>
           {{ formatDescription }}
+        </p>
+      </div>
+
+      <!-- Limited format helper -->
+      <div v-if="isLimitedFormat" class="bg-amber-50 border border-amber-100 rounded-lg p-3">
+        <p class="text-sm text-amber-800">
+          <svg class="w-4 h-4 inline-block mr-1.5 -mt-0.5" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5V9H9V5H7M11,5V11H13V5H11M15,5V7H17V5H15M7,11V13H9V11H7M11,13V15H13V13H11M15,9V13H17V9H15M7,15V19H9V15H7M11,17V19H13V17H11M15,15V19H17V15H15Z" />
+          </svg>
+          Decks are built on-site from provided packs. Players don't need to bring a deck.
         </p>
       </div>
 

@@ -7,6 +7,7 @@ const props = defineProps<{
   powerLevelRange: PowerLevelRange | null
   powerLevelMin: number | null
   powerLevelMax: number | null
+  formatId?: string | null
   disabled?: boolean
 }>()
 
@@ -25,6 +26,23 @@ const powerLevelOptions: { value: PowerLevelRange; label: string; description: s
 ]
 
 const isCustomRange = computed(() => props.powerLevelRange === 'custom')
+
+// Casual/Kitchen Table format gets softer labeling
+const isCasualFormat = computed(() => props.formatId === 'casual')
+
+const sectionTitle = computed(() =>
+  isCasualFormat.value ? 'Deck Power' : 'Power Level'
+)
+
+const sectionSubtitle = computed(() =>
+  isCasualFormat.value ? '(optional)' : '(Commander/Casual)'
+)
+
+const sectionDescription = computed(() =>
+  isCasualFormat.value
+    ? 'Optionally set power expectations to help players bring balanced decks.'
+    : 'Help players bring appropriately matched decks by setting a power level expectation.'
+)
 
 const currentRangeInfo = computed(() => {
   if (!props.powerLevelRange) return null
@@ -71,12 +89,12 @@ watch(() => [props.powerLevelMin, props.powerLevelMax] as const, ([min, max]) =>
 <template>
   <div class="space-y-4">
     <div class="flex items-center gap-2">
-      <h3 class="text-lg font-semibold text-gray-900">Power Level</h3>
-      <span class="text-xs text-gray-500">(Commander/Casual)</span>
+      <h3 class="text-lg font-semibold text-gray-900">{{ sectionTitle }}</h3>
+      <span class="text-xs text-gray-500">{{ sectionSubtitle }}</span>
     </div>
 
     <p class="text-sm text-gray-600">
-      Help players bring appropriately matched decks by setting a power level expectation.
+      {{ sectionDescription }}
     </p>
 
     <!-- Power level selection -->

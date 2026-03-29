@@ -20,7 +20,7 @@ import EventPlayerSettingsSection from '@/components/events/shared/EventPlayerSe
 import { TIER_LIMITS, type SubscriptionTier } from '@/config/subscriptionLimits'
 import { getEffectiveTier } from '@/types/user'
 import { POWER_LEVEL_FORMATS } from '@/types/mtg'
-import type { CreateMtgEventInput, MtgFormat, MtgEventType, DraftStyle, PowerLevelRange, MatchStyle } from '@/types/mtg'
+import type { CreateMtgEventInput, MtgFormat, MtgEventType, DraftStyle, PowerLevelRange, MatchStyle, PlayMode } from '@/types/mtg'
 import type { GroupSummary } from '@/types/groups'
 import type { EventLocation } from '@/types/social'
 
@@ -152,6 +152,43 @@ onMounted(async () => {
 // Handle format selection from MtgFormatSelector
 function handleFormatSelected(format: MtgFormat | null) {
   selectedFormat.value = format
+
+  // Set Commander-specific defaults
+  if (format?.id === 'commander' || format?.id === 'oathbreaker' || format?.id === 'brawl') {
+    // Default to Pod Play for Commander formats
+    if (form.mtgConfig.eventType === 'casual') {
+      form.mtgConfig.eventType = 'pods'
+      form.mtgConfig.podsSize = 4
+      form.mtgConfig.roundTimeMinutes = 90
+      form.mtgConfig.playMode = 'assigned_pods'
+    }
+    // Set default power level to mid if not set
+    if (!form.mtgConfig.powerLevelRange) {
+      form.mtgConfig.powerLevelRange = 'mid'
+      form.mtgConfig.powerLevelMin = 5
+      form.mtgConfig.powerLevelMax = 6
+    }
+  }
+
+  // Set tournament defaults for competitive formats
+  if (format?.id === 'standard' || format?.id === 'modern' || format?.id === 'pioneer' || format?.id === 'legacy' || format?.id === 'vintage') {
+    if (form.mtgConfig.eventType === 'casual' || form.mtgConfig.eventType === 'pods') {
+      form.mtgConfig.eventType = 'swiss'
+      form.mtgConfig.matchStyle = 'bo3'
+      form.mtgConfig.roundTimeMinutes = 50
+      form.mtgConfig.playMode = 'tournament_pairings'
+    }
+  }
+
+  // Set draft/sealed defaults
+  if (format?.id === 'draft' || format?.id === 'sealed' || format?.id === 'cube') {
+    if (form.mtgConfig.eventType === 'casual' || form.mtgConfig.eventType === 'pods') {
+      form.mtgConfig.eventType = 'swiss'
+      form.mtgConfig.matchStyle = 'bo3'
+      form.mtgConfig.roundTimeMinutes = 50
+      form.mtgConfig.playMode = 'tournament_pairings'
+    }
+  }
 }
 
 
@@ -428,6 +465,7 @@ function handleVenueSubmitted(venue: EventLocation) {
               :power-level-range="(form.mtgConfig.powerLevelRange as PowerLevelRange) ?? null"
               :power-level-min="form.mtgConfig.powerLevelMin ?? null"
               :power-level-max="form.mtgConfig.powerLevelMax ?? null"
+              :format-id="form.mtgConfig.formatId"
               :disabled="loading"
               @update:power-level-range="form.mtgConfig.powerLevelRange = $event"
               @update:power-level-min="form.mtgConfig.powerLevelMin = $event"
@@ -445,6 +483,7 @@ function handleVenueSubmitted(venue: EventLocation) {
               :pods-size="form.mtgConfig.podsSize ?? null"
               :match-style="(form.mtgConfig.matchStyle as MatchStyle) ?? null"
               :top-cut="form.mtgConfig.topCut ?? null"
+              :play-mode="(form.mtgConfig.playMode as PlayMode) ?? null"
               :disabled="loading"
               @update:event-type="form.mtgConfig.eventType = $event"
               @update:rounds-count="form.mtgConfig.roundsCount = $event"
@@ -452,6 +491,7 @@ function handleVenueSubmitted(venue: EventLocation) {
               @update:pods-size="form.mtgConfig.podsSize = $event"
               @update:match-style="form.mtgConfig.matchStyle = $event"
               @update:top-cut="form.mtgConfig.topCut = $event"
+              @update:play-mode="form.mtgConfig.playMode = $event"
             />
           </div>
 

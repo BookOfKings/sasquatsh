@@ -155,8 +155,8 @@ test.describe('MTG - Event Creation', () => {
     await page.goto('/mtg/events/create')
     await page.waitForTimeout(1500)
 
-    // Should see Format section (h3)
-    const formatSection = page.getByRole('heading', { name: 'Format', level: 3 })
+    // Should see Format section (h3) - use exact match
+    const formatSection = page.getByRole('heading', { name: 'Format', level: 3, exact: true })
     await expect(formatSection).toBeVisible()
 
     // Should see Event Structure section (h3)
@@ -199,6 +199,21 @@ test.describe('MTG - Event Creation', () => {
     // Verify Pod Play option exists
     const podsButton = page.getByRole('button', { name: /Pod Play/i })
     await expect(podsButton).toBeVisible()
+  })
+
+  test('should show play mode selector', async ({ page }) => {
+    await page.goto('/mtg/events/create')
+    await page.waitForTimeout(1500)
+
+    // Play mode buttons should be visible
+    const openPlayButton = page.getByRole('button', { name: /Open Play/i })
+    await expect(openPlayButton).toBeVisible()
+
+    const assignedPodsButton = page.getByRole('button', { name: /Assigned Pods/i })
+    await expect(assignedPodsButton).toBeVisible()
+
+    const tournamentPairingsButton = page.getByRole('button', { name: /Tournament Pairings/i })
+    await expect(tournamentPairingsButton).toBeVisible()
   })
 
   test('should show proxy settings in deck rules', async ({ page }) => {
@@ -263,6 +278,24 @@ test.describe('MTG - Event Creation', () => {
     // Should see power level buttons like Casual, Mid, High Power, cEDH
     const casualPowerButton = page.getByRole('button', { name: /Casual/i }).filter({ hasText: /Precons/i })
     await expect(casualPowerButton).toBeVisible()
+  })
+
+  test('should auto-set defaults when Commander format selected', async ({ page }) => {
+    await page.goto('/mtg/events/create')
+    await page.waitForTimeout(2000)
+
+    // Click Commander format button
+    const commanderButton = page.getByRole('button', { name: /Commander/i }).first()
+    await commanderButton.click()
+    await page.waitForTimeout(500)
+
+    // Pod Play should be auto-selected for Commander
+    const podPlayButton = page.getByRole('button', { name: /Pod Play/i })
+    await expect(podPlayButton).toHaveClass(/bg-blue-600/)
+
+    // Assigned Pods play mode should be auto-selected
+    const assignedPodsButton = page.getByRole('button', { name: /Assigned Pods/i })
+    await expect(assignedPodsButton).toHaveClass(/bg-blue-600/)
   })
 
   test('should validate required fields before submission', async ({ page }) => {
