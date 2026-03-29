@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { reactive, ref, computed, onMounted, watch } from 'vue'
+import { reactive, ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useGroupStore } from '@/stores/useGroupStore'
 import { useEventStore } from '@/stores/useEventStore'
 import { createMtgEvent } from '@/services/mtgEventApi'
 import { getMyProfile } from '@/services/profileApi'
-import { getFormats } from '@/services/scryfallApi'
 import SubmitVenueModal from '@/components/venues/SubmitVenueModal.vue'
 import UpgradePrompt from '@/components/billing/UpgradePrompt.vue'
-import MtgFormatSection from '@/components/mtg/MtgFormatSection.vue'
+import MtgFormatSelector from '@/components/mtg/MtgFormatSelector.vue'
+import MtgPowerLevelSection from '@/components/mtg/MtgPowerLevelSection.vue'
 import MtgEventStructureSection from '@/components/mtg/MtgEventStructureSection.vue'
 import MtgDeckRulesSection from '@/components/mtg/MtgDeckRulesSection.vue'
 import MtgPrizesSection from '@/components/mtg/MtgPrizesSection.vue'
@@ -19,7 +19,8 @@ import EventLocationSection from '@/components/events/shared/EventLocationSectio
 import EventPlayerSettingsSection from '@/components/events/shared/EventPlayerSettingsSection.vue'
 import { TIER_LIMITS, type SubscriptionTier } from '@/config/subscriptionLimits'
 import { getEffectiveTier } from '@/types/user'
-import type { CreateMtgEventInput, MtgFormat, MtgEventType, DraftStyle } from '@/types/mtg'
+import { POWER_LEVEL_FORMATS } from '@/types/mtg'
+import type { CreateMtgEventInput, MtgFormat, MtgEventType, DraftStyle, PowerLevelRange, MatchStyle } from '@/types/mtg'
 import type { GroupSummary } from '@/types/groups'
 import type { EventLocation } from '@/types/social'
 
@@ -39,8 +40,13 @@ const errorMessage = ref('')
 const errors = reactive<Record<string, string>>({})
 
 // Format info
-const formats = ref<MtgFormat[]>([])
 const selectedFormat = ref<MtgFormat | null>(null)
+
+// Show power level only for Commander/casual formats
+const showPowerLevel = computed(() => {
+  const formatId = form.mtgConfig.formatId
+  return formatId && POWER_LEVEL_FORMATS.includes(formatId)
+})
 
 // Tier limit checking
 const showUpgradePrompt = ref(false)
@@ -87,11 +93,16 @@ const form = reactive<CreateMtgEventInput>({
     roundsCount: null,
     roundTimeMinutes: 50,
     podsSize: 4,
+    matchStyle: null,
+    topCut: null,
+    playMode: null,
     allowProxies: false,
     proxyLimit: null,
     powerLevelMin: null,
     powerLevelMax: null,
+    powerLevelRange: null,
     bannedCards: [],
+    houseRulesNotes: null,
     packsPerPlayer: null,
     draftStyle: null,
     cubeId: null,
@@ -106,13 +117,6 @@ const form = reactive<CreateMtgEventInput>({
 })
 
 onMounted(async () => {
-  // Load formats
-  try {
-    formats.value = await getFormats()
-  } catch (err) {
-    console.error('Failed to load formats:', err)
-  }
-
   // Load groups where user is owner/admin
   await groupStore.loadMyGroups()
   userGroups.value = groupStore.myGroups.value.filter(
@@ -145,10 +149,10 @@ onMounted(async () => {
   }
 })
 
-// Update selected format when formatId changes
-watch(() => form.mtgConfig.formatId, (formatId) => {
-  selectedFormat.value = formats.value.find(f => f.id === formatId) || null
-})
+// Handle format selection from MtgFormatSelector
+function handleFormatSelected(format: MtgFormat | null) {
+  selectedFormat.value = format
+}
 
 
 function validate(): boolean {
@@ -407,18 +411,28 @@ function handleVenueSubmitted(venue: EventLocation) {
 
           <!-- MTG Format Section -->
           <div class="border-t border-gray-200 pt-6">
-            <MtgFormatSection
-              :format-id="form.mtgConfig.formatId ?? null"
+            <MtgFormatSelector
+              :model-value="form.mtgConfig.formatId ?? null"
               :custom-format-name="form.mtgConfig.customFormatName ?? null"
+              :disabled="loading"
+              @update:model-value="form.mtgConfig.formatId = $event"
+              @update:custom-format-name="form.mtgConfig.customFormatName = $event"
+              @format-selected="handleFormatSelected"
+            />
+            <p v-if="errors.format" class="text-sm text-red-500 mt-2">{{ errors.format }}</p>
+          </div>
+
+          <!-- MTG Power Level Section (Commander/casual formats only) -->
+          <div v-if="showPowerLevel" class="border-t border-gray-200 pt-6">
+            <MtgPowerLevelSection
+              :power-level-range="(form.mtgConfig.powerLevelRange as PowerLevelRange) ?? null"
               :power-level-min="form.mtgConfig.powerLevelMin ?? null"
               :power-level-max="form.mtgConfig.powerLevelMax ?? null"
               :disabled="loading"
-              @update:format-id="form.mtgConfig.formatId = $event"
-              @update:custom-format-name="form.mtgConfig.customFormatName = $event"
+              @update:power-level-range="form.mtgConfig.powerLevelRange = $event"
               @update:power-level-min="form.mtgConfig.powerLevelMin = $event"
               @update:power-level-max="form.mtgConfig.powerLevelMax = $event"
             />
-            <p v-if="errors.format" class="text-sm text-red-500 mt-2">{{ errors.format }}</p>
             <p v-if="errors.powerLevel" class="text-sm text-red-500 mt-2">{{ errors.powerLevel }}</p>
           </div>
 
@@ -429,28 +443,36 @@ function handleVenueSubmitted(venue: EventLocation) {
               :rounds-count="form.mtgConfig.roundsCount ?? null"
               :round-time-minutes="form.mtgConfig.roundTimeMinutes ?? 50"
               :pods-size="form.mtgConfig.podsSize ?? null"
+              :match-style="(form.mtgConfig.matchStyle as MatchStyle) ?? null"
+              :top-cut="form.mtgConfig.topCut ?? null"
               :disabled="loading"
               @update:event-type="form.mtgConfig.eventType = $event"
               @update:rounds-count="form.mtgConfig.roundsCount = $event"
               @update:round-time-minutes="form.mtgConfig.roundTimeMinutes = $event"
               @update:pods-size="form.mtgConfig.podsSize = $event"
+              @update:match-style="form.mtgConfig.matchStyle = $event"
+              @update:top-cut="form.mtgConfig.topCut = $event"
             />
           </div>
 
           <!-- MTG Deck Rules Section -->
           <div class="border-t border-gray-200 pt-6">
             <MtgDeckRulesSection
+              :selected-format="selectedFormat"
+              :format-id="form.mtgConfig.formatId ?? null"
               :allow-proxies="form.mtgConfig.allowProxies ?? false"
               :proxy-limit="form.mtgConfig.proxyLimit ?? null"
               :banned-cards="(form.mtgConfig.bannedCards as string[]) ?? []"
               :require-deck-registration="form.mtgConfig.requireDeckRegistration ?? false"
               :deck-submission-deadline="form.mtgConfig.deckSubmissionDeadline ?? null"
+              :house-rules-notes="form.mtgConfig.houseRulesNotes ?? null"
               :disabled="loading"
               @update:allow-proxies="form.mtgConfig.allowProxies = $event"
               @update:proxy-limit="form.mtgConfig.proxyLimit = $event"
               @update:banned-cards="form.mtgConfig.bannedCards = $event"
               @update:require-deck-registration="form.mtgConfig.requireDeckRegistration = $event"
               @update:deck-submission-deadline="form.mtgConfig.deckSubmissionDeadline = $event"
+              @update:house-rules-notes="form.mtgConfig.houseRulesNotes = $event"
             />
           </div>
 

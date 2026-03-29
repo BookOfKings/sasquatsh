@@ -152,6 +152,7 @@ export interface MtgEventConfig {
   proxyLimit: number | null
   powerLevelMin: number | null
   powerLevelMax: number | null
+  powerLevelRange: PowerLevelRange | null  // Simplified power level selection
   bannedCards: string[]
   packsPerPlayer: number | null
   draftStyle: DraftStyle | null
@@ -163,6 +164,11 @@ export interface MtgEventConfig {
   requireDeckRegistration: boolean
   deckSubmissionDeadline: string | null
   allowSpectators: boolean
+  // New fields for enhanced event structure
+  matchStyle: MatchStyle | null           // Best of 1 or Best of 3
+  topCut: number | null                   // Top cut size (4, 8, etc.)
+  playMode: PlayMode | null               // Open play, assigned pods, tournament pairings
+  houseRulesNotes: string | null          // Custom house rules text
 }
 
 export type MtgEventType =
@@ -178,6 +184,54 @@ export type DraftStyle =
   | 'rochester'
   | 'winston'
   | 'grid'
+
+// Match style for tournament play
+export type MatchStyle = 'bo1' | 'bo3'
+
+// Play/seating mode
+export type PlayMode = 'open_play' | 'assigned_pods' | 'tournament_pairings'
+
+// Simplified power level ranges
+export type PowerLevelRange = 'casual' | 'mid' | 'high' | 'cedh' | 'custom'
+
+// Power level range definitions
+export const POWER_LEVEL_RANGES: Record<PowerLevelRange, { min: number; max: number; label: string; description: string }> = {
+  casual: { min: 1, max: 4, label: 'Casual', description: 'Precons, upgraded precons, and jank decks' },
+  mid: { min: 5, max: 6, label: 'Mid', description: 'Balanced play, typical casual groups' },
+  high: { min: 7, max: 8, label: 'High Power', description: 'Optimized decks, strong strategies' },
+  cedh: { min: 9, max: 10, label: 'cEDH', description: 'Fully competitive, no restrictions' },
+  custom: { min: 1, max: 10, label: 'Custom Range', description: 'Set your own power level range' },
+}
+
+// Format descriptions for UI display
+export const FORMAT_DESCRIPTIONS: Record<string, string> = {
+  commander: '100 cards, singleton, multiplayer-friendly',
+  standard: '60-card constructed, rotating format',
+  modern: '60-card constructed, cards from 8th Edition forward',
+  pioneer: '60-card constructed, cards from Return to Ravnica forward',
+  legacy: '60-card constructed, most cards legal',
+  vintage: '60-card constructed, Power Nine legal (restricted)',
+  pauper: '60-card constructed, commons only',
+  draft: 'Limited format, deck built on site from packs',
+  sealed: 'Limited format, 40-card deck from 6 packs',
+  cube: 'Draft from a curated card pool',
+  cube_draft: 'Draft from a curated card pool',
+  oathbreaker: '60-card singleton, Planeswalker as commander',
+  brawl: 'Standard-legal Commander variant, 60 cards',
+  casual: 'Kitchen table magic, house rules welcome',
+  custom: 'Custom format with your own rules',
+}
+
+// Format categories for grouping in UI
+export const FORMAT_CATEGORIES: Record<string, string[]> = {
+  'Constructed': ['standard', 'modern', 'pioneer', 'legacy', 'vintage', 'pauper'],
+  'Commander': ['commander', 'oathbreaker', 'brawl'],
+  'Limited': ['draft', 'sealed', 'cube', 'cube_draft'],
+  'Casual': ['casual', 'custom'],
+}
+
+// Formats that support power level selection
+export const POWER_LEVEL_FORMATS = ['commander', 'oathbreaker', 'brawl', 'casual', 'custom']
 
 // Event creation input
 export interface CreateMtgEventInput {

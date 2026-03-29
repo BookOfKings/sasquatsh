@@ -155,8 +155,8 @@ test.describe('MTG - Event Creation', () => {
     await page.goto('/mtg/events/create')
     await page.waitForTimeout(1500)
 
-    // Should see Format & Power Level section (h3)
-    const formatSection = page.getByRole('heading', { name: 'Format & Power Level', level: 3 })
+    // Should see Format section (h3)
+    const formatSection = page.getByRole('heading', { name: 'Format', level: 3 })
     await expect(formatSection).toBeVisible()
 
     // Should see Event Structure section (h3)
@@ -172,27 +172,33 @@ test.describe('MTG - Event Creation', () => {
     await page.goto('/mtg/events/create')
     await page.waitForTimeout(2000)
 
-    // Find format dropdown (the one with Commander/Standard options)
-    const formatDropdown = page.locator('select').filter({ has: page.locator('option', { hasText: 'Commander' }) })
-    await expect(formatDropdown).toBeVisible({ timeout: 10000 })
+    // Format selection is now button-based, look for Commander button
+    const commanderButton = page.getByRole('button', { name: /Commander/i }).first()
+    await expect(commanderButton).toBeVisible({ timeout: 10000 })
 
-    // Check that Commander option exists
-    const options = await formatDropdown.locator('option').allTextContents()
-    const hasCommander = options.some(opt => opt.includes('Commander'))
-    expect(hasCommander).toBeTruthy()
+    // Check that Standard and Modern buttons exist
+    const standardButton = page.getByRole('button', { name: /Standard/i }).first()
+    await expect(standardButton).toBeVisible()
+
+    const modernButton = page.getByRole('button', { name: /Modern/i }).first()
+    await expect(modernButton).toBeVisible()
   })
 
   test('should show event type options', async ({ page }) => {
     await page.goto('/mtg/events/create')
     await page.waitForTimeout(1500)
 
-    // Should see Event Structure section with event type dropdown
-    const eventTypeDropdown = page.locator('select').filter({ has: page.locator('option', { hasText: 'Casual Play' }) })
-    await expect(eventTypeDropdown).toBeVisible()
+    // Event types are now buttons, look for Casual Play button
+    const casualButton = page.getByRole('button', { name: /Casual Play/i })
+    await expect(casualButton).toBeVisible()
 
-    // Verify dropdown has tournament options
-    const options = await eventTypeDropdown.locator('option').allTextContents()
-    expect(options.some(opt => opt.includes('Swiss'))).toBeTruthy()
+    // Verify Swiss tournament option exists as button
+    const swissButton = page.getByRole('button', { name: /Swiss/i })
+    await expect(swissButton).toBeVisible()
+
+    // Verify Pod Play option exists
+    const podsButton = page.getByRole('button', { name: /Pod Play/i })
+    await expect(podsButton).toBeVisible()
   })
 
   test('should show proxy settings in deck rules', async ({ page }) => {
@@ -244,14 +250,19 @@ test.describe('MTG - Event Creation', () => {
     await page.goto('/mtg/events/create')
     await page.waitForTimeout(2000)
 
-    // Select Commander format from the format dropdown
-    const formatDropdown = page.locator('select').filter({ has: page.locator('option', { hasText: 'Commander' }) })
-    await formatDropdown.selectOption({ label: 'Commander (EDH)' })
+    // Click Commander format button
+    const commanderButton = page.getByRole('button', { name: /Commander/i }).first()
+    await commanderButton.click()
     await page.waitForTimeout(500)
 
-    // Should see "Add power level range" button
-    const powerLevelButton = page.getByRole('button', { name: /power level/i })
-    await expect(powerLevelButton).toBeVisible({ timeout: 5000 })
+    // For Commander format, power level section should appear
+    // Should see "Power Level" heading
+    const powerLevelHeading = page.getByRole('heading', { name: 'Power Level', level: 3 })
+    await expect(powerLevelHeading).toBeVisible({ timeout: 5000 })
+
+    // Should see power level buttons like Casual, Mid, High Power, cEDH
+    const casualPowerButton = page.getByRole('button', { name: /Casual/i }).filter({ hasText: /Precons/i })
+    await expect(casualPowerButton).toBeVisible()
   })
 
   test('should validate required fields before submission', async ({ page }) => {
@@ -299,9 +310,9 @@ test.describe('MTG - Event Creation Full Flow', () => {
     const dateInput = page.locator('input[type="date"]').first()
     await dateInput.fill(getTomorrowDate())
 
-    // 3. Select Commander Format
-    const formatDropdown = page.locator('select').filter({ has: page.locator('option', { hasText: 'Commander' }) })
-    await formatDropdown.selectOption({ label: 'Commander (EDH)' })
+    // 3. Click Commander Format button
+    const commanderButton = page.getByRole('button', { name: /Commander/i }).first()
+    await commanderButton.click()
     await page.waitForTimeout(500)
 
     // 4. Verify form has Player Settings section
@@ -356,26 +367,29 @@ test.describe('MTG - Scryfall Integration', () => {
     await page.goto('/mtg/events/create')
     await page.waitForTimeout(2000)
 
-    // Find the format dropdown (first select that has format options)
-    const formatDropdown = page.locator('select').filter({ has: page.locator('option', { hasText: 'Commander' }) })
-    await expect(formatDropdown).toBeVisible()
+    // Format selection is now button-based, verify Commander button exists
+    const commanderButton = page.getByRole('button', { name: /Commander/i }).first()
+    await expect(commanderButton).toBeVisible()
 
-    // Verify it has Commander option
-    const options = await formatDropdown.locator('option').allTextContents()
-    expect(options.some(opt => opt.includes('Commander'))).toBeTruthy()
+    // Verify other format buttons exist
+    const standardButton = page.getByRole('button', { name: /Standard/i }).first()
+    await expect(standardButton).toBeVisible()
   })
 
   test('should display fallback formats if API fails', async ({ page }) => {
     await page.goto('/mtg/events/create')
     await page.waitForTimeout(2000)
 
-    // Even if API fails, should show fallback list message and still have format options
-    const formatDropdown = page.locator('select').first()
-    await expect(formatDropdown).toBeVisible()
+    // Even if API fails, should show fallback format buttons
+    // Look for multiple format buttons to verify formats loaded
+    const commanderButton = page.getByRole('button', { name: /Commander/i }).first()
+    await expect(commanderButton).toBeVisible()
 
-    // Should have some format options (either from API or fallback)
-    const optionCount = await formatDropdown.locator('option').count()
-    expect(optionCount).toBeGreaterThan(1)
+    const standardButton = page.getByRole('button', { name: /Standard/i }).first()
+    await expect(standardButton).toBeVisible()
+
+    const modernButton = page.getByRole('button', { name: /Modern/i }).first()
+    await expect(modernButton).toBeVisible()
   })
 })
 
