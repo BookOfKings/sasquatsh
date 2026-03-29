@@ -41,9 +41,13 @@ import {
   createAdminBug,
   updateAdminBug,
   deleteAdminBug,
+  getMtgCacheStats,
+  warmMtgStaples,
+  warmMtgCommanders,
+  refreshMtgStaleCache,
 } from '@/services/adminApi'
 import type { EventLocation } from '@/types/social'
-import type { BggCacheStats, BggCacheEntry, AdminStats, ServiceHealth, AdminUser, AdminGroup, AdminGroupMember, AdminNote, AdminBug } from '@/services/adminApi'
+import type { BggCacheStats, BggCacheEntry, AdminStats, ServiceHealth, AdminUser, AdminGroup, AdminGroupMember, AdminNote, AdminBug, MtgCacheStats, MtgCacheWarmResult } from '@/services/adminApi'
 import { listBggCache, refreshBggGame, updateBggCacheEntry } from '@/services/adminApi'
 import { getAllAds, getAdStats, createAd, updateAd, deleteAd, toggleAdActive } from '@/services/adsApi'
 import type { Ad, AdStats, CreateAdInput } from '@/services/adsApi'
@@ -91,6 +95,12 @@ const successMessage = ref('')
 const cacheStats = ref<BggCacheStats | null>(null)
 const cacheLoading = ref(false)
 const cacheImporting = ref(false)
+
+// MTG Cache state
+const mtgCacheStats = ref<MtgCacheStats | null>(null)
+const mtgCacheLoading = ref(false)
+const mtgCacheWarming = ref(false)
+const mtgWarmResult = ref<MtgCacheWarmResult | null>(null)
 const cacheGames = ref<BggCacheEntry[]>([])
 const cacheGamesTotal = ref(0)
 const cacheGamesPage = ref(1)
@@ -307,6 +317,7 @@ onMounted(async () => {
   await loadLocations()
   await loadCacheStats()
   await loadCacheGames()
+  await loadMtgCacheStats()
 })
 
 async function loadDashboard() {
@@ -453,6 +464,75 @@ function formatCacheDate(dateStr: string | null): string {
     hour: 'numeric',
     minute: '2-digit',
   })
+}
+
+// MTG Cache Functions
+async function loadMtgCacheStats() {
+  mtgCacheLoading.value = true
+  try {
+    mtgCacheStats.value = await getMtgCacheStats()
+  } catch (err) {
+    console.error('Failed to load MTG cache stats:', err)
+  } finally {
+    mtgCacheLoading.value = false
+  }
+}
+
+async function handleWarmMtgStaples() {
+  mtgCacheWarming.value = true
+  mtgWarmResult.value = null
+  errorMessage.value = ''
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    const result = await warmMtgStaples(token)
+    mtgWarmResult.value = result
+    successMessage.value = `Cached ${result.cached} cards (${result.skipped} skipped, ${result.failed} failed)`
+    await loadMtgCacheStats()
+    setTimeout(() => successMessage.value = '', 5000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to warm MTG cache'
+  } finally {
+    mtgCacheWarming.value = false
+  }
+}
+
+async function handleWarmMtgCommanders() {
+  mtgCacheWarming.value = true
+  mtgWarmResult.value = null
+  errorMessage.value = ''
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    const result = await warmMtgCommanders(token, 5)
+    mtgWarmResult.value = result
+    successMessage.value = `Cached ${result.cached} commanders (${result.skipped} skipped, ${result.failed} failed)`
+    await loadMtgCacheStats()
+    setTimeout(() => successMessage.value = '', 5000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to warm commanders'
+  } finally {
+    mtgCacheWarming.value = false
+  }
+}
+
+async function handleRefreshMtgStale() {
+  mtgCacheWarming.value = true
+  mtgWarmResult.value = null
+  errorMessage.value = ''
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    const result = await refreshMtgStaleCache(token)
+    mtgWarmResult.value = result
+    successMessage.value = `Refreshed ${result.cached} stale entries`
+    await loadMtgCacheStats()
+    setTimeout(() => successMessage.value = '', 5000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to refresh stale MTG cache'
+  } finally {
+    mtgCacheWarming.value = false
+  }
 }
 
 // BGG Cache Browse Functions
@@ -4355,6 +4435,98 @@ function getLocationTypeLabel(location: EventLocation): string {
             <button class="btn-outline" @click="closeCacheEditDialog">Cancel</button>
             <button class="btn-primary" :disabled="savingCacheGame" @click="handleSaveCacheGame">
               {{ savingCacheGame ? 'Saving...' : 'Save Changes' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- MTG/Scryfall Cache -->
+      <div class="card p-6 mt-6">
+        <h2 class="text-lg font-semibold mb-4">Magic: The Gathering Cache</h2>
+        <p class="text-gray-600 mb-6">
+          The Scryfall cache stores MTG card data locally for fast searching. Cards are fetched from Scryfall API and cached to avoid rate limits.
+        </p>
+
+        <!-- Stats -->
+        <div v-if="mtgCacheLoading" class="text-center py-4">
+          <D20Spinner size="md" class="mx-auto" />
+        </div>
+        <div v-else-if="mtgCacheStats" class="grid grid-cols-4 gap-4 mb-6">
+          <div class="bg-gray-50 rounded-lg p-4 text-center">
+            <div class="text-2xl font-bold text-gray-900">{{ mtgCacheStats.totalCards.toLocaleString() }}</div>
+            <div class="text-sm text-gray-500">Total Cards</div>
+          </div>
+          <div class="bg-gray-50 rounded-lg p-4 text-center">
+            <div class="text-2xl font-bold text-gray-900">{{ mtgCacheStats.staplesListSize }}</div>
+            <div class="text-sm text-gray-500">Staples List</div>
+          </div>
+          <div class="bg-gray-50 rounded-lg p-4 text-center">
+            <div class="text-2xl font-bold" :class="mtgCacheStats.staleCount > 0 ? 'text-orange-600' : 'text-green-600'">{{ mtgCacheStats.staleCount }}</div>
+            <div class="text-sm text-gray-500">Stale Entries</div>
+          </div>
+          <div class="bg-gray-50 rounded-lg p-4 text-center">
+            <div class="text-sm font-medium text-gray-900">{{ formatCacheDate(mtgCacheStats.newestEntry) }}</div>
+            <div class="text-sm text-gray-500">Last Cached</div>
+          </div>
+        </div>
+
+        <!-- Last warm result -->
+        <div v-if="mtgWarmResult" class="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div class="font-medium text-green-900">Last Warm Result: {{ mtgWarmResult.action }}</div>
+          <div class="text-sm text-green-700">
+            Cached: {{ mtgWarmResult.cached }} | Skipped: {{ mtgWarmResult.skipped }} | Failed: {{ mtgWarmResult.failed }}
+          </div>
+          <div v-if="mtgWarmResult.errors && mtgWarmResult.errors.length > 0" class="mt-2 text-xs text-red-600">
+            Errors: {{ mtgWarmResult.errors.slice(0, 3).join(', ') }}
+            <span v-if="mtgWarmResult.errors.length > 3">... and {{ mtgWarmResult.errors.length - 3 }} more</span>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between p-4 bg-purple-50 rounded-lg">
+            <div>
+              <div class="font-medium text-purple-900">Warm Commander Staples</div>
+              <div class="text-sm text-purple-700">Caches ~170 most-played Commander cards (Sol Ring, Command Tower, etc.)</div>
+            </div>
+            <button
+              class="btn-primary"
+              :disabled="mtgCacheWarming"
+              @click="handleWarmMtgStaples"
+            >
+              <svg v-if="mtgCacheWarming" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+              </svg>
+              Warm Staples
+            </button>
+          </div>
+
+          <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <div>
+              <div class="font-medium text-gray-900">Warm Commanders</div>
+              <div class="text-sm text-gray-600">Caches legendary creatures via Scryfall search (5 pages)</div>
+            </div>
+            <button
+              class="btn-outline"
+              :disabled="mtgCacheWarming"
+              @click="handleWarmMtgCommanders"
+            >
+              Warm Commanders
+            </button>
+          </div>
+
+          <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <div>
+              <div class="font-medium text-gray-900">Refresh Stale Entries</div>
+              <div class="text-sm text-gray-600">Re-fetches cards older than 24 hours</div>
+            </div>
+            <button
+              class="btn-outline"
+              :disabled="mtgCacheWarming || !mtgCacheStats || mtgCacheStats.staleCount === 0"
+              @click="handleRefreshMtgStale"
+            >
+              Refresh Stale
             </button>
           </div>
         </div>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref, computed, onMounted, watch } from 'vue'
+import { reactive, ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useEventStore } from '@/stores/useEventStore'
 import { useAuthStore } from '@/stores/useAuthStore'
@@ -8,12 +8,12 @@ import { addEventGame } from '@/services/bggApi'
 import { getMyProfile } from '@/services/profileApi'
 import GameSearch from '@/components/common/GameSearch.vue'
 import GameCard from '@/components/common/GameCard.vue'
-import HotLocationsBar from '@/components/venues/HotLocationsBar.vue'
-import VenueSelector from '@/components/venues/VenueSelector.vue'
-import VenueDetailsFields from '@/components/venues/VenueDetailsFields.vue'
 import SubmitVenueModal from '@/components/venues/SubmitVenueModal.vue'
 import UpgradePrompt from '@/components/billing/UpgradePrompt.vue'
-import { TIER_LIMITS, hasFeature, TIER_NAMES, type SubscriptionTier } from '@/config/subscriptionLimits'
+import EventDateTimeSection from '@/components/events/shared/EventDateTimeSection.vue'
+import EventLocationSection from '@/components/events/shared/EventLocationSection.vue'
+import EventPlayerSettingsSection from '@/components/events/shared/EventPlayerSettingsSection.vue'
+import { TIER_LIMITS, type SubscriptionTier } from '@/config/subscriptionLimits'
 import { getEffectiveTier } from '@/types/user'
 import type { CreateEventInput } from '@/types/events'
 import type { BggGame } from '@/types/bgg'
@@ -33,8 +33,6 @@ const selectedGames = ref<BggGame[]>([])
 const gameSearchQuery = ref('')
 
 // Venue selection state
-const locationMode = ref<'venue' | 'custom'>('custom')
-const selectedVenue = ref<EventLocation | null>(null)
 const showVenueModal = ref(false)
 
 const loading = ref(false)
@@ -52,23 +50,6 @@ const currentTier = computed((): SubscriptionTier => {
 
 const eventLimit = computed(() => TIER_LIMITS[currentTier.value].gamesPerEvent)
 const isAtLimit = computed(() => activeEventCount.value >= eventLimit.value)
-// Today's date for min date validation (YYYY-MM-DD format)
-const today = computed(() => new Date().toISOString().split('T')[0])
-
-// Timezone options
-const timezoneOptions = [
-  { value: 'America/New_York', label: 'Eastern Time (ET)' },
-  { value: 'America/Chicago', label: 'Central Time (CT)' },
-  { value: 'America/Denver', label: 'Mountain Time (MT)' },
-  { value: 'America/Phoenix', label: 'Arizona (no DST)' },
-  { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
-  { value: 'America/Anchorage', label: 'Alaska Time (AKT)' },
-  { value: 'Pacific/Honolulu', label: 'Hawaii Time (HT)' },
-  { value: 'Europe/London', label: 'UK (GMT/BST)' },
-  { value: 'Europe/Paris', label: 'Central Europe (CET)' },
-  { value: 'Asia/Tokyo', label: 'Japan (JST)' },
-  { value: 'Australia/Sydney', label: 'Sydney (AEST)' },
-]
 
 const form = reactive<CreateEventInput>({
   title: '',
@@ -134,12 +115,6 @@ onMounted(async () => {
   }
 })
 
-// When a venue is selected, use its timezone if available
-watch(selectedVenue, (venue) => {
-  if (venue?.timezone) {
-    form.timezone = venue.timezone
-  }
-})
 
 const difficultyOptions = [
   { title: 'None', value: '' },
@@ -221,7 +196,7 @@ function validate(): boolean {
   }
 
   // Require either a venue or a custom address with zip code
-  const hasVenue = locationMode.value === 'venue' && selectedVenue.value
+  const hasVenue = !!form.eventLocationId
   const hasCustomAddress = form.city?.trim() && form.postalCode?.trim()
   if (!hasVenue && !hasCustomAddress) {
     if (form.city?.trim() && !form.postalCode?.trim()) {
@@ -328,29 +303,16 @@ function setPrimaryGame(index: number) {
   form.gameTitle = game.name
 }
 
-function handleVenueSelect(venue: EventLocation) {
-  selectedVenue.value = venue
-  form.eventLocationId = venue.id
+// Handle venue selection from EventLocationSection (for side effects like timezone)
+function handleVenueSelected(venue: EventLocation) {
+  // Copy address info from venue to form
   form.city = venue.city
   form.state = venue.state
   form.postalCode = venue.postalCode || ''
-  locationMode.value = 'venue'
-}
-
-function handleVenueSelectorSelect(venue: EventLocation | null) {
-  if (venue) {
-    handleVenueSelect(venue)
-  } else {
-    clearVenueSelection()
+  // Use venue's timezone if available
+  if (venue.timezone) {
+    form.timezone = venue.timezone
   }
-}
-
-function clearVenueSelection() {
-  selectedVenue.value = null
-  form.eventLocationId = undefined
-  form.venueHall = undefined
-  form.venueRoom = undefined
-  form.venueTable = undefined
 }
 
 function handleVenueSubmitted(venue: EventLocation) {
@@ -371,12 +333,23 @@ function handleVenueSubmitted(venue: EventLocation) {
     <div class="card">
       <!-- Header -->
       <div class="p-6 border-b border-gray-100">
-        <h1 class="text-xl font-bold flex items-center gap-2">
-          <svg class="w-6 h-6 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
-          </svg>
-          Host a Game
-        </h1>
+        <div class="flex items-center justify-between">
+          <h1 class="text-xl font-bold flex items-center gap-2">
+            <svg class="w-6 h-6 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
+            </svg>
+            Host a Game
+          </h1>
+          <router-link
+            to="/mtg/events/create"
+            class="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-purple-700 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
+          >
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M11.5,1L2,6V8H21V6M16,10V17H19V10M2,22H21V19H2M10,10V17H13V10M4,10V17H7V10H4Z" />
+            </svg>
+            Host MTG Event
+          </router-link>
+        </div>
       </div>
 
       <div class="p-6">
@@ -515,269 +488,64 @@ function handleVenueSubmitted(venue: EventLocation) {
           </div>
 
           <!-- Date & Time -->
-          <div>
-            <h3 class="font-semibold text-gray-900 mb-4">Date & Time</h3>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label for="eventDate" class="label">Date *</label>
-                <input
-                  id="eventDate"
-                  v-model="form.eventDate"
-                  type="date"
-                  :min="today"
-                  class="input"
-                  :class="{ 'input-error': errors.eventDate }"
-                  :disabled="loading"
-                />
-                <p v-if="errors.eventDate" class="text-sm text-red-500 mt-1">{{ errors.eventDate }}</p>
-              </div>
-              <div>
-                <label for="startTime" class="label">Start Time *</label>
-                <input
-                  id="startTime"
-                  v-model="form.startTime"
-                  type="time"
-                  class="input"
-                  :class="{ 'input-error': errors.startTime }"
-                  :disabled="loading"
-                />
-                <p v-if="errors.startTime" class="text-sm text-red-500 mt-1">{{ errors.startTime }}</p>
-              </div>
-              <div>
-                <label for="timezone" class="label">Time Zone</label>
-                <select
-                  id="timezone"
-                  v-model="form.timezone"
-                  class="input"
-                  :disabled="loading"
-                >
-                  <option v-for="tz in timezoneOptions" :key="tz.value" :value="tz.value">
-                    {{ tz.label }}
-                  </option>
-                </select>
-              </div>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-              <div>
-                <label for="durationMinutes" class="label">Duration (minutes) *</label>
-                <input
-                  id="durationMinutes"
-                  v-model.number="form.durationMinutes"
-                  type="number"
-                  class="input"
-                  :class="{ 'input-error': errors.durationMinutes }"
-                  min="1"
-                  :disabled="loading"
-                />
-                <p v-if="errors.durationMinutes" class="text-sm text-red-500 mt-1">{{ errors.durationMinutes }}</p>
-              </div>
-              <div>
-                <label for="setupMinutes" class="label">Setup Time (minutes)</label>
-                <input
-                  id="setupMinutes"
-                  v-model.number="form.setupMinutes"
-                  type="number"
-                  class="input"
-                  min="0"
-                  :disabled="loading"
-                />
-              </div>
-            </div>
-          </div>
+          <EventDateTimeSection
+            :event-date="form.eventDate"
+            :start-time="form.startTime"
+            :timezone="form.timezone"
+            :duration-minutes="form.durationMinutes"
+            :setup-minutes="form.setupMinutes"
+            :disabled="loading"
+            :errors="{ eventDate: errors.eventDate, startTime: errors.startTime, durationMinutes: errors.durationMinutes }"
+            @update:event-date="form.eventDate = $event"
+            @update:start-time="form.startTime = $event"
+            @update:timezone="form.timezone = $event"
+            @update:duration-minutes="form.durationMinutes = $event"
+            @update:setup-minutes="form.setupMinutes = $event"
+          />
 
           <!-- Location -->
-          <div>
-            <h3 class="font-semibold text-gray-900 mb-4">Location</h3>
-
-            <!-- Hot Locations Quick Select -->
-            <HotLocationsBar
-              :selected-id="form.eventLocationId"
-              @select="handleVenueSelect"
-            />
-
-            <!-- Location Mode Toggle -->
-            <div class="flex gap-4 mb-4">
-              <label class="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  v-model="locationMode"
-                  value="venue"
-                  class="w-4 h-4 text-primary-500 focus:ring-primary-500"
-                  :disabled="loading"
-                />
-                <span class="text-sm text-gray-700">Select a venue</span>
-              </label>
-              <label class="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  v-model="locationMode"
-                  value="custom"
-                  class="w-4 h-4 text-primary-500 focus:ring-primary-500"
-                  :disabled="loading"
-                  @change="clearVenueSelection"
-                />
-                <span class="text-sm text-gray-700">Enter custom address</span>
-              </label>
-            </div>
-
-            <!-- Venue Selection Mode -->
-            <div v-if="locationMode === 'venue'" class="space-y-4">
-              <div>
-                <label class="label">Select a Venue</label>
-                <VenueSelector
-                  :model-value="form.eventLocationId ?? null"
-                  :disabled="loading"
-                  @update:model-value="(v) => form.eventLocationId = v ?? undefined"
-                  @select="handleVenueSelectorSelect"
-                />
-                <div class="flex items-center gap-2 mt-2">
-                  <button
-                    type="button"
-                    class="text-sm text-primary-500 hover:text-primary-600"
-                    @click="showVenueModal = true"
-                  >
-                    + Submit a new venue
-                  </button>
-                </div>
-              </div>
-
-              <!-- Venue Details (Hall/Room/Table) when venue selected -->
-              <div v-if="selectedVenue">
-                <template v-if="hasFeature(currentTier, 'tableInfo')">
-                  <label class="label">Location Details (optional)</label>
-                  <VenueDetailsFields
-                    :hall="form.venueHall"
-                    :room="form.venueRoom"
-                    :table="form.venueTable"
-                    :disabled="loading"
-                    @update:hall="(v) => form.venueHall = v ?? undefined"
-                    @update:room="(v) => form.venueRoom = v ?? undefined"
-                    @update:table="(v) => form.venueTable = v ?? undefined"
-                  />
-                </template>
-                <div v-else class="rounded-lg bg-gray-50 border border-gray-200 p-4 text-center">
-                  <svg class="w-8 h-8 mx-auto text-gray-400 mb-2" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.9,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z"/>
-                  </svg>
-                  <p class="text-sm text-gray-500">Hall, room, and table details require {{ TIER_NAMES.basic }} plan</p>
-                  <button type="button" class="text-sm text-primary-500 hover:text-primary-600 mt-1" @click="$router.push('/pricing')">Upgrade</button>
-                </div>
-              </div>
-
-              <div>
-                <label for="locationDetails" class="label">Additional Details</label>
-                <input
-                  id="locationDetails"
-                  v-model="form.locationDetails"
-                  type="text"
-                  class="input"
-                  placeholder="e.g., Meet at the registration desk"
-                  :disabled="loading"
-                />
-              </div>
-            </div>
-
-            <!-- Custom Address Mode -->
-            <div v-else class="space-y-4">
-              <div>
-                <label for="addressLine1" class="label">Address</label>
-                <input
-                  id="addressLine1"
-                  v-model="form.addressLine1"
-                  type="text"
-                  class="input"
-                  placeholder="123 Main St"
-                  :disabled="loading"
-                />
-              </div>
-
-              <div class="grid grid-cols-12 gap-4">
-                <div class="col-span-5">
-                  <label for="city" class="label">City</label>
-                  <input
-                    id="city"
-                    v-model="form.city"
-                    type="text"
-                    class="input"
-                    :disabled="loading"
-                  />
-                </div>
-                <div class="col-span-4">
-                  <label for="state" class="label">State</label>
-                  <input
-                    id="state"
-                    v-model="form.state"
-                    type="text"
-                    class="input"
-                    :disabled="loading"
-                  />
-                </div>
-                <div class="col-span-3">
-                  <label for="postalCode" class="label">Zip</label>
-                  <input
-                    id="postalCode"
-                    v-model="form.postalCode"
-                    type="text"
-                    class="input"
-                    :disabled="loading"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label for="locationDetails" class="label">Location Details</label>
-                <input
-                  id="locationDetails"
-                  v-model="form.locationDetails"
-                  type="text"
-                  class="input"
-                  placeholder="e.g., Ring doorbell, upstairs apartment"
-                  :disabled="loading"
-                />
-              </div>
-            </div>
-
-            <!-- Location Error -->
-            <p v-if="errors.location" class="text-sm text-red-500 mt-2">{{ errors.location }}</p>
-          </div>
+          <EventLocationSection
+            :event-location-id="form.eventLocationId"
+            :venue-hall="form.venueHall"
+            :venue-room="form.venueRoom"
+            :venue-table="form.venueTable"
+            :address-line1="form.addressLine1"
+            :city="form.city"
+            :state="form.state"
+            :postal-code="form.postalCode"
+            :location-details="form.locationDetails"
+            :disabled="loading"
+            :current-tier="currentTier"
+            :errors="{ location: errors.location }"
+            @update:event-location-id="form.eventLocationId = $event"
+            @update:venue-hall="form.venueHall = $event"
+            @update:venue-room="form.venueRoom = $event"
+            @update:venue-table="form.venueTable = $event"
+            @update:address-line1="form.addressLine1 = $event"
+            @update:city="form.city = $event"
+            @update:state="form.state = $event"
+            @update:postal-code="form.postalCode = $event"
+            @update:location-details="form.locationDetails = $event"
+            @show-venue-modal="showVenueModal = true"
+            @venue-selected="handleVenueSelected"
+          />
 
           <!-- Game Settings -->
-          <div>
-            <h3 class="font-semibold text-gray-900 mb-4">Game Settings</h3>
-
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <label for="maxPlayers" class="label">Max Players *</label>
-                <input
-                  id="maxPlayers"
-                  v-model.number="form.maxPlayers"
-                  type="number"
-                  class="input"
-                  :class="{ 'input-error': errors.maxPlayers }"
-                  min="1"
-                  :disabled="loading"
-                />
-                <p v-if="errors.maxPlayers" class="text-sm text-red-500 mt-1">{{ errors.maxPlayers }}</p>
-                <p class="text-sm text-gray-500 mt-1">
-                  {{ form.hostIsPlaying ? `${(form.maxPlayers || 4) - 1} spots for others` : `${form.maxPlayers || 4} spots (you're not playing)` }}
-                </p>
-              </div>
-              <div class="flex items-center">
-                <label class="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    v-model="form.hostIsPlaying"
-                    class="w-5 h-5 rounded text-primary-500 border-gray-300 focus:ring-primary-500"
-                    :disabled="loading"
-                  />
-                  <div>
-                    <span class="label">I am playing</span>
-                    <p class="text-sm text-gray-500">Include yourself as a player</p>
-                  </div>
-                </label>
-              </div>
+          <EventPlayerSettingsSection
+            :max-players="form.maxPlayers"
+            :host-is-playing="form.hostIsPlaying"
+            :is-public="form.isPublic"
+            :is-charity-event="form.isCharityEvent"
+            :disabled="loading"
+            :default-max-players="4"
+            :errors="{ maxPlayers: errors.maxPlayers }"
+            @update:max-players="form.maxPlayers = $event"
+            @update:host-is-playing="form.hostIsPlaying = $event"
+            @update:is-public="form.isPublic = $event"
+            @update:is-charity-event="form.isCharityEvent = $event"
+          >
+            <!-- Board game specific: Min Age -->
+            <template #extra-settings>
               <div>
                 <label for="minAge" class="label">Minimum Age</label>
                 <input
@@ -792,63 +560,48 @@ function handleVenueSubmitted(venue: EventLocation) {
                 />
                 <p class="text-sm text-gray-500 mt-1">Leave blank for all ages</p>
               </div>
-              <div>
-                <label for="difficultyLevel" class="label">Difficulty Level</label>
-                <select
-                  id="difficultyLevel"
-                  v-model="form.difficultyLevel"
-                  class="input"
-                  :disabled="loading"
-                >
-                  <option
-                    v-for="opt in difficultyOptions"
-                    :key="opt.value"
-                    :value="opt.value || undefined"
-                  >
-                    {{ opt.title }}
-                  </option>
-                </select>
-              </div>
-              <div>
-                <label for="status" class="label">Status</label>
-                <select
-                  id="status"
-                  v-model="form.status"
-                  class="input"
-                  :disabled="loading"
-                >
-                  <option
-                    v-for="opt in statusOptions"
-                    :key="opt.value"
-                    :value="opt.value"
-                  >
-                    {{ opt.title }}
-                  </option>
-                </select>
-              </div>
-            </div>
+            </template>
 
-            <div class="flex flex-col sm:flex-row gap-4 mt-4">
-              <label class="flex items-center gap-2 cursor-pointer">
-                <input
-                  v-model="form.isPublic"
-                  type="checkbox"
-                  class="w-4 h-4 rounded border-gray-300 text-primary-500 focus:ring-primary-500"
-                  :disabled="loading"
-                />
-                <span class="text-sm text-gray-700">Public game (visible to everyone)</span>
-              </label>
-              <label class="flex items-center gap-2 cursor-pointer">
-                <input
-                  v-model="form.isCharityEvent"
-                  type="checkbox"
-                  class="w-4 h-4 rounded border-gray-300 text-secondary-500 focus:ring-secondary-500"
-                  :disabled="loading"
-                />
-                <span class="text-sm text-gray-700">Charity event</span>
-              </label>
-            </div>
-          </div>
+            <!-- Board game specific: Difficulty and Status -->
+            <template #extra-row>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label for="difficultyLevel" class="label">Difficulty Level</label>
+                  <select
+                    id="difficultyLevel"
+                    v-model="form.difficultyLevel"
+                    class="input"
+                    :disabled="loading"
+                  >
+                    <option
+                      v-for="opt in difficultyOptions"
+                      :key="opt.value"
+                      :value="opt.value || undefined"
+                    >
+                      {{ opt.title }}
+                    </option>
+                  </select>
+                </div>
+                <div>
+                  <label for="status" class="label">Status</label>
+                  <select
+                    id="status"
+                    v-model="form.status"
+                    class="input"
+                    :disabled="loading"
+                  >
+                    <option
+                      v-for="opt in statusOptions"
+                      :key="opt.value"
+                      :value="opt.value"
+                    >
+                      {{ opt.title }}
+                    </option>
+                  </select>
+                </div>
+              </div>
+            </template>
+          </EventPlayerSettingsSection>
 
           <!-- Actions -->
           <div class="border-t border-gray-200 pt-6 flex justify-end gap-3">

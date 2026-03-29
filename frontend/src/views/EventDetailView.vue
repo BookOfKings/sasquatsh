@@ -12,6 +12,14 @@ import D20Spinner from '@/components/common/D20Spinner.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 import SessionScheduleGrid from '@/components/events/SessionScheduleGrid.vue'
 import ChatPanel from '@/components/chat/ChatPanel.vue'
+// MTG display components
+import MtgGameSummary from '@/components/mtg/MtgGameSummary.vue'
+import MtgPlayerRoster from '@/components/mtg/MtgPlayerRoster.vue'
+import MtgEventStructureSummary from '@/components/mtg/MtgEventStructureSummary.vue'
+import MtgDeckRulesSummary from '@/components/mtg/MtgDeckRulesSummary.vue'
+import MtgEntryPrizesSummary from '@/components/mtg/MtgEntryPrizesSummary.vue'
+import MtgDraftSummary from '@/components/mtg/MtgDraftSummary.vue'
+import MtgWhatToBring from '@/components/mtg/MtgWhatToBring.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -60,6 +68,11 @@ const isRegistered = computed(() => {
 const spotsLeft = computed(() => {
   if (!event.value) return 0
   return event.value.maxPlayers - event.value.confirmedCount
+})
+
+// Check if this is an MTG event
+const isMtgEvent = computed(() => {
+  return event.value?.gameSystem === 'mtg' && event.value?.mtgConfig
 })
 
 // Check if user can see full address details
@@ -636,6 +649,13 @@ function goToLogin() {
           <p class="text-gray-600">{{ event.description }}</p>
         </div>
 
+        <!-- MTG Game Summary (prominently displayed for MTG events) -->
+        <MtgGameSummary
+          v-if="isMtgEvent && event.mtgConfig"
+          :config="event.mtgConfig"
+          class="mb-6"
+        />
+
         <!-- Planned Games (from multi-game planning sessions) -->
         <div v-if="event.plannedGames && event.plannedGames.length > 0" class="mb-6">
           <h3 class="font-semibold mb-3 flex items-center gap-2">
@@ -765,6 +785,41 @@ function goToLogin() {
         </div>
       </div>
 
+      <!-- MTG Event Details Sections -->
+      <template v-if="isMtgEvent && event.mtgConfig">
+        <!-- MTG Draft Summary (for limited formats) -->
+        <MtgDraftSummary
+          :config="event.mtgConfig"
+          class="mb-6"
+        />
+
+        <!-- MTG Event Structure Summary -->
+        <MtgEventStructureSummary
+          :config="event.mtgConfig"
+          class="mb-6"
+        />
+
+        <!-- MTG Deck Rules Summary -->
+        <MtgDeckRulesSummary
+          :config="event.mtgConfig"
+          :format-name="event.mtgConfig.customFormatName || event.mtgConfig.formatId"
+          class="mb-6"
+        />
+
+        <!-- MTG Entry & Prizes Summary -->
+        <MtgEntryPrizesSummary
+          :config="event.mtgConfig"
+          class="mb-6"
+        />
+
+        <!-- MTG What to Bring -->
+        <MtgWhatToBring
+          :config="event.mtgConfig"
+          :format-name="event.mtgConfig.customFormatName || event.mtgConfig.formatId"
+          class="mb-6"
+        />
+      </template>
+
       <!-- Multi-Table Session Schedule -->
       <div v-if="event.isMultiTable && event.tables && event.sessions" class="card mb-6">
         <div class="p-4 border-b border-gray-100">
@@ -792,8 +847,18 @@ function goToLogin() {
         </div>
       </div>
 
-      <!-- Registered Players -->
-      <div v-if="event.registrations && event.registrations.length > 0" class="card mb-6">
+      <!-- MTG Player Roster (visual grid for MTG events) -->
+      <MtgPlayerRoster
+        v-if="isMtgEvent && event.registrations"
+        :registrations="event.registrations"
+        :host-user-id="event.hostUserId"
+        :max-players="event.maxPlayers"
+        :confirmed-count="event.confirmedCount"
+        class="mb-6"
+      />
+
+      <!-- Registered Players (for non-MTG events) -->
+      <div v-else-if="event.registrations && event.registrations.length > 0" class="card mb-6">
         <div class="p-4 border-b border-gray-100">
           <h2 class="font-semibold flex items-center gap-2">
             <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">

@@ -1,5 +1,8 @@
 import type { PlannedGame } from './planning'
 import type { EventTable, GameSession } from './sessions'
+import type { MtgEventConfig } from './mtg'
+
+export type GameSystem = 'board_game' | 'mtg' | 'pokemon_tcg' | 'yugioh'
 
 export interface UserSummary {
   id: string
@@ -79,6 +82,7 @@ export interface Event {
   description: string | null
   gameTitle: string | null
   gameCategory: string | null
+  gameSystem: GameSystem
   eventDate: string
   startTime: string
   timezone: string | null
@@ -114,6 +118,8 @@ export interface Event {
   // Multi-table session data
   tables: EventTable[] | null
   sessions: GameSession[] | null
+  // MTG event configuration
+  mtgConfig: MtgEventConfig | null
 }
 
 export interface CreateEventInput {
@@ -121,6 +127,7 @@ export interface CreateEventInput {
   description?: string
   gameTitle?: string
   gameCategory?: string
+  gameSystem?: GameSystem
   eventDate: string
   startTime: string
   timezone?: string
@@ -143,6 +150,7 @@ export interface CreateEventInput {
   minAge?: number
   status?: string
   groupId?: string  // Link to a group
+  mtgConfig?: Partial<MtgEventConfig>  // MTG-specific configuration
 }
 
 export interface UpdateEventInput {
@@ -150,6 +158,7 @@ export interface UpdateEventInput {
   description: string | null
   gameTitle: string | null
   gameCategory: string | null
+  gameSystem?: GameSystem
   eventDate: string
   startTime: string
   timezone: string | null
@@ -172,6 +181,7 @@ export interface UpdateEventInput {
   minAge: number | null
   status: string
   plannedGames?: PlannedGame[] | null
+  mtgConfig?: Partial<MtgEventConfig>
 }
 
 export interface CreateEventItemInput {

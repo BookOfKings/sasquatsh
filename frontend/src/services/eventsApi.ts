@@ -95,6 +95,7 @@ function toEvent(row: Record<string, unknown>): Event {
     description: row.description as string | null,
     gameTitle: row.game_title as string | null,
     gameCategory: row.game_category as string | null,
+    gameSystem: (row.game_system as Event['gameSystem']) ?? 'board_game',
     eventDate: row.event_date as string,
     startTime: row.start_time as string,
     timezone: row.timezone as string | null,
@@ -178,6 +179,8 @@ function toEvent(row: Record<string, unknown>): Event {
     // Multi-table session data (populated by edge function when is_multi_table is true)
     tables: row.tables as Event['tables'] ?? null,
     sessions: row.sessions as Event['sessions'] ?? null,
+    // MTG event configuration
+    mtgConfig: row.mtgConfig as Event['mtgConfig'] ?? null,
   }
 }
 

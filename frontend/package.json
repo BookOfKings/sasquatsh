@@ -19,7 +19,11 @@
     "test:report": "playwright show-report",
     "test:light": "playwright test --project=chromium --workers=2 --grep-invert='Authenticated'",
     "test:auth": "playwright test --project=chromium --workers=2 --grep='Authenticated'",
-    "test:cleanup": "powershell -Command \"Get-Process | Where-Object {$_.Path -like '*playwright*' -or $_.MainWindowTitle -eq ''} | Where-Object {$_.ProcessName -match 'chrom'} | Stop-Process -Force -ErrorAction SilentlyContinue\""
+    "test:cleanup": "powershell -Command \"Get-Process | Where-Object {$_.Path -like '*playwright*' -or $_.MainWindowTitle -eq ''} | Where-Object {$_.ProcessName -match 'chrom'} | Stop-Process -Force -ErrorAction SilentlyContinue\"",
+    "emulator:start": "firebase emulators:start --only auth",
+    "test:emulator": "cross-env USE_FIREBASE_EMULATOR=true FIREBASE_AUTH_EMULATOR_HOST=localhost:9099 playwright test --project=chromium --workers=2",
+    "test:emulator:all": "cross-env USE_FIREBASE_EMULATOR=true FIREBASE_AUTH_EMULATOR_HOST=localhost:9099 playwright test",
+    "test:emulator:headed": "cross-env USE_FIREBASE_EMULATOR=true FIREBASE_AUTH_EMULATOR_HOST=localhost:9099 playwright test --project=chromium --workers=1 --headed"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.97.0",
@@ -37,6 +41,7 @@
     "@vitejs/plugin-vue": "^6.0.1",
     "@vue/tsconfig": "^0.8.1",
     "autoprefixer": "^10.4.24",
+    "cross-env": "^10.1.0",
     "dotenv": "^17.3.1",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.2.1",

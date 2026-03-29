@@ -302,6 +302,7 @@ const ALLOWED_ORIGINS = [
   'https://sasquatsh.web.app',
   'http://localhost:5173', // Vite dev server
   'http://localhost:5174', // Vite dev server (alternate port)
+  'http://localhost:5175', // Vite dev server (alternate port)
   'http://localhost:4173', // Vite preview
 ]
 
@@ -315,7 +316,7 @@ export function getCorsHeaders(req?: Request): Record<string, string> {
   return {
     'Access-Control-Allow-Origin': allowedOrigin,
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-firebase-token',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
     'Access-Control-Allow-Credentials': 'true',
   }
 }
