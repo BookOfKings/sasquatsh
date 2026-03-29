@@ -41,10 +41,12 @@ async function initializeAuth(): Promise<void> {
   // Always check for redirect result on mobile (sessionStorage can be unreliable)
   // This handles the case where user returns from Google OAuth redirect
   if (isMobileDevice()) {
+    console.log('[Auth] Mobile device detected, checking for redirect result...')
     try {
       const result = await getRedirectResult(auth)
+      console.log('[Auth] getRedirectResult:', result ? 'user found' : 'no result')
       if (result?.user) {
-        console.log('Google redirect successful, syncing user...')
+        console.log('[Auth] Google redirect successful, syncing user...')
         sessionStorage.removeItem('pendingGoogleRedirect')
         redirectHandled.value = true
         try {
@@ -53,18 +55,23 @@ async function initializeAuth(): Promise<void> {
           firebaseUser.value = result.user
           isLoading.value = false
           isInitialized.value = true
+          console.log('[Auth] User synced successfully from redirect')
           return // User is synced, we're done
         } catch (syncErr: any) {
-          console.error('Failed to sync Google user with backend:', syncErr)
+          console.error('[Auth] Failed to sync Google user with backend:', syncErr)
           await signOut(auth)
           error.value = syncErr?.message || 'Failed to create account. Please try again.'
         }
+      } else {
+        console.log('[Auth] No redirect result, will check onAuthStateChanged')
       }
     } catch (err: any) {
-      console.error('Google redirect error:', err.code, err.message)
+      console.error('[Auth] Google redirect error:', err.code, err.message)
       sessionStorage.removeItem('pendingGoogleRedirect')
       if (err.code) {
         error.value = getAuthErrorMessage(err.code)
+      } else {
+        error.value = err?.message || 'Sign-in failed. Please try again.'
       }
     }
   } else {
@@ -100,28 +107,34 @@ async function initializeAuth(): Promise<void> {
   }
 
   // Set up auth state listener for normal auth flow
+  console.log('[Auth] Setting up onAuthStateChanged listener')
   return new Promise((resolve) => {
     onAuthStateChanged(auth, async (fbUser) => {
+      console.log('[Auth] onAuthStateChanged fired:', fbUser ? `user ${fbUser.email}` : 'no user')
       firebaseUser.value = fbUser
 
       if (fbUser) {
         // Skip if we already synced this user (from redirect handling above)
         if (redirectHandled.value && user.value) {
+          console.log('[Auth] User already synced from redirect, skipping')
           isLoading.value = false
           isInitialized.value = true
           resolve()
           return
         }
 
+        console.log('[Auth] Syncing user with backend...')
         try {
           const idToken = await fbUser.getIdToken()
           user.value = await getCurrentUser(idToken)
+          console.log('[Auth] User synced successfully')
         } catch (err: any) {
-          console.error('Failed to sync user with backend:', err)
+          console.error('[Auth] Failed to sync user with backend:', err)
           // Show error to user instead of silently failing
           error.value = err?.message || 'Failed to sync account. Please try again.'
           user.value = null
           // Sign out to prevent stuck state
+          console.log('[Auth] Signing out due to sync failure')
           await signOut(auth).catch(() => {})
         }
       } else {

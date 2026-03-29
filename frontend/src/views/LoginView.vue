@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, watch, onMounted } from 'vue'
+import { ref, reactive, watch, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
 
@@ -16,21 +16,25 @@ const showPassword = ref(false)
 const loading = ref(false)
 const errorMessage = ref('')
 
+// Show loading while auth is initializing (e.g., processing redirect)
+const isProcessingAuth = computed(() => auth.isLoading.value && !auth.isInitialized.value)
+
 // Watch for auth store errors (e.g., from redirect login failures)
 watch(() => auth.error.value, (newError) => {
   if (newError) {
     errorMessage.value = newError
+    loading.value = false
   }
 }, { immediate: true })
 
-// If user is already authenticated (e.g., successful redirect), redirect to dashboard
-onMounted(() => {
-  if (auth.isAuthenticated.value) {
+// Watch for successful authentication and redirect
+watch(() => auth.isAuthenticated.value, (isAuthenticated) => {
+  if (isAuthenticated) {
     const redirect = route.query.redirect as string
     const defaultRoute = auth.user.value?.isAdmin ? '/admin' : '/dashboard'
     router.push(redirect || defaultRoute)
   }
-})
+}, { immediate: true })
 
 async function handleEmailLogin() {
   if (!form.email || !form.password) {
@@ -80,7 +84,13 @@ function goToSignup() {
 
 <template>
   <div class="min-h-screen flex items-center justify-center p-4 bg-stone-50">
-    <div class="card p-6 max-w-md w-full">
+    <!-- Show loading spinner while processing auth redirect -->
+    <div v-if="isProcessingAuth" class="text-center">
+      <img src="/logo.png" alt="Sasquatsh" class="w-32 h-32 mx-auto animate-pulse" />
+      <p class="text-gray-500 mt-4">Signing you in...</p>
+    </div>
+
+    <div v-else class="card p-6 max-w-md w-full">
       <!-- Header -->
       <div class="text-center mb-6">
         <img src="/logo.png" alt="Sasquatsh" class="w-32 h-32 mx-auto" />
