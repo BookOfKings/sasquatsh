@@ -52,13 +52,27 @@ CREATE TABLE IF NOT EXISTS pokemon_cards_cache (
   cached_at TIMESTAMPTZ DEFAULT NOW(),
   stale_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '24 hours'),
 
-  -- Full-text search
-  search_vector TSVECTOR GENERATED ALWAYS AS (
-    setweight(to_tsvector('english', COALESCE(name, '')), 'A') ||
-    setweight(to_tsvector('english', COALESCE(set_name, '')), 'B') ||
-    setweight(to_tsvector('english', COALESCE(array_to_string(subtypes, ' '), '')), 'C')
-  ) STORED
+  -- Full-text search (populated via trigger)
+  search_vector TSVECTOR
 );
+
+-- Trigger to update search vector
+CREATE OR REPLACE FUNCTION pokemon_cards_search_vector_update()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.search_vector :=
+    setweight(to_tsvector('simple', COALESCE(NEW.name, '')), 'A') ||
+    setweight(to_tsvector('simple', COALESCE(NEW.set_name, '')), 'B') ||
+    setweight(to_tsvector('simple', COALESCE(array_to_string(NEW.subtypes, ' '), '')), 'C');
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS pokemon_cards_search_vector_trigger ON pokemon_cards_cache;
+CREATE TRIGGER pokemon_cards_search_vector_trigger
+  BEFORE INSERT OR UPDATE ON pokemon_cards_cache
+  FOR EACH ROW
+  EXECUTE FUNCTION pokemon_cards_search_vector_update();
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_pokemon_cards_name ON pokemon_cards_cache(name);
@@ -103,18 +117,8 @@ CREATE INDEX IF NOT EXISTS idx_pokemon_sets_series ON pokemon_sets_cache(series)
 CREATE INDEX IF NOT EXISTS idx_pokemon_sets_release_date ON pokemon_sets_cache(release_date DESC);
 CREATE INDEX IF NOT EXISTS idx_pokemon_sets_stale_at ON pokemon_sets_cache(stale_at);
 
--- Add Pokemon to game_systems enum if not exists
-DO $$
-BEGIN
-  -- Check if 'pokemon' is already in the enum
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_enum
-    WHERE enumlabel = 'pokemon'
-    AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'game_system')
-  ) THEN
-    ALTER TYPE game_system ADD VALUE 'pokemon';
-  END IF;
-END $$;
+-- Note: game_system is a VARCHAR column with CHECK constraint in events table,
+-- not an enum. Pokemon TCG support is already included ('pokemon_tcg').
 
 COMMENT ON TABLE pokemon_cards_cache IS 'Cache of Pokemon TCG card data from pokemontcg.io API';
 COMMENT ON TABLE pokemon_sets_cache IS 'Cache of Pokemon TCG set data from pokemontcg.io API';

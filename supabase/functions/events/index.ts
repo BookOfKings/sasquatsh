@@ -66,6 +66,20 @@ Deno.serve(async (req) => {
             id, bgg_id, game_name, thumbnail_url,
             min_players, max_players, playing_time,
             is_primary, is_alternative
+          ),
+          mtg_config:mtg_event_config(
+            format_id, custom_format_name, event_type, rounds_count, round_time_minutes,
+            pods_size, allow_proxies, proxy_limit, power_level_min, power_level_max,
+            banned_cards, packs_per_player, draft_style, cube_id, has_prizes,
+            prize_structure, entry_fee, entry_fee_currency, require_deck_registration,
+            deck_submission_deadline, allow_spectators
+          ),
+          pokemon_config:pokemon_event_config(
+            format_id, custom_format_name, event_type, tournament_style, rounds_count,
+            round_time_minutes, best_of, top_cut, allow_proxies, proxy_limit,
+            require_deck_registration, deck_submission_deadline, allow_deck_changes,
+            has_prizes, prize_structure, entry_fee, entry_fee_currency, use_play_points,
+            has_junior_division, has_senior_division, has_masters_division, allow_spectators
           )
         `)
         .eq('id', eventId)
@@ -415,6 +429,65 @@ Deno.serve(async (req) => {
 
     if (error) return errorResponse(error.message, 500)
 
+    // If MTG config provided, insert into mtg_event_config table
+    if (body.mtgConfig && body.gameSystem === 'mtg') {
+      const mtgConfig = body.mtgConfig
+      await supabase.from('mtg_event_config').insert({
+        event_id: data.id,
+        format_id: mtgConfig.formatId,
+        custom_format_name: mtgConfig.customFormatName,
+        event_type: mtgConfig.eventType || 'casual',
+        rounds_count: mtgConfig.roundsCount,
+        round_time_minutes: mtgConfig.roundTimeMinutes,
+        pods_size: mtgConfig.podsSize,
+        allow_proxies: mtgConfig.allowProxies ?? false,
+        proxy_limit: mtgConfig.proxyLimit,
+        power_level_min: mtgConfig.powerLevelMin,
+        power_level_max: mtgConfig.powerLevelMax,
+        banned_cards: mtgConfig.bannedCards || [],
+        packs_per_player: mtgConfig.packsPerPlayer,
+        draft_style: mtgConfig.draftStyle,
+        cube_id: mtgConfig.cubeId,
+        has_prizes: mtgConfig.hasPrizes ?? false,
+        prize_structure: mtgConfig.prizeStructure,
+        entry_fee: mtgConfig.entryFee,
+        entry_fee_currency: mtgConfig.entryFeeCurrency || 'USD',
+        require_deck_registration: mtgConfig.requireDeckRegistration ?? false,
+        deck_submission_deadline: mtgConfig.deckSubmissionDeadline,
+        allow_spectators: mtgConfig.allowSpectators ?? true,
+      })
+    }
+
+    // If Pokemon config provided, insert into pokemon_event_config table
+    if (body.pokemonConfig && body.gameSystem === 'pokemon_tcg') {
+      const pokemonConfig = body.pokemonConfig
+      await supabase.from('pokemon_event_config').insert({
+        event_id: data.id,
+        format_id: pokemonConfig.formatId,
+        custom_format_name: pokemonConfig.customFormatName,
+        event_type: pokemonConfig.eventType || 'casual',
+        tournament_style: pokemonConfig.tournamentStyle,
+        rounds_count: pokemonConfig.roundsCount,
+        round_time_minutes: pokemonConfig.roundTimeMinutes,
+        best_of: pokemonConfig.bestOf,
+        top_cut: pokemonConfig.topCut,
+        allow_proxies: pokemonConfig.allowProxies ?? false,
+        proxy_limit: pokemonConfig.proxyLimit,
+        require_deck_registration: pokemonConfig.requireDeckRegistration ?? false,
+        deck_submission_deadline: pokemonConfig.deckSubmissionDeadline,
+        allow_deck_changes: pokemonConfig.allowDeckChanges ?? false,
+        has_prizes: pokemonConfig.hasPrizes ?? false,
+        prize_structure: pokemonConfig.prizeStructure,
+        entry_fee: pokemonConfig.entryFee,
+        entry_fee_currency: pokemonConfig.entryFeeCurrency || 'USD',
+        use_play_points: pokemonConfig.usePlayPoints ?? false,
+        has_junior_division: pokemonConfig.hasJuniorDivision ?? false,
+        has_senior_division: pokemonConfig.hasSeniorDivision ?? false,
+        has_masters_division: pokemonConfig.hasMastersDivision ?? true,
+        allow_spectators: pokemonConfig.allowSpectators ?? true,
+      })
+    }
+
     // Award raffle entry for hosting an event (only if published)
     if (data.status === 'published') {
       try {
@@ -429,7 +502,31 @@ Deno.serve(async (req) => {
       }
     }
 
-    return jsonResponse(transformEvent(data))
+    // Re-fetch event with config joins to return complete data
+    const { data: fullEvent } = await supabase
+      .from('events')
+      .select(`
+        *,
+        host:users!host_user_id(id, display_name, avatar_url, is_founding_member, is_admin),
+        mtg_config:mtg_event_config(
+          format_id, custom_format_name, event_type, rounds_count, round_time_minutes,
+          pods_size, allow_proxies, proxy_limit, power_level_min, power_level_max,
+          banned_cards, packs_per_player, draft_style, cube_id, has_prizes,
+          prize_structure, entry_fee, entry_fee_currency, require_deck_registration,
+          deck_submission_deadline, allow_spectators
+        ),
+        pokemon_config:pokemon_event_config(
+          format_id, custom_format_name, event_type, tournament_style, rounds_count,
+          round_time_minutes, best_of, top_cut, allow_proxies, proxy_limit,
+          require_deck_registration, deck_submission_deadline, allow_deck_changes,
+          has_prizes, prize_structure, entry_fee, entry_fee_currency, use_play_points,
+          has_junior_division, has_senior_division, has_masters_division, allow_spectators
+        )
+      `)
+      .eq('id', data.id)
+      .single()
+
+    return jsonResponse(transformEvent(fullEvent || data))
   }
 
   // PUT - Update event
@@ -518,6 +615,65 @@ Deno.serve(async (req) => {
 
     if (error) return errorResponse(error.message, 500)
 
+    // If MTG config provided, upsert into mtg_event_config table
+    if (body.mtgConfig && body.gameSystem === 'mtg') {
+      const mtgConfig = body.mtgConfig
+      await supabase.from('mtg_event_config').upsert({
+        event_id: eventId,
+        format_id: mtgConfig.formatId,
+        custom_format_name: mtgConfig.customFormatName,
+        event_type: mtgConfig.eventType || 'casual',
+        rounds_count: mtgConfig.roundsCount,
+        round_time_minutes: mtgConfig.roundTimeMinutes,
+        pods_size: mtgConfig.podsSize,
+        allow_proxies: mtgConfig.allowProxies ?? false,
+        proxy_limit: mtgConfig.proxyLimit,
+        power_level_min: mtgConfig.powerLevelMin,
+        power_level_max: mtgConfig.powerLevelMax,
+        banned_cards: mtgConfig.bannedCards || [],
+        packs_per_player: mtgConfig.packsPerPlayer,
+        draft_style: mtgConfig.draftStyle,
+        cube_id: mtgConfig.cubeId,
+        has_prizes: mtgConfig.hasPrizes ?? false,
+        prize_structure: mtgConfig.prizeStructure,
+        entry_fee: mtgConfig.entryFee,
+        entry_fee_currency: mtgConfig.entryFeeCurrency || 'USD',
+        require_deck_registration: mtgConfig.requireDeckRegistration ?? false,
+        deck_submission_deadline: mtgConfig.deckSubmissionDeadline,
+        allow_spectators: mtgConfig.allowSpectators ?? true,
+      }, { onConflict: 'event_id' })
+    }
+
+    // If Pokemon config provided, upsert into pokemon_event_config table
+    if (body.pokemonConfig && body.gameSystem === 'pokemon_tcg') {
+      const pokemonConfig = body.pokemonConfig
+      await supabase.from('pokemon_event_config').upsert({
+        event_id: eventId,
+        format_id: pokemonConfig.formatId,
+        custom_format_name: pokemonConfig.customFormatName,
+        event_type: pokemonConfig.eventType || 'casual',
+        tournament_style: pokemonConfig.tournamentStyle,
+        rounds_count: pokemonConfig.roundsCount,
+        round_time_minutes: pokemonConfig.roundTimeMinutes,
+        best_of: pokemonConfig.bestOf,
+        top_cut: pokemonConfig.topCut,
+        allow_proxies: pokemonConfig.allowProxies ?? false,
+        proxy_limit: pokemonConfig.proxyLimit,
+        require_deck_registration: pokemonConfig.requireDeckRegistration ?? false,
+        deck_submission_deadline: pokemonConfig.deckSubmissionDeadline,
+        allow_deck_changes: pokemonConfig.allowDeckChanges ?? false,
+        has_prizes: pokemonConfig.hasPrizes ?? false,
+        prize_structure: pokemonConfig.prizeStructure,
+        entry_fee: pokemonConfig.entryFee,
+        entry_fee_currency: pokemonConfig.entryFeeCurrency || 'USD',
+        use_play_points: pokemonConfig.usePlayPoints ?? false,
+        has_junior_division: pokemonConfig.hasJuniorDivision ?? false,
+        has_senior_division: pokemonConfig.hasSeniorDivision ?? false,
+        has_masters_division: pokemonConfig.hasMastersDivision ?? true,
+        allow_spectators: pokemonConfig.allowSpectators ?? true,
+      }, { onConflict: 'event_id' })
+    }
+
     // Award raffle entry if event just became published
     if (body.status === 'published') {
       try {
@@ -532,7 +688,45 @@ Deno.serve(async (req) => {
       }
     }
 
-    return jsonResponse(transformEvent(data))
+    // Re-fetch event with config joins to return complete data
+    const { data: fullEvent } = await supabase
+      .from('events')
+      .select(`
+        *,
+        host:users!host_user_id(id, display_name, avatar_url, is_founding_member, is_admin),
+        registrations:event_registrations(
+          id, user_id, status, registered_at,
+          user:users(id, display_name, avatar_url, is_founding_member, is_admin)
+        ),
+        items:event_items(
+          id, item_name, item_category, quantity_needed,
+          claimed_by_user_id, claimed_at,
+          claimed_by:users!claimed_by_user_id(display_name)
+        ),
+        games:event_games(
+          id, bgg_id, game_name, thumbnail_url,
+          min_players, max_players, playing_time,
+          is_primary, is_alternative
+        ),
+        mtg_config:mtg_event_config(
+          format_id, custom_format_name, event_type, rounds_count, round_time_minutes,
+          pods_size, allow_proxies, proxy_limit, power_level_min, power_level_max,
+          banned_cards, packs_per_player, draft_style, cube_id, has_prizes,
+          prize_structure, entry_fee, entry_fee_currency, require_deck_registration,
+          deck_submission_deadline, allow_spectators
+        ),
+        pokemon_config:pokemon_event_config(
+          format_id, custom_format_name, event_type, tournament_style, rounds_count,
+          round_time_minutes, best_of, top_cut, allow_proxies, proxy_limit,
+          require_deck_registration, deck_submission_deadline, allow_deck_changes,
+          has_prizes, prize_structure, entry_fee, entry_fee_currency, use_play_points,
+          has_junior_division, has_senior_division, has_masters_division, allow_spectators
+        )
+      `)
+      .eq('id', eventId)
+      .single()
+
+    return jsonResponse(transformEvent(fullEvent || data))
   }
 
   // DELETE - Delete event
@@ -619,6 +813,7 @@ function transformEvent(
     description: row.description,
     gameTitle: row.game_title,
     gameCategory: row.game_category,
+    gameSystem: row.game_system ?? 'board_game',
     eventDate: row.event_date,
     startTime: row.start_time,
     timezone: row.timezone,
@@ -721,5 +916,74 @@ function transformEvent(
         }))
       : null,
     sessions: sessions ?? null,
+    // MTG event configuration (from joined mtg_event_config table)
+    mtgConfig: transformMtgConfig(row.mtg_config),
+    // Pokemon TCG event configuration (from joined pokemon_event_config table)
+    pokemonConfig: transformPokemonConfig(row.pokemon_config),
+  }
+}
+
+// Transform MTG config from snake_case to camelCase
+function transformMtgConfig(config: unknown): Record<string, unknown> | null {
+  // Supabase returns an array for 1-to-1 relations via select, take first element
+  const data = Array.isArray(config) ? config[0] : config
+  if (!data) return null
+
+  const c = data as Record<string, unknown>
+  return {
+    formatId: c.format_id,
+    customFormatName: c.custom_format_name,
+    eventType: c.event_type,
+    roundsCount: c.rounds_count,
+    roundTimeMinutes: c.round_time_minutes,
+    podsSize: c.pods_size,
+    allowProxies: c.allow_proxies,
+    proxyLimit: c.proxy_limit,
+    powerLevelMin: c.power_level_min,
+    powerLevelMax: c.power_level_max,
+    bannedCards: c.banned_cards,
+    packsPerPlayer: c.packs_per_player,
+    draftStyle: c.draft_style,
+    cubeId: c.cube_id,
+    hasPrizes: c.has_prizes,
+    prizeStructure: c.prize_structure,
+    entryFee: c.entry_fee,
+    entryFeeCurrency: c.entry_fee_currency,
+    requireDeckRegistration: c.require_deck_registration,
+    deckSubmissionDeadline: c.deck_submission_deadline,
+    allowSpectators: c.allow_spectators,
+  }
+}
+
+// Transform Pokemon config from snake_case to camelCase
+function transformPokemonConfig(config: unknown): Record<string, unknown> | null {
+  // Supabase returns an array for 1-to-1 relations via select, take first element
+  const data = Array.isArray(config) ? config[0] : config
+  if (!data) return null
+
+  const c = data as Record<string, unknown>
+  return {
+    formatId: c.format_id,
+    customFormatName: c.custom_format_name,
+    eventType: c.event_type,
+    tournamentStyle: c.tournament_style,
+    roundsCount: c.rounds_count,
+    roundTimeMinutes: c.round_time_minutes,
+    bestOf: c.best_of,
+    topCut: c.top_cut,
+    allowProxies: c.allow_proxies,
+    proxyLimit: c.proxy_limit,
+    requireDeckRegistration: c.require_deck_registration,
+    deckSubmissionDeadline: c.deck_submission_deadline,
+    allowDeckChanges: c.allow_deck_changes,
+    hasPrizes: c.has_prizes,
+    prizeStructure: c.prize_structure,
+    entryFee: c.entry_fee,
+    entryFeeCurrency: c.entry_fee_currency,
+    usePlayPoints: c.use_play_points,
+    hasJuniorDivision: c.has_junior_division,
+    hasSeniorDivision: c.has_senior_division,
+    hasMastersDivision: c.has_masters_division,
+    allowSpectators: c.allow_spectators,
   }
 }

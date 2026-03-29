@@ -20,6 +20,12 @@ import MtgDeckRulesSummary from '@/components/mtg/MtgDeckRulesSummary.vue'
 import MtgEntryPrizesSummary from '@/components/mtg/MtgEntryPrizesSummary.vue'
 import MtgDraftSummary from '@/components/mtg/MtgDraftSummary.vue'
 import MtgWhatToBring from '@/components/mtg/MtgWhatToBring.vue'
+// Pokemon display components
+import PokemonGameSummary from '@/components/pokemon/PokemonGameSummary.vue'
+import PokemonStructureSummary from '@/components/pokemon/PokemonStructureSummary.vue'
+import PokemonDeckRulesSummary from '@/components/pokemon/PokemonDeckRulesSummary.vue'
+import PokemonEntryPrizesSummary from '@/components/pokemon/PokemonEntryPrizesSummary.vue'
+import PokemonPlayerRoster from '@/components/pokemon/PokemonPlayerRoster.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -73,6 +79,11 @@ const spotsLeft = computed(() => {
 // Check if this is an MTG event
 const isMtgEvent = computed(() => {
   return event.value?.gameSystem === 'mtg' && event.value?.mtgConfig
+})
+
+// Check if this is a Pokemon TCG event
+const isPokemonEvent = computed(() => {
+  return event.value?.gameSystem === 'pokemon_tcg' && event.value?.pokemonConfig
 })
 
 // Check if user can see full address details
@@ -656,6 +667,13 @@ function goToLogin() {
           class="mb-6"
         />
 
+        <!-- Pokemon Game Summary (prominently displayed for Pokemon events) -->
+        <PokemonGameSummary
+          v-if="isPokemonEvent && event.pokemonConfig"
+          :config="event.pokemonConfig"
+          class="mb-6"
+        />
+
         <!-- Planned Games (from multi-game planning sessions) -->
         <div v-if="event.plannedGames && event.plannedGames.length > 0" class="mb-6">
           <h3 class="font-semibold mb-3 flex items-center gap-2">
@@ -820,6 +838,27 @@ function goToLogin() {
         />
       </template>
 
+      <!-- Pokemon TCG Event Details Sections -->
+      <template v-if="isPokemonEvent && event.pokemonConfig">
+        <!-- Pokemon Event Structure Summary -->
+        <PokemonStructureSummary
+          :config="event.pokemonConfig"
+          class="mb-6"
+        />
+
+        <!-- Pokemon Deck Rules Summary -->
+        <PokemonDeckRulesSummary
+          :config="event.pokemonConfig"
+          class="mb-6"
+        />
+
+        <!-- Pokemon Entry & Prizes Summary -->
+        <PokemonEntryPrizesSummary
+          :config="event.pokemonConfig"
+          class="mb-6"
+        />
+      </template>
+
       <!-- Multi-Table Session Schedule -->
       <div v-if="event.isMultiTable && event.tables && event.sessions" class="card mb-6">
         <div class="p-4 border-b border-gray-100">
@@ -857,7 +896,17 @@ function goToLogin() {
         class="mb-6"
       />
 
-      <!-- Registered Players (for non-MTG events) -->
+      <!-- Pokemon Player Roster (visual grid for Pokemon events) -->
+      <PokemonPlayerRoster
+        v-else-if="isPokemonEvent && event.registrations"
+        :registrations="event.registrations"
+        :host-user-id="event.hostUserId"
+        :max-players="event.maxPlayers"
+        :confirmed-count="event.confirmedCount"
+        class="mb-6"
+      />
+
+      <!-- Registered Players (for non-MTG/non-Pokemon events) -->
       <div v-else-if="event.registrations && event.registrations.length > 0" class="card mb-6">
         <div class="p-4 border-b border-gray-100">
           <h2 class="font-semibold flex items-center gap-2">
