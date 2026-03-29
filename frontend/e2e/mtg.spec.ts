@@ -163,7 +163,13 @@ test.describe('MTG - Event Creation', () => {
     const structureSection = page.getByRole('heading', { name: 'Event Structure', level: 3 })
     await expect(structureSection).toBeVisible()
 
-    // Should see Deck Rules section (h3)
+    // Deck Rules section is hidden until format is selected
+    // Select Commander format first
+    const commanderButton = page.getByRole('button', { name: /Commander/i }).first()
+    await commanderButton.click()
+    await page.waitForTimeout(500)
+
+    // Now should see Deck Rules section (h3)
     const deckRulesSection = page.getByRole('heading', { name: 'Deck Rules', level: 3 })
     await expect(deckRulesSection).toBeVisible()
   })
@@ -201,24 +207,46 @@ test.describe('MTG - Event Creation', () => {
     await expect(podsButton).toBeVisible()
   })
 
-  test('should show play mode selector', async ({ page }) => {
+  test('should show play mode selector based on event type', async ({ page }) => {
     await page.goto('/mtg/events/create')
     await page.waitForTimeout(1500)
 
-    // Play mode buttons should be visible
-    const openPlayButton = page.getByRole('button', { name: /Open Play/i })
-    await expect(openPlayButton).toBeVisible()
+    // Scroll to Event Structure section
+    const eventStructureSection = page.getByText('Event Structure')
+    await eventStructureSection.scrollIntoViewIfNeeded()
+    await page.waitForTimeout(500)
 
+    // Default is Casual Play - only one play mode option (Open Play), so selector is hidden
+    // Click Pod Play to see the play mode selector with multiple options
+    const podPlayButton = page.getByRole('button', { name: /Pod Play/i })
+    await podPlayButton.click()
+    await page.waitForTimeout(500)
+
+    // Pod Play shows Open Play and Assigned Pods options
+    const openPlayButton = page.getByRole('button', { name: /Open Play/i })
     const assignedPodsButton = page.getByRole('button', { name: /Assigned Pods/i })
+    await expect(openPlayButton).toBeVisible()
     await expect(assignedPodsButton).toBeVisible()
 
-    const tournamentPairingsButton = page.getByRole('button', { name: /Tournament Pairings/i })
-    await expect(tournamentPairingsButton).toBeVisible()
+    // Select Swiss tournament - should show Tournament Settings
+    const swissButton = page.getByRole('button', { name: /Swiss/i })
+    await swissButton.click()
+    await page.waitForTimeout(500)
+
+    // For tournaments, verify tournament settings appear
+    const tournamentSettings = page.getByText('Tournament Settings')
+    await expect(tournamentSettings).toBeVisible()
   })
 
   test('should show proxy settings in deck rules', async ({ page }) => {
     await page.goto('/mtg/events/create')
     await page.waitForTimeout(1000)
+
+    // Deck Rules section is hidden until format is selected
+    // Select Commander format first
+    const commanderButton = page.getByRole('button', { name: /Commander/i }).first()
+    await commanderButton.click()
+    await page.waitForTimeout(500)
 
     // Should see proxy option
     const proxyCheckbox = page.getByText(/prox/i).first()

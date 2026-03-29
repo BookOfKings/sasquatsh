@@ -48,6 +48,9 @@ const showPowerLevel = computed(() => {
   return formatId && POWER_LEVEL_FORMATS.includes(formatId)
 })
 
+// Format-first enforcement: check if format is selected
+const formatSelected = computed(() => !!form.mtgConfig.formatId)
+
 // Tier limit checking
 const showUpgradePrompt = ref(false)
 const activeEventCount = ref(0)
@@ -476,6 +479,15 @@ function handleVenueSubmitted(venue: EventLocation) {
 
           <!-- MTG Event Structure Section -->
           <div class="border-t border-gray-200 pt-6">
+            <!-- Format-first prompt -->
+            <div v-if="!formatSelected" class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+              <p class="text-sm text-gray-600 flex items-center gap-2">
+                <svg class="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" />
+                </svg>
+                Select a format above to configure event details.
+              </p>
+            </div>
             <MtgEventStructureSection
               :event-type="(form.mtgConfig.eventType as MtgEventType) ?? 'casual'"
               :rounds-count="form.mtgConfig.roundsCount ?? null"
@@ -496,7 +508,7 @@ function handleVenueSubmitted(venue: EventLocation) {
           </div>
 
           <!-- MTG Deck Rules Section -->
-          <div class="border-t border-gray-200 pt-6">
+          <div v-if="formatSelected" class="border-t border-gray-200 pt-6">
             <MtgDeckRulesSection
               :selected-format="selectedFormat"
               :format-id="form.mtgConfig.formatId ?? null"

@@ -49,6 +49,14 @@ const isTournament = computed(() =>
 
 const isPods = computed(() => props.eventType === 'pods')
 
+// Show pod size when event type is pods OR play mode is assigned_pods
+const showPodSize = computed(() => isPods.value || props.playMode === 'assigned_pods')
+
+// Show tournament settings only for tournaments with tournament pairings
+const showTournamentSettings = computed(() =>
+  isTournament.value && props.playMode === 'tournament_pairings'
+)
+
 const showRoundTime = computed(() => isTournament.value || isPods.value)
 
 const selectedTypeDescription = computed(() => {
@@ -63,27 +71,35 @@ const hasTopCut = computed(() => props.topCut !== null && props.topCut > 0)
 
 const topCutOptions = [4, 8, 16, 32]
 
-// Play mode options with icons
-const playModeOptions = [
+// All play mode options with icons
+const allPlayModeOptions = [
   {
     value: 'open_play' as PlayMode,
     label: 'Open Play',
     description: 'Players find their own opponents',
-    icon: 'M12,5.5A3.5,3.5 0 0,1 15.5,9A3.5,3.5 0 0,1 12,12.5A3.5,3.5 0 0,1 8.5,9A3.5,3.5 0 0,1 12,5.5M5,8C5.56,8 6.08,8.15 6.53,8.42C6.38,9.85 6.8,11.27 7.66,12.38C7.16,13.34 6.16,14 5,14A3,3 0 0,1 2,11A3,3 0 0,1 5,8M19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14C17.84,14 16.84,13.34 16.34,12.38C17.2,11.27 17.62,9.85 17.47,8.42C17.92,8.15 18.44,8 19,8M5.5,18.25C5.5,16.18 8.41,14.5 12,14.5C15.59,14.5 18.5,16.18 18.5,18.25V20H5.5V18.25M0,20V18.5C0,17.11 1.89,15.94 4.45,15.6C3.86,16.28 3.5,17.22 3.5,18.25V20H0M24,20H20.5V18.25C20.5,17.22 20.14,16.28 19.55,15.6C22.11,15.94 24,17.11 24,18.5V20Z'
+    icon: 'M12,5.5A3.5,3.5 0 0,1 15.5,9A3.5,3.5 0 0,1 12,12.5A3.5,3.5 0 0,1 8.5,9A3.5,3.5 0 0,1 12,5.5M5,8C5.56,8 6.08,8.15 6.53,8.42C6.38,9.85 6.8,11.27 7.66,12.38C7.16,13.34 6.16,14 5,14A3,3 0 0,1 2,11A3,3 0 0,1 5,8M19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14C17.84,14 16.84,13.34 16.34,12.38C17.2,11.27 17.62,9.85 17.47,8.42C17.92,8.15 18.44,8 19,8M5.5,18.25C5.5,16.18 8.41,14.5 12,14.5C15.59,14.5 18.5,16.18 18.5,18.25V20H5.5V18.25M0,20V18.5C0,17.11 1.89,15.94 4.45,15.6C3.86,16.28 3.5,17.22 3.5,18.25V20H0M24,20H20.5V18.25C20.5,17.22 20.14,16.28 19.55,15.6C22.11,15.94 24,17.11 24,18.5V20Z',
+    validFor: ['casual', 'pods'] as MtgEventType[]
   },
   {
     value: 'assigned_pods' as PlayMode,
     label: 'Assigned Pods',
     description: 'Organizer assigns players to groups',
-    icon: 'M16,13C15.71,13 15.38,13 15.03,13.05C16.19,13.89 17,15 17,16.5V19H23V16.5C23,14.17 18.33,13 16,13M8,13C5.67,13 1,14.17 1,16.5V19H15V16.5C15,14.17 10.33,13 8,13M8,11A3,3 0 0,0 11,8A3,3 0 0,0 8,5A3,3 0 0,0 5,8A3,3 0 0,0 8,11M16,11A3,3 0 0,0 19,8A3,3 0 0,0 16,5A3,3 0 0,0 13,8A3,3 0 0,0 16,11Z'
+    icon: 'M16,13C15.71,13 15.38,13 15.03,13.05C16.19,13.89 17,15 17,16.5V19H23V16.5C23,14.17 18.33,13 16,13M8,13C5.67,13 1,14.17 1,16.5V19H15V16.5C15,14.17 10.33,13 8,13M8,11A3,3 0 0,0 11,8A3,3 0 0,0 8,5A3,3 0 0,0 5,8A3,3 0 0,0 8,11M16,11A3,3 0 0,0 19,8A3,3 0 0,0 16,5A3,3 0 0,0 13,8A3,3 0 0,0 16,11Z',
+    validFor: ['pods'] as MtgEventType[]
   },
   {
     value: 'tournament_pairings' as PlayMode,
     label: 'Tournament Pairings',
     description: 'System generates pairings each round',
-    icon: 'M3,3H9V7H3V3M15,10H21V14H15V10M15,17H21V21H15V17M13,13H7V18H13V20H7L5,20V9H7V11H13V13M21,3V8H15V3H21M11,3H13V8H11V3Z'
+    icon: 'M3,3H9V7H3V3M15,10H21V14H15V10M15,17H21V21H15V17M13,13H7V18H13V20H7L5,20V9H7V11H13V13M21,3V8H15V3H21M11,3H13V8H11V3Z',
+    validFor: ['swiss', 'single_elim', 'double_elim', 'round_robin'] as MtgEventType[]
   }
 ]
+
+// Filter play mode options based on current event type
+const playModeOptions = computed(() =>
+  allPlayModeOptions.filter(mode => mode.validFor.includes(props.eventType))
+)
 
 // Helper text for elimination formats
 const eliminationHelperText = computed(() => {
@@ -119,6 +135,15 @@ function handleEventTypeChange(newType: MtgEventType) {
   }
 
   if (newType === 'pods' && !props.podsSize) {
+    emit('update:podsSize', 4)
+  }
+}
+
+function handlePlayModeChange(newMode: PlayMode) {
+  emit('update:playMode', newMode)
+
+  // Set pod size default when switching to assigned pods
+  if (newMode === 'assigned_pods' && !props.podsSize) {
     emit('update:podsSize', 4)
   }
 }
@@ -176,8 +201,8 @@ function handleEventTypeChange(newType: MtgEventType) {
       </div>
     </div>
 
-    <!-- Play Mode Selector -->
-    <div class="space-y-2">
+    <!-- Play Mode Selector (only show if multiple options available) -->
+    <div v-if="playModeOptions.length > 1" class="space-y-2">
       <label class="block text-sm font-medium text-gray-700">
         Seating / Play Mode
       </label>
@@ -194,7 +219,7 @@ function handleEventTypeChange(newType: MtgEventType) {
               : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:bg-blue-50',
             disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
           ]"
-          @click="$emit('update:playMode', mode.value)"
+          @click="handlePlayModeChange(mode.value)"
         >
           <svg class="w-4 h-4 mr-1.5 inline-block" viewBox="0 0 24 24" fill="currentColor">
             <path :d="mode.icon" />
@@ -203,12 +228,12 @@ function handleEventTypeChange(newType: MtgEventType) {
         </button>
       </div>
       <p v-if="playMode" class="text-xs text-gray-500">
-        {{ playModeOptions.find(m => m.value === playMode)?.description }}
+        {{ allPlayModeOptions.find(m => m.value === playMode)?.description }}
       </p>
     </div>
 
     <!-- Tournament-specific options -->
-    <div v-if="isTournament" class="bg-gray-50 rounded-lg p-4 space-y-4">
+    <div v-if="showTournamentSettings" class="bg-gray-50 rounded-lg p-4 space-y-4">
       <h4 class="text-sm font-medium text-gray-900">Tournament Settings</h4>
 
       <!-- Match Style -->
@@ -311,7 +336,7 @@ function handleEventTypeChange(newType: MtgEventType) {
     <!-- Round Time (for tournaments and pods) -->
     <div v-if="showRoundTime">
       <label class="block text-sm font-medium text-gray-700 mb-1">
-        Round Time (minutes)
+        {{ isPods ? 'Suggested Game Duration (minutes)' : 'Round Time (minutes)' }}
       </label>
       <div class="flex items-center gap-3">
         <input
@@ -362,17 +387,20 @@ function handleEventTypeChange(newType: MtgEventType) {
           </button>
         </div>
       </div>
+      <p v-if="isPods" class="text-xs text-gray-500 mt-1">
+        Helps players plan their time. Commander games typically run 60-90 minutes.
+      </p>
     </div>
 
-    <!-- Pod Size (for pod play) -->
-    <div v-if="isPods">
+    <!-- Pod Size (for pod play or assigned pods mode) -->
+    <div v-if="showPodSize">
       <label class="block text-sm font-medium text-gray-700 mb-1">
         Pod Size
       </label>
       <select
         :value="podsSize ?? 4"
         :disabled="disabled"
-        class="input w-40"
+        class="input w-48"
         @change="$emit('update:podsSize', parseInt(($event.target as HTMLSelectElement).value))"
       >
         <option :value="3">3 players per pod</option>

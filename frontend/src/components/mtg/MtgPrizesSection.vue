@@ -18,17 +18,8 @@ const emit = defineEmits<{
 
 const hasEntryFee = computed(() => props.entryFee !== null && props.entryFee > 0)
 
-const currencies = [
-  { code: 'USD', symbol: '$', name: 'US Dollar' },
-  { code: 'EUR', symbol: '\u20AC', name: 'Euro' },
-  { code: 'GBP', symbol: '\u00A3', name: 'British Pound' },
-  { code: 'CAD', symbol: 'C$', name: 'Canadian Dollar' },
-  { code: 'AUD', symbol: 'A$', name: 'Australian Dollar' },
-]
-
-const currencySymbol = computed(() =>
-  currencies.find(c => c.code === props.entryFeeCurrency)?.symbol || '$'
-)
+// Show disclaimer when either entry fee or prizes are enabled
+const showDisclaimer = computed(() => hasEntryFee.value || props.hasPrizes)
 </script>
 
 <template>
@@ -51,29 +42,18 @@ const currencySymbol = computed(() =>
         </label>
       </div>
 
-      <div v-if="hasEntryFee" class="ml-7 flex items-center gap-3">
-        <div class="flex items-center">
-          <span class="text-gray-500 mr-1">{{ currencySymbol }}</span>
-          <input
-            type="number"
-            :value="entryFee"
-            :disabled="disabled"
-            class="input w-24"
-            min="0"
-            step="0.01"
-            @input="$emit('update:entryFee', parseFloat(($event.target as HTMLInputElement).value) || null)"
-          />
-        </div>
-        <select
-          :value="entryFeeCurrency"
+      <div v-if="hasEntryFee" class="ml-7 flex items-center gap-2">
+        <span class="text-gray-500">$</span>
+        <input
+          type="number"
+          :value="entryFee"
           :disabled="disabled"
           class="input w-24"
-          @change="$emit('update:entryFeeCurrency', ($event.target as HTMLSelectElement).value)"
-        >
-          <option v-for="currency in currencies" :key="currency.code" :value="currency.code">
-            {{ currency.code }}
-          </option>
-        </select>
+          min="0"
+          step="0.01"
+          @input="$emit('update:entryFee', parseFloat(($event.target as HTMLInputElement).value) || null)"
+        />
+        <span class="text-sm text-gray-500">USD</span>
       </div>
     </div>
 
@@ -94,17 +74,12 @@ const currencySymbol = computed(() =>
       </div>
 
       <div v-if="hasPrizes" class="ml-7 space-y-2">
-        <label class="block text-sm text-gray-600">Prize Structure</label>
+        <label class="block text-sm font-medium text-gray-700">Prize Structure</label>
         <textarea
           :value="prizeStructure ?? ''"
           :disabled="disabled"
-          class="input w-full h-24"
-          placeholder="Describe the prizes and how they will be distributed...
-
-Example:
-1st Place: 8 packs
-2nd Place: 4 packs
-3rd-4th Place: 2 packs each"
+          class="input w-full h-20"
+          placeholder="e.g., 1st: 6 packs, 2nd: 3 packs, 3rd-4th: 1 pack each"
           @input="$emit('update:prizeStructure', ($event.target as HTMLTextAreaElement).value || null)"
         ></textarea>
       </div>
@@ -114,13 +89,21 @@ Example:
     <div v-if="hasEntryFee || hasPrizes" class="bg-gray-50 rounded-lg p-3">
       <p class="text-sm text-gray-600">
         <template v-if="hasEntryFee">
-          Entry: {{ currencySymbol }}{{ entryFee?.toFixed(2) }}
+          Entry: ${{ entryFee?.toFixed(2) }}
         </template>
         <template v-if="hasEntryFee && hasPrizes"> | </template>
         <template v-if="hasPrizes">
           Prizes available
         </template>
       </p>
+    </div>
+
+    <!-- Disclaimer -->
+    <div v-if="showDisclaimer" class="text-xs text-gray-500">
+      <svg class="w-3.5 h-3.5 inline-block mr-1 -mt-0.5" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" />
+      </svg>
+      Entry fees and prizes are collected at the event. Sasquatsh does not process payments.
     </div>
   </div>
 </template>

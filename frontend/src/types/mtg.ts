@@ -58,6 +58,28 @@ export interface ScryfallSearchResult {
   rarity: string
 }
 
+// Banned card with Oracle identity as canonical reference
+export interface BannedCard {
+  oracleId: string           // Canonical identity - the Oracle ID
+  name: string               // Display name
+  scryfallId?: string        // Optional: specific printing reference
+  typeLine?: string          // Display: type line for context
+  imageUrl?: string          // Display: card image for UI
+  setCode?: string           // Display: set code if needed
+}
+
+// Helper to create a BannedCard from a ScryfallCard
+export function toBannedCard(card: ScryfallCard): BannedCard {
+  return {
+    oracleId: card.oracleId,
+    name: card.name,
+    scryfallId: card.scryfallId,
+    typeLine: card.typeLine,
+    imageUrl: card.imageUris.small || card.imageUris.normal || undefined,
+    setCode: card.setCode,
+  }
+}
+
 // MTG Format
 export interface MtgFormat {
   id: string

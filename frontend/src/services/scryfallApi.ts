@@ -1,4 +1,5 @@
-import type { ScryfallCard, MtgFormat } from '@/types/mtg'
+import type { ScryfallCard, MtgFormat, BannedCard } from '@/types/mtg'
+import { toBannedCard } from '@/types/mtg'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -55,6 +56,121 @@ export async function searchCards(query: string, page = 1): Promise<SearchRespon
     search: query,
     page: page.toString(),
   })
+}
+
+// Sets that contain joke/non-standard cards (silver-border, acorn, etc.)
+const JOKE_SETS = new Set([
+  'ugl', 'unh', 'ust', 'und', 'unf', // Un-sets
+  'hho', 'ptg', 'h17', 'htr', 'htr16', 'htr17', 'htr18', 'htr19', 'htr20', // Holiday promos
+  'cmb1', 'cmb2', // Mystery Booster playtest cards
+  'plst', // The List (some weird stuff)
+])
+
+// Layouts that are not normal cards
+const EXCLUDED_LAYOUTS = new Set([
+  'token', 'double_faced_token', 'emblem', 'art_series', 'reversible_card',
+])
+
+/**
+ * Normalize a card name for comparison
+ */
+function normalizeCardName(name: string): string {
+  return name.toLowerCase().trim().replace(/[^\w\s]/g, '')
+}
+
+/**
+ * Calculate search ranking score (lower is better)
+ */
+function calculateSearchRank(cardName: string, query: string): number {
+  const normalizedCard = normalizeCardName(cardName)
+  const normalizedQuery = normalizeCardName(query)
+
+  // 1. Exact match (normalized)
+  if (normalizedCard === normalizedQuery) return 0
+
+  // 2. Exact case-insensitive match (with punctuation)
+  if (cardName.toLowerCase() === query.toLowerCase()) return 1
+
+  // 3. Starts with query
+  if (normalizedCard.startsWith(normalizedQuery)) return 2
+
+  // 4. Word boundary match (query matches start of a word)
+  const words = normalizedCard.split(/\s+/)
+  for (const word of words) {
+    if (word.startsWith(normalizedQuery)) return 3
+  }
+
+  // 5. Contains match
+  if (normalizedCard.includes(normalizedQuery)) return 4
+
+  // 6. Fuzzy match (all query chars exist in order)
+  let queryIdx = 0
+  for (const char of normalizedCard) {
+    if (char === normalizedQuery[queryIdx]) {
+      queryIdx++
+      if (queryIdx === normalizedQuery.length) break
+    }
+  }
+  if (queryIdx === normalizedQuery.length) return 5
+
+  // 7. No match (shouldn't happen if Scryfall returned it)
+  return 99
+}
+
+/**
+ * Check if a card is a valid tournament card (not joke/promo/token)
+ */
+function isValidTournamentCard(card: ScryfallCard): boolean {
+  // Filter out joke sets
+  if (JOKE_SETS.has(card.setCode.toLowerCase())) {
+    return false
+  }
+
+  // Filter out non-card layouts
+  if (EXCLUDED_LAYOUTS.has(card.layout)) {
+    return false
+  }
+
+  // Filter out cards that have no Oracle ID (promos, etc.)
+  if (!card.oracleId) {
+    return false
+  }
+
+  return true
+}
+
+/**
+ * Search for banned cards with improved ranking and filtering
+ * Returns cards suitable for adding to a banned list
+ */
+export async function searchBannedCards(query: string): Promise<BannedCard[]> {
+  if (!query || query.length < 2) {
+    return []
+  }
+
+  // Use unique=cards to get one printing per card (Oracle-based)
+  const response = await scryfallRequest<SearchResponse>({
+    search: query,
+    unique: 'cards',
+  })
+
+  // Filter out joke/non-standard cards
+  const validCards = response.cards.filter(isValidTournamentCard)
+
+  // Rank results by relevance
+  const rankedCards = validCards.map(card => ({
+    card,
+    rank: calculateSearchRank(card.name, query),
+  }))
+
+  // Sort by rank, then alphabetically
+  rankedCards.sort((a, b) => {
+    if (a.rank !== b.rank) return a.rank - b.rank
+    return a.card.name.localeCompare(b.card.name)
+  })
+
+  // Convert to BannedCard format and limit results
+  return rankedCards.slice(0, 10).map(({ card }) => toBannedCard(card))
 }
 
 /**

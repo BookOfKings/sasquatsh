@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import CardSearch from './CardSearch.vue'
-import type { ScryfallCard, MtgFormat } from '@/types/mtg'
+import type { ScryfallCard, MtgFormat, BannedCard } from '@/types/mtg'
 import { FORMAT_DESCRIPTIONS } from '@/types/mtg'
 
 const cardSearchQuery = ref('')
@@ -73,6 +73,14 @@ const formatName = computed(() => {
 })
 
 function handleCardSelect(card: ScryfallCard) {
+  if (!props.bannedCards.includes(card.name)) {
+    emit('update:bannedCards', [...props.bannedCards, card.name])
+  }
+  cardSearchQuery.value = ''
+  showBannedCardsInput.value = false
+}
+
+function handleBannedCardSelect(card: BannedCard) {
   if (!props.bannedCards.includes(card.name)) {
     emit('update:bannedCards', [...props.bannedCards, card.name])
   }
@@ -169,7 +177,7 @@ function removeBannedCard(cardName: string) {
           Additional Banned Cards
         </label>
         <p class="text-xs text-gray-500">
-          Cards banned in addition to the {{ formatName || 'format' }} banlist.
+          Add additional banned cards beyond the {{ formatName || 'format' }} banlist.
         </p>
 
         <!-- Current banned cards -->
@@ -198,8 +206,10 @@ function removeBannedCard(cardName: string) {
           <CardSearch
             v-model="cardSearchQuery"
             :disabled="disabled"
+            :for-banned-cards="true"
             placeholder="Search for a card..."
             @select="handleCardSelect"
+            @select-banned="handleBannedCardSelect"
           />
           <button
             type="button"
@@ -216,7 +226,7 @@ function removeBannedCard(cardName: string) {
           :disabled="disabled"
           @click="showBannedCardsInput = true"
         >
-          + Add banned card
+          + Add custom banned card
         </button>
       </div>
 
@@ -258,10 +268,9 @@ function removeBannedCard(cardName: string) {
 
       <div v-if="requireDeckRegistration" class="ml-7 space-y-3">
         <!-- Registration info box -->
-        <div class="bg-amber-50 border border-amber-100 rounded-lg p-3">
-          <p class="text-sm text-amber-800">
-            Players will be asked to submit their decklist when registering for this event.
-            Submitted decks can be validated against format rules before the event starts.
+        <div class="bg-blue-50 border border-blue-100 rounded-lg p-3">
+          <p class="text-sm text-blue-800">
+            Players will submit a deck when joining this event. Decks can be validated against format rules.
           </p>
         </div>
 

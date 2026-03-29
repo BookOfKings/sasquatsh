@@ -80,7 +80,7 @@ const draftStyles: { value: DraftStyle; label: string; description: string }[] =
         class="input"
         @change="$emit('update:draftStyle', ($event.target as HTMLSelectElement).value as DraftStyle || null)"
       >
-        <option value="">Select draft style...</option>
+        <option value="">Select draft style (e.g., Standard, Rochester)</option>
         <option v-for="style in draftStyles" :key="style.value" :value="style.value">
           {{ style.label }}
         </option>
