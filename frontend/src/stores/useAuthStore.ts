@@ -220,7 +220,12 @@ async function logout(): Promise<void> {
 
 async function resetPassword(email: string): Promise<{ ok: boolean; message: string }> {
   try {
-    await sendPasswordResetEmail(auth, email)
+    // Use ActionCodeSettings to redirect to our domain after password reset
+    const actionCodeSettings = {
+      url: 'https://sasquatsh.com/login?passwordReset=success',
+      handleCodeInApp: false,
+    }
+    await sendPasswordResetEmail(auth, email, actionCodeSettings)
     return { ok: true, message: 'Password reset email sent. Check your inbox.' }
   } catch (err: any) {
     const message = getAuthErrorMessage(err.code)
