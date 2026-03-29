@@ -49,7 +49,9 @@ export default defineConfig({
   // Shared settings for all the projects below
   use: {
     // Base URL to use in actions like `await page.goto('/')`
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5174',
+    // Use different port for emulator mode
+    baseURL: process.env.PLAYWRIGHT_BASE_URL ||
+      (process.env.USE_FIREBASE_EMULATOR === 'true' ? 'http://localhost:5180' : 'http://localhost:5174'),
 
     // Collect trace when retrying the failed test
     trace: 'on-first-retry',
@@ -127,9 +129,20 @@ export default defineConfig({
   ],
 
   // Run local dev server before starting the tests
+  // Use Firebase Auth Emulator for faster, more reliable tests:
+  //   npm run test:emulator
+  // Or use production Firebase Auth (requires real test accounts):
+  //   npm run test
   webServer: {
-    command: 'npm run dev -- --port 5174',
-    url: 'http://localhost:5174',
+    // Use a different port for emulator mode to avoid conflicts
+    // Use --mode emulator to load .env.emulator with VITE_USE_FIREBASE_EMULATOR=true
+    command: process.env.USE_FIREBASE_EMULATOR === 'true'
+      ? 'npm run dev -- --port 5180 --mode emulator'
+      : 'npm run dev -- --port 5174',
+    url: process.env.USE_FIREBASE_EMULATOR === 'true'
+      ? 'http://localhost:5180'
+      : 'http://localhost:5174',
+    // Allow reusing existing server in emulator mode (for faster local development)
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
   },

@@ -6,8 +6,11 @@
  * - VITE_FIREBASE_API_KEY
  * - VITE_SUPABASE_FUNCTIONS_URL
  * - VITE_SUPABASE_ANON_KEY
- * - TEST_USER_EMAIL / TEST_USER_PASSWORD (for global setup)
- * - TEST_BASIC_USER_EMAIL / TEST_BASIC_USER_PASSWORD (for basic tier tests)
+ * - TEST_USER_EMAIL / TEST_USER_PASSWORD (for production auth)
+ *
+ * For emulator mode (recommended):
+ * - Set USE_FIREBASE_EMULATOR=true
+ * - Start emulator: npm run emulator:start
  */
 
 function getRequiredEnv(name: string): string {
@@ -21,6 +24,15 @@ function getRequiredEnv(name: string): string {
 const FIREBASE_API_KEY = getRequiredEnv('VITE_FIREBASE_API_KEY')
 const SUPABASE_FUNCTIONS_URL = getRequiredEnv('VITE_SUPABASE_FUNCTIONS_URL')
 const SUPABASE_ANON_KEY = getRequiredEnv('VITE_SUPABASE_ANON_KEY')
+
+// Emulator configuration
+const USE_EMULATOR = process.env.USE_FIREBASE_EMULATOR === 'true'
+const EMULATOR_HOST = process.env.FIREBASE_AUTH_EMULATOR_HOST || 'localhost:9099'
+
+// Firebase Auth API base URL - switches between emulator and production
+const FIREBASE_AUTH_BASE_URL = USE_EMULATOR
+  ? `http://${EMULATOR_HOST}/identitytoolkit.googleapis.com/v1`
+  : 'https://identitytoolkit.googleapis.com/v1'
 
 interface FirebaseAuthResponse {
   idToken: string
@@ -44,13 +56,18 @@ interface TestGroup {
 
 /**
  * Authenticate with Firebase using email/password
+ * Automatically uses emulator if USE_FIREBASE_EMULATOR=true
  */
 export async function authenticateTestUser(
   email: string,
   password: string
 ): Promise<string> {
+  if (USE_EMULATOR) {
+    console.log(`  Authenticating via emulator: ${email}`)
+  }
+
   const response = await fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`,
+    `${FIREBASE_AUTH_BASE_URL}/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -69,6 +86,55 @@ export async function authenticateTestUser(
 
   const data: FirebaseAuthResponse = await response.json()
   return data.idToken
+}
+
+/**
+ * Create a user in the Firebase Auth Emulator
+ * Only works when USE_FIREBASE_EMULATOR=true
+ */
+export async function createEmulatorUser(
+  email: string,
+  password: string,
+  displayName: string = 'Test User'
+): Promise<string> {
+  if (!USE_EMULATOR) {
+    throw new Error('createEmulatorUser can only be used with USE_FIREBASE_EMULATOR=true')
+  }
+
+  const response = await fetch(
+    `${FIREBASE_AUTH_BASE_URL}/accounts:signUp?key=${FIREBASE_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        password,
+        displayName,
+        returnSecureToken: true,
+      }),
+    }
+  )
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    // If user already exists, sign in instead
+    if (error.error?.message === 'EMAIL_EXISTS') {
+      console.log(`  User ${email} already exists, signing in...`)
+      return authenticateTestUser(email, password)
+    }
+    throw new Error(`Failed to create emulator user ${email}: ${JSON.stringify(error)}`)
+  }
+
+  const data = await response.json()
+  console.log(`  Created emulator user: ${email}`)
+  return data.idToken
+}
+
+/**
+ * Check if using Firebase Auth Emulator
+ */
+export function isUsingEmulator(): boolean {
+  return USE_EMULATOR
 }
 
 /**
