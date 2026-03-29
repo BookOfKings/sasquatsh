@@ -1,15 +1,19 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { PokemonFormat } from '@/types/pokemon'
+import type { PokemonFormat, PokemonEventType } from '@/types/pokemon'
+import { FORMAT_DECK_DESCRIPTIONS, LIMITED_EVENT_TYPES } from '@/types/pokemon'
 
 const props = defineProps<{
   selectedFormat: PokemonFormat | null
   formatId: string | null
+  eventType: PokemonEventType
   allowProxies: boolean
   proxyLimit: number | null
   requireDeckRegistration: boolean
   deckSubmissionDeadline: string | null
   allowDeckChanges: boolean
+  enforceFormatLegality: boolean
+  houseRulesNotes: string | null
   disabled?: boolean
 }>()
 
@@ -19,10 +23,40 @@ const emit = defineEmits<{
   (e: 'update:requireDeckRegistration', value: boolean): void
   (e: 'update:deckSubmissionDeadline', value: string | null): void
   (e: 'update:allowDeckChanges', value: boolean): void
+  (e: 'update:enforceFormatLegality', value: boolean): void
+  (e: 'update:houseRulesNotes', value: string | null): void
 }>()
+
+// Is this a limited event (prerelease/draft)?
+const isLimitedEvent = computed(() =>
+  LIMITED_EVENT_TYPES.includes(props.eventType)
+)
+
+// Format-specific deck description
+const formatDeckDescription = computed(() => {
+  if (isLimitedEvent.value) {
+    if (props.eventType === 'prerelease') {
+      return 'Decks built on-site from Build & Battle Kits (40+ cards)'
+    }
+    if (props.eventType === 'draft') {
+      return 'Decks built on-site from drafted packs (40+ cards)'
+    }
+  }
+  if (props.formatId && FORMAT_DECK_DESCRIPTIONS[props.formatId]) {
+    return FORMAT_DECK_DESCRIPTIONS[props.formatId]
+  }
+  return null
+})
 
 // Format rules summary
 const formatRules = computed(() => {
+  if (isLimitedEvent.value) {
+    return {
+      deckSize: '40+ cards',
+      maxCopies: 'Up to 4 copies per card (except Basic Energy)',
+      rotation: 'Uses cards from provided product',
+    }
+  }
   if (!props.selectedFormat) return null
 
   return {
@@ -58,23 +92,70 @@ function handleDeckRegistrationToggle(checked: boolean) {
   <div class="space-y-4">
     <h3 class="text-lg font-semibold text-gray-900">Deck Rules</h3>
 
-    <!-- Format Rules Summary -->
-    <div v-if="formatRules" class="bg-yellow-50 border border-yellow-100 rounded-lg p-4">
+    <!-- Format-Aware Deck Summary -->
+    <div v-if="formatDeckDescription || formatRules" class="bg-yellow-50 border border-yellow-100 rounded-lg p-4">
       <h4 class="text-sm font-medium text-yellow-800 mb-2 flex items-center gap-2">
         <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M11,17V16H9V14H13V13H10A1,1 0 0,1 9,12V9A1,1 0 0,1 10,8H11V7H13V8H15V10H11V11H14A1,1 0 0,1 15,12V15A1,1 0 0,1 14,16H13V17H11Z" />
+          <path d="M19,3H14.82C14.25,1.44 12.53,0.64 11,1.2C10.14,1.5 9.5,2.16 9.18,3H5A2,2 0 0,0 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5A2,2 0 0,0 19,3M12,3A1,1 0 0,1 13,4A1,1 0 0,1 12,5A1,1 0 0,1 11,4A1,1 0 0,1 12,3" />
         </svg>
-        {{ selectedFormat?.name }} Format Rules
+        <template v-if="isLimitedEvent">
+          Limited Event Deck Rules
+        </template>
+        <template v-else-if="selectedFormat">
+          {{ selectedFormat.name }} Format Rules
+        </template>
+        <template v-else>
+          Deck Requirements
+        </template>
       </h4>
-      <ul class="text-sm text-yellow-700 space-y-1">
-        <li>Deck size: {{ formatRules.deckSize }}</li>
-        <li>{{ formatRules.maxCopies }}</li>
-        <li>{{ formatRules.rotation }}</li>
+
+      <!-- Format description -->
+      <p v-if="formatDeckDescription" class="text-sm text-yellow-700 mb-2">
+        {{ formatDeckDescription }}
+      </p>
+
+      <!-- Rules list -->
+      <ul v-if="formatRules" class="text-sm text-yellow-700 space-y-1">
+        <li class="flex items-center gap-2">
+          <svg class="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z" />
+          </svg>
+          Deck size: {{ formatRules.deckSize }}
+        </li>
+        <li class="flex items-center gap-2">
+          <svg class="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z" />
+          </svg>
+          {{ formatRules.maxCopies }}
+        </li>
+        <li class="flex items-center gap-2">
+          <svg class="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z" />
+          </svg>
+          {{ formatRules.rotation }}
+        </li>
       </ul>
     </div>
 
+    <!-- Format Legality (not for limited events) -->
+    <div v-if="!isLimitedEvent" class="space-y-2">
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          :checked="enforceFormatLegality"
+          :disabled="disabled"
+          class="h-4 w-4 rounded border-gray-300 text-yellow-500 focus:ring-yellow-500"
+          @change="$emit('update:enforceFormatLegality', ($event.target as HTMLInputElement).checked)"
+        />
+        <div>
+          <span class="text-sm font-medium text-gray-700">Enforce Format Legality</span>
+          <p class="text-xs text-gray-500">Decks must use only format-legal cards</p>
+        </div>
+      </label>
+    </div>
+
     <!-- House Rules Section -->
-    <div class="space-y-4">
+    <div class="space-y-4 border-t border-gray-200 pt-4">
       <h4 class="text-sm font-medium text-gray-700">House Rules</h4>
 
       <!-- Allow Proxies -->
@@ -112,10 +193,28 @@ function handleDeckRegistrationToggle(checked: boolean) {
           </p>
         </div>
       </div>
+
+      <!-- House Rules Notes -->
+      <div class="space-y-2">
+        <label class="block text-sm font-medium text-gray-700">
+          Additional House Rules
+        </label>
+        <textarea
+          :value="houseRulesNotes ?? ''"
+          :disabled="disabled"
+          class="input w-full"
+          rows="2"
+          placeholder="e.g., No EX/GX allowed, limit 2 Rare Candy per deck..."
+          @input="$emit('update:houseRulesNotes', ($event.target as HTMLTextAreaElement).value || null)"
+        />
+        <p class="text-xs text-gray-500">
+          Describe any custom rules or banned cards for this event.
+        </p>
+      </div>
     </div>
 
-    <!-- Deck Registration Section -->
-    <div class="space-y-4 border-t border-gray-200 pt-4">
+    <!-- Deck Registration Section (not for limited events) -->
+    <div v-if="!isLimitedEvent" class="space-y-4 border-t border-gray-200 pt-4">
       <h4 class="text-sm font-medium text-gray-700">Deck Registration</h4>
 
       <label class="flex items-center gap-3 cursor-pointer">

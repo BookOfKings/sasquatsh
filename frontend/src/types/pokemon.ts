@@ -284,6 +284,7 @@ export interface PokemonEventConfig {
   requireDeckRegistration: boolean
   deckSubmissionDeadline?: string
   allowDeckChanges: boolean
+  enforceFormatLegality: boolean
 
   // Entry and prizes
   entryFee?: number
@@ -295,6 +296,13 @@ export interface PokemonEventConfig {
   allowProxies: boolean
   proxyLimit?: number
   usePlayPoints: boolean  // Official Play! Pokemon points
+  houseRulesNotes?: string  // Custom house rules
+
+  // Event materials
+  providesBasicEnergy: boolean
+  providesDamageCounters: boolean
+  sleevesRecommended: boolean
+  providesBuildBattleKits: boolean  // For prerelease events
 
   // Age divisions (official events)
   ageDivisions?: ('junior' | 'senior' | 'masters')[]
@@ -476,6 +484,83 @@ export const POKEMON_SUPERTYPE_LABELS: Record<PokemonSupertype, string> = {
   'Energy': 'Energy',
 }
 
+// ==================== Event Type Metadata ====================
+
+export const POKEMON_EVENT_TYPE_DESCRIPTIONS: Record<PokemonEventType, string> = {
+  casual: 'Free play, no structured rounds',
+  league: 'Casual recurring league-style play',
+  league_challenge: 'Small competitive local event',
+  league_cup: 'Higher-level local competitive event',
+  regional: 'Large competitive tournament',
+  international: 'International Championship event',
+  worlds: 'World Championship event',
+  prerelease: 'Build from sealed product and play on-site',
+  draft: 'Limited event using drafted packs',
+}
+
+// Event types that show tournament settings
+export const TOURNAMENT_EVENT_TYPES: PokemonEventType[] = [
+  'league_challenge',
+  'league_cup',
+  'regional',
+  'international',
+  'worlds',
+]
+
+// Event types that are limited formats (build on-site)
+export const LIMITED_EVENT_TYPES: PokemonEventType[] = [
+  'prerelease',
+  'draft',
+]
+
+// Default max players by event type
+export const DEFAULT_MAX_PLAYERS: Record<PokemonEventType, number> = {
+  casual: 16,
+  league: 24,
+  league_challenge: 24,
+  league_cup: 32,
+  regional: 64,
+  international: 128,
+  worlds: 128,
+  prerelease: 32,
+  draft: 8,
+}
+
+// Format-specific deck descriptions
+export const FORMAT_DECK_DESCRIPTIONS: Record<string, string> = {
+  standard: '60-card decks using the current Standard format',
+  expanded: '60-card decks using Expanded legality',
+  unlimited: '60-card decks with all cards legal',
+  theme: 'Preconstructed theme deck event',
+  casual: 'Casual play with house rules',
+  gym_leader_challenge: 'Single-type singleton format (Gym Leader Challenge)',
+  retro: 'Classic format using older card pools',
+}
+
+// Limited event helper text
+export const LIMITED_EVENT_GUIDANCE = {
+  prerelease: {
+    title: 'Prerelease Event',
+    description: 'Players build 40-card decks on-site from Build & Battle Kits',
+    tips: [
+      'Build & Battle Kits should be provided',
+      'Basic Energy should be available for players',
+      '40-card minimum deck size',
+      '4-card copy limit still applies',
+    ],
+  },
+  draft: {
+    title: 'Draft Event',
+    description: 'Players draft cards from booster packs and build decks on-site',
+    tips: [
+      'Typically 3 packs per player',
+      'Basic Energy should be available',
+      '40-card minimum deck size',
+      'Players keep what they draft (or rare redraft)',
+    ],
+  },
+}
+
 // ==================== Event Creation Types ====================
 
 export interface CreatePokemonEventInput {
@@ -526,6 +611,8 @@ export interface PokemonEventConfigInput {
   requireDeckRegistration: boolean
   deckSubmissionDeadline: string | null
   allowDeckChanges: boolean
+  enforceFormatLegality: boolean
+  houseRulesNotes: string | null
 
   // Prizes and entry
   hasPrizes: boolean
@@ -533,6 +620,12 @@ export interface PokemonEventConfigInput {
   entryFee: number | null
   entryFeeCurrency: string
   usePlayPoints: boolean
+
+  // Event materials
+  providesBasicEnergy: boolean
+  providesDamageCounters: boolean
+  sleevesRecommended: boolean
+  providesBuildBattleKits: boolean
 
   // Age divisions
   hasJuniorDivision: boolean

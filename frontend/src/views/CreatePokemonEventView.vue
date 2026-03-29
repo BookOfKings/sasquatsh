@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref, computed } from 'vue'
+import { reactive, ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { createPokemonEvent } from '@/services/pokemonEventApi'
@@ -10,14 +10,27 @@ import PokemonFormatSelector from '@/components/pokemon/PokemonFormatSelector.vu
 import PokemonEventStructureSection from '@/components/pokemon/PokemonEventStructureSection.vue'
 import PokemonDeckRulesSection from '@/components/pokemon/PokemonDeckRulesSection.vue'
 import PokemonPrizesSection from '@/components/pokemon/PokemonPrizesSection.vue'
-import type { CreatePokemonEventInput, PokemonEventConfigInput, PokemonEventType, PokemonTournamentStyle } from '@/types/pokemon'
+import PokemonMaterialsSection from '@/components/pokemon/PokemonMaterialsSection.vue'
+import type { CreatePokemonEventInput, PokemonEventType, PokemonTournamentStyle, PokemonFormat } from '@/types/pokemon'
+import { POKEMON_FORMATS, LIMITED_EVENT_TYPES, DEFAULT_MAX_PLAYERS } from '@/types/pokemon'
 import type { EventLocation } from '@/types/social'
+import { getEffectiveTier } from '@/types/user'
+import type { SubscriptionTier } from '@/config/subscriptionLimits'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
+// Get user tier for location features
+const currentTier = computed((): SubscriptionTier => {
+  if (!authStore.user.value) return 'free'
+  return getEffectiveTier(authStore.user.value)
+})
+
 const loading = ref(false)
 const errorMessage = ref('')
+
+// Selected format object (for passing to components)
+const selectedFormat = ref<PokemonFormat | null>(null)
 
 // Form state
 const form = reactive<CreatePokemonEventInput>({
@@ -58,11 +71,17 @@ const form = reactive<CreatePokemonEventInput>({
     requireDeckRegistration: false,
     deckSubmissionDeadline: null,
     allowDeckChanges: true,
+    enforceFormatLegality: true,
+    houseRulesNotes: null,
     hasPrizes: false,
     prizeStructure: null,
     entryFee: null,
     entryFeeCurrency: 'USD',
     usePlayPoints: false,
+    providesBasicEnergy: false,
+    providesDamageCounters: false,
+    sleevesRecommended: true,
+    providesBuildBattleKits: false,
     hasJuniorDivision: false,
     hasSeniorDivision: false,
     hasMastersDivision: true,
@@ -70,17 +89,50 @@ const form = reactive<CreatePokemonEventInput>({
   },
 })
 
-// Computed for validation
-const isValid = computed(() => {
-  return form.title.trim() !== '' && form.eventDate !== ''
+// Validation
+const validationErrors = computed(() => {
+  const errors: string[] = []
+  if (!form.title.trim()) errors.push('Event title is required')
+  if (!form.eventDate) errors.push('Event date is required')
+  if (!form.pokemonConfig.formatId && !LIMITED_EVENT_TYPES.includes(form.pokemonConfig.eventType)) {
+    errors.push('Format selection is required')
+  }
+  return errors
+})
+
+const isValid = computed(() => validationErrors.value.length === 0)
+
+// Watch format changes to update selectedFormat object
+watch(() => form.pokemonConfig.formatId, (newFormatId) => {
+  selectedFormat.value = newFormatId
+    ? POKEMON_FORMATS.find(f => f.id === newFormatId) || null
+    : null
 })
 
 // Handle format selection
 function handleFormatChange(formatId: string | null) {
   form.pokemonConfig.formatId = formatId
+
+  // Format-driven defaults
+  if (formatId === 'standard' || formatId === 'expanded') {
+    // Competitive formats: default to League Challenge, Swiss, Bo3
+    if (form.pokemonConfig.eventType === 'casual' || form.pokemonConfig.eventType === 'league') {
+      form.pokemonConfig.eventType = 'league_challenge'
+      form.pokemonConfig.tournamentStyle = 'swiss'
+      form.pokemonConfig.bestOf = 3
+      form.pokemonConfig.roundTimeMinutes = 50
+      form.maxPlayers = DEFAULT_MAX_PLAYERS['league_challenge']
+    }
+    form.pokemonConfig.enforceFormatLegality = true
+  } else if (formatId === 'theme' || formatId === 'casual') {
+    // Casual formats: default to casual play
+    form.pokemonConfig.eventType = 'casual'
+    form.pokemonConfig.tournamentStyle = null
+    form.pokemonConfig.enforceFormatLegality = formatId === 'theme'
+  }
 }
 
-// Handle event structure changes
+// Handle event type changes
 function handleEventTypeChange(eventType: PokemonEventType) {
   form.pokemonConfig.eventType = eventType
 }
@@ -105,6 +157,10 @@ function handleTopCutChange(topCut: number | null) {
   form.pokemonConfig.topCut = topCut
 }
 
+function handleMaxPlayersChange(maxPlayers: number) {
+  form.maxPlayers = maxPlayers
+}
+
 // Handle deck rules changes
 function handleProxiesChange(allow: boolean) {
   form.pokemonConfig.allowProxies = allow
@@ -126,6 +182,14 @@ function handleDeckChangesChange(allow: boolean) {
   form.pokemonConfig.allowDeckChanges = allow
 }
 
+function handleEnforceLegalityChange(enforce: boolean) {
+  form.pokemonConfig.enforceFormatLegality = enforce
+}
+
+function handleHouseRulesChange(notes: string | null) {
+  form.pokemonConfig.houseRulesNotes = notes
+}
+
 // Handle prizes changes
 function handleEntryFeeChange(fee: number | null) {
   form.pokemonConfig.entryFee = fee
@@ -145,6 +209,23 @@ function handleHasPrizesChange(has: boolean) {
 
 function handlePrizeStructureChange(structure: string | null) {
   form.pokemonConfig.prizeStructure = structure
+}
+
+// Handle materials changes
+function handleProvidesEnergyChange(provides: boolean) {
+  form.pokemonConfig.providesBasicEnergy = provides
+}
+
+function handleProvidesCountersChange(provides: boolean) {
+  form.pokemonConfig.providesDamageCounters = provides
+}
+
+function handleSleevesRecommendedChange(recommended: boolean) {
+  form.pokemonConfig.sleevesRecommended = recommended
+}
+
+function handleProvidesBuildBattleChange(provides: boolean) {
+  form.pokemonConfig.providesBuildBattleKits = provides
 }
 
 // Handle location selection
@@ -221,7 +302,9 @@ async function handleSubmit() {
             <h3 class="text-lg font-semibold mb-4">Basic Information</h3>
             <div class="space-y-4">
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Event Title *</label>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                  Event Title <span class="text-red-500">*</span>
+                </label>
                 <input
                   v-model="form.title"
                   type="text"
@@ -261,17 +344,21 @@ async function handleSubmit() {
             v-model:venue-hall="form.venueHall"
             v-model:venue-room="form.venueRoom"
             v-model:venue-table="form.venueTable"
+            :current-tier="currentTier"
             @location-select="handleLocationSelect"
           />
 
           <!-- Format Selection -->
           <PokemonFormatSelector
             :model-value="form.pokemonConfig.formatId"
+            :custom-format-name="form.pokemonConfig.customFormatName"
             @update:model-value="handleFormatChange"
+            @update:custom-format-name="(v) => form.pokemonConfig.customFormatName = v"
           />
 
           <!-- Event Structure -->
           <PokemonEventStructureSection
+            :format-id="form.pokemonConfig.formatId"
             :event-type="form.pokemonConfig.eventType"
             :tournament-style="form.pokemonConfig.tournamentStyle"
             :rounds-count="form.pokemonConfig.roundsCount"
@@ -284,10 +371,46 @@ async function handleSubmit() {
             @update:round-time-minutes="handleRoundTimeChange"
             @update:best-of="handleBestOfChange"
             @update:top-cut="handleTopCutChange"
+            @update:max-players="handleMaxPlayersChange"
+          />
+
+          <!-- Deck Rules -->
+          <PokemonDeckRulesSection
+            :selected-format="selectedFormat"
+            :format-id="form.pokemonConfig.formatId"
+            :event-type="form.pokemonConfig.eventType"
+            :allow-proxies="form.pokemonConfig.allowProxies"
+            :proxy-limit="form.pokemonConfig.proxyLimit"
+            :require-deck-registration="form.pokemonConfig.requireDeckRegistration"
+            :deck-submission-deadline="form.pokemonConfig.deckSubmissionDeadline"
+            :allow-deck-changes="form.pokemonConfig.allowDeckChanges"
+            :enforce-format-legality="form.pokemonConfig.enforceFormatLegality"
+            :house-rules-notes="form.pokemonConfig.houseRulesNotes"
+            @update:allow-proxies="handleProxiesChange"
+            @update:proxy-limit="handleProxyLimitChange"
+            @update:require-deck-registration="handleDeckRegistrationChange"
+            @update:deck-submission-deadline="handleDeckDeadlineChange"
+            @update:allow-deck-changes="handleDeckChangesChange"
+            @update:enforce-format-legality="handleEnforceLegalityChange"
+            @update:house-rules-notes="handleHouseRulesChange"
+          />
+
+          <!-- Event Materials -->
+          <PokemonMaterialsSection
+            :event-type="form.pokemonConfig.eventType"
+            :provides-basic-energy="form.pokemonConfig.providesBasicEnergy"
+            :provides-damage-counters="form.pokemonConfig.providesDamageCounters"
+            :sleeves-recommended="form.pokemonConfig.sleevesRecommended"
+            :provides-build-battle-kits="form.pokemonConfig.providesBuildBattleKits"
+            @update:provides-basic-energy="handleProvidesEnergyChange"
+            @update:provides-damage-counters="handleProvidesCountersChange"
+            @update:sleeves-recommended="handleSleevesRecommendedChange"
+            @update:provides-build-battle-kits="handleProvidesBuildBattleChange"
           />
 
           <!-- Entry & Prizes -->
           <PokemonPrizesSection
+            :event-type="form.pokemonConfig.eventType"
             :entry-fee="form.pokemonConfig.entryFee"
             :entry-fee-currency="form.pokemonConfig.entryFeeCurrency"
             :use-play-points="form.pokemonConfig.usePlayPoints"
@@ -323,6 +446,21 @@ async function handleSubmit() {
             </template>
           </EventPlayerSettingsSection>
 
+          <!-- Validation Feedback -->
+          <div v-if="validationErrors.length > 0 && !isValid" class="bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <h4 class="text-sm font-medium text-amber-800 mb-2 flex items-center gap-2">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M13,13H11V7H13M13,17H11V15H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" />
+              </svg>
+              Please complete the following:
+            </h4>
+            <ul class="text-sm text-amber-700 space-y-1 ml-6">
+              <li v-for="error in validationErrors" :key="error" class="list-disc">
+                {{ error }}
+              </li>
+            </ul>
+          </div>
+
           <!-- Actions -->
           <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
             <button
@@ -336,6 +474,7 @@ async function handleSubmit() {
               type="submit"
               :disabled="!isValid || loading"
               class="px-6 py-2 bg-yellow-500 text-white font-medium rounded-lg hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              :title="!isValid ? validationErrors.join(', ') : ''"
             >
               {{ loading ? 'Creating...' : 'Create Pokemon Event' }}
             </button>
