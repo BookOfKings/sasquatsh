@@ -64,8 +64,8 @@ export const TIER_LIMITS: Record<SubscriptionTier, TierLimits> = {
 
 export const TIER_PRICES = {
   free: 0,
-  basic: 7.99,
-  pro: 14.99,
+  basic: 4.99,
+  pro: 7.99,
   premium: 0, // Custom pricing
 }
 

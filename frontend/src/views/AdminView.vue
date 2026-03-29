@@ -78,7 +78,8 @@ function withMinLoadingTime<T>(promise: Promise<T>, startTime: number): Promise<
   })
 }
 
-const activeTab = ref<'dashboard' | 'users' | 'groups' | 'notes' | 'bugs' | 'chatReports' | 'ads' | 'raffles' | 'locations' | 'bggCache'>('dashboard')
+const activeTab = ref<'dashboard' | 'users' | 'groups' | 'notes' | 'bugs' | 'chatReports' | 'ads' | 'raffles' | 'locations' | 'caches'>('dashboard')
+const activeCacheTab = ref<'bgg' | 'mtg'>('bgg')
 
 // Dashboard state
 const dashboardLoading = ref(false)
@@ -329,6 +330,8 @@ async function loadDashboard() {
     const data = await withMinLoadingTime(getAdminDashboard(token), startTime)
     dashboardStats.value = data.stats
     serviceHealth.value = data.services
+    // Add cache health entries
+    updateServiceHealthWithCaches()
     lastRefresh.value = new Date()
   } catch (err) {
     console.error('Failed to load dashboard:', err)
@@ -357,12 +360,58 @@ function getHealthDotColor(status: 'healthy' | 'degraded' | 'unhealthy'): string
   }
 }
 
+function getCacheHealthEntries(): ServiceHealth[] {
+  const entries: ServiceHealth[] = []
+
+  // BGG Cache health
+  if (cacheStats.value) {
+    const total = cacheStats.value.totalGames
+    const status = total > 100 ? 'healthy' : total > 0 ? 'degraded' : 'unhealthy'
+    entries.push({
+      name: 'BGG Cache',
+      status,
+      message: `${total.toLocaleString()} games cached`
+    })
+  }
+
+  // MTG/Scryfall Cache health
+  if (mtgCacheStats.value) {
+    const total = mtgCacheStats.value.totalCards
+    const stale = mtgCacheStats.value.staleCount
+    let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy'
+    let message = `${total.toLocaleString()} cards cached`
+
+    if (total === 0) {
+      status = 'unhealthy'
+      message = 'No cards cached'
+    } else if (stale > 50) {
+      status = 'degraded'
+      message = `${total.toLocaleString()} cards (${stale} stale)`
+    }
+
+    entries.push({
+      name: 'Scryfall Cache',
+      status,
+      message
+    })
+  }
+
+  return entries
+}
+
+function updateServiceHealthWithCaches() {
+  // Remove any existing cache entries and add fresh ones
+  const baseSevices = serviceHealth.value.filter(s => !s.name.includes('Cache'))
+  serviceHealth.value = [...baseSevices, ...getCacheHealthEntries()]
+}
+
 async function loadCacheStats() {
   cacheLoading.value = true
   try {
     const token = await auth.getIdToken()
     if (!token) return
     cacheStats.value = await getBggCacheStats(token)
+    updateServiceHealthWithCaches()
   } catch (err) {
     console.error('Failed to load cache stats:', err)
   } finally {
@@ -471,6 +520,7 @@ async function loadMtgCacheStats() {
   mtgCacheLoading.value = true
   try {
     mtgCacheStats.value = await getMtgCacheStats()
+    updateServiceHealthWithCaches()
   } catch (err) {
     console.error('Failed to load MTG cache stats:', err)
   } finally {
@@ -2204,12 +2254,12 @@ function getLocationTypeLabel(location: EventLocation): string {
       </button>
       <button
         class="px-4 py-2 text-sm font-medium transition-colors -mb-px"
-        :class="activeTab === 'bggCache'
+        :class="activeTab === 'caches'
           ? 'text-primary-600 border-b-2 border-primary-500'
           : 'text-gray-500 hover:text-gray-700'"
-        @click="activeTab = 'bggCache'"
+        @click="activeTab = 'caches'"
       >
-        BGG Cache
+        Caches
       </button>
     </div>
 
@@ -2376,7 +2426,7 @@ function getLocationTypeLabel(location: EventLocation): string {
                   <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
                       <span class="w-3 h-3 rounded-full bg-blue-500"></span>
-                      <span class="text-sm">Basic ($7.99/mo)</span>
+                      <span class="text-sm">Basic ($4.99/mo)</span>
                     </div>
                     <span class="font-bold text-blue-600">{{ dashboardStats.users.byTier?.basic ?? 0 }}</span>
                   </div>
@@ -2395,7 +2445,7 @@ function getLocationTypeLabel(location: EventLocation): string {
                   <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
                       <span class="w-3 h-3 rounded-full bg-purple-500"></span>
-                      <span class="text-sm">Pro ($14.99/mo)</span>
+                      <span class="text-sm">Pro ($7.99/mo)</span>
                     </div>
                     <span class="font-bold text-purple-600">{{ dashboardStats.users.byTier?.pro ?? 0 }}</span>
                   </div>
@@ -2449,12 +2499,12 @@ function getLocationTypeLabel(location: EventLocation): string {
                 <div>
                   <div class="flex justify-between">
                     <span class="text-gray-600 font-medium">Basic ({{ dashboardStats.revenue?.basicCount ?? 0 }} total)</span>
-                    <span class="font-medium">${{ ((dashboardStats.revenue?.basicPaidCount ?? 0) * 7.99).toFixed(2) }}</span>
+                    <span class="font-medium">${{ ((dashboardStats.revenue?.basicPaidCount ?? 0) * 4.99).toFixed(2) }}</span>
                   </div>
                   <div class="ml-4 mt-1 text-xs text-gray-500 space-y-0.5">
                     <div class="flex justify-between">
-                      <span>Paid ({{ dashboardStats.revenue?.basicPaidCount ?? 0 }} x $7.99)</span>
-                      <span class="text-green-600">${{ ((dashboardStats.revenue?.basicPaidCount ?? 0) * 7.99).toFixed(2) }}</span>
+                      <span>Paid ({{ dashboardStats.revenue?.basicPaidCount ?? 0 }} x $4.99)</span>
+                      <span class="text-green-600">${{ ((dashboardStats.revenue?.basicPaidCount ?? 0) * 4.99).toFixed(2) }}</span>
                     </div>
                     <div class="flex justify-between">
                       <span>Promoted ({{ (dashboardStats.revenue?.basicCount ?? 0) - (dashboardStats.revenue?.basicPaidCount ?? 0) }} x $0.00)</span>
@@ -2466,12 +2516,12 @@ function getLocationTypeLabel(location: EventLocation): string {
                 <div>
                   <div class="flex justify-between">
                     <span class="text-gray-600 font-medium">Pro ({{ dashboardStats.revenue?.proCount ?? 0 }} total)</span>
-                    <span class="font-medium">${{ ((dashboardStats.revenue?.proPaidCount ?? 0) * 14.99).toFixed(2) }}</span>
+                    <span class="font-medium">${{ ((dashboardStats.revenue?.proPaidCount ?? 0) * 7.99).toFixed(2) }}</span>
                   </div>
                   <div class="ml-4 mt-1 text-xs text-gray-500 space-y-0.5">
                     <div class="flex justify-between">
-                      <span>Paid ({{ dashboardStats.revenue?.proPaidCount ?? 0 }} x $14.99)</span>
-                      <span class="text-green-600">${{ ((dashboardStats.revenue?.proPaidCount ?? 0) * 14.99).toFixed(2) }}</span>
+                      <span>Paid ({{ dashboardStats.revenue?.proPaidCount ?? 0 }} x $7.99)</span>
+                      <span class="text-green-600">${{ ((dashboardStats.revenue?.proPaidCount ?? 0) * 7.99).toFixed(2) }}</span>
                     </div>
                     <div class="flex justify-between">
                       <span>Promoted ({{ (dashboardStats.revenue?.proCount ?? 0) - (dashboardStats.revenue?.proPaidCount ?? 0) }} x $0.00)</span>
@@ -4156,10 +4206,34 @@ function getLocationTypeLabel(location: EventLocation): string {
       </div>
     </div>
 
-    <!-- BGG Cache Tab -->
-    <div v-if="activeTab === 'bggCache'">
-      <div class="card p-6 mb-6">
-        <h2 class="text-lg font-semibold mb-4">BoardGameGeek Cache</h2>
+    <!-- Caches Tab -->
+    <div v-if="activeTab === 'caches'">
+      <!-- Cache Sub-tabs -->
+      <div class="flex gap-4 mb-6 border-b border-gray-200">
+        <button
+          class="px-4 py-2 text-sm font-medium transition-colors -mb-px"
+          :class="activeCacheTab === 'bgg'
+            ? 'text-primary-600 border-b-2 border-primary-500'
+            : 'text-gray-500 hover:text-gray-700'"
+          @click="activeCacheTab = 'bgg'"
+        >
+          BoardGameGeek
+        </button>
+        <button
+          class="px-4 py-2 text-sm font-medium transition-colors -mb-px"
+          :class="activeCacheTab === 'mtg'
+            ? 'text-primary-600 border-b-2 border-primary-500'
+            : 'text-gray-500 hover:text-gray-700'"
+          @click="activeCacheTab = 'mtg'"
+        >
+          Magic: The Gathering
+        </button>
+      </div>
+
+      <!-- BGG Cache Sub-tab -->
+      <div v-if="activeCacheTab === 'bgg'">
+        <div class="card p-6 mb-6">
+          <h2 class="text-lg font-semibold mb-4">BoardGameGeek Cache</h2>
         <p class="text-gray-600 mb-6">
           The BGG cache stores board game data locally for fast searching. Games are fetched from BoardGameGeek and cached to avoid rate limits and slow API responses.
         </p>
@@ -4439,10 +4513,12 @@ function getLocationTypeLabel(location: EventLocation): string {
           </div>
         </div>
       </div>
+      </div>
 
-      <!-- MTG/Scryfall Cache -->
-      <div class="card p-6 mt-6">
-        <h2 class="text-lg font-semibold mb-4">Magic: The Gathering Cache</h2>
+      <!-- MTG/Scryfall Cache Sub-tab -->
+      <div v-if="activeCacheTab === 'mtg'">
+        <div class="card p-6">
+          <h2 class="text-lg font-semibold mb-4">Magic: The Gathering Cache</h2>
         <p class="text-gray-600 mb-6">
           The Scryfall cache stores MTG card data locally for fast searching. Cards are fetched from Scryfall API and cached to avoid rate limits.
         </p>
@@ -4529,6 +4605,7 @@ function getLocationTypeLabel(location: EventLocation): string {
               Refresh Stale
             </button>
           </div>
+        </div>
         </div>
       </div>
     </div>
@@ -4998,8 +5075,8 @@ function getLocationTypeLabel(location: EventLocation): string {
             <label class="label">Tier</label>
             <select v-model="tierForm.tier" class="input">
               <option value="free">Free (remove override)</option>
-              <option value="basic">Basic ($7.99 value)</option>
-              <option value="pro">Pro ($14.99 value)</option>
+              <option value="basic">Basic ($4.99 value)</option>
+              <option value="pro">Pro ($7.99 value)</option>
               <option value="premium">Premium (all features)</option>
             </select>
             <p class="text-sm text-gray-500 mt-1">
@@ -5238,8 +5315,8 @@ function getLocationTypeLabel(location: EventLocation): string {
                 <label class="label">Tier (free from payment)</label>
                 <select v-model="userEditForm.tier" class="input">
                   <option value="free">Free</option>
-                  <option value="basic">Basic ($7.99 value)</option>
-                  <option value="pro">Pro ($14.99 value)</option>
+                  <option value="basic">Basic ($4.99 value)</option>
+                  <option value="pro">Pro ($7.99 value)</option>
                   <option value="premium">Premium (all features)</option>
                 </select>
                 <p class="text-xs text-gray-500 mt-1">

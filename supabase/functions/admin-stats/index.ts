@@ -80,8 +80,8 @@ async function getStats(supabase: ReturnType<typeof createClient>): Promise<Admi
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
 
   // Pricing constants
-  const BASIC_PRICE = 7.99
-  const PRO_PRICE = 14.99
+  const BASIC_PRICE = 4.99
+  const PRO_PRICE = 7.99
 
   try {
     // Run all queries in parallel for performance
