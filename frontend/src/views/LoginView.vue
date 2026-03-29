@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
 
@@ -15,6 +15,22 @@ const form = reactive({
 const showPassword = ref(false)
 const loading = ref(false)
 const errorMessage = ref('')
+
+// Watch for auth store errors (e.g., from redirect login failures)
+watch(() => auth.error.value, (newError) => {
+  if (newError) {
+    errorMessage.value = newError
+  }
+}, { immediate: true })
+
+// If user is already authenticated (e.g., successful redirect), redirect to dashboard
+onMounted(() => {
+  if (auth.isAuthenticated.value) {
+    const redirect = route.query.redirect as string
+    const defaultRoute = auth.user.value?.isAdmin ? '/admin' : '/dashboard'
+    router.push(redirect || defaultRoute)
+  }
+})
 
 async function handleEmailLogin() {
   if (!form.email || !form.password) {

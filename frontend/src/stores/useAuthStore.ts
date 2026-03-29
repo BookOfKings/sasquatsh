@@ -25,6 +25,7 @@ const user = ref<User | null>(null)
 const isLoading = ref(true)
 const error = ref<string | null>(null)
 const isInitialized = ref(false)
+const redirectHandled = ref(false) // Track if we've already handled redirect result
 
 // Detect if user is on a mobile device
 function isMobileDevice(): boolean {
@@ -37,14 +38,15 @@ async function initializeAuth(): Promise<void> {
     return
   }
 
-  // Check if we're returning from a Google redirect (fallback for blocked popups)
-  const pendingRedirect = sessionStorage.getItem('pendingGoogleRedirect')
-  if (pendingRedirect) {
-    sessionStorage.removeItem('pendingGoogleRedirect')
+  // Always check for redirect result on mobile (sessionStorage can be unreliable)
+  // This handles the case where user returns from Google OAuth redirect
+  if (isMobileDevice()) {
     try {
       const result = await getRedirectResult(auth)
       if (result?.user) {
         console.log('Google redirect successful, syncing user...')
+        sessionStorage.removeItem('pendingGoogleRedirect')
+        redirectHandled.value = true
         try {
           const idToken = await result.user.getIdToken()
           user.value = await getCurrentUser(idToken)
@@ -60,8 +62,39 @@ async function initializeAuth(): Promise<void> {
       }
     } catch (err: any) {
       console.error('Google redirect error:', err.code, err.message)
+      sessionStorage.removeItem('pendingGoogleRedirect')
       if (err.code) {
         error.value = getAuthErrorMessage(err.code)
+      }
+    }
+  } else {
+    // Desktop: only check if we have the pending flag (for popup fallback)
+    const pendingRedirect = sessionStorage.getItem('pendingGoogleRedirect')
+    if (pendingRedirect) {
+      sessionStorage.removeItem('pendingGoogleRedirect')
+      try {
+        const result = await getRedirectResult(auth)
+        if (result?.user) {
+          console.log('Google redirect successful, syncing user...')
+          redirectHandled.value = true
+          try {
+            const idToken = await result.user.getIdToken()
+            user.value = await getCurrentUser(idToken)
+            firebaseUser.value = result.user
+            isLoading.value = false
+            isInitialized.value = true
+            return // User is synced, we're done
+          } catch (syncErr: any) {
+            console.error('Failed to sync Google user with backend:', syncErr)
+            await signOut(auth)
+            error.value = syncErr?.message || 'Failed to create account. Please try again.'
+          }
+        }
+      } catch (err: any) {
+        console.error('Google redirect error:', err.code, err.message)
+        if (err.code) {
+          error.value = getAuthErrorMessage(err.code)
+        }
       }
     }
   }
@@ -72,12 +105,24 @@ async function initializeAuth(): Promise<void> {
       firebaseUser.value = fbUser
 
       if (fbUser) {
+        // Skip if we already synced this user (from redirect handling above)
+        if (redirectHandled.value && user.value) {
+          isLoading.value = false
+          isInitialized.value = true
+          resolve()
+          return
+        }
+
         try {
           const idToken = await fbUser.getIdToken()
           user.value = await getCurrentUser(idToken)
-        } catch (err) {
+        } catch (err: any) {
           console.error('Failed to sync user with backend:', err)
+          // Show error to user instead of silently failing
+          error.value = err?.message || 'Failed to sync account. Please try again.'
           user.value = null
+          // Sign out to prevent stuck state
+          await signOut(auth).catch(() => {})
         }
       } else {
         user.value = null
@@ -170,16 +215,24 @@ async function loginWithGoogle(): Promise<{ ok: boolean; message: string }> {
   try {
     const provider = new GoogleAuthProvider()
 
-    // Try popup first (works on most modern mobile browsers now)
-    // Fall back to redirect only if popup is blocked
+    // On mobile, always use redirect (popups are unreliable on mobile browsers)
+    // On desktop, use popup for better UX
+    if (isMobileDevice()) {
+      console.log('Mobile detected, using redirect for Google sign-in')
+      sessionStorage.setItem('pendingGoogleRedirect', 'true')
+      await signInWithRedirect(auth, provider)
+      // Page will redirect, so this return is just for TypeScript
+      return { ok: true, message: 'Redirecting to Google...' }
+    }
+
+    // Desktop: use popup
     let result
     try {
       result = await signInWithPopup(auth, provider)
     } catch (popupErr: any) {
-      // If popup was blocked or closed, try redirect on mobile
-      if (isMobileDevice() && (popupErr.code === 'auth/popup-blocked' || popupErr.code === 'auth/popup-closed-by-user')) {
-        console.log('Popup blocked/closed on mobile, falling back to redirect')
-        // Store a flag so we know to check for redirect result
+      // If popup was blocked or closed on desktop, fall back to redirect
+      if (popupErr.code === 'auth/popup-blocked' || popupErr.code === 'auth/popup-closed-by-user') {
+        console.log('Popup blocked/closed, falling back to redirect')
         sessionStorage.setItem('pendingGoogleRedirect', 'true')
         await signInWithRedirect(auth, provider)
         return { ok: true, message: 'Redirecting to Google...' }
