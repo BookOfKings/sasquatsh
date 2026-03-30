@@ -25,17 +25,6 @@ const selectedFormat = computed(() =>
 
 const isCustomFormat = computed(() => props.modelValue === 'casual')
 
-// Format descriptions
-const formatDescriptions: Record<string, string> = {
-  'standard': 'The main competitive format using the most recent sets. Rotates yearly when new sets release.',
-  'expanded': 'A larger card pool including Black & White era onwards. More deck options but also more powerful combos.',
-  'unlimited': 'All cards ever printed are legal. Expect powerful vintage decks and classic strategies.',
-  'theme': 'Pre-constructed theme decks only. Perfect for beginners or a level playing field.',
-  'gym_leader_challenge': 'Single-type singleton format created by the community. Build around one Pokemon type!',
-  'retro': 'Classic format using older card pools. Relive the early days of Pokemon TCG.',
-  'casual': 'Kitchen table play with house rules. Anything goes!',
-}
-
 // Format categories for grouping
 const formatCategories = {
   'Competitive': ['standard', 'expanded'],
@@ -65,11 +54,6 @@ const groupedFormats = computed(() => {
   }
 
   return groups
-})
-
-const formatDescription = computed(() => {
-  if (!props.modelValue) return null
-  return formatDescriptions[props.modelValue] || selectedFormat.value?.description || null
 })
 
 function selectFormat(formatId: string) {

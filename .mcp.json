@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "project-oracle": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["C:/Code/ProjectOracle/mcp/server.py"],
+      "env": {
+        "PROJECT_ORACLE_URL": "https://project-oracle.local:8085",
+        "PROJECT_ORACLE_API_KEY": "po_6642f8616eacea8eeefcb842c63150a8c1118a472dce7378"
+      }
+    },
+    "devtools": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "chrome-devtools-mcp@latest"]
+    }
+  }
+}
