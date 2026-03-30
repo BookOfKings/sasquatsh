@@ -1,24 +1,28 @@
 <script setup lang="ts">
-import { reactive, ref, computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { reactive, ref, computed, watch, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
-import { createPokemonEvent } from '@/services/pokemonEventApi'
+import { getYugiohEvent, updateYugiohEvent } from '@/services/yugiohEventApi'
 import EventDateTimeSection from '@/components/events/shared/EventDateTimeSection.vue'
 import EventLocationSection from '@/components/events/shared/EventLocationSection.vue'
 import EventPlayerSettingsSection from '@/components/events/shared/EventPlayerSettingsSection.vue'
-import PokemonFormatSelector from '@/components/pokemon/PokemonFormatSelector.vue'
-import PokemonEventStructureSection from '@/components/pokemon/PokemonEventStructureSection.vue'
-import PokemonDeckRulesSection from '@/components/pokemon/PokemonDeckRulesSection.vue'
-import PokemonPrizesSection from '@/components/pokemon/PokemonPrizesSection.vue'
-import PokemonMaterialsSection from '@/components/pokemon/PokemonMaterialsSection.vue'
-import type { CreatePokemonEventInput, PokemonEventType, PokemonTournamentStyle, PokemonFormat } from '@/types/pokemon'
-import { POKEMON_FORMATS, LIMITED_EVENT_TYPES, DEFAULT_MAX_PLAYERS } from '@/types/pokemon'
+import YugiohFormatSelector from '@/components/yugioh/YugiohFormatSelector.vue'
+import YugiohEventStructureSection from '@/components/yugioh/YugiohEventStructureSection.vue'
+import YugiohDeckRulesSection from '@/components/yugioh/YugiohDeckRulesSection.vue'
+import YugiohWhatToBring from '@/components/yugioh/YugiohWhatToBring.vue'
+import YugiohPrizesSection from '@/components/yugioh/YugiohPrizesSection.vue'
+import type { CreateYugiohEventInput, YugiohEventType, YugiohTournamentStyle, YugiohFormat } from '@/types/yugioh'
+import { YUGIOH_FORMATS, DEFAULT_MAX_PLAYERS, OFFICIAL_EVENT_TYPES } from '@/types/yugioh'
 import type { EventLocation } from '@/types/social'
 import { getEffectiveTier } from '@/types/user'
 import type { SubscriptionTier } from '@/config/subscriptionLimits'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
+
+// Get event ID from route
+const eventId = computed(() => route.params.id as string)
 
 // Get user tier for location features
 const currentTier = computed((): SubscriptionTier => {
@@ -27,13 +31,14 @@ const currentTier = computed((): SubscriptionTier => {
 })
 
 const loading = ref(false)
+const loadingEvent = ref(true)
 const errorMessage = ref('')
 
 // Selected format object (for passing to components)
-const selectedFormat = ref<PokemonFormat | null>(null)
+const selectedFormat = ref<YugiohFormat | null>(null)
 
 // Form state
-const form = reactive<CreatePokemonEventInput>({
+const form = reactive<CreateYugiohEventInput>({
   title: '',
   description: '',
   eventDate: '',
@@ -56,42 +61,106 @@ const form = reactive<CreatePokemonEventInput>({
   venueHall: undefined,
   venueRoom: undefined,
   venueTable: undefined,
-  // Pokemon config
-  pokemonConfig: {
-    formatId: null,
+  // Yu-Gi-Oh! config
+  yugiohConfig: {
+    formatId: 'advanced',
     customFormatName: null,
-    eventType: 'casual',
+    eventType: null as unknown as YugiohEventType,
     tournamentStyle: null,
     roundsCount: null,
-    roundTimeMinutes: 50,
+    roundTimeMinutes: 40,
     bestOf: 3,
     topCut: null,
     allowProxies: false,
     proxyLimit: null,
     requireDeckRegistration: false,
     deckSubmissionDeadline: null,
-    allowDeckChanges: true,
+    allowSideDeck: true,
     enforceFormatLegality: true,
     houseRulesNotes: null,
     hasPrizes: false,
     prizeStructure: null,
     entryFee: null,
     entryFeeCurrency: 'USD',
-    usePlayPoints: false,
-    organizerConfirmedOfficialLocation: false,
-    providesBasicEnergy: false,
-    providesDamageCounters: false,
-    sleevesRecommended: true,
-    providesBuildBattleKits: false,
-    hasJuniorDivision: false,
-    hasSeniorDivision: false,
-    hasMastersDivision: true,
+    isOfficialEvent: false,
+    awardsOtsPoints: false,
     allowSpectators: true,
   },
 })
 
 // Track if form has been submitted (for showing validation errors)
 const hasAttemptedSubmit = ref(false)
+
+// Load existing event data
+onMounted(async () => {
+  try {
+    const token = await authStore.getIdToken()
+    if (!token) {
+      errorMessage.value = 'Not authenticated'
+      return
+    }
+
+    const event = await getYugiohEvent(token, eventId.value)
+
+    // Populate form with existing data
+    form.title = event.title
+    form.description = event.description || ''
+    form.eventDate = event.eventDate
+    form.startTime = event.startTime || '14:00'
+    form.timezone = event.timezone || 'America/Phoenix'
+    form.durationMinutes = event.durationMinutes || 240
+    form.setupMinutes = event.setupMinutes || 15
+    form.maxPlayers = event.maxPlayers || 16
+    form.hostIsPlaying = event.hostIsPlaying || false
+    form.isPublic = event.isPublic
+    form.isCharityEvent = event.isCharityEvent || false
+    form.groupId = event.groupId || undefined
+
+    // Location
+    form.eventLocationId = event.eventLocationId || undefined
+    form.addressLine1 = event.addressLine1 || ''
+    form.city = event.city || ''
+    form.state = event.state || ''
+    form.postalCode = event.postalCode || ''
+    form.locationDetails = event.locationDetails || ''
+    form.venueHall = event.venueHall || undefined
+    form.venueRoom = event.venueRoom || undefined
+    form.venueTable = event.venueTable || undefined
+
+    // Yu-Gi-Oh! config
+    if (event.yugiohConfig) {
+      form.yugiohConfig.formatId = event.yugiohConfig.formatId || 'advanced'
+      form.yugiohConfig.customFormatName = event.yugiohConfig.customFormatName || null
+      form.yugiohConfig.eventType = event.yugiohConfig.eventType || null
+      form.yugiohConfig.tournamentStyle = event.yugiohConfig.tournamentStyle || null
+      form.yugiohConfig.roundsCount = event.yugiohConfig.roundsCount || null
+      form.yugiohConfig.roundTimeMinutes = event.yugiohConfig.roundTimeMinutes || 40
+      form.yugiohConfig.bestOf = event.yugiohConfig.bestOf || 3
+      form.yugiohConfig.topCut = event.yugiohConfig.topCut || null
+      form.yugiohConfig.allowProxies = event.yugiohConfig.allowProxies || false
+      form.yugiohConfig.proxyLimit = event.yugiohConfig.proxyLimit || null
+      form.yugiohConfig.requireDeckRegistration = event.yugiohConfig.requireDeckRegistration || false
+      form.yugiohConfig.deckSubmissionDeadline = event.yugiohConfig.deckSubmissionDeadline || null
+      form.yugiohConfig.allowSideDeck = event.yugiohConfig.allowSideDeck ?? true
+      form.yugiohConfig.enforceFormatLegality = event.yugiohConfig.enforceFormatLegality ?? true
+      form.yugiohConfig.houseRulesNotes = event.yugiohConfig.houseRulesNotes || null
+      form.yugiohConfig.hasPrizes = event.yugiohConfig.hasPrizes || false
+      form.yugiohConfig.prizeStructure = event.yugiohConfig.prizeStructure || null
+      form.yugiohConfig.entryFee = event.yugiohConfig.entryFee || null
+      form.yugiohConfig.entryFeeCurrency = event.yugiohConfig.entryFeeCurrency || 'USD'
+      form.yugiohConfig.isOfficialEvent = event.yugiohConfig.isOfficialEvent || false
+      form.yugiohConfig.awardsOtsPoints = event.yugiohConfig.awardsOtsPoints || false
+      form.yugiohConfig.allowSpectators = event.yugiohConfig.allowSpectators ?? true
+
+      // Update selected format
+      selectedFormat.value = YUGIOH_FORMATS.find(f => f.id === form.yugiohConfig.formatId) || null
+    }
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to load event'
+  } finally {
+    loadingEvent.value = false
+  }
+})
 
 // Location validation helper
 const hasValidLocation = computed(() => {
@@ -105,52 +174,47 @@ const validationErrors = computed(() => {
   if (!form.title.trim()) errors.push('Event title is required')
   if (!form.eventDate) errors.push('Event date is required')
   if (!hasValidLocation.value) errors.push('Location is required (select a venue or enter city/state)')
-  if (!form.pokemonConfig.formatId && !LIMITED_EVENT_TYPES.includes(form.pokemonConfig.eventType)) {
-    errors.push('Format selection is required')
-  }
-  if (!form.pokemonConfig.eventType) errors.push('Event type is required')
+  if (!form.yugiohConfig.formatId) errors.push('Format selection is required')
+  if (!form.yugiohConfig.eventType) errors.push('Event type is required')
   return errors
 })
 
 const isValid = computed(() => validationErrors.value.length === 0)
 
-// Section-level error tracking for visual highlighting
+// Section-specific error tracking for visual highlighting
 const sectionErrors = computed(() => ({
   title: hasAttemptedSubmit.value && !form.title.trim(),
   date: hasAttemptedSubmit.value && !form.eventDate,
   location: hasAttemptedSubmit.value && !hasValidLocation.value,
-  format: hasAttemptedSubmit.value && !form.pokemonConfig.formatId && !LIMITED_EVENT_TYPES.includes(form.pokemonConfig.eventType),
-  eventType: hasAttemptedSubmit.value && !form.pokemonConfig.eventType,
+  format: hasAttemptedSubmit.value && !form.yugiohConfig.formatId,
+  eventType: hasAttemptedSubmit.value && !form.yugiohConfig.eventType,
 }))
 
 // Max player guidance based on event type
 const maxPlayerGuidance = computed(() => {
-  const type = form.pokemonConfig.eventType
+  const type = form.yugiohConfig.eventType
   switch (type) {
-    case 'draft':
-      return 'Recommended: 8 players (standard draft pod)'
-    case 'prerelease':
-      return 'Recommended: 24-32 players'
     case 'casual':
       return 'Recommended: 4-8 players'
-    case 'league':
-      return 'Recommended: 8-16 players'
-    case 'league_challenge':
-    case 'league_cup':
-      return 'Recommended: 16-32 players'
+    case 'locals':
+    case 'ots':
+      return 'Recommended: 8-32 players'
     case 'regional':
-    case 'international':
+      return 'Large event - typically 256+ players'
+    case 'ycs':
+      return 'Premier event - typically 1000+ players'
+    case 'nationals':
     case 'worlds':
-      return 'Large event - no typical limit'
+      return 'Major event - no typical limit'
     default:
-      return null
+      return 'Recommended: 8-32 players'
   }
 })
 
 // Scroll to first invalid field
 function scrollToFirstError() {
   const selectors = [
-    { error: 'Event title is required', selector: 'input[placeholder*="Saturday Pokemon League"]' },
+    { error: 'Event title is required', selector: 'input[placeholder*="Saturday Yu-Gi-Oh! Locals"]' },
     { error: 'Event date is required', selector: 'input[type="date"]' },
     { error: 'Location is required', selector: '#location-section' },
     { error: 'Format selection is required', selector: '#format-section' },
@@ -170,69 +234,61 @@ function scrollToFirstError() {
 }
 
 // Watch format changes to update selectedFormat object
-watch(() => form.pokemonConfig.formatId, (newFormatId) => {
+watch(() => form.yugiohConfig.formatId, (newFormatId) => {
   selectedFormat.value = newFormatId
-    ? POKEMON_FORMATS.find(f => f.id === newFormatId) || null
+    ? YUGIOH_FORMATS.find(f => f.id === newFormatId) || null
     : null
 })
 
 // Handle format selection
 function handleFormatChange(formatId: string | null) {
-  form.pokemonConfig.formatId = formatId
+  form.yugiohConfig.formatId = formatId
 
   // Format-driven defaults
-  if (formatId === 'standard' || formatId === 'expanded') {
-    // Competitive formats: default to League Challenge, Swiss, Bo3
-    if (form.pokemonConfig.eventType === 'casual' || form.pokemonConfig.eventType === 'league') {
-      form.pokemonConfig.eventType = 'league_challenge'
-      form.pokemonConfig.tournamentStyle = 'swiss'
-      form.pokemonConfig.bestOf = 3
-      form.pokemonConfig.roundTimeMinutes = 50
-      form.maxPlayers = DEFAULT_MAX_PLAYERS['league_challenge']
-    }
-    form.pokemonConfig.enforceFormatLegality = true
-  } else if (formatId === 'theme' || formatId === 'casual') {
-    // Casual formats: default to casual play
-    form.pokemonConfig.eventType = 'casual'
-    form.pokemonConfig.tournamentStyle = null
-    form.pokemonConfig.enforceFormatLegality = formatId === 'theme'
+  if (formatId === 'advanced' || formatId === 'traditional') {
+    form.yugiohConfig.enforceFormatLegality = true
+  } else if (formatId === 'speed_duel') {
+    form.yugiohConfig.enforceFormatLegality = true
+  } else if (formatId === 'casual' || formatId === 'time_wizard') {
+    form.yugiohConfig.enforceFormatLegality = false
   }
 }
 
 // Handle event type changes with format-aware defaults
-function handleEventTypeChange(eventType: PokemonEventType) {
-  form.pokemonConfig.eventType = eventType
-
-  // Update max players default
+function handleEventTypeChange(eventType: YugiohEventType) {
+  form.yugiohConfig.eventType = eventType
   form.maxPlayers = DEFAULT_MAX_PLAYERS[eventType] || 16
 
-  // Set material defaults based on event type
-  if (eventType === 'prerelease') {
-    form.pokemonConfig.providesBasicEnergy = true
-    form.pokemonConfig.providesBuildBattleKits = true
-  } else if (eventType === 'draft') {
-    form.pokemonConfig.providesBasicEnergy = true
+  // Set official event defaults
+  if (OFFICIAL_EVENT_TYPES.includes(eventType)) {
+    form.yugiohConfig.isOfficialEvent = true
+    form.yugiohConfig.requireDeckRegistration = true
+    form.yugiohConfig.enforceFormatLegality = true
+    form.yugiohConfig.allowProxies = false
+  } else {
+    form.yugiohConfig.isOfficialEvent = false
+    form.yugiohConfig.awardsOtsPoints = false
   }
 }
 
-function handleTournamentStyleChange(style: PokemonTournamentStyle | null) {
-  form.pokemonConfig.tournamentStyle = style
+function handleTournamentStyleChange(style: YugiohTournamentStyle | null) {
+  form.yugiohConfig.tournamentStyle = style
 }
 
 function handleRoundsChange(rounds: number | null) {
-  form.pokemonConfig.roundsCount = rounds
+  form.yugiohConfig.roundsCount = rounds
 }
 
 function handleRoundTimeChange(minutes: number) {
-  form.pokemonConfig.roundTimeMinutes = minutes
+  form.yugiohConfig.roundTimeMinutes = minutes
 }
 
 function handleBestOfChange(bestOf: 1 | 3) {
-  form.pokemonConfig.bestOf = bestOf
+  form.yugiohConfig.bestOf = bestOf
 }
 
 function handleTopCutChange(topCut: number | null) {
-  form.pokemonConfig.topCut = topCut
+  form.yugiohConfig.topCut = topCut
 }
 
 function handleMaxPlayersChange(maxPlayers: number) {
@@ -241,73 +297,56 @@ function handleMaxPlayersChange(maxPlayers: number) {
 
 // Handle deck rules changes
 function handleProxiesChange(allow: boolean) {
-  form.pokemonConfig.allowProxies = allow
+  form.yugiohConfig.allowProxies = allow
 }
 
 function handleProxyLimitChange(limit: number | null) {
-  form.pokemonConfig.proxyLimit = limit
+  form.yugiohConfig.proxyLimit = limit
 }
 
 function handleDeckRegistrationChange(required: boolean) {
-  form.pokemonConfig.requireDeckRegistration = required
+  form.yugiohConfig.requireDeckRegistration = required
 }
 
 function handleDeckDeadlineChange(deadline: string | null) {
-  form.pokemonConfig.deckSubmissionDeadline = deadline
+  form.yugiohConfig.deckSubmissionDeadline = deadline
 }
 
-function handleDeckChangesChange(allow: boolean) {
-  form.pokemonConfig.allowDeckChanges = allow
+function handleAllowSideDeckChange(allow: boolean) {
+  form.yugiohConfig.allowSideDeck = allow
 }
 
 function handleEnforceLegalityChange(enforce: boolean) {
-  form.pokemonConfig.enforceFormatLegality = enforce
+  form.yugiohConfig.enforceFormatLegality = enforce
 }
 
 function handleHouseRulesChange(notes: string | null) {
-  form.pokemonConfig.houseRulesNotes = notes
+  form.yugiohConfig.houseRulesNotes = notes
 }
 
 // Handle prizes changes
 function handleEntryFeeChange(fee: number | null) {
-  form.pokemonConfig.entryFee = fee
+  form.yugiohConfig.entryFee = fee
 }
 
 function handleCurrencyChange(currency: string) {
-  form.pokemonConfig.entryFeeCurrency = currency
+  form.yugiohConfig.entryFeeCurrency = currency
 }
 
-function handlePlayPointsChange(use: boolean) {
-  form.pokemonConfig.usePlayPoints = use
+function handleOfficialEventChange(isOfficial: boolean) {
+  form.yugiohConfig.isOfficialEvent = isOfficial
 }
 
-function handleOfficialLocationConfirmChange(confirmed: boolean) {
-  form.pokemonConfig.organizerConfirmedOfficialLocation = confirmed
+function handleOtsPointsChange(awards: boolean) {
+  form.yugiohConfig.awardsOtsPoints = awards
 }
 
 function handleHasPrizesChange(has: boolean) {
-  form.pokemonConfig.hasPrizes = has
+  form.yugiohConfig.hasPrizes = has
 }
 
 function handlePrizeStructureChange(structure: string | null) {
-  form.pokemonConfig.prizeStructure = structure
-}
-
-// Handle materials changes
-function handleProvidesEnergyChange(provides: boolean) {
-  form.pokemonConfig.providesBasicEnergy = provides
-}
-
-function handleProvidesCountersChange(provides: boolean) {
-  form.pokemonConfig.providesDamageCounters = provides
-}
-
-function handleSleevesRecommendedChange(recommended: boolean) {
-  form.pokemonConfig.sleevesRecommended = recommended
-}
-
-function handleProvidesBuildBattleChange(provides: boolean) {
-  form.pokemonConfig.providesBuildBattleKits = provides
+  form.yugiohConfig.prizeStructure = structure
 }
 
 // Handle location selection
@@ -341,10 +380,10 @@ async function handleSubmit() {
       throw new Error('Not authenticated')
     }
 
-    const event = await createPokemonEvent(token, form)
-    router.push(`/games/${event.id}`)
+    await updateYugiohEvent(token, eventId.value, form)
+    router.push(`/games/${eventId.value}`)
   } catch (err) {
-    errorMessage.value = err instanceof Error ? err.message : 'Failed to create event'
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to update event'
   } finally {
     loading.value = false
   }
@@ -356,26 +395,32 @@ async function handleSubmit() {
     <div class="max-w-3xl mx-auto px-4">
       <!-- Back link -->
       <button
-        @click="router.push('/games')"
+        @click="router.push(`/games/${eventId}`)"
         class="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
       >
         <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
           <path d="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z"/>
         </svg>
-        Back to Games
+        Back to Event
       </button>
 
+      <!-- Loading state -->
+      <div v-if="loadingEvent" class="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <p class="text-gray-500">Loading event...</p>
+      </div>
+
       <!-- Form card -->
-      <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+      <div v-else class="bg-white rounded-xl shadow-sm border border-gray-200">
         <!-- Header -->
         <div class="p-6 border-b border-gray-100">
-          <h1 class="text-xl font-bold flex items-center gap-2 text-yellow-700">
+          <h1 class="text-xl font-bold flex items-center gap-2 text-blue-700">
             <svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6M12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8Z"/>
+              <path d="M19,3H5A2,2 0 0,0 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5A2,2 0 0,0 19,3M19,19H5V5H19V19M12,6L8,18H10L10.75,16H13.25L14,18H16L12,6M10.83,14L12,10.5L13.17,14H10.83Z"/>
             </svg>
-            Host Pokemon TCG Event
+            Edit Yu-Gi-Oh! TCG Event
           </h1>
-          <p class="text-gray-500 text-sm mt-1">Create a Pokemon Trading Card Game event with format-specific settings</p>
+          <p class="text-gray-500 text-sm mt-1">Update your Yu-Gi-Oh! Trading Card Game event settings</p>
         </div>
 
         <form @submit.prevent="handleSubmit" class="p-6 space-y-8">
@@ -395,8 +440,8 @@ async function handleSubmit() {
                 <input
                   v-model="form.title"
                   type="text"
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
-                  placeholder="e.g., Saturday Pokemon League"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="e.g., Saturday Yu-Gi-Oh! Locals"
                 />
               </div>
               <div>
@@ -404,7 +449,7 @@ async function handleSubmit() {
                 <textarea
                   v-model="form.description"
                   rows="3"
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Tell people about your event..."
                 />
               </div>
@@ -447,12 +492,12 @@ async function handleSubmit() {
             class="rounded-lg transition-all"
             :class="{ 'ring-2 ring-red-300 bg-red-50/50 p-4 -m-4 mb-8': sectionErrors.format }"
           >
-            <PokemonFormatSelector
-              :model-value="form.pokemonConfig.formatId"
-              :custom-format-name="form.pokemonConfig.customFormatName"
-              :has-error="hasAttemptedSubmit && !form.pokemonConfig.formatId && !LIMITED_EVENT_TYPES.includes(form.pokemonConfig.eventType)"
+            <YugiohFormatSelector
+              :model-value="form.yugiohConfig.formatId"
+              :custom-format-name="form.yugiohConfig.customFormatName"
+              :has-error="sectionErrors.format"
               @update:model-value="handleFormatChange"
-              @update:custom-format-name="(v) => form.pokemonConfig.customFormatName = v"
+              @update:custom-format-name="(v) => form.yugiohConfig.customFormatName = v"
             />
           </section>
 
@@ -462,71 +507,66 @@ async function handleSubmit() {
             class="rounded-lg transition-all"
             :class="{ 'ring-2 ring-red-300 bg-red-50/50 p-4 -m-4 mb-8': sectionErrors.eventType }"
           >
-            <PokemonEventStructureSection
-            :format-id="form.pokemonConfig.formatId"
-            :event-type="form.pokemonConfig.eventType"
-            :tournament-style="form.pokemonConfig.tournamentStyle"
-            :rounds-count="form.pokemonConfig.roundsCount"
-            :round-time-minutes="form.pokemonConfig.roundTimeMinutes"
-            :best-of="form.pokemonConfig.bestOf"
-            :top-cut="form.pokemonConfig.topCut"
-            @update:event-type="handleEventTypeChange"
-            @update:tournament-style="handleTournamentStyleChange"
-            @update:rounds-count="handleRoundsChange"
-            @update:round-time-minutes="handleRoundTimeChange"
-            @update:best-of="handleBestOfChange"
-            @update:top-cut="handleTopCutChange"
-            @update:max-players="handleMaxPlayersChange"
-          />
+            <YugiohEventStructureSection
+              :format-id="form.yugiohConfig.formatId"
+              :event-type="form.yugiohConfig.eventType"
+              :tournament-style="form.yugiohConfig.tournamentStyle"
+              :rounds-count="form.yugiohConfig.roundsCount"
+              :round-time-minutes="form.yugiohConfig.roundTimeMinutes"
+              :best-of="form.yugiohConfig.bestOf"
+              :top-cut="form.yugiohConfig.topCut"
+              :has-error="sectionErrors.eventType"
+              @update:event-type="handleEventTypeChange"
+              @update:tournament-style="handleTournamentStyleChange"
+              @update:rounds-count="handleRoundsChange"
+              @update:round-time-minutes="handleRoundTimeChange"
+              @update:best-of="handleBestOfChange"
+              @update:top-cut="handleTopCutChange"
+              @update:max-players="handleMaxPlayersChange"
+            />
           </section>
 
           <!-- Deck Rules -->
-          <PokemonDeckRulesSection
+          <YugiohDeckRulesSection
             :selected-format="selectedFormat"
-            :format-id="form.pokemonConfig.formatId"
-            :event-type="form.pokemonConfig.eventType"
-            :allow-proxies="form.pokemonConfig.allowProxies"
-            :proxy-limit="form.pokemonConfig.proxyLimit"
-            :require-deck-registration="form.pokemonConfig.requireDeckRegistration"
-            :deck-submission-deadline="form.pokemonConfig.deckSubmissionDeadline"
-            :allow-deck-changes="form.pokemonConfig.allowDeckChanges"
-            :enforce-format-legality="form.pokemonConfig.enforceFormatLegality"
-            :house-rules-notes="form.pokemonConfig.houseRulesNotes"
+            :format-id="form.yugiohConfig.formatId"
+            :event-type="form.yugiohConfig.eventType"
+            :allow-proxies="form.yugiohConfig.allowProxies"
+            :proxy-limit="form.yugiohConfig.proxyLimit"
+            :require-deck-registration="form.yugiohConfig.requireDeckRegistration"
+            :deck-submission-deadline="form.yugiohConfig.deckSubmissionDeadline"
+            :allow-side-deck="form.yugiohConfig.allowSideDeck"
+            :enforce-format-legality="form.yugiohConfig.enforceFormatLegality"
+            :house-rules-notes="form.yugiohConfig.houseRulesNotes"
             @update:allow-proxies="handleProxiesChange"
             @update:proxy-limit="handleProxyLimitChange"
             @update:require-deck-registration="handleDeckRegistrationChange"
             @update:deck-submission-deadline="handleDeckDeadlineChange"
-            @update:allow-deck-changes="handleDeckChangesChange"
+            @update:allow-side-deck="handleAllowSideDeckChange"
             @update:enforce-format-legality="handleEnforceLegalityChange"
             @update:house-rules-notes="handleHouseRulesChange"
           />
 
-          <!-- Event Materials -->
-          <PokemonMaterialsSection
-            :event-type="form.pokemonConfig.eventType"
-            :provides-basic-energy="form.pokemonConfig.providesBasicEnergy"
-            :provides-damage-counters="form.pokemonConfig.providesDamageCounters"
-            :sleeves-recommended="form.pokemonConfig.sleevesRecommended"
-            :provides-build-battle-kits="form.pokemonConfig.providesBuildBattleKits"
-            @update:provides-basic-energy="handleProvidesEnergyChange"
-            @update:provides-damage-counters="handleProvidesCountersChange"
-            @update:sleeves-recommended="handleSleevesRecommendedChange"
-            @update:provides-build-battle-kits="handleProvidesBuildBattleChange"
+          <!-- What to Bring -->
+          <YugiohWhatToBring
+            :selected-format="selectedFormat"
+            :event-type="form.yugiohConfig.eventType"
+            :allow-side-deck="form.yugiohConfig.allowSideDeck"
           />
 
           <!-- Entry & Prizes -->
-          <PokemonPrizesSection
-            :event-type="form.pokemonConfig.eventType"
-            :entry-fee="form.pokemonConfig.entryFee"
-            :entry-fee-currency="form.pokemonConfig.entryFeeCurrency"
-            :use-play-points="form.pokemonConfig.usePlayPoints"
-            :organizer-confirmed-official-location="form.pokemonConfig.organizerConfirmedOfficialLocation"
-            :has-prizes="form.pokemonConfig.hasPrizes"
-            :prize-structure="form.pokemonConfig.prizeStructure"
+          <YugiohPrizesSection
+            :event-type="form.yugiohConfig.eventType"
+            :entry-fee="form.yugiohConfig.entryFee"
+            :entry-fee-currency="form.yugiohConfig.entryFeeCurrency"
+            :is-official-event="form.yugiohConfig.isOfficialEvent"
+            :awards-ots-points="form.yugiohConfig.awardsOtsPoints"
+            :has-prizes="form.yugiohConfig.hasPrizes"
+            :prize-structure="form.yugiohConfig.prizeStructure"
             @update:entry-fee="handleEntryFeeChange"
             @update:entry-fee-currency="handleCurrencyChange"
-            @update:use-play-points="handlePlayPointsChange"
-            @update:organizer-confirmed-official-location="handleOfficialLocationConfirmChange"
+            @update:is-official-event="handleOfficialEventChange"
+            @update:awards-ots-points="handleOtsPointsChange"
             @update:has-prizes="handleHasPrizesChange"
             @update:prize-structure="handlePrizeStructureChange"
           />
@@ -542,9 +582,9 @@ async function handleSubmit() {
               <div class="flex items-center gap-2">
                 <input
                   id="allowSpectators"
-                  v-model="form.pokemonConfig.allowSpectators"
+                  v-model="form.yugiohConfig.allowSpectators"
                   type="checkbox"
-                  class="w-4 h-4 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
+                  class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                 />
                 <label for="allowSpectators" class="text-sm">
                   <span class="font-medium">Allow Spectators</span>
@@ -578,18 +618,18 @@ async function handleSubmit() {
           <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
             <button
               type="button"
-              @click="router.push('/games')"
+              @click="router.push(`/games/${eventId}`)"
               class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              :disabled="loading"
-              class="px-6 py-2 bg-yellow-500 text-white font-medium rounded-lg hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              :disabled="!isValid || loading"
+              class="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               :title="!isValid ? validationErrors.join(', ') : ''"
             >
-              {{ loading ? 'Creating...' : 'Create Pokemon Event' }}
+              {{ loading ? 'Saving...' : 'Save Changes' }}
             </button>
           </div>
         </form>

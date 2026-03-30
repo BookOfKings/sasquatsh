@@ -86,11 +86,18 @@ const form = reactive<CreateYugiohEventInput>({
 // Track if form has been submitted (for showing validation errors)
 const hasAttemptedSubmit = ref(false)
 
+// Location validation helper
+const hasValidLocation = computed(() => {
+  // Either a venue is selected OR manual address with city+state
+  return form.eventLocationId || (form.city?.trim() && form.state?.trim())
+})
+
 // Validation
 const validationErrors = computed(() => {
   const errors: string[] = []
   if (!form.title.trim()) errors.push('Event title is required')
   if (!form.eventDate) errors.push('Event date is required')
+  if (!hasValidLocation.value) errors.push('Location is required (select a venue or enter city/state)')
   if (!form.yugiohConfig.formatId) errors.push('Format selection is required')
   if (!form.yugiohConfig.eventType) errors.push('Event type is required')
   return errors
@@ -102,6 +109,7 @@ const isValid = computed(() => validationErrors.value.length === 0)
 const sectionErrors = computed(() => ({
   title: hasAttemptedSubmit.value && !form.title.trim(),
   date: hasAttemptedSubmit.value && !form.eventDate,
+  location: hasAttemptedSubmit.value && !hasValidLocation.value,
   format: hasAttemptedSubmit.value && !form.yugiohConfig.formatId,
   eventType: hasAttemptedSubmit.value && !form.yugiohConfig.eventType,
 }))
@@ -132,12 +140,13 @@ function scrollToFirstError() {
   const selectors = [
     { error: 'Event title is required', selector: 'input[placeholder*="Saturday Yu-Gi-Oh! Locals"]' },
     { error: 'Event date is required', selector: 'input[type="date"]' },
+    { error: 'Location is required', selector: '#location-section' },
     { error: 'Format selection is required', selector: '#format-section' },
     { error: 'Event type is required', selector: '#event-structure-section' },
   ]
 
   for (const { error, selector } of selectors) {
-    if (validationErrors.value.includes(error)) {
+    if (validationErrors.value.some(e => e.includes(error))) {
       const element = document.querySelector(selector) as HTMLElement
       if (element) {
         element.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -379,25 +388,31 @@ async function handleSubmit() {
           />
 
           <!-- Location -->
-          <EventLocationSection
-            v-model:event-location-id="form.eventLocationId"
-            v-model:address="form.addressLine1"
-            v-model:city="form.city"
-            v-model:state="form.state"
-            v-model:postal-code="form.postalCode"
-            v-model:location-details="form.locationDetails"
-            v-model:venue-hall="form.venueHall"
-            v-model:venue-room="form.venueRoom"
-            v-model:venue-table="form.venueTable"
-            :current-tier="currentTier"
-            @location-select="handleLocationSelect"
-          />
+          <section
+            id="location-section"
+            class="rounded-lg transition-all"
+            :class="{ 'ring-2 ring-red-300 bg-red-50/50 p-4 -m-4 mb-8': sectionErrors.location }"
+          >
+            <EventLocationSection
+              v-model:event-location-id="form.eventLocationId"
+              v-model:address-line1="form.addressLine1"
+              v-model:city="form.city"
+              v-model:state="form.state"
+              v-model:postal-code="form.postalCode"
+              v-model:location-details="form.locationDetails"
+              v-model:venue-hall="form.venueHall"
+              v-model:venue-room="form.venueRoom"
+              v-model:venue-table="form.venueTable"
+              :current-tier="currentTier"
+              @location-select="handleLocationSelect"
+            />
+          </section>
 
           <!-- Format Selection -->
           <section
             id="format-section"
             class="rounded-lg transition-all"
-            :class="{ 'ring-2 ring-red-300 bg-red-50/50 p-4 -m-4': sectionErrors.format }"
+            :class="{ 'ring-2 ring-red-300 bg-red-50/50 p-4 -m-4 mb-8': sectionErrors.format }"
           >
             <YugiohFormatSelector
               :model-value="form.yugiohConfig.formatId"
@@ -412,7 +427,7 @@ async function handleSubmit() {
           <section
             id="event-structure-section"
             class="rounded-lg transition-all"
-            :class="{ 'ring-2 ring-red-300 bg-red-50/50 p-4 -m-4': sectionErrors.eventType }"
+            :class="{ 'ring-2 ring-red-300 bg-red-50/50 p-4 -m-4 mb-8': sectionErrors.eventType }"
           >
             <YugiohEventStructureSection
               :format-id="form.yugiohConfig.formatId"
@@ -532,9 +547,8 @@ async function handleSubmit() {
             </button>
             <button
               type="submit"
-              :disabled="!isValid || loading"
+              :disabled="loading"
               class="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              :title="!isValid ? validationErrors.join(', ') : ''"
             >
               {{ loading ? 'Creating...' : 'Create Yu-Gi-Oh! Event' }}
             </button>

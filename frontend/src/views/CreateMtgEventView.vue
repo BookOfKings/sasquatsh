@@ -38,6 +38,7 @@ const showVenueModal = ref(false)
 const loading = ref(false)
 const errorMessage = ref('')
 const errors = reactive<Record<string, string>>({})
+const hasAttemptedSubmit = ref(false)
 
 // Format info
 const selectedFormat = ref<MtgFormat | null>(null)
@@ -65,6 +66,17 @@ const isAtLimit = computed(() => activeEventCount.value >= eventLimit.value)
 
 // Is limited format (draft/sealed)?
 const isLimitedFormat = computed(() => selectedFormat.value && !selectedFormat.value.isConstructed)
+
+// Location validation helper
+const hasValidLocation = computed(() => {
+  return !!form.eventLocationId || (form.city?.trim() && form.postalCode?.trim())
+})
+
+// Section error highlighting
+const sectionErrors = computed(() => ({
+  location: hasAttemptedSubmit.value && !hasValidLocation.value,
+  format: hasAttemptedSubmit.value && !form.mtgConfig.formatId,
+}))
 
 // Form state
 const form = reactive<CreateMtgEventInput>({
@@ -266,7 +278,18 @@ function validate(): boolean {
 }
 
 async function handleSubmit() {
-  if (!validate()) return
+  hasAttemptedSubmit.value = true
+
+  if (!validate()) {
+    // Scroll to first error
+    const firstErrorSection = document.querySelector('.ring-red-300') ||
+                              document.querySelector('.input-error') ||
+                              document.querySelector('.text-red-500')
+    if (firstErrorSection) {
+      firstErrorSection.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+    return
+  }
 
   loading.value = true
   errorMessage.value = ''
@@ -423,44 +446,55 @@ function handleVenueSubmitted(venue: EventLocation) {
           />
 
           <!-- Location Section -->
-          <EventLocationSection
-            :event-location-id="form.eventLocationId"
-            :venue-hall="form.venueHall"
-            :venue-room="form.venueRoom"
-            :venue-table="form.venueTable"
-            :address-line1="form.addressLine1"
-            :city="form.city"
-            :state="form.state"
-            :postal-code="form.postalCode"
-            :location-details="form.locationDetails"
-            :disabled="loading"
-            :current-tier="currentTier"
-            :errors="{ location: errors.location }"
-            @update:event-location-id="form.eventLocationId = $event"
-            @update:venue-hall="form.venueHall = $event"
-            @update:venue-room="form.venueRoom = $event"
-            @update:venue-table="form.venueTable = $event"
-            @update:address-line1="form.addressLine1 = $event"
-            @update:city="form.city = $event"
-            @update:state="form.state = $event"
-            @update:postal-code="form.postalCode = $event"
-            @update:location-details="form.locationDetails = $event"
-            @show-venue-modal="showVenueModal = true"
-            @venue-selected="handleVenueSelected"
-          />
+          <section
+            id="location-section"
+            class="rounded-lg transition-all"
+            :class="{ 'ring-2 ring-red-300 bg-red-50/50 p-4 -m-4 mb-8': sectionErrors.location }"
+          >
+            <EventLocationSection
+              :event-location-id="form.eventLocationId"
+              :venue-hall="form.venueHall"
+              :venue-room="form.venueRoom"
+              :venue-table="form.venueTable"
+              :address-line1="form.addressLine1"
+              :city="form.city"
+              :state="form.state"
+              :postal-code="form.postalCode"
+              :location-details="form.locationDetails"
+              :disabled="loading"
+              :current-tier="currentTier"
+              :errors="{ location: errors.location }"
+              @update:event-location-id="form.eventLocationId = $event"
+              @update:venue-hall="form.venueHall = $event"
+              @update:venue-room="form.venueRoom = $event"
+              @update:venue-table="form.venueTable = $event"
+              @update:address-line1="form.addressLine1 = $event"
+              @update:city="form.city = $event"
+              @update:state="form.state = $event"
+              @update:postal-code="form.postalCode = $event"
+              @update:location-details="form.locationDetails = $event"
+              @show-venue-modal="showVenueModal = true"
+              @venue-selected="handleVenueSelected"
+            />
+          </section>
 
           <!-- MTG Format Section -->
-          <div class="border-t border-gray-200 pt-6">
+          <section
+            id="format-section"
+            class="border-t border-gray-200 pt-6 rounded-lg transition-all"
+            :class="{ 'ring-2 ring-red-300 bg-red-50/50 p-4 -m-4 mb-8': sectionErrors.format }"
+          >
             <MtgFormatSelector
               :model-value="form.mtgConfig.formatId ?? null"
               :custom-format-name="form.mtgConfig.customFormatName ?? null"
               :disabled="loading"
+              :has-error="sectionErrors.format"
               @update:model-value="form.mtgConfig.formatId = $event"
               @update:custom-format-name="form.mtgConfig.customFormatName = $event"
               @format-selected="handleFormatSelected"
             />
             <p v-if="errors.format" class="text-sm text-red-500 mt-2">{{ errors.format }}</p>
-          </div>
+          </section>
 
           <!-- MTG Power Level Section (Commander/casual formats only) -->
           <div v-if="showPowerLevel" class="border-t border-gray-200 pt-6">

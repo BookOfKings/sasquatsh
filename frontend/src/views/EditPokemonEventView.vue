@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { reactive, ref, computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { reactive, ref, computed, watch, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
-import { createPokemonEvent } from '@/services/pokemonEventApi'
+import { getPokemonEvent, updatePokemonEvent } from '@/services/pokemonEventApi'
 import EventDateTimeSection from '@/components/events/shared/EventDateTimeSection.vue'
 import EventLocationSection from '@/components/events/shared/EventLocationSection.vue'
 import EventPlayerSettingsSection from '@/components/events/shared/EventPlayerSettingsSection.vue'
@@ -18,7 +18,11 @@ import { getEffectiveTier } from '@/types/user'
 import type { SubscriptionTier } from '@/config/subscriptionLimits'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
+
+// Get event ID from route
+const eventId = computed(() => route.params.id as string)
 
 // Get user tier for location features
 const currentTier = computed((): SubscriptionTier => {
@@ -27,6 +31,7 @@ const currentTier = computed((): SubscriptionTier => {
 })
 
 const loading = ref(false)
+const loadingEvent = ref(true)
 const errorMessage = ref('')
 
 // Selected format object (for passing to components)
@@ -93,9 +98,86 @@ const form = reactive<CreatePokemonEventInput>({
 // Track if form has been submitted (for showing validation errors)
 const hasAttemptedSubmit = ref(false)
 
+// Load existing event data
+onMounted(async () => {
+  try {
+    const token = await authStore.getIdToken()
+    if (!token) {
+      errorMessage.value = 'Not authenticated'
+      return
+    }
+
+    const event = await getPokemonEvent(token, eventId.value)
+
+    // Populate form with existing data
+    form.title = event.title
+    form.description = event.description || ''
+    form.eventDate = event.eventDate
+    form.startTime = event.startTime || '14:00'
+    form.timezone = event.timezone || 'America/Phoenix'
+    form.durationMinutes = event.durationMinutes || 240
+    form.setupMinutes = event.setupMinutes || 15
+    form.maxPlayers = event.maxPlayers || 16
+    form.hostIsPlaying = event.hostIsPlaying || false
+    form.isPublic = event.isPublic
+    form.isCharityEvent = event.isCharityEvent || false
+    form.groupId = event.groupId || undefined
+
+    // Location
+    form.eventLocationId = event.eventLocationId || undefined
+    form.addressLine1 = event.addressLine1 || ''
+    form.city = event.city || ''
+    form.state = event.state || ''
+    form.postalCode = event.postalCode || ''
+    form.locationDetails = event.locationDetails || ''
+    form.venueHall = event.venueHall || undefined
+    form.venueRoom = event.venueRoom || undefined
+    form.venueTable = event.venueTable || undefined
+
+    // Pokemon config
+    if (event.pokemonConfig) {
+      form.pokemonConfig.formatId = event.pokemonConfig.formatId || null
+      form.pokemonConfig.customFormatName = event.pokemonConfig.customFormatName || null
+      form.pokemonConfig.eventType = event.pokemonConfig.eventType || 'casual'
+      form.pokemonConfig.tournamentStyle = event.pokemonConfig.tournamentStyle || null
+      form.pokemonConfig.roundsCount = event.pokemonConfig.roundsCount || null
+      form.pokemonConfig.roundTimeMinutes = event.pokemonConfig.roundTimeMinutes || 50
+      form.pokemonConfig.bestOf = event.pokemonConfig.bestOf || 3
+      form.pokemonConfig.topCut = event.pokemonConfig.topCut || null
+      form.pokemonConfig.allowProxies = event.pokemonConfig.allowProxies || false
+      form.pokemonConfig.proxyLimit = event.pokemonConfig.proxyLimit || null
+      form.pokemonConfig.requireDeckRegistration = event.pokemonConfig.requireDeckRegistration || false
+      form.pokemonConfig.deckSubmissionDeadline = event.pokemonConfig.deckSubmissionDeadline || null
+      form.pokemonConfig.allowDeckChanges = event.pokemonConfig.allowDeckChanges ?? true
+      form.pokemonConfig.enforceFormatLegality = event.pokemonConfig.enforceFormatLegality ?? true
+      form.pokemonConfig.houseRulesNotes = event.pokemonConfig.houseRulesNotes || null
+      form.pokemonConfig.hasPrizes = event.pokemonConfig.hasPrizes || false
+      form.pokemonConfig.prizeStructure = event.pokemonConfig.prizeStructure || null
+      form.pokemonConfig.entryFee = event.pokemonConfig.entryFee || null
+      form.pokemonConfig.entryFeeCurrency = event.pokemonConfig.entryFeeCurrency || 'USD'
+      form.pokemonConfig.usePlayPoints = event.pokemonConfig.usePlayPoints || false
+      form.pokemonConfig.organizerConfirmedOfficialLocation = event.pokemonConfig.organizerConfirmedOfficialLocation || false
+      form.pokemonConfig.providesBasicEnergy = event.pokemonConfig.providesBasicEnergy || false
+      form.pokemonConfig.providesDamageCounters = event.pokemonConfig.providesDamageCounters || false
+      form.pokemonConfig.sleevesRecommended = event.pokemonConfig.sleevesRecommended ?? true
+      form.pokemonConfig.providesBuildBattleKits = event.pokemonConfig.providesBuildBattleKits || false
+      form.pokemonConfig.hasJuniorDivision = event.pokemonConfig.hasJuniorDivision || false
+      form.pokemonConfig.hasSeniorDivision = event.pokemonConfig.hasSeniorDivision || false
+      form.pokemonConfig.hasMastersDivision = event.pokemonConfig.hasMastersDivision ?? true
+      form.pokemonConfig.allowSpectators = event.pokemonConfig.allowSpectators ?? true
+
+      // Update selected format
+      selectedFormat.value = POKEMON_FORMATS.find(f => f.id === form.pokemonConfig.formatId) || null
+    }
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to load event'
+  } finally {
+    loadingEvent.value = false
+  }
+})
+
 // Location validation helper
 const hasValidLocation = computed(() => {
-  // Either a venue is selected OR manual address with city+state
   return form.eventLocationId || (form.city?.trim() && form.state?.trim())
 })
 
@@ -113,15 +195,6 @@ const validationErrors = computed(() => {
 })
 
 const isValid = computed(() => validationErrors.value.length === 0)
-
-// Section-level error tracking for visual highlighting
-const sectionErrors = computed(() => ({
-  title: hasAttemptedSubmit.value && !form.title.trim(),
-  date: hasAttemptedSubmit.value && !form.eventDate,
-  location: hasAttemptedSubmit.value && !hasValidLocation.value,
-  format: hasAttemptedSubmit.value && !form.pokemonConfig.formatId && !LIMITED_EVENT_TYPES.includes(form.pokemonConfig.eventType),
-  eventType: hasAttemptedSubmit.value && !form.pokemonConfig.eventType,
-}))
 
 // Max player guidance based on event type
 const maxPlayerGuidance = computed(() => {
@@ -179,40 +252,12 @@ watch(() => form.pokemonConfig.formatId, (newFormatId) => {
 // Handle format selection
 function handleFormatChange(formatId: string | null) {
   form.pokemonConfig.formatId = formatId
-
-  // Format-driven defaults
-  if (formatId === 'standard' || formatId === 'expanded') {
-    // Competitive formats: default to League Challenge, Swiss, Bo3
-    if (form.pokemonConfig.eventType === 'casual' || form.pokemonConfig.eventType === 'league') {
-      form.pokemonConfig.eventType = 'league_challenge'
-      form.pokemonConfig.tournamentStyle = 'swiss'
-      form.pokemonConfig.bestOf = 3
-      form.pokemonConfig.roundTimeMinutes = 50
-      form.maxPlayers = DEFAULT_MAX_PLAYERS['league_challenge']
-    }
-    form.pokemonConfig.enforceFormatLegality = true
-  } else if (formatId === 'theme' || formatId === 'casual') {
-    // Casual formats: default to casual play
-    form.pokemonConfig.eventType = 'casual'
-    form.pokemonConfig.tournamentStyle = null
-    form.pokemonConfig.enforceFormatLegality = formatId === 'theme'
-  }
 }
 
-// Handle event type changes with format-aware defaults
+// Handle event type changes
 function handleEventTypeChange(eventType: PokemonEventType) {
   form.pokemonConfig.eventType = eventType
-
-  // Update max players default
   form.maxPlayers = DEFAULT_MAX_PLAYERS[eventType] || 16
-
-  // Set material defaults based on event type
-  if (eventType === 'prerelease') {
-    form.pokemonConfig.providesBasicEnergy = true
-    form.pokemonConfig.providesBuildBattleKits = true
-  } else if (eventType === 'draft') {
-    form.pokemonConfig.providesBasicEnergy = true
-  }
 }
 
 function handleTournamentStyleChange(style: PokemonTournamentStyle | null) {
@@ -341,10 +386,10 @@ async function handleSubmit() {
       throw new Error('Not authenticated')
     }
 
-    const event = await createPokemonEvent(token, form)
-    router.push(`/games/${event.id}`)
+    await updatePokemonEvent(token, eventId.value, form)
+    router.push(`/games/${eventId.value}`)
   } catch (err) {
-    errorMessage.value = err instanceof Error ? err.message : 'Failed to create event'
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to update event'
   } finally {
     loading.value = false
   }
@@ -356,26 +401,32 @@ async function handleSubmit() {
     <div class="max-w-3xl mx-auto px-4">
       <!-- Back link -->
       <button
-        @click="router.push('/games')"
+        @click="router.push(`/games/${eventId}`)"
         class="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
       >
         <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
           <path d="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z"/>
         </svg>
-        Back to Games
+        Back to Event
       </button>
 
+      <!-- Loading state -->
+      <div v-if="loadingEvent" class="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-600 mx-auto mb-4"></div>
+        <p class="text-gray-500">Loading event...</p>
+      </div>
+
       <!-- Form card -->
-      <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+      <div v-else class="bg-white rounded-xl shadow-sm border border-gray-200">
         <!-- Header -->
         <div class="p-6 border-b border-gray-100">
           <h1 class="text-xl font-bold flex items-center gap-2 text-yellow-700">
             <svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
               <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6M12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8Z"/>
             </svg>
-            Host Pokemon TCG Event
+            Edit Pokemon TCG Event
           </h1>
-          <p class="text-gray-500 text-sm mt-1">Create a Pokemon Trading Card Game event with format-specific settings</p>
+          <p class="text-gray-500 text-sm mt-1">Update your Pokemon Trading Card Game event settings</p>
         </div>
 
         <form @submit.prevent="handleSubmit" class="p-6 space-y-8">
@@ -421,11 +472,7 @@ async function handleSubmit() {
           />
 
           <!-- Location -->
-          <section
-            id="location-section"
-            class="rounded-lg transition-all"
-            :class="{ 'ring-2 ring-red-300 bg-red-50/50 p-4 -m-4 mb-8': sectionErrors.location }"
-          >
+          <div id="location-section">
             <EventLocationSection
               v-model:event-location-id="form.eventLocationId"
               v-model:address-line1="form.addressLine1"
@@ -439,14 +486,10 @@ async function handleSubmit() {
               :current-tier="currentTier"
               @location-select="handleLocationSelect"
             />
-          </section>
+          </div>
 
           <!-- Format Selection -->
-          <section
-            id="format-section"
-            class="rounded-lg transition-all"
-            :class="{ 'ring-2 ring-red-300 bg-red-50/50 p-4 -m-4 mb-8': sectionErrors.format }"
-          >
+          <section id="format-section">
             <PokemonFormatSelector
               :model-value="form.pokemonConfig.formatId"
               :custom-format-name="form.pokemonConfig.customFormatName"
@@ -457,12 +500,8 @@ async function handleSubmit() {
           </section>
 
           <!-- Event Structure -->
-          <section
-            id="event-structure-section"
-            class="rounded-lg transition-all"
-            :class="{ 'ring-2 ring-red-300 bg-red-50/50 p-4 -m-4 mb-8': sectionErrors.eventType }"
-          >
-            <PokemonEventStructureSection
+          <section id="event-structure-section">
+          <PokemonEventStructureSection
             :format-id="form.pokemonConfig.formatId"
             :event-type="form.pokemonConfig.eventType"
             :tournament-style="form.pokemonConfig.tournamentStyle"
@@ -578,18 +617,18 @@ async function handleSubmit() {
           <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
             <button
               type="button"
-              @click="router.push('/games')"
+              @click="router.push(`/games/${eventId}`)"
               class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              :disabled="loading"
+              :disabled="!isValid || loading"
               class="px-6 py-2 bg-yellow-500 text-white font-medium rounded-lg hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               :title="!isValid ? validationErrors.join(', ') : ''"
             >
-              {{ loading ? 'Creating...' : 'Create Pokemon Event' }}
+              {{ loading ? 'Saving...' : 'Save Changes' }}
             </button>
           </div>
         </form>
