@@ -173,6 +173,13 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/CreatePokemonEventView.vue'),
     meta: { requiresAuth: true },
   },
+  // Yu-Gi-Oh! Event Creation
+  {
+    path: '/yugioh/events/create',
+    name: 'create-yugioh-event',
+    component: () => import('@/views/CreateYugiohEventView.vue'),
+    meta: { requiresAuth: true },
+  },
   // MTG Deck Management
   {
     path: '/mtg/decks',

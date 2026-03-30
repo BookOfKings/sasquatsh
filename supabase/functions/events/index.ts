@@ -80,6 +80,13 @@ Deno.serve(async (req) => {
             require_deck_registration, deck_submission_deadline, allow_deck_changes,
             has_prizes, prize_structure, entry_fee, entry_fee_currency, use_play_points,
             has_junior_division, has_senior_division, has_masters_division, allow_spectators
+          ),
+          yugioh_config:yugioh_event_config(
+            format_id, custom_format_name, event_type, tournament_style, rounds_count,
+            round_time_minutes, best_of, top_cut, allow_proxies, proxy_limit,
+            require_deck_registration, deck_submission_deadline, allow_side_deck,
+            enforce_format_legality, house_rules_notes, has_prizes, prize_structure,
+            entry_fee, entry_fee_currency, is_official_event, awards_ots_points, allow_spectators
           )
         `)
         .eq('id', eventId)
@@ -488,6 +495,36 @@ Deno.serve(async (req) => {
       })
     }
 
+    // If Yu-Gi-Oh! config provided, insert into yugioh_event_config table
+    if (body.yugiohConfig && body.gameSystem === 'yugioh') {
+      const yugiohConfig = body.yugiohConfig
+      await supabase.from('yugioh_event_config').insert({
+        event_id: data.id,
+        format_id: yugiohConfig.formatId,
+        custom_format_name: yugiohConfig.customFormatName,
+        event_type: yugiohConfig.eventType || 'casual',
+        tournament_style: yugiohConfig.tournamentStyle,
+        rounds_count: yugiohConfig.roundsCount,
+        round_time_minutes: yugiohConfig.roundTimeMinutes ?? 40,
+        best_of: yugiohConfig.bestOf ?? 3,
+        top_cut: yugiohConfig.topCut,
+        allow_proxies: yugiohConfig.allowProxies ?? false,
+        proxy_limit: yugiohConfig.proxyLimit,
+        require_deck_registration: yugiohConfig.requireDeckRegistration ?? false,
+        deck_submission_deadline: yugiohConfig.deckSubmissionDeadline,
+        allow_side_deck: yugiohConfig.allowSideDeck ?? true,
+        enforce_format_legality: yugiohConfig.enforceFormatLegality ?? true,
+        house_rules_notes: yugiohConfig.houseRulesNotes,
+        has_prizes: yugiohConfig.hasPrizes ?? false,
+        prize_structure: yugiohConfig.prizeStructure,
+        entry_fee: yugiohConfig.entryFee,
+        entry_fee_currency: yugiohConfig.entryFeeCurrency || 'USD',
+        is_official_event: yugiohConfig.isOfficialEvent ?? false,
+        awards_ots_points: yugiohConfig.awardsOtsPoints ?? false,
+        allow_spectators: yugiohConfig.allowSpectators ?? true,
+      })
+    }
+
     // Award raffle entry for hosting an event (only if published)
     if (data.status === 'published') {
       try {
@@ -521,6 +558,13 @@ Deno.serve(async (req) => {
           require_deck_registration, deck_submission_deadline, allow_deck_changes,
           has_prizes, prize_structure, entry_fee, entry_fee_currency, use_play_points,
           has_junior_division, has_senior_division, has_masters_division, allow_spectators
+        ),
+        yugioh_config:yugioh_event_config(
+          format_id, custom_format_name, event_type, tournament_style, rounds_count,
+          round_time_minutes, best_of, top_cut, allow_proxies, proxy_limit,
+          require_deck_registration, deck_submission_deadline, allow_side_deck,
+          enforce_format_legality, house_rules_notes, has_prizes, prize_structure,
+          entry_fee, entry_fee_currency, is_official_event, awards_ots_points, allow_spectators
         )
       `)
       .eq('id', data.id)
@@ -674,6 +718,36 @@ Deno.serve(async (req) => {
       }, { onConflict: 'event_id' })
     }
 
+    // If Yu-Gi-Oh! config provided, upsert into yugioh_event_config table
+    if (body.yugiohConfig && body.gameSystem === 'yugioh') {
+      const yugiohConfig = body.yugiohConfig
+      await supabase.from('yugioh_event_config').upsert({
+        event_id: eventId,
+        format_id: yugiohConfig.formatId,
+        custom_format_name: yugiohConfig.customFormatName,
+        event_type: yugiohConfig.eventType || 'casual',
+        tournament_style: yugiohConfig.tournamentStyle,
+        rounds_count: yugiohConfig.roundsCount,
+        round_time_minutes: yugiohConfig.roundTimeMinutes ?? 40,
+        best_of: yugiohConfig.bestOf ?? 3,
+        top_cut: yugiohConfig.topCut,
+        allow_proxies: yugiohConfig.allowProxies ?? false,
+        proxy_limit: yugiohConfig.proxyLimit,
+        require_deck_registration: yugiohConfig.requireDeckRegistration ?? false,
+        deck_submission_deadline: yugiohConfig.deckSubmissionDeadline,
+        allow_side_deck: yugiohConfig.allowSideDeck ?? true,
+        enforce_format_legality: yugiohConfig.enforceFormatLegality ?? true,
+        house_rules_notes: yugiohConfig.houseRulesNotes,
+        has_prizes: yugiohConfig.hasPrizes ?? false,
+        prize_structure: yugiohConfig.prizeStructure,
+        entry_fee: yugiohConfig.entryFee,
+        entry_fee_currency: yugiohConfig.entryFeeCurrency || 'USD',
+        is_official_event: yugiohConfig.isOfficialEvent ?? false,
+        awards_ots_points: yugiohConfig.awardsOtsPoints ?? false,
+        allow_spectators: yugiohConfig.allowSpectators ?? true,
+      }, { onConflict: 'event_id' })
+    }
+
     // Award raffle entry if event just became published
     if (body.status === 'published') {
       try {
@@ -721,6 +795,13 @@ Deno.serve(async (req) => {
           require_deck_registration, deck_submission_deadline, allow_deck_changes,
           has_prizes, prize_structure, entry_fee, entry_fee_currency, use_play_points,
           has_junior_division, has_senior_division, has_masters_division, allow_spectators
+        ),
+        yugioh_config:yugioh_event_config(
+          format_id, custom_format_name, event_type, tournament_style, rounds_count,
+          round_time_minutes, best_of, top_cut, allow_proxies, proxy_limit,
+          require_deck_registration, deck_submission_deadline, allow_side_deck,
+          enforce_format_legality, house_rules_notes, has_prizes, prize_structure,
+          entry_fee, entry_fee_currency, is_official_event, awards_ots_points, allow_spectators
         )
       `)
       .eq('id', eventId)
@@ -920,6 +1001,8 @@ function transformEvent(
     mtgConfig: transformMtgConfig(row.mtg_config),
     // Pokemon TCG event configuration (from joined pokemon_event_config table)
     pokemonConfig: transformPokemonConfig(row.pokemon_config),
+    // Yu-Gi-Oh! TCG event configuration (from joined yugioh_event_config table)
+    yugiohConfig: transformYugiohConfig(row.yugioh_config),
   }
 }
 
@@ -984,6 +1067,39 @@ function transformPokemonConfig(config: unknown): Record<string, unknown> | null
     hasJuniorDivision: c.has_junior_division,
     hasSeniorDivision: c.has_senior_division,
     hasMastersDivision: c.has_masters_division,
+    allowSpectators: c.allow_spectators,
+  }
+}
+
+// Transform Yu-Gi-Oh! config from snake_case to camelCase
+function transformYugiohConfig(config: unknown): Record<string, unknown> | null {
+  // Supabase returns an array for 1-to-1 relations via select, take first element
+  const data = Array.isArray(config) ? config[0] : config
+  if (!data) return null
+
+  const c = data as Record<string, unknown>
+  return {
+    formatId: c.format_id,
+    customFormatName: c.custom_format_name,
+    eventType: c.event_type,
+    tournamentStyle: c.tournament_style,
+    roundsCount: c.rounds_count,
+    roundTimeMinutes: c.round_time_minutes,
+    bestOf: c.best_of,
+    topCut: c.top_cut,
+    allowProxies: c.allow_proxies,
+    proxyLimit: c.proxy_limit,
+    requireDeckRegistration: c.require_deck_registration,
+    deckSubmissionDeadline: c.deck_submission_deadline,
+    allowSideDeck: c.allow_side_deck,
+    enforceFormatLegality: c.enforce_format_legality,
+    houseRulesNotes: c.house_rules_notes,
+    hasPrizes: c.has_prizes,
+    prizeStructure: c.prize_structure,
+    entryFee: c.entry_fee,
+    entryFeeCurrency: c.entry_fee_currency,
+    isOfficialEvent: c.is_official_event,
+    awardsOtsPoints: c.awards_ots_points,
     allowSpectators: c.allow_spectators,
   }
 }

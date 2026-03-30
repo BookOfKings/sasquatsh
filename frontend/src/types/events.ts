@@ -2,6 +2,7 @@ import type { PlannedGame } from './planning'
 import type { EventTable, GameSession } from './sessions'
 import type { MtgEventConfig } from './mtg'
 import type { PokemonEventConfig } from './pokemon'
+import type { YugiohEventConfig } from './yugioh'
 
 export type GameSystem = 'board_game' | 'mtg' | 'pokemon_tcg' | 'yugioh'
 
@@ -123,6 +124,8 @@ export interface Event {
   mtgConfig: MtgEventConfig | null
   // Pokemon TCG event configuration
   pokemonConfig: PokemonEventConfig | null
+  // Yu-Gi-Oh! TCG event configuration
+  yugiohConfig: YugiohEventConfig | null
 }
 
 export interface CreateEventInput {
@@ -155,6 +158,7 @@ export interface CreateEventInput {
   groupId?: string  // Link to a group
   mtgConfig?: Partial<MtgEventConfig>  // MTG-specific configuration
   pokemonConfig?: Partial<PokemonEventConfig>  // Pokemon TCG-specific configuration
+  yugiohConfig?: Partial<YugiohEventConfig>  // Yu-Gi-Oh! TCG-specific configuration
 }
 
 export interface UpdateEventInput {
@@ -187,6 +191,7 @@ export interface UpdateEventInput {
   plannedGames?: PlannedGame[] | null
   mtgConfig?: Partial<MtgEventConfig>
   pokemonConfig?: Partial<PokemonEventConfig>
+  yugiohConfig?: Partial<YugiohEventConfig>
 }
 
 export interface CreateEventItemInput {

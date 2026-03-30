@@ -359,6 +359,15 @@ function handleVenueSubmitted(venue: EventLocation) {
               </svg>
               Pokemon
             </router-link>
+            <router-link
+              to="/yugioh/events/create"
+              class="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+            >
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12,2L2,7V17L12,22L22,17V7L12,2M12,4.15L19.85,8L12,11.85L4.15,8L12,4.15Z" />
+              </svg>
+              Yu-Gi-Oh!
+            </router-link>
           </div>
         </div>
       </div>

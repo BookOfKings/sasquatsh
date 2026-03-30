@@ -26,6 +26,12 @@ import PokemonStructureSummary from '@/components/pokemon/PokemonStructureSummar
 import PokemonDeckRulesSummary from '@/components/pokemon/PokemonDeckRulesSummary.vue'
 import PokemonEntryPrizesSummary from '@/components/pokemon/PokemonEntryPrizesSummary.vue'
 import PokemonPlayerRoster from '@/components/pokemon/PokemonPlayerRoster.vue'
+// Yu-Gi-Oh! display components
+import YugiohGameSummary from '@/components/yugioh/YugiohGameSummary.vue'
+import YugiohStructureSummary from '@/components/yugioh/YugiohStructureSummary.vue'
+import YugiohDeckRulesSummary from '@/components/yugioh/YugiohDeckRulesSummary.vue'
+import YugiohEntryPrizesSummary from '@/components/yugioh/YugiohEntryPrizesSummary.vue'
+import YugiohPlayerRoster from '@/components/yugioh/YugiohPlayerRoster.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -84,6 +90,11 @@ const isMtgEvent = computed(() => {
 // Check if this is a Pokemon TCG event
 const isPokemonEvent = computed(() => {
   return event.value?.gameSystem === 'pokemon_tcg' && event.value?.pokemonConfig
+})
+
+// Check if this is a Yu-Gi-Oh! event
+const isYugiohEvent = computed(() => {
+  return event.value?.gameSystem === 'yugioh' && event.value?.yugiohConfig
 })
 
 // Check if user can see full address details
@@ -674,6 +685,13 @@ function goToLogin() {
           class="mb-6"
         />
 
+        <!-- Yu-Gi-Oh! Game Summary (prominently displayed for Yu-Gi-Oh! events) -->
+        <YugiohGameSummary
+          v-if="isYugiohEvent && event.yugiohConfig"
+          :config="event.yugiohConfig"
+          class="mb-6"
+        />
+
         <!-- Planned Games (from multi-game planning sessions) -->
         <div v-if="event.plannedGames && event.plannedGames.length > 0" class="mb-6">
           <h3 class="font-semibold mb-3 flex items-center gap-2">
@@ -859,6 +877,27 @@ function goToLogin() {
         />
       </template>
 
+      <!-- Yu-Gi-Oh! Event Details Sections -->
+      <template v-if="isYugiohEvent && event.yugiohConfig">
+        <!-- Yu-Gi-Oh! Event Structure Summary -->
+        <YugiohStructureSummary
+          :config="event.yugiohConfig"
+          class="mb-6"
+        />
+
+        <!-- Yu-Gi-Oh! Deck Rules Summary -->
+        <YugiohDeckRulesSummary
+          :config="event.yugiohConfig"
+          class="mb-6"
+        />
+
+        <!-- Yu-Gi-Oh! Entry & Prizes Summary -->
+        <YugiohEntryPrizesSummary
+          :config="event.yugiohConfig"
+          class="mb-6"
+        />
+      </template>
+
       <!-- Multi-Table Session Schedule -->
       <div v-if="event.isMultiTable && event.tables && event.sessions" class="card mb-6">
         <div class="p-4 border-b border-gray-100">
@@ -906,7 +945,17 @@ function goToLogin() {
         class="mb-6"
       />
 
-      <!-- Registered Players (for non-MTG/non-Pokemon events) -->
+      <!-- Yu-Gi-Oh! Player Roster (visual grid for Yu-Gi-Oh! events) -->
+      <YugiohPlayerRoster
+        v-else-if="isYugiohEvent && event.registrations"
+        :registrations="event.registrations"
+        :host-user-id="event.hostUserId"
+        :max-players="event.maxPlayers"
+        :confirmed-count="event.confirmedCount"
+        class="mb-6"
+      />
+
+      <!-- Registered Players (for non-MTG/non-Pokemon/non-Yu-Gi-Oh! events) -->
       <div v-else-if="event.registrations && event.registrations.length > 0" class="card mb-6">
         <div class="p-4 border-b border-gray-100">
           <h2 class="font-semibold flex items-center gap-2">
