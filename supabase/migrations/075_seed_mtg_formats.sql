@@ -1,28 +1,6 @@
--- MTG format definitions reference table
--- Can be updated as formats change or new formats are added
+-- Seed MTG formats table with standard format definitions
+-- This ensures the foreign key constraint in mtg_event_config can be satisfied
 
-CREATE TABLE IF NOT EXISTS mtg_formats (
-    id VARCHAR(50) PRIMARY KEY,  -- 'commander', 'standard', 'modern', etc.
-    name VARCHAR(100) NOT NULL,
-    description TEXT,
-    min_deck_size INT,
-    max_deck_size INT,
-    max_copies INT DEFAULT 4,  -- NULL for singleton formats
-    has_commander BOOLEAN DEFAULT FALSE,
-    has_sideboard BOOLEAN DEFAULT TRUE,
-    sideboard_size INT DEFAULT 15,
-    is_constructed BOOLEAN DEFAULT TRUE,  -- false for draft/sealed
-    is_active BOOLEAN DEFAULT TRUE,
-    sort_order INT DEFAULT 0
-);
-
--- RLS - formats are public read
-ALTER TABLE mtg_formats ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "mtg_formats_select" ON mtg_formats
-FOR SELECT USING (true);
-
--- Seed common formats
 INSERT INTO mtg_formats (id, name, description, min_deck_size, max_deck_size, max_copies, has_commander, has_sideboard, sideboard_size, is_constructed, sort_order) VALUES
 ('commander', 'Commander (EDH)', '100-card singleton format with a legendary creature as commander', 100, 100, 1, true, false, 0, true, 1),
 ('standard', 'Standard', 'Rotating format with recent sets', 60, NULL, 4, false, true, 15, true, 2),

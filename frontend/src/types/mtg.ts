@@ -255,6 +255,24 @@ export const FORMAT_CATEGORIES: Record<string, string[]> = {
 // Formats that support power level selection
 export const POWER_LEVEL_FORMATS = ['commander', 'oathbreaker', 'brawl', 'casual', 'custom']
 
+// Standard MTG formats list for event creation/editing
+export const MTG_FORMATS: MtgFormat[] = [
+  { id: 'commander', name: 'Commander (EDH)', description: null, minDeckSize: 100, maxDeckSize: 100, maxCopies: 1, hasCommander: true, hasSideboard: false, sideboardSize: 0, isConstructed: true },
+  { id: 'standard', name: 'Standard', description: null, minDeckSize: 60, maxDeckSize: null, maxCopies: 4, hasCommander: false, hasSideboard: true, sideboardSize: 15, isConstructed: true },
+  { id: 'modern', name: 'Modern', description: null, minDeckSize: 60, maxDeckSize: null, maxCopies: 4, hasCommander: false, hasSideboard: true, sideboardSize: 15, isConstructed: true },
+  { id: 'pioneer', name: 'Pioneer', description: null, minDeckSize: 60, maxDeckSize: null, maxCopies: 4, hasCommander: false, hasSideboard: true, sideboardSize: 15, isConstructed: true },
+  { id: 'legacy', name: 'Legacy', description: null, minDeckSize: 60, maxDeckSize: null, maxCopies: 4, hasCommander: false, hasSideboard: true, sideboardSize: 15, isConstructed: true },
+  { id: 'vintage', name: 'Vintage', description: null, minDeckSize: 60, maxDeckSize: null, maxCopies: 4, hasCommander: false, hasSideboard: true, sideboardSize: 15, isConstructed: true },
+  { id: 'pauper', name: 'Pauper', description: null, minDeckSize: 60, maxDeckSize: null, maxCopies: 4, hasCommander: false, hasSideboard: true, sideboardSize: 15, isConstructed: true },
+  { id: 'draft', name: 'Booster Draft', description: null, minDeckSize: 40, maxDeckSize: null, maxCopies: null, hasCommander: false, hasSideboard: false, sideboardSize: 0, isConstructed: false },
+  { id: 'sealed', name: 'Sealed Deck', description: null, minDeckSize: 40, maxDeckSize: null, maxCopies: null, hasCommander: false, hasSideboard: false, sideboardSize: 0, isConstructed: false },
+  { id: 'cube', name: 'Cube Draft', description: null, minDeckSize: 40, maxDeckSize: null, maxCopies: null, hasCommander: false, hasSideboard: false, sideboardSize: 0, isConstructed: false },
+  { id: 'oathbreaker', name: 'Oathbreaker', description: null, minDeckSize: 60, maxDeckSize: 60, maxCopies: 1, hasCommander: true, hasSideboard: false, sideboardSize: 0, isConstructed: true },
+  { id: 'brawl', name: 'Brawl', description: null, minDeckSize: 60, maxDeckSize: 60, maxCopies: 1, hasCommander: true, hasSideboard: false, sideboardSize: 0, isConstructed: true },
+  { id: 'casual', name: 'Casual / Kitchen Table', description: null, minDeckSize: null, maxDeckSize: null, maxCopies: null, hasCommander: false, hasSideboard: false, sideboardSize: 0, isConstructed: true },
+  { id: 'custom', name: 'Custom Format', description: null, minDeckSize: null, maxDeckSize: null, maxCopies: null, hasCommander: false, hasSideboard: false, sideboardSize: 0, isConstructed: true },
+]
+
 // Event creation input
 export interface CreateMtgEventInput {
   // Base event fields

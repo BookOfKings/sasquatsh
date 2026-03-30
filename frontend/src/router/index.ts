@@ -166,6 +166,13 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/CreateMtgEventView.vue'),
     meta: { requiresAuth: true },
   },
+  // MTG Event Edit
+  {
+    path: '/mtg/events/:id/edit',
+    name: 'edit-mtg-event',
+    component: () => import('@/views/EditMtgEventView.vue'),
+    meta: { requiresAuth: true },
+  },
   // Pokemon TCG Event Creation
   {
     path: '/pokemon/events/create',
@@ -173,11 +180,25 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/CreatePokemonEventView.vue'),
     meta: { requiresAuth: true },
   },
+  // Pokemon TCG Event Edit
+  {
+    path: '/pokemon/events/:id/edit',
+    name: 'edit-pokemon-event',
+    component: () => import('@/views/EditPokemonEventView.vue'),
+    meta: { requiresAuth: true },
+  },
   // Yu-Gi-Oh! Event Creation
   {
     path: '/yugioh/events/create',
     name: 'create-yugioh-event',
     component: () => import('@/views/CreateYugiohEventView.vue'),
+    meta: { requiresAuth: true },
+  },
+  // Yu-Gi-Oh! Event Edit
+  {
+    path: '/yugioh/events/:id/edit',
+    name: 'edit-yugioh-event',
+    component: () => import('@/views/EditYugiohEventView.vue'),
     meta: { requiresAuth: true },
   },
   // MTG Deck Management
