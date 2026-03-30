@@ -81,11 +81,9 @@ const hasChampionshipPoints = computed(() =>
   <div class="bg-gradient-to-r from-yellow-50 to-amber-50 rounded-lg border border-yellow-200 p-4">
     <!-- Format Header -->
     <div class="flex flex-col sm:flex-row sm:items-center gap-3 mb-3">
-      <!-- Pokemon Icon -->
-      <div class="flex-shrink-0 w-12 h-12 bg-yellow-500 rounded-lg flex items-center justify-center">
-        <svg class="w-7 h-7 text-white" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4C7.58,4 4,7.58 4,12C4,14.05 4.78,15.92 6.08,17.33L8.39,12H6C6,8.69 8.69,6 12,6C15.31,6 18,8.69 18,12H15.61L17.92,17.33C19.22,15.92 20,14.05 20,12C20,7.58 16.42,4 12,4M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
-        </svg>
+      <!-- Pokemon Logo -->
+      <div class="flex-shrink-0 w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden">
+        <img src="/icons/pokemon-logo.png" alt="Pokemon TCG" class="w-full h-full object-contain" />
       </div>
 
       <div class="flex-1">

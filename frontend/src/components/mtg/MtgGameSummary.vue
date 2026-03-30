@@ -145,11 +145,9 @@ const powerLevelColor = computed(() => {
   <div class="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg border border-purple-100 p-4">
     <!-- Format Header -->
     <div class="flex flex-col sm:flex-row sm:items-center gap-3 mb-3">
-      <!-- MTG Icon -->
-      <div class="flex-shrink-0 w-12 h-12 bg-purple-600 rounded-lg flex items-center justify-center">
-        <svg class="w-7 h-7 text-white" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4C10.08,4 8.5,5.58 8.5,7.5C8.5,8.43 8.88,9.28 9.5,9.91C7.97,10.91 7,12.62 7,14.5A5.5,5.5 0 0,0 12.5,20A5.5,5.5 0 0,0 18,14.5C18,12.62 17.03,10.91 15.5,9.91C16.12,9.28 16.5,8.43 16.5,7.5C16.5,5.58 14.92,4 13,4H12M12,6H13A1.5,1.5 0 0,1 14.5,7.5A1.5,1.5 0 0,1 13,9H12A1.5,1.5 0 0,1 10.5,7.5A1.5,1.5 0 0,1 12,6M12.5,11A3.5,3.5 0 0,1 16,14.5A3.5,3.5 0 0,1 12.5,18A3.5,3.5 0 0,1 9,14.5A3.5,3.5 0 0,1 12.5,11Z"/>
-        </svg>
+      <!-- MTG Logo -->
+      <div class="flex-shrink-0 w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden">
+        <img src="/icons/mtg-logo.png" alt="Magic: The Gathering" class="w-full h-full object-contain" />
       </div>
 
       <div class="flex-1">

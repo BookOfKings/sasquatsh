@@ -79,14 +79,13 @@ const hasOtsPoints = computed(() =>
   <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 p-4">
     <!-- Format Header -->
     <div class="flex flex-col sm:flex-row sm:items-center gap-3 mb-3">
-      <!-- Yu-Gi-Oh! Icon (Card) -->
-      <div class="flex-shrink-0 w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
-        <svg class="w-7 h-7 text-white" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M19,3H5A2,2 0 0,0 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5A2,2 0 0,0 19,3M19,19H5V5H19V19M12,6L8,18H10L10.75,16H13.25L14,18H16L12,6M10.83,14L12,10.5L13.17,14H10.83Z"/>
-        </svg>
+      <!-- Yu-Gi-Oh! Logo -->
+      <div class="flex-shrink-0 w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden">
+        <img src="/icons/yugioh-logo.png" alt="Yu-Gi-Oh!" class="w-full h-full object-contain" />
       </div>
 
       <div class="flex-1">
+        <p class="text-xs font-semibold text-blue-600 uppercase tracking-wide">Yu-Gi-Oh! TCG</p>
         <h3 class="text-xl font-bold text-blue-900">{{ formatDisplayName }}</h3>
         <p v-if="formatDescription" class="text-sm text-blue-700">{{ formatDescription }}</p>
       </div>

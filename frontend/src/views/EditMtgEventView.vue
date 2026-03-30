@@ -1,13 +1,9 @@
 <script setup lang="ts">
 import { reactive, ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
-import { useGroupStore } from '@/stores/useGroupStore'
-import { useEventStore } from '@/stores/useEventStore'
-import { createMtgEvent } from '@/services/mtgEventApi'
-import { getMyProfile } from '@/services/profileApi'
+import { getMtgEvent, updateMtgEvent } from '@/services/mtgEventApi'
 import SubmitVenueModal from '@/components/venues/SubmitVenueModal.vue'
-import UpgradePrompt from '@/components/billing/UpgradePrompt.vue'
 import MtgFormatSelector from '@/components/mtg/MtgFormatSelector.vue'
 import MtgPowerLevelSection from '@/components/mtg/MtgPowerLevelSection.vue'
 import MtgEventStructureSection from '@/components/mtg/MtgEventStructureSection.vue'
@@ -17,28 +13,26 @@ import MtgDraftSection from '@/components/mtg/MtgDraftSection.vue'
 import EventDateTimeSection from '@/components/events/shared/EventDateTimeSection.vue'
 import EventLocationSection from '@/components/events/shared/EventLocationSection.vue'
 import EventPlayerSettingsSection from '@/components/events/shared/EventPlayerSettingsSection.vue'
-import { TIER_LIMITS, type SubscriptionTier } from '@/config/subscriptionLimits'
+import { type SubscriptionTier } from '@/config/subscriptionLimits'
 import { getEffectiveTier } from '@/types/user'
-import { POWER_LEVEL_FORMATS } from '@/types/mtg'
+import { POWER_LEVEL_FORMATS, MTG_FORMATS } from '@/types/mtg'
 import type { CreateMtgEventInput, MtgFormat, MtgEventType, DraftStyle, PowerLevelRange, MatchStyle, PlayMode } from '@/types/mtg'
-import type { GroupSummary } from '@/types/groups'
 import type { EventLocation } from '@/types/social'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
-const groupStore = useGroupStore()
-const eventStore = useEventStore()
 
-// Groups where user is owner/admin (can create events for)
-const userGroups = ref<GroupSummary[]>([])
+// Get event ID from route
+const eventId = computed(() => route.params.id as string)
 
 // Venue selection state
 const showVenueModal = ref(false)
 
 const loading = ref(false)
+const loadingEvent = ref(true)
 const errorMessage = ref('')
 const errors = reactive<Record<string, string>>({})
-const hasAttemptedSubmit = ref(false)
 
 // Format info
 const selectedFormat = ref<MtgFormat | null>(null)
@@ -52,31 +46,13 @@ const showPowerLevel = computed(() => {
 // Format-first enforcement: check if format is selected
 const formatSelected = computed(() => !!form.mtgConfig.formatId)
 
-// Tier limit checking
-const showUpgradePrompt = ref(false)
-const activeEventCount = ref(0)
-
 const currentTier = computed((): SubscriptionTier => {
   if (!authStore.user.value) return 'free'
   return getEffectiveTier(authStore.user.value)
 })
 
-const eventLimit = computed(() => TIER_LIMITS[currentTier.value].gamesPerEvent)
-const isAtLimit = computed(() => activeEventCount.value >= eventLimit.value)
-
 // Is limited format (draft/sealed)?
 const isLimitedFormat = computed(() => selectedFormat.value && !selectedFormat.value.isConstructed)
-
-// Location validation helper
-const hasValidLocation = computed(() => {
-  return !!form.eventLocationId || (form.city?.trim() && form.postalCode?.trim())
-})
-
-// Section error highlighting
-const sectionErrors = computed(() => ({
-  location: hasAttemptedSubmit.value && !hasValidLocation.value,
-  format: hasAttemptedSubmit.value && !form.mtgConfig.formatId,
-}))
 
 // Form state
 const form = reactive<CreateMtgEventInput>({
@@ -131,81 +107,85 @@ const form = reactive<CreateMtgEventInput>({
   },
 })
 
+// Load existing event data
 onMounted(async () => {
-  // Load groups where user is owner/admin
-  await groupStore.loadMyGroups()
-  userGroups.value = groupStore.myGroups.value.filter(
-    g => g.userRole === 'owner' || g.userRole === 'admin'
-  )
-
-  // Load hosted events to check current count
-  await eventStore.loadHostedEvents()
-  const todayStr = new Date().toISOString().split('T')[0] ?? ''
-  activeEventCount.value = eventStore.hostedEvents.value.filter(
-    e => e.eventDate >= todayStr
-  ).length
-
-  // Show upgrade prompt if at limit
-  if (isAtLimit.value) {
-    showUpgradePrompt.value = true
-  }
-
-  // Load user's default timezone
   try {
     const token = await authStore.getIdToken()
-    if (token) {
-      const profile = await getMyProfile(token)
-      if (profile.timezone) {
-        form.timezone = profile.timezone
-      }
+    if (!token) {
+      errorMessage.value = 'Not authenticated'
+      return
+    }
+
+    const event = await getMtgEvent(token, eventId.value)
+
+    // Populate form with existing data
+    form.title = event.title
+    form.description = event.description || ''
+    form.eventDate = event.eventDate
+    form.startTime = event.startTime || '19:00'
+    form.timezone = event.timezone || 'America/New_York'
+    form.durationMinutes = event.durationMinutes || 180
+    form.setupMinutes = event.setupMinutes || 15
+    form.maxPlayers = event.maxPlayers || 8
+    form.hostIsPlaying = event.hostIsPlaying ?? true
+    form.isPublic = event.isPublic
+    form.isCharityEvent = event.isCharityEvent || false
+    form.groupId = event.groupId || undefined
+
+    // Location
+    form.eventLocationId = event.eventLocationId || undefined
+    form.addressLine1 = event.addressLine1 || ''
+    form.city = event.city || ''
+    form.state = event.state || ''
+    form.postalCode = event.postalCode || ''
+    form.locationDetails = event.locationDetails || ''
+    form.venueHall = event.venueHall || undefined
+    form.venueRoom = event.venueRoom || undefined
+    form.venueTable = event.venueTable || undefined
+
+    // MTG config
+    if (event.mtgConfig) {
+      form.mtgConfig.formatId = event.mtgConfig.formatId || null
+      form.mtgConfig.customFormatName = event.mtgConfig.customFormatName || null
+      form.mtgConfig.eventType = event.mtgConfig.eventType || 'casual'
+      form.mtgConfig.roundsCount = event.mtgConfig.roundsCount || null
+      form.mtgConfig.roundTimeMinutes = event.mtgConfig.roundTimeMinutes || 50
+      form.mtgConfig.podsSize = event.mtgConfig.podsSize || 4
+      form.mtgConfig.matchStyle = event.mtgConfig.matchStyle || null
+      form.mtgConfig.topCut = event.mtgConfig.topCut || null
+      form.mtgConfig.playMode = event.mtgConfig.playMode || null
+      form.mtgConfig.allowProxies = event.mtgConfig.allowProxies || false
+      form.mtgConfig.proxyLimit = event.mtgConfig.proxyLimit || null
+      form.mtgConfig.powerLevelMin = event.mtgConfig.powerLevelMin || null
+      form.mtgConfig.powerLevelMax = event.mtgConfig.powerLevelMax || null
+      form.mtgConfig.powerLevelRange = event.mtgConfig.powerLevelRange || null
+      form.mtgConfig.bannedCards = event.mtgConfig.bannedCards || []
+      form.mtgConfig.houseRulesNotes = event.mtgConfig.houseRulesNotes || null
+      form.mtgConfig.packsPerPlayer = event.mtgConfig.packsPerPlayer || null
+      form.mtgConfig.draftStyle = event.mtgConfig.draftStyle || null
+      form.mtgConfig.cubeId = event.mtgConfig.cubeId || null
+      form.mtgConfig.hasPrizes = event.mtgConfig.hasPrizes || false
+      form.mtgConfig.prizeStructure = event.mtgConfig.prizeStructure || null
+      form.mtgConfig.entryFee = event.mtgConfig.entryFee || null
+      form.mtgConfig.entryFeeCurrency = event.mtgConfig.entryFeeCurrency || 'USD'
+      form.mtgConfig.requireDeckRegistration = event.mtgConfig.requireDeckRegistration || false
+      form.mtgConfig.deckSubmissionDeadline = event.mtgConfig.deckSubmissionDeadline || null
+      form.mtgConfig.allowSpectators = event.mtgConfig.allowSpectators ?? true
+
+      // Update selected format
+      selectedFormat.value = MTG_FORMATS.find(f => f.id === form.mtgConfig.formatId) || null
     }
   } catch (err) {
-    console.error('Failed to load profile for timezone:', err)
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to load event'
+  } finally {
+    loadingEvent.value = false
   }
 })
 
 // Handle format selection from MtgFormatSelector
 function handleFormatSelected(format: MtgFormat | null) {
   selectedFormat.value = format
-
-  // Set Commander-specific defaults
-  if (format?.id === 'commander' || format?.id === 'oathbreaker' || format?.id === 'brawl') {
-    // Default to Pod Play for Commander formats
-    if (form.mtgConfig.eventType === 'casual') {
-      form.mtgConfig.eventType = 'pods'
-      form.mtgConfig.podsSize = 4
-      form.mtgConfig.roundTimeMinutes = 90
-      form.mtgConfig.playMode = 'assigned_pods'
-    }
-    // Set default power level to mid if not set
-    if (!form.mtgConfig.powerLevelRange) {
-      form.mtgConfig.powerLevelRange = 'mid'
-      form.mtgConfig.powerLevelMin = 5
-      form.mtgConfig.powerLevelMax = 6
-    }
-  }
-
-  // Set tournament defaults for competitive formats
-  if (format?.id === 'standard' || format?.id === 'modern' || format?.id === 'pioneer' || format?.id === 'legacy' || format?.id === 'vintage') {
-    if (form.mtgConfig.eventType === 'casual' || form.mtgConfig.eventType === 'pods') {
-      form.mtgConfig.eventType = 'swiss'
-      form.mtgConfig.matchStyle = 'bo3'
-      form.mtgConfig.roundTimeMinutes = 50
-      form.mtgConfig.playMode = 'tournament_pairings'
-    }
-  }
-
-  // Set draft/sealed defaults
-  if (format?.id === 'draft' || format?.id === 'sealed' || format?.id === 'cube') {
-    if (form.mtgConfig.eventType === 'casual' || form.mtgConfig.eventType === 'pods') {
-      form.mtgConfig.eventType = 'swiss'
-      form.mtgConfig.matchStyle = 'bo3'
-      form.mtgConfig.roundTimeMinutes = 50
-      form.mtgConfig.playMode = 'tournament_pairings'
-    }
-  }
 }
-
 
 function validate(): boolean {
   Object.keys(errors).forEach(key => errors[key] = '')
@@ -224,15 +204,6 @@ function validate(): boolean {
   if (!form.startTime) {
     errors.startTime = 'Start time is required'
     valid = false
-  }
-
-  // Check if event date/time is in the past
-  if (form.eventDate && form.startTime) {
-    const eventDateTime = new Date(`${form.eventDate}T${form.startTime}`)
-    if (eventDateTime < new Date()) {
-      errors.eventDate = 'Event cannot be scheduled in the past'
-      valid = false
-    }
   }
 
   if (!form.durationMinutes || form.durationMinutes <= 0) {
@@ -278,18 +249,7 @@ function validate(): boolean {
 }
 
 async function handleSubmit() {
-  hasAttemptedSubmit.value = true
-
-  if (!validate()) {
-    // Scroll to first error
-    const firstErrorSection = document.querySelector('.ring-red-300') ||
-                              document.querySelector('.input-error') ||
-                              document.querySelector('.text-red-500')
-    if (firstErrorSection) {
-      firstErrorSection.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }
-    return
-  }
+  if (!validate()) return
 
   loading.value = true
   errorMessage.value = ''
@@ -297,38 +257,29 @@ async function handleSubmit() {
   try {
     const token = await authStore.getIdToken()
     if (!token) {
-      errorMessage.value = 'You must be logged in to create an event'
+      errorMessage.value = 'You must be logged in to update an event'
       loading.value = false
       return
     }
 
-    const event = await createMtgEvent(token, form)
-    router.push(`/games/${event.id}`)
+    await updateMtgEvent(token, eventId.value, form)
+    router.push(`/games/${eventId.value}`)
   } catch (err) {
-    // Check if this is a tier limit error
-    const error = err as Error & { code?: string; data?: { currentCount?: number } }
-    if (error.code === 'TIER_LIMIT_REACHED') {
-      activeEventCount.value = error.data?.currentCount ?? activeEventCount.value
-      showUpgradePrompt.value = true
-    } else {
-      errorMessage.value = error.message || 'Failed to create event'
-    }
+    errorMessage.value = (err as Error).message || 'Failed to update event'
   }
 
   loading.value = false
 }
 
 function goBack() {
-  router.push('/games')
+  router.push(`/games/${eventId.value}`)
 }
 
-// Handle venue selection from EventLocationSection (for side effects like timezone)
+// Handle venue selection from EventLocationSection
 function handleVenueSelected(venue: EventLocation) {
-  // Copy address info from venue to form
   form.city = venue.city
   form.state = venue.state
   form.postalCode = venue.postalCode || ''
-  // Use venue's timezone if available
   if (venue.timezone) {
     form.timezone = venue.timezone
   }
@@ -346,18 +297,24 @@ function handleVenueSubmitted(venue: EventLocation) {
       <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
         <path d="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z"/>
       </svg>
-      Back to Games
+      Back to Event
     </button>
 
-    <div class="card">
+    <!-- Loading state -->
+    <div v-if="loadingEvent" class="card p-8 text-center">
+      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-4"></div>
+      <p class="text-gray-500">Loading event...</p>
+    </div>
+
+    <div v-else class="card">
       <!-- Header -->
       <div class="p-6 border-b border-gray-100">
         <h1 class="text-xl font-bold flex items-center gap-2">
           <img src="/icons/mtg-logo.png" alt="MTG" class="h-6 object-contain" />
-          Host MTG Event
+          Edit MTG Event
         </h1>
         <p class="text-sm text-gray-500 mt-1">
-          Create a Magic: The Gathering event with format-specific settings
+          Update your Magic: The Gathering event settings
         </p>
       </div>
 
@@ -379,26 +336,6 @@ function handleVenueSubmitted(venue: EventLocation) {
           <!-- Basic Info Section -->
           <div class="space-y-4">
             <h3 class="text-lg font-semibold text-gray-900">Basic Information</h3>
-
-            <!-- Group Selector -->
-            <div v-if="userGroups.length > 0">
-              <label for="groupId" class="label">Host for Group (optional)</label>
-              <select
-                id="groupId"
-                v-model="form.groupId"
-                class="input"
-                :disabled="loading"
-              >
-                <option :value="undefined">No group - personal event</option>
-                <option
-                  v-for="group in userGroups"
-                  :key="group.id"
-                  :value="group.id"
-                >
-                  {{ group.name }}
-                </option>
-              </select>
-            </div>
 
             <div>
               <label for="title" class="label">Event Title *</label>
@@ -444,55 +381,44 @@ function handleVenueSubmitted(venue: EventLocation) {
           />
 
           <!-- Location Section -->
-          <section
-            id="location-section"
-            class="rounded-lg transition-all"
-            :class="{ 'ring-2 ring-red-300 bg-red-50/50 p-4 -m-4 mb-8': sectionErrors.location }"
-          >
-            <EventLocationSection
-              :event-location-id="form.eventLocationId"
-              :venue-hall="form.venueHall"
-              :venue-room="form.venueRoom"
-              :venue-table="form.venueTable"
-              :address-line1="form.addressLine1"
-              :city="form.city"
-              :state="form.state"
-              :postal-code="form.postalCode"
-              :location-details="form.locationDetails"
-              :disabled="loading"
-              :current-tier="currentTier"
-              :errors="{ location: errors.location }"
-              @update:event-location-id="form.eventLocationId = $event"
-              @update:venue-hall="form.venueHall = $event"
-              @update:venue-room="form.venueRoom = $event"
-              @update:venue-table="form.venueTable = $event"
-              @update:address-line1="form.addressLine1 = $event"
-              @update:city="form.city = $event"
-              @update:state="form.state = $event"
-              @update:postal-code="form.postalCode = $event"
-              @update:location-details="form.locationDetails = $event"
-              @show-venue-modal="showVenueModal = true"
-              @venue-selected="handleVenueSelected"
-            />
-          </section>
+          <EventLocationSection
+            :event-location-id="form.eventLocationId"
+            :venue-hall="form.venueHall"
+            :venue-room="form.venueRoom"
+            :venue-table="form.venueTable"
+            :address-line1="form.addressLine1"
+            :city="form.city"
+            :state="form.state"
+            :postal-code="form.postalCode"
+            :location-details="form.locationDetails"
+            :disabled="loading"
+            :current-tier="currentTier"
+            :errors="{ location: errors.location }"
+            @update:event-location-id="form.eventLocationId = $event"
+            @update:venue-hall="form.venueHall = $event"
+            @update:venue-room="form.venueRoom = $event"
+            @update:venue-table="form.venueTable = $event"
+            @update:address-line1="form.addressLine1 = $event"
+            @update:city="form.city = $event"
+            @update:state="form.state = $event"
+            @update:postal-code="form.postalCode = $event"
+            @update:location-details="form.locationDetails = $event"
+            @show-venue-modal="showVenueModal = true"
+            @venue-selected="handleVenueSelected"
+          />
 
           <!-- MTG Format Section -->
-          <section
-            id="format-section"
-            class="border-t border-gray-200 pt-6 rounded-lg transition-all"
-            :class="{ 'ring-2 ring-red-300 bg-red-50/50 p-4 -m-4 mb-8': sectionErrors.format }"
-          >
+          <div class="border-t border-gray-200 pt-6">
             <MtgFormatSelector
               :model-value="form.mtgConfig.formatId ?? null"
               :custom-format-name="form.mtgConfig.customFormatName ?? null"
               :disabled="loading"
-              :has-error="sectionErrors.format"
               @update:model-value="form.mtgConfig.formatId = $event"
               @update:custom-format-name="form.mtgConfig.customFormatName = $event"
               @format-selected="handleFormatSelected"
             />
             <p v-if="errors.format" class="text-sm text-red-500 mt-2">{{ errors.format }}</p>
-          </section>
+          </div>
 
           <!-- MTG Power Level Section (Commander/casual formats only) -->
           <div v-if="showPowerLevel" class="border-t border-gray-200 pt-6">
@@ -511,15 +437,6 @@ function handleVenueSubmitted(venue: EventLocation) {
 
           <!-- MTG Event Structure Section -->
           <div class="border-t border-gray-200 pt-6">
-            <!-- Format-first prompt -->
-            <div v-if="!formatSelected" class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
-              <p class="text-sm text-gray-600 flex items-center gap-2">
-                <svg class="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" />
-                </svg>
-                Select a format above to configure event details.
-              </p>
-            </div>
             <MtgEventStructureSection
               :event-type="(form.mtgConfig.eventType as MtgEventType) ?? 'casual'"
               :rounds-count="form.mtgConfig.roundsCount ?? null"
@@ -643,7 +560,7 @@ function handleVenueSubmitted(venue: EventLocation) {
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
               </svg>
-              Create MTG Event
+              {{ loading ? 'Saving...' : 'Save Changes' }}
             </button>
           </div>
         </form>
@@ -655,17 +572,6 @@ function handleVenueSubmitted(venue: EventLocation) {
       :visible="showVenueModal"
       @close="showVenueModal = false"
       @submitted="handleVenueSubmitted"
-    />
-
-    <!-- Upgrade Prompt -->
-    <UpgradePrompt
-      :visible="showUpgradePrompt"
-      :current-tier="currentTier"
-      limit-type="games"
-      :current-count="activeEventCount"
-      :limit="eventLimit"
-      :blocking="isAtLimit"
-      @close="showUpgradePrompt = false"
     />
   </div>
 </template>

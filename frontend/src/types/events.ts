@@ -21,6 +21,7 @@ export interface EventSummary {
   title: string
   gameTitle: string | null
   gameCategory: string | null
+  gameSystem: GameSystem
   eventDate: string
   startTime: string
   timezone: string | null

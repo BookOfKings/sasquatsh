@@ -3,6 +3,7 @@ import type {
   Event,
   EventSummary,
   EventGameSummary,
+  GameSystem,
   CreateEventInput,
   UpdateEventInput,
   EventItem,
@@ -61,6 +62,7 @@ function toEventSummary(row: Record<string, unknown>): EventSummary {
     title: row.title as string,
     gameTitle: row.game_title as string | null,
     gameCategory: row.game_category as string | null,
+    gameSystem: (row.game_system as GameSystem) || 'board_game',
     eventDate: row.event_date as string,
     startTime: row.start_time as string,
     timezone: row.timezone as string | null,
@@ -193,7 +195,7 @@ export async function getPublicEvents(
   let query = supabase
     .from('events')
     .select(`
-      id, title, game_title, game_category, event_date, start_time,
+      id, title, game_title, game_category, game_system, event_date, start_time,
       duration_minutes, city, state, difficulty_level, max_players, host_is_playing,
       is_public, is_charity_event, min_age, status,
       host:users!host_user_id(id, display_name, avatar_url),

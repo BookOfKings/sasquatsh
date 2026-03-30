@@ -427,7 +427,17 @@ async function handleDeleteItem(itemId: string) {
 }
 
 function goToEdit() {
-  router.push(`/games/${eventId.value}/edit`)
+  // Route to TCG-specific edit views
+  if (isMtgEvent.value) {
+    router.push(`/mtg/events/${eventId.value}/edit`)
+  } else if (isPokemonEvent.value) {
+    router.push(`/pokemon/events/${eventId.value}/edit`)
+  } else if (isYugiohEvent.value) {
+    router.push(`/yugioh/events/${eventId.value}/edit`)
+  } else {
+    // Generic edit view for board games
+    router.push(`/games/${eventId.value}/edit`)
+  }
 }
 
 async function handleDelete() {
@@ -838,7 +848,7 @@ function goToLogin() {
         <!-- MTG Deck Rules Summary -->
         <MtgDeckRulesSummary
           :config="event.mtgConfig"
-          :format-name="event.mtgConfig.customFormatName || event.mtgConfig.formatId"
+          :format-name="event.mtgConfig.customFormatName || (event.mtgConfig.formatId ? event.mtgConfig.formatId.charAt(0).toUpperCase() + event.mtgConfig.formatId.slice(1) : '')"
           class="mb-6"
         />
 
@@ -851,7 +861,7 @@ function goToLogin() {
         <!-- MTG What to Bring -->
         <MtgWhatToBring
           :config="event.mtgConfig"
-          :format-name="event.mtgConfig.customFormatName || event.mtgConfig.formatId"
+          :format-name="event.mtgConfig.customFormatName || (event.mtgConfig.formatId ? event.mtgConfig.formatId.charAt(0).toUpperCase() + event.mtgConfig.formatId.slice(1) : '')"
           class="mb-6"
         />
       </template>

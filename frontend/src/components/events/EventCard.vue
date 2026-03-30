@@ -133,6 +133,28 @@ function getPlayerProgress(confirmed: number, max: number): number {
       </span>
 
       <span
+        v-if="event.gameSystem === 'mtg'"
+        class="chip bg-purple-100 text-purple-700 border border-purple-200"
+      >
+        <img src="/icons/mtg-logo.png" alt="MTG" class="h-3.5 mr-1 object-contain" />
+        MTG
+      </span>
+      <span
+        v-else-if="event.gameSystem === 'pokemon_tcg'"
+        class="chip bg-yellow-100 text-yellow-700 border border-yellow-200"
+      >
+        <img src="/icons/pokemon-logo.png" alt="Pokemon" class="h-3.5 mr-1 object-contain" />
+        Pokemon
+      </span>
+      <span
+        v-else-if="event.gameSystem === 'yugioh'"
+        class="chip bg-blue-100 text-blue-700 border border-blue-200"
+      >
+        <img src="/icons/yugioh-logo.png" alt="Yu-Gi-Oh!" class="h-3.5 mr-1 object-contain" />
+        Yu-Gi-Oh!
+      </span>
+
+      <span
         v-if="event.gameCategory"
         class="chip border border-primary-500 text-primary-500"
       >

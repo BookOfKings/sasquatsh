@@ -337,9 +337,7 @@ async function handleSubmit() {
         <!-- Header -->
         <div class="p-6 border-b border-gray-100">
           <h1 class="text-xl font-bold flex items-center gap-2 text-blue-700">
-            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M19,3H5A2,2 0 0,0 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5A2,2 0 0,0 19,3M19,19H5V5H19V19M12,6L8,18H10L10.75,16H13.25L14,18H16L12,6M10.83,14L12,10.5L13.17,14H10.83Z"/>
-            </svg>
+            <img src="/icons/yugioh-logo.png" alt="Yu-Gi-Oh!" class="h-6 object-contain" />
             Host Yu-Gi-Oh! TCG Event
           </h1>
           <p class="text-gray-500 text-sm mt-1">Create a Yu-Gi-Oh! Trading Card Game event with format-specific settings</p>

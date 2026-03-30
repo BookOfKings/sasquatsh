@@ -226,7 +226,7 @@ Deno.serve(async (req) => {
       let query = supabase
         .from('events')
         .select(`
-          id, title, game_title, game_category, event_date, start_time,
+          id, title, game_title, game_category, game_system, event_date, start_time,
           duration_minutes, city, state, postal_code, difficulty_level, max_players, host_is_playing,
           is_public, is_charity_event, min_age, status, host_user_id,
           host:users!host_user_id(id, display_name, avatar_url, is_founding_member, is_admin),
@@ -291,7 +291,7 @@ Deno.serve(async (req) => {
       const { data, error } = await supabase
         .from('events')
         .select(`
-          id, title, game_title, game_category, event_date, start_time,
+          id, title, game_title, game_category, game_system, event_date, start_time,
           duration_minutes, city, state, difficulty_level, max_players, host_is_playing,
           is_public, is_charity_event, min_age, status,
           host:users!host_user_id(id, display_name, avatar_url, is_founding_member, is_admin),
@@ -311,7 +311,7 @@ Deno.serve(async (req) => {
         .from('event_registrations')
         .select(`
           event:events(
-            id, title, game_title, game_category, event_date, start_time,
+            id, title, game_title, game_category, game_system, event_date, start_time,
             duration_minutes, city, state, difficulty_level, max_players, host_is_playing,
             is_public, is_charity_event, min_age, status,
             host:users!host_user_id(id, display_name, avatar_url, is_founding_member, is_admin),
@@ -427,6 +427,7 @@ Deno.serve(async (req) => {
         is_charity_event: body.isCharityEvent ?? false,
         min_age: body.minAge ?? null,
         status: body.status ?? 'draft',
+        game_system: body.gameSystem || 'board_game',
       })
       .select(`
         *,
@@ -633,6 +634,7 @@ Deno.serve(async (req) => {
         is_charity_event: body.isCharityEvent,
         min_age: body.minAge,
         status: body.status,
+        game_system: body.gameSystem,
         planned_games: body.plannedGames !== undefined ? body.plannedGames : undefined,
         updated_at: new Date().toISOString(),
       })
@@ -854,6 +856,7 @@ function transformEventSummary(row: Record<string, unknown>) {
     title: row.title,
     gameTitle: row.game_title,
     gameCategory: row.game_category,
+    gameSystem: row.game_system ?? 'board_game',
     eventDate: row.event_date,
     startTime: row.start_time,
     timezone: row.timezone,
