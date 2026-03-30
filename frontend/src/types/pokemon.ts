@@ -271,6 +271,7 @@ export type PokemonTournamentStyle =
 
 export interface PokemonEventConfig {
   formatId: string
+  customFormatName?: string | null
   eventType: PokemonEventType
 
   // Tournament settings
@@ -297,15 +298,20 @@ export interface PokemonEventConfig {
   proxyLimit?: number
   usePlayPoints: boolean  // Official Play! Pokemon points
   houseRulesNotes?: string  // Custom house rules
+  allowSpectators?: boolean
 
   // Event materials
   providesBasicEnergy: boolean
   providesDamageCounters: boolean
   sleevesRecommended: boolean
   providesBuildBattleKits: boolean  // For prerelease events
+  organizerConfirmedOfficialLocation?: boolean
 
   // Age divisions (official events)
   ageDivisions?: ('junior' | 'senior' | 'masters')[]
+  hasJuniorDivision?: boolean
+  hasSeniorDivision?: boolean
+  hasMastersDivision?: boolean
 }
 
 // ==================== Registration Types ====================

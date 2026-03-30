@@ -137,7 +137,6 @@ onMounted(async () => {
     // Pokemon config
     if (event.pokemonConfig) {
       form.pokemonConfig.formatId = event.pokemonConfig.formatId || null
-      form.pokemonConfig.customFormatName = event.pokemonConfig.customFormatName || null
       form.pokemonConfig.eventType = event.pokemonConfig.eventType || 'casual'
       form.pokemonConfig.tournamentStyle = event.pokemonConfig.tournamentStyle || null
       form.pokemonConfig.roundsCount = event.pokemonConfig.roundsCount || null
@@ -156,15 +155,10 @@ onMounted(async () => {
       form.pokemonConfig.entryFee = event.pokemonConfig.entryFee || null
       form.pokemonConfig.entryFeeCurrency = event.pokemonConfig.entryFeeCurrency || 'USD'
       form.pokemonConfig.usePlayPoints = event.pokemonConfig.usePlayPoints || false
-      form.pokemonConfig.organizerConfirmedOfficialLocation = event.pokemonConfig.organizerConfirmedOfficialLocation || false
       form.pokemonConfig.providesBasicEnergy = event.pokemonConfig.providesBasicEnergy || false
       form.pokemonConfig.providesDamageCounters = event.pokemonConfig.providesDamageCounters || false
       form.pokemonConfig.sleevesRecommended = event.pokemonConfig.sleevesRecommended ?? true
       form.pokemonConfig.providesBuildBattleKits = event.pokemonConfig.providesBuildBattleKits || false
-      form.pokemonConfig.hasJuniorDivision = event.pokemonConfig.hasJuniorDivision || false
-      form.pokemonConfig.hasSeniorDivision = event.pokemonConfig.hasSeniorDivision || false
-      form.pokemonConfig.hasMastersDivision = event.pokemonConfig.hasMastersDivision ?? true
-      form.pokemonConfig.allowSpectators = event.pokemonConfig.allowSpectators ?? true
 
       // Update selected format
       selectedFormat.value = POKEMON_FORMATS.find(f => f.id === form.pokemonConfig.formatId) || null
