@@ -87,6 +87,16 @@ Deno.serve(async (req) => {
             require_deck_registration, deck_submission_deadline, allow_side_deck,
             enforce_format_legality, house_rules_notes, has_prizes, prize_structure,
             entry_fee, entry_fee_currency, is_official_event, awards_ots_points, allow_spectators
+          ),
+          warhammer40k_config:warhammer40k_event_config(
+            game_type, points_limit, player_mode,
+            mission_pack, mission_notes,
+            battle_ready_required, wysiwyg_required, forge_world_allowed, legends_allowed, army_rules_notes,
+            terrain_type, table_size,
+            time_limit_minutes,
+            event_type, tournament_style, rounds_count,
+            has_prizes, prize_structure, entry_fee, entry_fee_currency,
+            allow_spectators, allow_proxies, proxy_notes
           )
         `)
         .eq('id', eventId)
@@ -526,6 +536,37 @@ Deno.serve(async (req) => {
       })
     }
 
+    // If Warhammer 40k config provided, insert into warhammer40k_event_config table
+    if (body.warhammer40kConfig && body.gameSystem === 'warhammer40k') {
+      const w40kConfig = body.warhammer40kConfig
+      await supabase.from('warhammer40k_event_config').insert({
+        event_id: data.id,
+        game_type: w40kConfig.gameType || 'matched',
+        points_limit: w40kConfig.pointsLimit ?? 2000,
+        player_mode: w40kConfig.playerMode || '1v1',
+        mission_pack: w40kConfig.missionPack,
+        mission_notes: w40kConfig.missionNotes,
+        battle_ready_required: w40kConfig.battleReadyRequired ?? false,
+        wysiwyg_required: w40kConfig.wysiwygRequired ?? false,
+        forge_world_allowed: w40kConfig.forgeWorldAllowed ?? true,
+        legends_allowed: w40kConfig.legendsAllowed ?? false,
+        army_rules_notes: w40kConfig.armyRulesNotes,
+        terrain_type: w40kConfig.terrainType || 'casual',
+        table_size: w40kConfig.tableSize || '44x60',
+        time_limit_minutes: w40kConfig.timeLimitMinutes,
+        event_type: w40kConfig.eventType || 'casual',
+        tournament_style: w40kConfig.tournamentStyle,
+        rounds_count: w40kConfig.roundsCount,
+        has_prizes: w40kConfig.hasPrizes ?? false,
+        prize_structure: w40kConfig.prizeStructure,
+        entry_fee: w40kConfig.entryFee,
+        entry_fee_currency: w40kConfig.entryFeeCurrency || 'USD',
+        allow_spectators: w40kConfig.allowSpectators ?? true,
+        allow_proxies: w40kConfig.allowProxies ?? false,
+        proxy_notes: w40kConfig.proxyNotes,
+      })
+    }
+
     // Award raffle entry for hosting an event (only if published)
     if (data.status === 'published') {
       try {
@@ -566,6 +607,16 @@ Deno.serve(async (req) => {
           require_deck_registration, deck_submission_deadline, allow_side_deck,
           enforce_format_legality, house_rules_notes, has_prizes, prize_structure,
           entry_fee, entry_fee_currency, is_official_event, awards_ots_points, allow_spectators
+        ),
+        warhammer40k_config:warhammer40k_event_config(
+          game_type, points_limit, player_mode,
+          mission_pack, mission_notes,
+          battle_ready_required, wysiwyg_required, forge_world_allowed, legends_allowed, army_rules_notes,
+          terrain_type, table_size,
+          time_limit_minutes,
+          event_type, tournament_style, rounds_count,
+          has_prizes, prize_structure, entry_fee, entry_fee_currency,
+          allow_spectators, allow_proxies, proxy_notes
         )
       `)
       .eq('id', data.id)
@@ -750,6 +801,37 @@ Deno.serve(async (req) => {
       }, { onConflict: 'event_id' })
     }
 
+    // If Warhammer 40k config provided, upsert into warhammer40k_event_config table
+    if (body.warhammer40kConfig && body.gameSystem === 'warhammer40k') {
+      const w40kConfig = body.warhammer40kConfig
+      await supabase.from('warhammer40k_event_config').upsert({
+        event_id: eventId,
+        game_type: w40kConfig.gameType || 'matched',
+        points_limit: w40kConfig.pointsLimit ?? 2000,
+        player_mode: w40kConfig.playerMode || '1v1',
+        mission_pack: w40kConfig.missionPack,
+        mission_notes: w40kConfig.missionNotes,
+        battle_ready_required: w40kConfig.battleReadyRequired ?? false,
+        wysiwyg_required: w40kConfig.wysiwygRequired ?? false,
+        forge_world_allowed: w40kConfig.forgeWorldAllowed ?? true,
+        legends_allowed: w40kConfig.legendsAllowed ?? false,
+        army_rules_notes: w40kConfig.armyRulesNotes,
+        terrain_type: w40kConfig.terrainType || 'casual',
+        table_size: w40kConfig.tableSize || '44x60',
+        time_limit_minutes: w40kConfig.timeLimitMinutes,
+        event_type: w40kConfig.eventType || 'casual',
+        tournament_style: w40kConfig.tournamentStyle,
+        rounds_count: w40kConfig.roundsCount,
+        has_prizes: w40kConfig.hasPrizes ?? false,
+        prize_structure: w40kConfig.prizeStructure,
+        entry_fee: w40kConfig.entryFee,
+        entry_fee_currency: w40kConfig.entryFeeCurrency || 'USD',
+        allow_spectators: w40kConfig.allowSpectators ?? true,
+        allow_proxies: w40kConfig.allowProxies ?? false,
+        proxy_notes: w40kConfig.proxyNotes,
+      }, { onConflict: 'event_id' })
+    }
+
     // Award raffle entry if event just became published
     if (body.status === 'published') {
       try {
@@ -804,6 +886,16 @@ Deno.serve(async (req) => {
           require_deck_registration, deck_submission_deadline, allow_side_deck,
           enforce_format_legality, house_rules_notes, has_prizes, prize_structure,
           entry_fee, entry_fee_currency, is_official_event, awards_ots_points, allow_spectators
+        ),
+        warhammer40k_config:warhammer40k_event_config(
+          game_type, points_limit, player_mode,
+          mission_pack, mission_notes,
+          battle_ready_required, wysiwyg_required, forge_world_allowed, legends_allowed, army_rules_notes,
+          terrain_type, table_size,
+          time_limit_minutes,
+          event_type, tournament_style, rounds_count,
+          has_prizes, prize_structure, entry_fee, entry_fee_currency,
+          allow_spectators, allow_proxies, proxy_notes
         )
       `)
       .eq('id', eventId)
@@ -1006,6 +1098,8 @@ function transformEvent(
     pokemonConfig: transformPokemonConfig(row.pokemon_config),
     // Yu-Gi-Oh! TCG event configuration (from joined yugioh_event_config table)
     yugiohConfig: transformYugiohConfig(row.yugioh_config),
+    // Warhammer 40k event configuration (from joined warhammer40k_event_config table)
+    warhammer40kConfig: transformWarhammer40kConfig(row.warhammer40k_config),
   }
 }
 
@@ -1104,5 +1198,37 @@ function transformYugiohConfig(config: unknown): Record<string, unknown> | null 
     isOfficialEvent: c.is_official_event,
     awardsOtsPoints: c.awards_ots_points,
     allowSpectators: c.allow_spectators,
+  }
+}
+
+// Transform Warhammer 40k config from snake_case to camelCase
+function transformWarhammer40kConfig(config: unknown): Record<string, unknown> | null {
+  const data = Array.isArray(config) ? config[0] : config
+  if (!data) return null
+  const c = data as Record<string, unknown>
+  return {
+    gameType: c.game_type,
+    pointsLimit: c.points_limit,
+    playerMode: c.player_mode,
+    missionPack: c.mission_pack,
+    missionNotes: c.mission_notes,
+    battleReadyRequired: c.battle_ready_required,
+    wysiwygRequired: c.wysiwyg_required,
+    forgeWorldAllowed: c.forge_world_allowed,
+    legendsAllowed: c.legends_allowed,
+    armyRulesNotes: c.army_rules_notes,
+    terrainType: c.terrain_type,
+    tableSize: c.table_size,
+    timeLimitMinutes: c.time_limit_minutes,
+    eventType: c.event_type,
+    tournamentStyle: c.tournament_style,
+    roundsCount: c.rounds_count,
+    hasPrizes: c.has_prizes,
+    prizeStructure: c.prize_structure,
+    entryFee: c.entry_fee,
+    entryFeeCurrency: c.entry_fee_currency,
+    allowSpectators: c.allow_spectators,
+    allowProxies: c.allow_proxies,
+    proxyNotes: c.proxy_notes,
   }
 }

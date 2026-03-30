@@ -32,6 +32,13 @@ import YugiohStructureSummary from '@/components/yugioh/YugiohStructureSummary.v
 import YugiohDeckRulesSummary from '@/components/yugioh/YugiohDeckRulesSummary.vue'
 import YugiohEntryPrizesSummary from '@/components/yugioh/YugiohEntryPrizesSummary.vue'
 import YugiohPlayerRoster from '@/components/yugioh/YugiohPlayerRoster.vue'
+// Warhammer 40k display components
+import Warhammer40kGameSummary from '@/components/warhammer40k/Warhammer40kGameSummary.vue'
+import Warhammer40kStructureSummary from '@/components/warhammer40k/Warhammer40kStructureSummary.vue'
+import Warhammer40kArmyRulesSummary from '@/components/warhammer40k/Warhammer40kArmyRulesSummary.vue'
+import Warhammer40kEntryPrizesSummary from '@/components/warhammer40k/Warhammer40kEntryPrizesSummary.vue'
+import Warhammer40kWhatToBring from '@/components/warhammer40k/Warhammer40kWhatToBring.vue'
+import Warhammer40kPlayerRoster from '@/components/warhammer40k/Warhammer40kPlayerRoster.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -95,6 +102,11 @@ const isPokemonEvent = computed(() => {
 // Check if this is a Yu-Gi-Oh! event
 const isYugiohEvent = computed(() => {
   return event.value?.gameSystem === 'yugioh' && event.value?.yugiohConfig
+})
+
+// Check if this is a Warhammer 40k event
+const isWarhammer40kEvent = computed(() => {
+  return event.value?.gameSystem === 'warhammer40k' && event.value?.warhammer40kConfig
 })
 
 // Check if user can see full address details
@@ -434,6 +446,8 @@ function goToEdit() {
     router.push(`/pokemon/events/${eventId.value}/edit`)
   } else if (isYugiohEvent.value) {
     router.push(`/yugioh/events/${eventId.value}/edit`)
+  } else if (isWarhammer40kEvent.value) {
+    router.push(`/warhammer40k/events/${eventId.value}/edit`)
   } else {
     // Generic edit view for board games
     router.push(`/games/${eventId.value}/edit`)
@@ -702,6 +716,13 @@ function goToLogin() {
           class="mb-6"
         />
 
+        <!-- Warhammer 40k Game Summary (prominently displayed for Warhammer 40k events) -->
+        <Warhammer40kGameSummary
+          v-if="isWarhammer40kEvent && event.warhammer40kConfig"
+          :config="event.warhammer40kConfig"
+          class="mb-6"
+        />
+
         <!-- Planned Games (from multi-game planning sessions) -->
         <div v-if="event.plannedGames && event.plannedGames.length > 0" class="mb-6">
           <h3 class="font-semibold mb-3 flex items-center gap-2">
@@ -908,6 +929,14 @@ function goToLogin() {
         />
       </template>
 
+      <!-- Warhammer 40k Event Details Sections -->
+      <template v-if="isWarhammer40kEvent && event.warhammer40kConfig">
+        <Warhammer40kStructureSummary :config="event.warhammer40kConfig" class="mb-6" />
+        <Warhammer40kArmyRulesSummary :config="event.warhammer40kConfig" class="mb-6" />
+        <Warhammer40kEntryPrizesSummary :config="event.warhammer40kConfig" class="mb-6" />
+        <Warhammer40kWhatToBring :config="event.warhammer40kConfig" class="mb-6" />
+      </template>
+
       <!-- Multi-Table Session Schedule -->
       <div v-if="event.isMultiTable && event.tables && event.sessions" class="card mb-6">
         <div class="p-4 border-b border-gray-100">
@@ -958,6 +987,16 @@ function goToLogin() {
       <!-- Yu-Gi-Oh! Player Roster (visual grid for Yu-Gi-Oh! events) -->
       <YugiohPlayerRoster
         v-else-if="isYugiohEvent && event.registrations"
+        :registrations="event.registrations"
+        :host-user-id="event.hostUserId"
+        :max-players="event.maxPlayers"
+        :confirmed-count="event.confirmedCount"
+        class="mb-6"
+      />
+
+      <!-- Warhammer 40k Player Roster (visual grid for Warhammer 40k events) -->
+      <Warhammer40kPlayerRoster
+        v-else-if="isWarhammer40kEvent && event.registrations"
         :registrations="event.registrations"
         :host-user-id="event.hostUserId"
         :max-players="event.maxPlayers"

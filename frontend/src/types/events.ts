@@ -3,8 +3,9 @@ import type { EventTable, GameSession } from './sessions'
 import type { MtgEventConfig } from './mtg'
 import type { PokemonEventConfig } from './pokemon'
 import type { YugiohEventConfig } from './yugioh'
+import type { Warhammer40kEventConfig } from './warhammer40k'
 
-export type GameSystem = 'board_game' | 'mtg' | 'pokemon_tcg' | 'yugioh'
+export type GameSystem = 'board_game' | 'mtg' | 'pokemon_tcg' | 'yugioh' | 'warhammer40k'
 
 export interface UserSummary {
   id: string
@@ -127,6 +128,8 @@ export interface Event {
   pokemonConfig: PokemonEventConfig | null
   // Yu-Gi-Oh! TCG event configuration
   yugiohConfig: YugiohEventConfig | null
+  // Warhammer 40k event configuration
+  warhammer40kConfig: Warhammer40kEventConfig | null
 }
 
 export interface CreateEventInput {
@@ -160,6 +163,7 @@ export interface CreateEventInput {
   mtgConfig?: Partial<MtgEventConfig>  // MTG-specific configuration
   pokemonConfig?: Partial<PokemonEventConfig>  // Pokemon TCG-specific configuration
   yugiohConfig?: Partial<YugiohEventConfig>  // Yu-Gi-Oh! TCG-specific configuration
+  warhammer40kConfig?: Partial<Warhammer40kEventConfig>  // Warhammer 40k-specific configuration
 }
 
 export interface UpdateEventInput {
@@ -193,6 +197,7 @@ export interface UpdateEventInput {
   mtgConfig?: Partial<MtgEventConfig>
   pokemonConfig?: Partial<PokemonEventConfig>
   yugiohConfig?: Partial<YugiohEventConfig>
+  warhammer40kConfig?: Partial<Warhammer40kEventConfig>
 }
 
 export interface CreateEventItemInput {

@@ -368,6 +368,13 @@ function handleVenueSubmitted(venue: EventLocation) {
               </svg>
               Yu-Gi-Oh!
             </router-link>
+            <router-link
+              to="/warhammer40k/events/create"
+              class="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-700 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+            >
+              <img src="/icons/warhammer40k-logo.png" alt="Warhammer 40k" class="w-4 h-4 object-contain" />
+              Warhammer 40k
+            </router-link>
           </div>
         </div>
       </div>

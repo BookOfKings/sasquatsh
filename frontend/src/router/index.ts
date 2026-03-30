@@ -201,6 +201,20 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/EditYugiohEventView.vue'),
     meta: { requiresAuth: true },
   },
+  // Warhammer 40k Event Creation
+  {
+    path: '/warhammer40k/events/create',
+    name: 'create-warhammer40k-event',
+    component: () => import('@/views/CreateWarhammer40kEventView.vue'),
+    meta: { requiresAuth: true },
+  },
+  // Warhammer 40k Event Edit
+  {
+    path: '/warhammer40k/events/:id/edit',
+    name: 'edit-warhammer40k-event',
+    component: () => import('@/views/EditWarhammer40kEventView.vue'),
+    meta: { requiresAuth: true },
+  },
   // MTG Deck Management
   {
     path: '/mtg/decks',
