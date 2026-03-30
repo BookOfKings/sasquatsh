@@ -166,6 +166,13 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/CreateMtgEventView.vue'),
     meta: { requiresAuth: true },
   },
+  // Pokemon TCG Event Creation
+  {
+    path: '/pokemon/events/create',
+    name: 'create-pokemon-event',
+    component: () => import('@/views/CreatePokemonEventView.vue'),
+    meta: { requiresAuth: true },
+  },
   // MTG Deck Management
   {
     path: '/mtg/decks',
