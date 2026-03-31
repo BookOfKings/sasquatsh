@@ -454,6 +454,47 @@ function goToEdit() {
   }
 }
 
+async function handleMakeRecurring() {
+  if (!event.value || !event.value.groupId) return
+
+  // Get the day of week from the event date
+  const eventDate = new Date(event.value.eventDate + 'T00:00:00')
+  const dayOfWeek = eventDate.getDay() // 0=Sun, 6=Sat
+
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+
+    const { createRecurringGame } = await import('@/services/recurringGamesApi')
+    await createRecurringGame(token, event.value.groupId, {
+      title: event.value.title,
+      description: event.value.description || undefined,
+      frequency: 'weekly',
+      dayOfWeek,
+      startTime: event.value.startTime,
+      durationMinutes: event.value.durationMinutes || 120,
+      maxPlayers: event.value.maxPlayers || 4,
+      hostIsPlaying: event.value.hostIsPlaying,
+      gameSystem: event.value.gameSystem || 'board_game',
+      gameTitle: event.value.gameTitle || undefined,
+      isPublic: event.value.isPublic,
+      eventLocationId: event.value.eventLocationId || undefined,
+      addressLine1: event.value.addressLine1 || undefined,
+      city: event.value.city || undefined,
+      state: event.value.state || undefined,
+      postalCode: event.value.postalCode || undefined,
+      timezone: event.value.timezone || undefined,
+    })
+
+    toast.message = 'Recurring game created! Future events will be auto-generated.'
+    toast.visible = true
+    setTimeout(() => { toast.visible = false }, 5000)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to create recurring game'
+    alert(message)
+  }
+}
+
 async function handleDelete() {
   if (!event.value) return
   if (!confirm(`Are you sure you want to delete "${event.value.title}"? This cannot be undone.`)) {
@@ -595,6 +636,17 @@ function goToLogin() {
                 <path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
               </svg>
               Delete
+            </button>
+            <button
+              v-if="isHost && event?.groupId && !event?.fromRecurringGameId"
+              class="btn-outline text-indigo-600 hover:bg-indigo-50"
+              @click="handleMakeRecurring"
+              title="Create a recurring game from this event"
+            >
+              <svg class="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"/>
+              </svg>
+              Make Recurring
             </button>
           </div>
         </div>
