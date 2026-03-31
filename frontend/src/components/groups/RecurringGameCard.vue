@@ -166,10 +166,10 @@ const gameSystemInfo = computed(() => {
     </div>
 
     <!-- Admin actions -->
-    <div v-if="isAdmin" class="flex items-center gap-2 pt-2 border-t border-gray-100">
+    <div v-if="isAdmin" class="flex items-center gap-2 pt-3 border-t border-gray-100">
       <button
         type="button"
-        class="btn-sm btn-secondary"
+        class="btn-outline btn-sm"
         @click.stop="emit('edit', game)"
       >
         <svg class="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="currentColor">
@@ -179,15 +179,15 @@ const gameSystemInfo = computed(() => {
       </button>
       <button
         type="button"
-        class="btn-sm"
-        :class="game.isActive ? 'btn-secondary' : 'btn-primary'"
+        class="btn-outline btn-sm"
+        :class="game.isActive ? 'text-amber-600 border-amber-500 hover:bg-amber-50' : 'text-green-600 border-green-500 hover:bg-green-50'"
         @click.stop="emit('toggle-active', game)"
       >
         {{ game.isActive ? 'Pause' : 'Resume' }}
       </button>
       <button
         type="button"
-        class="btn-sm text-red-600 hover:bg-red-50"
+        class="btn-outline btn-sm text-red-600 border-red-300 hover:bg-red-50"
         @click.stop="emit('delete', game)"
       >
         <svg class="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="currentColor">
