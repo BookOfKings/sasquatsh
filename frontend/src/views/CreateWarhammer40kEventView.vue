@@ -11,8 +11,8 @@ import Warhammer40kMissionSection from '@/components/warhammer40k/Warhammer40kMi
 import Warhammer40kArmyRulesSection from '@/components/warhammer40k/Warhammer40kArmyRulesSection.vue'
 import Warhammer40kTerrainSection from '@/components/warhammer40k/Warhammer40kTerrainSection.vue'
 import Warhammer40kPrizesSection from '@/components/warhammer40k/Warhammer40kPrizesSection.vue'
-import type { CreateWarhammer40kEventInput, Warhammer40kGameType, Warhammer40kEventType, Warhammer40kPlayerMode } from '@/types/warhammer40k'
-import { DEFAULT_WARHAMMER40K_CONFIG, DEFAULT_MAX_PLAYERS, isTournamentEventType } from '@/types/warhammer40k'
+import type { CreateWarhammer40kEventInput, Warhammer40kGameType, Warhammer40kEventType, Warhammer40kPlayerMode, Warhammer40kScoringType, Warhammer40kMissionSelection, Warhammer40kSecondaryObjectives } from '@/types/warhammer40k'
+import { DEFAULT_WARHAMMER40K_CONFIG, DEFAULT_MAX_PLAYERS, isTournamentEventType, getTableSizeForPoints, ROUNDS_PRESETS, ROUND_TIME_PRESETS, SCORING_TYPE_LABELS } from '@/types/warhammer40k'
 import type { EventLocation } from '@/types/social'
 import { getEffectiveTier } from '@/types/user'
 import type { SubscriptionTier } from '@/config/subscriptionLimits'
@@ -36,7 +36,7 @@ const form = reactive<CreateWarhammer40kEventInput>({
   eventDate: '',
   startTime: '10:00',
   timezone: 'America/Phoenix',
-  durationMinutes: 360,
+  durationMinutes: 180,
   setupMinutes: 30,
   maxPlayers: 8,
   hostIsPlaying: false,
@@ -113,11 +113,17 @@ function handleGameTypeChange(gameType: Warhammer40kGameType) {
   // Set smart defaults based on game type
   if (gameType === 'matched') {
     form.warhammer40kConfig.pointsLimit = 2000
-    form.warhammer40kConfig.tableSize = '44x60'
   } else {
     form.warhammer40kConfig.pointsLimit = 2000
-    form.warhammer40kConfig.tableSize = '44x60'
   }
+  // Auto-select table size based on points
+  form.warhammer40kConfig.tableSize = getTableSizeForPoints(form.warhammer40kConfig.pointsLimit)
+}
+
+// Handle points limit change with auto table size
+function handlePointsLimitChange(points: number) {
+  form.warhammer40kConfig.pointsLimit = points
+  form.warhammer40kConfig.tableSize = getTableSizeForPoints(points)
 }
 
 // Handle event type change
@@ -129,6 +135,17 @@ function handleEventTypeChange(eventType: Warhammer40kEventType) {
     form.warhammer40kConfig.tournamentStyle = null
     form.warhammer40kConfig.roundsCount = null
     form.warhammer40kConfig.timeLimitMinutes = null
+    form.warhammer40kConfig.roundTimeMinutes = null
+    form.warhammer40kConfig.includeTopCut = false
+    form.warhammer40kConfig.scoringType = null
+  }
+
+  // Casual: reset army submission and scoring
+  if (eventType === 'casual') {
+    form.warhammer40kConfig.requireArmyList = false
+    form.warhammer40kConfig.armyListDeadline = null
+    form.warhammer40kConfig.armyListNotes = null
+    form.warhammer40kConfig.scoringType = null
   }
 }
 
@@ -192,7 +209,7 @@ async function handleSubmit() {
         <!-- Header -->
         <div class="p-6 border-b border-gray-100">
           <h1 class="text-xl font-bold flex items-center gap-2 text-red-700">
-            <img src="/icons/warhammer40k-logo.png" alt="Warhammer 40k" class="h-6 object-contain" />
+            <img src="/icons/warhammer40k-logo.png" alt="Warhammer 40k" class="h-16 object-contain" />
             Host Warhammer 40k Event
           </h1>
           <p class="text-gray-500 text-sm mt-1">Create a Warhammer 40,000 event with army and mission settings</p>
@@ -273,7 +290,7 @@ async function handleSubmit() {
               :player-mode="form.warhammer40kConfig.playerMode"
               :has-error="sectionErrors.gameSetup"
               @update:game-type="handleGameTypeChange"
-              @update:points-limit="(v: number) => form.warhammer40kConfig.pointsLimit = v"
+              @update:points-limit="handlePointsLimitChange"
               @update:player-mode="(v: Warhammer40kPlayerMode) => form.warhammer40kConfig.playerMode = v"
             />
           </section>
@@ -282,8 +299,14 @@ async function handleSubmit() {
           <Warhammer40kMissionSection
             :mission-pack="form.warhammer40kConfig.missionPack"
             :mission-notes="form.warhammer40kConfig.missionNotes"
+            :mission-selection="form.warhammer40kConfig.missionSelection"
+            :pre-selected-missions="form.warhammer40kConfig.preSelectedMissions"
+            :secondary-objectives="form.warhammer40kConfig.secondaryObjectives"
             @update:mission-pack="(v: string | null) => form.warhammer40kConfig.missionPack = v"
             @update:mission-notes="(v: string | null) => form.warhammer40kConfig.missionNotes = v"
+            @update:mission-selection="(v: Warhammer40kMissionSelection | null) => form.warhammer40kConfig.missionSelection = v"
+            @update:pre-selected-missions="(v: string[] | null) => form.warhammer40kConfig.preSelectedMissions = v"
+            @update:secondary-objectives="(v: Warhammer40kSecondaryObjectives | null) => form.warhammer40kConfig.secondaryObjectives = v"
           />
 
           <!-- Army Rules -->
@@ -335,51 +358,186 @@ async function handleSubmit() {
                 </div>
               </div>
 
-              <!-- Tournament Settings (shown only for tournament events) -->
+              <!-- Tournament Settings (shown for tournament and league events with matched game type) -->
               <div v-if="isTournamentEventType(form.warhammer40kConfig.eventType)" class="space-y-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <h4 class="text-sm font-semibold text-gray-700">Tournament Settings</h4>
 
-                <!-- Tournament Style -->
+                <!-- League note -->
+                <p v-if="form.warhammer40kConfig.eventType === 'league'" class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                  League events use tournament settings applied across recurring sessions.
+                </p>
+
+                <!-- Pairing System -->
                 <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Tournament Style</label>
-                  <select
-                    :value="form.warhammer40kConfig.tournamentStyle"
-                    @change="(e) => form.warhammer40kConfig.tournamentStyle = ((e.target as HTMLSelectElement).value || null) as any"
-                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                  >
-                    <option value="">Select style...</option>
-                    <option value="swiss">Swiss Pairing</option>
-                    <option value="round_robin">Round Robin</option>
-                    <option value="single_elimination">Single Elimination</option>
-                    <option value="double_elimination">Double Elimination</option>
-                  </select>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Pairing System</label>
+                  <div class="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-700">
+                    Swiss
+                  </div>
+                  <p class="text-xs text-gray-500 mt-1">Swiss pairing is the standard system for Warhammer 40k tournaments.</p>
                 </div>
 
                 <!-- Rounds -->
                 <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Number of Rounds</label>
+                  <label class="block text-sm font-medium text-gray-700 mb-2">Number of Rounds</label>
+                  <div class="flex flex-wrap gap-2 mb-2">
+                    <button
+                      v-for="preset in ROUNDS_PRESETS"
+                      :key="preset"
+                      type="button"
+                      class="px-4 py-2 text-sm font-medium rounded-lg border transition-colors"
+                      :class="form.warhammer40kConfig.roundsCount === preset
+                        ? 'bg-red-600 text-white border-red-600'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'"
+                      @click="form.warhammer40kConfig.roundsCount = preset"
+                    >
+                      {{ preset }}
+                    </button>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <label class="text-sm text-gray-600">Custom:</label>
+                    <input
+                      type="number"
+                      :value="form.warhammer40kConfig.roundsCount && !ROUNDS_PRESETS.includes(form.warhammer40kConfig.roundsCount) ? form.warhammer40kConfig.roundsCount : ''"
+                      @input="(e) => form.warhammer40kConfig.roundsCount = Number((e.target as HTMLInputElement).value) || null"
+                      min="1"
+                      max="10"
+                      class="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                      placeholder="e.g., 6"
+                    />
+                  </div>
+                </div>
+
+                <!-- Round Time -->
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-2">Round Time</label>
+                  <div class="flex flex-wrap gap-2">
+                    <button
+                      v-for="preset in ROUND_TIME_PRESETS"
+                      :key="preset.minutes"
+                      type="button"
+                      class="px-4 py-2 text-sm font-medium rounded-lg border transition-colors"
+                      :class="form.warhammer40kConfig.roundTimeMinutes === preset.minutes
+                        ? 'bg-red-600 text-white border-red-600'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'"
+                      @click="form.warhammer40kConfig.roundTimeMinutes = preset.minutes"
+                    >
+                      {{ preset.label }}
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Include Top Cut -->
+                <div class="flex items-center gap-2">
                   <input
-                    type="number"
-                    :value="form.warhammer40kConfig.roundsCount"
-                    @input="(e) => form.warhammer40kConfig.roundsCount = Number((e.target as HTMLInputElement).value) || null"
-                    min="1"
-                    max="10"
+                    id="includeTopCut"
+                    v-model="form.warhammer40kConfig.includeTopCut"
+                    type="checkbox"
+                    class="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                  />
+                  <label for="includeTopCut" class="text-sm font-medium text-gray-700">
+                    Include Top Cut
+                  </label>
+                </div>
+
+                <!-- Scoring Type -->
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-2">Scoring Type</label>
+                  <div class="flex flex-wrap gap-2">
+                    <button
+                      v-for="(label, key) in SCORING_TYPE_LABELS"
+                      :key="key"
+                      type="button"
+                      class="px-4 py-2 text-sm font-medium rounded-lg border transition-colors"
+                      :class="form.warhammer40kConfig.scoringType === key
+                        ? 'bg-red-600 text-white border-red-600'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'"
+                      @click="form.warhammer40kConfig.scoringType = key as Warhammer40kScoringType"
+                    >
+                      {{ label }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Crusade Enhancements (shown for campaign events with crusade game type) -->
+              <div v-if="form.warhammer40kConfig.eventType === 'campaign' && form.warhammer40kConfig.gameType === 'crusade'" class="space-y-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <h4 class="text-sm font-semibold text-gray-700">Crusade Settings</h4>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Starting Supply Limit</label>
+                    <input
+                      type="number"
+                      :value="form.warhammer40kConfig.startingSupplyLimit ?? 1000"
+                      @input="(e) => form.warhammer40kConfig.startingSupplyLimit = Number((e.target as HTMLInputElement).value) || null"
+                      min="0"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                      placeholder="1000"
+                    />
+                  </div>
+
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Starting Crusade Points</label>
+                    <input
+                      type="number"
+                      :value="form.warhammer40kConfig.startingCrusadePoints ?? 5"
+                      @input="(e) => form.warhammer40kConfig.startingCrusadePoints = Number((e.target as HTMLInputElement).value) || null"
+                      min="0"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                      placeholder="5"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Progression Notes</label>
+                  <textarea
+                    :value="form.warhammer40kConfig.crusadeProgressionNotes ?? ''"
+                    @input="(e) => form.warhammer40kConfig.crusadeProgressionNotes = (e.target as HTMLTextAreaElement).value || null"
+                    rows="3"
                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                    placeholder="e.g., 3"
+                    placeholder="Describe progression rules, battle honour limits, etc."
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Army Submission (hidden for casual events) -->
+          <section v-if="form.warhammer40kConfig.eventType !== 'casual'">
+            <h3 class="text-lg font-semibold mb-4">Army List Submission</h3>
+            <div class="space-y-4">
+              <div class="flex items-center gap-2">
+                <input
+                  id="requireArmyList"
+                  v-model="form.warhammer40kConfig.requireArmyList"
+                  type="checkbox"
+                  class="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                />
+                <label for="requireArmyList" class="text-sm font-medium text-gray-700">
+                  Require Army List Submission
+                </label>
+              </div>
+
+              <div v-if="form.warhammer40kConfig.requireArmyList" class="space-y-4 ml-6">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Submission Deadline</label>
+                  <input
+                    type="date"
+                    :value="form.warhammer40kConfig.armyListDeadline ?? ''"
+                    @input="(e) => form.warhammer40kConfig.armyListDeadline = (e.target as HTMLInputElement).value || null"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
                   />
                 </div>
 
-                <!-- Round Time Limit -->
                 <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Round Time Limit (minutes)</label>
-                  <input
-                    type="number"
-                    :value="form.warhammer40kConfig.timeLimitMinutes"
-                    @input="(e) => form.warhammer40kConfig.timeLimitMinutes = Number((e.target as HTMLInputElement).value) || null"
-                    min="30"
-                    max="300"
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Submission Notes</label>
+                  <textarea
+                    :value="form.warhammer40kConfig.armyListNotes ?? ''"
+                    @input="(e) => form.warhammer40kConfig.armyListNotes = (e.target as HTMLTextAreaElement).value || null"
+                    rows="2"
                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                    placeholder="e.g., 150"
+                    placeholder="e.g., Submit via BattleScribe or New Recruit format"
                   />
                 </div>
               </div>

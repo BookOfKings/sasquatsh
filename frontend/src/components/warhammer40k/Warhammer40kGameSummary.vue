@@ -60,8 +60,8 @@ const tournamentPills = computed(() => {
   <div class="bg-gradient-to-r from-gray-50 to-red-50 rounded-lg border border-red-100 p-4">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center gap-3 mb-3">
-      <div class="flex-shrink-0 w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden">
-        <img src="/icons/warhammer40k-logo.png" alt="Warhammer 40,000" class="w-12 h-12 object-contain" />
+      <div class="flex-shrink-0 rounded-lg flex items-center justify-center overflow-hidden">
+        <img src="/icons/warhammer40k-logo.png" alt="Warhammer 40,000" class="h-12 w-auto object-contain" />
       </div>
 
       <div class="flex-1">

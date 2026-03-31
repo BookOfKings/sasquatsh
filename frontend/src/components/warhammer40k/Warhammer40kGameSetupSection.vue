@@ -128,6 +128,7 @@ function handleCustomPointsInput(event: Event) {
           {{ PLAYER_MODE_LABELS[mode] }}
         </button>
       </div>
+      <p class="text-xs text-gray-500 mt-1">Standard Warhammer 40k is played 1v1</p>
     </div>
   </div>
 </template>

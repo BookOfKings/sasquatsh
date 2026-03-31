@@ -122,6 +122,57 @@ export const TOURNAMENT_STYLE_LABELS: Record<Warhammer40kTournamentStyle, string
 }
 
 // =============================================================================
+// SCORING TYPES
+// =============================================================================
+
+export type Warhammer40kScoringType = 'win_loss' | 'win_draw_loss' | 'battle_points'
+
+export const SCORING_TYPE_LABELS: Record<Warhammer40kScoringType, string> = {
+  win_loss: 'Win/Loss',
+  win_draw_loss: 'Win/Draw/Loss',
+  battle_points: 'Battle Points (ITC-style)',
+}
+
+// =============================================================================
+// MISSION SELECTION
+// =============================================================================
+
+export type Warhammer40kMissionSelection = 'random' | 'pre_selected'
+
+export const MISSION_SELECTION_LABELS: Record<Warhammer40kMissionSelection, string> = {
+  random: 'Random per round',
+  pre_selected: 'Pre-selected missions',
+}
+
+export type Warhammer40kSecondaryObjectives = 'tactical' | 'fixed' | 'custom'
+
+export const SECONDARY_OBJECTIVES_LABELS: Record<Warhammer40kSecondaryObjectives, string> = {
+  tactical: 'Tactical',
+  fixed: 'Fixed allowed',
+  custom: 'Custom rules',
+}
+
+// =============================================================================
+// DURATION PRESETS
+// =============================================================================
+
+export const DURATION_PRESETS = [
+  { minutes: 120, label: '2h' },
+  { minutes: 150, label: '2h 30m' },
+  { minutes: 180, label: '3h' },
+  { minutes: 210, label: '3h 30m' },
+]
+
+export const ROUND_TIME_PRESETS = [
+  { minutes: 120, label: '2h' },
+  { minutes: 150, label: '2h 30m' },
+  { minutes: 180, label: '3h' },
+  { minutes: 210, label: '3h 30m' },
+]
+
+export const ROUNDS_PRESETS: number[] = [2, 3, 4, 5]
+
+// =============================================================================
 // HELPER CONSTANTS
 // =============================================================================
 
@@ -154,6 +205,9 @@ export interface Warhammer40kEventConfig {
   // Mission
   missionPack: string | null
   missionNotes: string | null
+  missionSelection: Warhammer40kMissionSelection | null
+  preSelectedMissions: string[] | null
+  secondaryObjectives: Warhammer40kSecondaryObjectives | null
 
   // Army rules
   battleReadyRequired: boolean
@@ -161,6 +215,11 @@ export interface Warhammer40kEventConfig {
   forgeWorldAllowed: boolean
   legendsAllowed: boolean
   armyRulesNotes: string | null
+
+  // Army submission
+  requireArmyList: boolean
+  armyListDeadline: string | null
+  armyListNotes: string | null
 
   // Terrain & table
   terrainType: Warhammer40kTerrainType
@@ -173,6 +232,14 @@ export interface Warhammer40kEventConfig {
   eventType: Warhammer40kEventType
   tournamentStyle: Warhammer40kTournamentStyle | null
   roundsCount: number | null
+  roundTimeMinutes: number | null
+  includeTopCut: boolean
+  scoringType: Warhammer40kScoringType | null
+
+  // Crusade
+  startingSupplyLimit: number | null
+  startingCrusadePoints: number | null
+  crusadeProgressionNotes: string | null
 
   // Prizes
   hasPrizes: boolean
@@ -192,17 +259,29 @@ export interface Warhammer40kEventConfigInput {
   playerMode: Warhammer40kPlayerMode
   missionPack: string | null
   missionNotes: string | null
+  missionSelection: Warhammer40kMissionSelection | null
+  preSelectedMissions: string[] | null
+  secondaryObjectives: Warhammer40kSecondaryObjectives | null
   battleReadyRequired: boolean
   wysiwygRequired: boolean
   forgeWorldAllowed: boolean
   legendsAllowed: boolean
   armyRulesNotes: string | null
+  requireArmyList: boolean
+  armyListDeadline: string | null
+  armyListNotes: string | null
   terrainType: Warhammer40kTerrainType
   tableSize: string
   timeLimitMinutes: number | null
   eventType: Warhammer40kEventType
   tournamentStyle: Warhammer40kTournamentStyle | null
   roundsCount: number | null
+  roundTimeMinutes: number | null
+  includeTopCut: boolean
+  scoringType: Warhammer40kScoringType | null
+  startingSupplyLimit: number | null
+  startingCrusadePoints: number | null
+  crusadeProgressionNotes: string | null
   hasPrizes: boolean
   prizeStructure: string | null
   entryFee: number | null
@@ -249,17 +328,29 @@ export const DEFAULT_WARHAMMER40K_CONFIG: Warhammer40kEventConfigInput = {
   playerMode: '1v1',
   missionPack: 'leviathan',
   missionNotes: null,
+  missionSelection: null,
+  preSelectedMissions: null,
+  secondaryObjectives: null,
   battleReadyRequired: false,
   wysiwygRequired: false,
   forgeWorldAllowed: true,
   legendsAllowed: false,
   armyRulesNotes: null,
+  requireArmyList: false,
+  armyListDeadline: null,
+  armyListNotes: null,
   terrainType: 'casual',
   tableSize: '44x60',
   timeLimitMinutes: null,
   eventType: 'casual',
   tournamentStyle: null,
   roundsCount: null,
+  roundTimeMinutes: null,
+  includeTopCut: false,
+  scoringType: null,
+  startingSupplyLimit: null,
+  startingCrusadePoints: null,
+  crusadeProgressionNotes: null,
   hasPrizes: false,
   prizeStructure: null,
   entryFee: null,
@@ -267,6 +358,11 @@ export const DEFAULT_WARHAMMER40K_CONFIG: Warhammer40kEventConfigInput = {
   allowSpectators: true,
   allowProxies: false,
   proxyNotes: null,
+}
+
+/** Auto-select table size based on points limit */
+export function getTableSizeForPoints(points: number): string {
+  return points <= 500 ? '44x30' : '44x60'
 }
 
 // =============================================================================

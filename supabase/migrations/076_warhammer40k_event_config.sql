@@ -51,6 +51,26 @@ CREATE TABLE IF NOT EXISTS warhammer40k_event_config (
   allow_proxies BOOLEAN DEFAULT false,
   proxy_notes TEXT,
 
+  -- Mission selection
+  mission_selection VARCHAR(20) CHECK (mission_selection IN ('random', 'pre_selected')),
+  pre_selected_missions TEXT[],
+  secondary_objectives VARCHAR(20) CHECK (secondary_objectives IN ('tactical', 'fixed', 'custom')),
+
+  -- Army submission
+  require_army_list BOOLEAN DEFAULT false,
+  army_list_deadline TIMESTAMPTZ,
+  army_list_notes TEXT,
+
+  -- Tournament extensions
+  round_time_minutes SMALLINT,
+  include_top_cut BOOLEAN DEFAULT false,
+  scoring_type VARCHAR(20) CHECK (scoring_type IN ('win_loss', 'win_draw_loss', 'battle_points')),
+
+  -- Crusade
+  starting_supply_limit SMALLINT,
+  starting_crusade_points SMALLINT,
+  crusade_progression_notes TEXT,
+
   -- Timestamps
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),

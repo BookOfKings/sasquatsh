@@ -96,7 +96,11 @@ Deno.serve(async (req) => {
             time_limit_minutes,
             event_type, tournament_style, rounds_count,
             has_prizes, prize_structure, entry_fee, entry_fee_currency,
-            allow_spectators, allow_proxies, proxy_notes
+            allow_spectators, allow_proxies, proxy_notes,
+            mission_selection, pre_selected_missions, secondary_objectives,
+            require_army_list, army_list_deadline, army_list_notes,
+            round_time_minutes, include_top_cut, scoring_type,
+            starting_supply_limit, starting_crusade_points, crusade_progression_notes
           )
         `)
         .eq('id', eventId)
@@ -564,6 +568,18 @@ Deno.serve(async (req) => {
         allow_spectators: w40kConfig.allowSpectators ?? true,
         allow_proxies: w40kConfig.allowProxies ?? false,
         proxy_notes: w40kConfig.proxyNotes,
+        mission_selection: w40kConfig.missionSelection,
+        pre_selected_missions: w40kConfig.preSelectedMissions,
+        secondary_objectives: w40kConfig.secondaryObjectives,
+        require_army_list: w40kConfig.requireArmyList ?? false,
+        army_list_deadline: w40kConfig.armyListDeadline,
+        army_list_notes: w40kConfig.armyListNotes,
+        round_time_minutes: w40kConfig.roundTimeMinutes,
+        include_top_cut: w40kConfig.includeTopCut ?? false,
+        scoring_type: w40kConfig.scoringType,
+        starting_supply_limit: w40kConfig.startingSupplyLimit,
+        starting_crusade_points: w40kConfig.startingCrusadePoints,
+        crusade_progression_notes: w40kConfig.crusadeProgressionNotes,
       })
     }
 
@@ -616,7 +632,11 @@ Deno.serve(async (req) => {
           time_limit_minutes,
           event_type, tournament_style, rounds_count,
           has_prizes, prize_structure, entry_fee, entry_fee_currency,
-          allow_spectators, allow_proxies, proxy_notes
+          allow_spectators, allow_proxies, proxy_notes,
+          mission_selection, pre_selected_missions, secondary_objectives,
+          require_army_list, army_list_deadline, army_list_notes,
+          round_time_minutes, include_top_cut, scoring_type,
+          starting_supply_limit, starting_crusade_points, crusade_progression_notes
         )
       `)
       .eq('id', data.id)
@@ -829,6 +849,18 @@ Deno.serve(async (req) => {
         allow_spectators: w40kConfig.allowSpectators ?? true,
         allow_proxies: w40kConfig.allowProxies ?? false,
         proxy_notes: w40kConfig.proxyNotes,
+        mission_selection: w40kConfig.missionSelection,
+        pre_selected_missions: w40kConfig.preSelectedMissions,
+        secondary_objectives: w40kConfig.secondaryObjectives,
+        require_army_list: w40kConfig.requireArmyList ?? false,
+        army_list_deadline: w40kConfig.armyListDeadline,
+        army_list_notes: w40kConfig.armyListNotes,
+        round_time_minutes: w40kConfig.roundTimeMinutes,
+        include_top_cut: w40kConfig.includeTopCut ?? false,
+        scoring_type: w40kConfig.scoringType,
+        starting_supply_limit: w40kConfig.startingSupplyLimit,
+        starting_crusade_points: w40kConfig.startingCrusadePoints,
+        crusade_progression_notes: w40kConfig.crusadeProgressionNotes,
       }, { onConflict: 'event_id' })
     }
 
@@ -895,7 +927,11 @@ Deno.serve(async (req) => {
           time_limit_minutes,
           event_type, tournament_style, rounds_count,
           has_prizes, prize_structure, entry_fee, entry_fee_currency,
-          allow_spectators, allow_proxies, proxy_notes
+          allow_spectators, allow_proxies, proxy_notes,
+          mission_selection, pre_selected_missions, secondary_objectives,
+          require_army_list, army_list_deadline, army_list_notes,
+          round_time_minutes, include_top_cut, scoring_type,
+          starting_supply_limit, starting_crusade_points, crusade_progression_notes
         )
       `)
       .eq('id', eventId)
@@ -1230,5 +1266,17 @@ function transformWarhammer40kConfig(config: unknown): Record<string, unknown> |
     allowSpectators: c.allow_spectators,
     allowProxies: c.allow_proxies,
     proxyNotes: c.proxy_notes,
+    missionSelection: c.mission_selection,
+    preSelectedMissions: c.pre_selected_missions,
+    secondaryObjectives: c.secondary_objectives,
+    requireArmyList: c.require_army_list,
+    armyListDeadline: c.army_list_deadline,
+    armyListNotes: c.army_list_notes,
+    roundTimeMinutes: c.round_time_minutes,
+    includeTopCut: c.include_top_cut,
+    scoringType: c.scoring_type,
+    startingSupplyLimit: c.starting_supply_limit,
+    startingCrusadePoints: c.starting_crusade_points,
+    crusadeProgressionNotes: c.crusade_progression_notes,
   }
 }
