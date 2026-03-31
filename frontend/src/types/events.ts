@@ -130,6 +130,9 @@ export interface Event {
   yugiohConfig: YugiohEventConfig | null
   // Warhammer 40k event configuration
   warhammer40kConfig: Warhammer40kEventConfig | null
+  // Recurring game link
+  fromRecurringGameId: string | null
+  recurringGame: { id: string; title: string } | null
 }
 
 export interface CreateEventInput {

@@ -186,6 +186,8 @@ function toEvent(row: Record<string, unknown>): Event {
     pokemonConfig: row.pokemonConfig as Event['pokemonConfig'] ?? null,
     yugiohConfig: row.yugiohConfig as Event['yugiohConfig'] ?? null,
     warhammer40kConfig: row.warhammer40kConfig as Event['warhammer40kConfig'] ?? null,
+    fromRecurringGameId: (row.from_recurring_game_id as string) ?? null,
+    recurringGame: (row.recurring_game as Event['recurringGame']) ?? null,
   }
 }
 

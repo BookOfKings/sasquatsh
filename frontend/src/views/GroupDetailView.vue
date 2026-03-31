@@ -8,6 +8,7 @@ import type { PlanningSession } from '@/types/planning'
 import GroupAdminPanel from '@/components/groups/GroupAdminPanel.vue'
 import EditGroupModal from '@/components/groups/EditGroupModal.vue'
 import ChatPanel from '@/components/chat/ChatPanel.vue'
+import RecurringGamesList from '@/components/groups/RecurringGamesList.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -386,6 +387,13 @@ async function handleGroupUpdated() {
           <p v-if="isAdmin" class="text-sm mt-1">Click "Host a Game" to start coordinating your next game night.</p>
         </div>
       </div>
+
+      <!-- Recurring Games Section -->
+      <RecurringGamesList
+        v-if="group"
+        :group-id="group.id"
+        :is-admin="isAdmin || isOwner"
+      />
 
       <!-- Upcoming Games Section -->
       <div class="card mb-6">

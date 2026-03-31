@@ -5,11 +5,13 @@ export type SubscriptionTier = 'free' | 'basic' | 'pro' | 'premium'
 export interface TierLimits {
   gamesPerEvent: number
   maxGroups: number
+  maxRecurringGamesPerGroup: number
   features: {
     tableInfo: boolean      // Can specify hall/room/table per game
     planning: boolean       // Access to game night planning feature
     items: boolean          // Access to items to bring feature
     chat: boolean           // Access to chat feature
+    recurringGames: boolean // Access to recurring games feature
     showAds: boolean        // Show upgrade advertisements
   }
 }
@@ -18,33 +20,39 @@ export const TIER_LIMITS: Record<SubscriptionTier, TierLimits> = {
   free: {
     gamesPerEvent: 1,
     maxGroups: 1,
+    maxRecurringGamesPerGroup: 0,
     features: {
       tableInfo: false,
       planning: false,
       items: false,
       chat: false,
+      recurringGames: false,
       showAds: true,
     },
   },
   basic: {
     gamesPerEvent: 5,
     maxGroups: 5,
+    maxRecurringGamesPerGroup: 1,
     features: {
       tableInfo: true,
       planning: true,
       items: true,
       chat: true,
+      recurringGames: true,
       showAds: false,
     },
   },
   pro: {
     gamesPerEvent: 10,
     maxGroups: 10,
+    maxRecurringGamesPerGroup: Infinity,
     features: {
       tableInfo: true,
       planning: true,
       items: true,
       chat: true,
+      recurringGames: true,
       showAds: false,
     },
   },
@@ -52,11 +60,13 @@ export const TIER_LIMITS: Record<SubscriptionTier, TierLimits> = {
     // Premium is essentially unlimited (legacy tier or special cases)
     gamesPerEvent: Infinity,
     maxGroups: Infinity,
+    maxRecurringGamesPerGroup: Infinity,
     features: {
       tableInfo: true,
       planning: true,
       items: true,
       chat: true,
+      recurringGames: true,
       showAds: false,
     },
   },
@@ -87,6 +97,7 @@ export const TIER_FEATURES: Record<SubscriptionTier, string[]> = {
   basic: [
     'Host up to 5 games per event',
     'Create up to 5 groups',
+    '1 recurring game per group',
     'Specify table locations per game',
     'Game night planning feature',
     'Items to bring lists',
@@ -96,6 +107,7 @@ export const TIER_FEATURES: Record<SubscriptionTier, string[]> = {
   pro: [
     'Host up to 10 games per event',
     'Create up to 10 groups',
+    'Unlimited recurring games',
     'Specify table locations per game',
     'Game night planning feature',
     'Items to bring lists',
@@ -130,5 +142,11 @@ export function canCreateGroup(tier: SubscriptionTier, currentCount: number): bo
 // Helper to check if user can add more games to event
 export function canAddGame(tier: SubscriptionTier, currentCount: number): boolean {
   const limit = getLimits(tier).gamesPerEvent
+  return currentCount < limit
+}
+
+// Helper to check if user can create more recurring games in a group
+export function canCreateRecurringGame(tier: SubscriptionTier, currentCount: number): boolean {
+  const limit = getLimits(tier).maxRecurringGamesPerGroup
   return currentCount < limit
 }

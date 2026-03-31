@@ -101,7 +101,8 @@ Deno.serve(async (req) => {
             require_army_list, army_list_deadline, army_list_notes,
             round_time_minutes, include_top_cut, scoring_type,
             starting_supply_limit, starting_crusade_points, crusade_progression_notes
-          )
+          ),
+          recurring_game:recurring_games!from_recurring_game_id(id, title)
         `)
         .eq('id', eventId)
         .single()
@@ -1136,6 +1137,9 @@ function transformEvent(
     yugiohConfig: transformYugiohConfig(row.yugioh_config),
     // Warhammer 40k event configuration (from joined warhammer40k_event_config table)
     warhammer40kConfig: transformWarhammer40kConfig(row.warhammer40k_config),
+    // Recurring game link
+    fromRecurringGameId: row.from_recurring_game_id ?? null,
+    recurringGame: row.recurring_game ? (Array.isArray(row.recurring_game) ? row.recurring_game[0] : row.recurring_game) : null,
   }
 }
 

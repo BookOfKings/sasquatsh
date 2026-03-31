@@ -56,18 +56,62 @@ export interface GroupMembership {
   }
 }
 
+export type RecurringFrequency = 'weekly' | 'biweekly' | 'monthly'
+
 export interface RecurringGame {
   id: string
   groupId: string
   title: string
   description: string | null
+  frequency: RecurringFrequency
   dayOfWeek: number // 0-6, Sunday = 0
+  monthlyWeek: number | null // 1-4 or -1 (last), for monthly only
   startTime: string
   durationMinutes: number
   maxPlayers: number
+  hostIsPlaying: boolean
   locationDetails: string | null
+  eventLocationId: string | null
+  addressLine1: string | null
+  city: string | null
+  state: string | null
+  postalCode: string | null
+  timezone: string | null
+  gameSystem: string
+  gameTitle: string | null
+  isPublic: boolean
   isActive: boolean
+  nextOccurrenceDate: string | null
+  lastGeneratedDate: string | null
+  hostUserId: string | null
+  createdByUserId: string | null
   createdAt: string
+}
+
+export interface CreateRecurringGameInput {
+  title: string
+  description?: string
+  frequency: RecurringFrequency
+  dayOfWeek: number
+  monthlyWeek?: number
+  startTime: string
+  durationMinutes?: number
+  maxPlayers?: number
+  hostIsPlaying?: boolean
+  locationDetails?: string
+  eventLocationId?: string
+  addressLine1?: string
+  city?: string
+  state?: string
+  postalCode?: string
+  timezone?: string
+  gameSystem?: string
+  gameTitle?: string
+  isPublic?: boolean
+}
+
+export interface UpdateRecurringGameInput extends Partial<CreateRecurringGameInput> {
+  isActive?: boolean
 }
 
 export interface CreateGroupInput {
