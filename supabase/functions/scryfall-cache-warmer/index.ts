@@ -394,11 +394,11 @@ async function verifyAdmin(
 
   const { data: user } = await supabase
     .from('users')
-    .select('role')
+    .select('is_admin')
     .eq('firebase_uid', firebaseUser.uid)
     .single()
 
-  if (user?.role !== 'admin') {
+  if (!user?.is_admin) {
     return { isAdmin: false, error: 'Admin access required' }
   }
 
