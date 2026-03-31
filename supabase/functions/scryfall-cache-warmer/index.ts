@@ -16,7 +16,7 @@ const COMMANDER_STAPLES = [
   'Talisman of Progress', 'Talisman of Dominance', 'Talisman of Indulgence',
   'Talisman of Impulse', 'Talisman of Unity', 'Talisman of Hierarchy',
   'Talisman of Creativity', 'Talisman of Conviction', 'Talisman of Curiosity',
-  'Talisman of Resilience', 'Signets', 'Dimir Signet', 'Azorius Signet',
+  'Talisman of Resilience', 'Dimir Signet', 'Azorius Signet',
   'Orzhov Signet', 'Boros Signet', 'Selesnya Signet', 'Golgari Signet',
   'Simic Signet', 'Izzet Signet', 'Rakdos Signet', 'Gruul Signet',
 
