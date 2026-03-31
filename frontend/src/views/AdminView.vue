@@ -184,6 +184,7 @@ const changingRoleId = ref<string | null>(null)
 
 // Notes state
 const notes = ref<AdminNote[]>([])
+const expandedNotes = reactive(new Set<string>())
 const notesLoading = ref(false)
 const showNoteDialog = ref(false)
 const editingNote = ref<AdminNote | null>(null)
@@ -3125,7 +3126,14 @@ function getLocationTypeLabel(location: EventLocation): string {
                     Implemented
                   </span>
                 </div>
-                <p class="text-gray-600 whitespace-pre-wrap">{{ note.content }}</p>
+                <div class="text-gray-600 whitespace-pre-wrap">
+                  <template v-if="note.content && note.content.split('\n').length > 20 && !expandedNotes.has(note.id)">
+                    {{ note.content.split('\n').slice(0, 20).join('\n') }}
+                    <button class="text-primary-600 hover:text-primary-800 font-medium text-sm mt-1 block" @click="expandedNotes.add(note.id)">more...</button>
+                  </template>
+                  <template v-else>{{ note.content }}</template>
+                  <button v-if="note.content && note.content.split('\n').length > 20 && expandedNotes.has(note.id)" class="text-primary-600 hover:text-primary-800 font-medium text-sm mt-1 block" @click="expandedNotes.delete(note.id)">show less</button>
+                </div>
                 <p class="text-xs text-gray-400 mt-2">
                   By {{ note.createdBy?.displayName || note.createdBy?.username || 'Unknown' }}
                   &bull; Updated {{ new Date(note.updatedAt).toLocaleDateString() }}
