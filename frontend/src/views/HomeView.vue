@@ -125,6 +125,12 @@ function goToPricing() {
           </button>
         </div>
 
+        <!-- Game System Selector (authenticated) -->
+        <div class="mt-4 mb-4" style="overflow: visible;">
+          <p class="text-xs text-gray-400 uppercase tracking-wide font-medium mb-3 text-center">Host by game system</p>
+          <GameSystemSelector />
+        </div>
+
         <!-- Upgrade CTA for free tier users -->
         <div v-if="isFreeTier" class="bg-gradient-to-r from-primary-50 to-purple-50 border border-primary-200 rounded-xl p-4 mt-4">
           <div class="flex items-center gap-4">
