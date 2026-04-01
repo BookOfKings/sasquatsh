@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import { getStats, type Stats } from '@/services/statsApi'
 import { getEffectiveTier } from '@/types/user'
 import RaffleBanner from '@/components/raffle/RaffleBanner.vue'
+import GameSystemSelector from '@/components/common/GameSystemSelector.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -52,14 +53,15 @@ function goToPricing() {
 
 <template>
   <div class="min-h-[calc(100vh-64px)] flex items-center justify-center p-4">
-    <div class="card p-8 text-center max-w-lg w-full">
+    <div class="card p-8 text-center max-w-[40rem] w-full overflow-visible">
       <!-- Logo -->
       <div class="mb-6">
         <img src="/logo.png" alt="Sasquatsh" class="w-36 h-36 mx-auto" />
       </div>
 
       <h1 class="text-3xl font-bold text-primary-500 mb-2">Sasquatsh</h1>
-      <p class="text-lg text-gray-600 mb-4">Plan legendary games with your crew</p>
+      <p class="text-lg text-gray-600 mb-1">Plan legendary tabletop games with your crew</p>
+      <p class="text-sm text-gray-500 mb-4">Create events with game-specific rules, formats, and structure built in.</p>
 
       <!-- Stats Cards -->
       <div class="grid grid-cols-2 gap-4 mb-6">
@@ -90,16 +92,11 @@ function goToPricing() {
       </div>
 
       <!-- Mission Statement -->
-      <div class="bg-gradient-to-r from-primary-50 to-secondary-50 rounded-xl p-4 mb-6">
-        <p class="text-gray-700 text-sm leading-relaxed">
-          Our mission is to bring board game lovers together. Whether you're hosting a casual game night
-          or looking for players nearby, Sasquatsh makes it easy to connect with fellow enthusiasts
-          and share your passion for tabletop gaming.
+      <div class="bg-gray-50 rounded-xl p-4 mb-6">
+        <p class="text-gray-500 text-sm leading-relaxed">
+          Sasquatsh helps you plan and organize tabletop games with your crew. From board games and card games to tournaments and miniatures, create events, set rules, and bring players together — all in one place.
         </p>
       </div>
-
-      <!-- Raffle Banner -->
-      <RaffleBanner />
 
       <hr class="border-gray-200 mb-6" />
 
@@ -149,7 +146,7 @@ function goToPricing() {
 
       <template v-else>
         <p class="text-gray-600 mb-6">
-          Create games, invite friends, and organize epic board game sessions.
+          Run casual sessions or structured events with tools tailored to each game system.
         </p>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
@@ -166,6 +163,15 @@ function goToPricing() {
             Sign In
           </button>
         </div>
+
+        <!-- Game System Selector -->
+        <div class="mb-6" style="overflow: visible;">
+          <p class="text-xs text-gray-400 uppercase tracking-wide font-medium mb-3 text-center">Host by game system</p>
+          <GameSystemSelector />
+        </div>
+
+        <!-- Raffle Banner -->
+        <RaffleBanner class="mb-4" />
 
         <hr class="border-gray-200 mb-4" />
 
