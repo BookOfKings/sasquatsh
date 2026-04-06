@@ -110,7 +110,7 @@ async function getStats(supabase: ReturnType<typeof createClient>): Promise<Admi
 
       // Events
       supabase.from('events').select('*', { count: 'exact', head: true }),
-      supabase.from('events').select('*', { count: 'exact', head: true }).gte('date', now.toISOString().split('T')[0]),
+      supabase.from('events').select('*', { count: 'exact', head: true }).gte('event_date', now.toISOString().split('T')[0]),
 
       // Planning Sessions
       supabase.from('planning_sessions').select('*', { count: 'exact', head: true }),
@@ -533,6 +533,84 @@ Deno.serve(async (req) => {
           effectiveTier: u.subscription_override_tier || u.subscription_tier || 'free',
           authProvider: u.auth_provider || 'password',
           createdAt: u.created_at,
+        })),
+        total: count ?? 0,
+        page,
+        limit,
+      })
+    }
+
+    // List events (admin)
+    if (action === 'events') {
+      const search = url.searchParams.get('search') || ''
+      const page = parseInt(url.searchParams.get('page') || '1')
+      const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 100)
+      const offset = (page - 1) * limit
+      const showPast = url.searchParams.get('showPast') === 'true'
+      const today = new Date().toISOString().split('T')[0]
+
+      let query = supabase
+        .from('events')
+        .select(`
+          id, title, game_title, game_system, event_date, start_time, duration_minutes,
+          city, state, status, is_public, max_players, host_is_playing,
+          host_user_id, created_at, planned_games,
+          host:users!host_user_id(id, display_name, username, avatar_url),
+          registrations:event_registrations(count),
+          games:event_games(thumbnail_url, is_primary)
+        `, { count: 'exact' })
+
+      if (!showPast) {
+        query = query.gte('event_date', today)
+      }
+
+      if (search) {
+        const safeSearch = escapeFilterValue(search)
+        query = query.or(`title.ilike.%${safeSearch}%,game_title.ilike.%${safeSearch}%,city.ilike.%${safeSearch}%`)
+      }
+
+      const { data: events, count, error } = await query
+        .order('event_date', { ascending: !showPast })
+        .range(offset, offset + limit - 1)
+
+      if (error) {
+        return errorResponse(error.message, 500)
+      }
+
+      return jsonResponse({
+        events: (events || []).map(e => ({
+          id: e.id,
+          title: e.title,
+          gameTitle: e.game_title,
+          gameSystem: e.game_system,
+          eventDate: e.event_date,
+          startTime: e.start_time,
+          durationMinutes: e.duration_minutes,
+          city: e.city,
+          state: e.state,
+          status: e.status,
+          isPublic: e.is_public,
+          maxPlayers: e.max_players,
+          hostIsPlaying: e.host_is_playing,
+          registrationCount: (e.registrations as { count: number }[])?.[0]?.count ?? 0,
+          host: e.host ? {
+            id: (e.host as Record<string, unknown>).id,
+            displayName: (e.host as Record<string, unknown>).display_name,
+            username: (e.host as Record<string, unknown>).username,
+            avatarUrl: (e.host as Record<string, unknown>).avatar_url,
+          } : null,
+          primaryGameThumbnail: (() => {
+            // Try event_games primary thumbnail first
+            const games = e.games as { thumbnail_url: string | null; is_primary: boolean }[] | null
+            const primary = games?.find(g => g.is_primary)
+            if (primary?.thumbnail_url) return primary.thumbnail_url
+            if (games?.[0]?.thumbnail_url) return games[0].thumbnail_url
+            // Fall back to planned_games JSON
+            const planned = e.planned_games as { image?: string | null }[] | null
+            if (planned?.[0]?.image) return planned[0].image
+            return null
+          })(),
+          createdAt: e.created_at,
         })),
         total: count ?? 0,
         page,
@@ -1195,7 +1273,58 @@ Deno.serve(async (req) => {
       // 10. Groups created by user - transfer ownership
       await supabase.from('groups').update({ created_by_user_id: adminUser.id }).eq('created_by_user_id', userId)
 
-      // Finally delete the user
+      // Delete from Firebase Auth
+      let firebaseDeleteError: string | null = null
+      if (targetUser.firebase_uid) {
+        try {
+          const firebaseApiKey = Deno.env.get('FIREBASE_API_KEY')
+          if (firebaseApiKey) {
+            // Use Google Identity Platform Admin API via service account
+            // The Supabase edge function runtime has access to Google Cloud metadata
+            const metadataUrl = 'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token'
+            let accessToken: string | null = null
+            try {
+              const tokenResp = await fetch(metadataUrl, {
+                headers: { 'Metadata-Flavor': 'Google' },
+              })
+              if (tokenResp.ok) {
+                const tokenData = await tokenResp.json()
+                accessToken = tokenData.access_token
+              }
+            } catch {
+              // Not running on GCP, skip Firebase Auth deletion
+            }
+
+            if (accessToken) {
+              const deleteResp = await fetch(
+                `https://identitytoolkit.googleapis.com/v1/projects/sasquatsh/accounts:delete`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
+                    'x-goog-user-project': 'sasquatsh',
+                  },
+                  body: JSON.stringify({ localId: targetUser.firebase_uid }),
+                }
+              )
+              if (!deleteResp.ok) {
+                const errBody = await deleteResp.json().catch(() => ({}))
+                firebaseDeleteError = errBody.error?.message || `Firebase delete failed: ${deleteResp.status}`
+                console.error('Firebase Auth delete error:', firebaseDeleteError)
+              }
+            } else {
+              firebaseDeleteError = 'Could not obtain access token for Firebase Auth deletion'
+              console.warn(firebaseDeleteError)
+            }
+          }
+        } catch (err) {
+          firebaseDeleteError = `Firebase Auth delete error: ${err}`
+          console.error(firebaseDeleteError)
+        }
+      }
+
+      // Finally delete the user from Supabase
       const { error } = await supabase
         .from('users')
         .delete()
@@ -1206,12 +1335,13 @@ Deno.serve(async (req) => {
       }
 
       return jsonResponse({
-        message: `User ${targetUser.username || targetUser.email} deleted`,
+        message: `User ${targetUser.username || targetUser.email} deleted` + (firebaseDeleteError ? ` (Warning: ${firebaseDeleteError})` : ''),
         deletedUser: {
           id: targetUser.id,
           email: targetUser.email,
           username: targetUser.username,
-        }
+        },
+        firebaseDeleted: !firebaseDeleteError,
       })
     }
 
@@ -1262,6 +1392,53 @@ Deno.serve(async (req) => {
       }
 
       return jsonResponse({ message: `Password reset email sent to ${targetUser.email}` })
+    }
+
+    // Delete event (admin)
+    if (action === 'delete-event') {
+      const eventId = body.eventId as string
+
+      if (!eventId) {
+        return errorResponse('eventId required', 400)
+      }
+
+      const { data: event } = await supabase
+        .from('events')
+        .select('id, title')
+        .eq('id', eventId)
+        .single()
+
+      if (!event) {
+        return errorResponse('Event not found', 404)
+      }
+
+      // Delete related records first (foreign keys)
+      await supabase.from('event_registrations').delete().eq('event_id', eventId)
+      await supabase.from('event_games').delete().eq('event_id', eventId)
+      await supabase.from('game_session_registrations').delete().in(
+        'session_id',
+        (await supabase.from('event_game_sessions').select('id').eq('event_id', eventId)).data?.map(s => s.id) || []
+      )
+      await supabase.from('event_game_sessions').delete().eq('event_id', eventId)
+      await supabase.from('event_tables').delete().eq('event_id', eventId)
+      await supabase.from('game_invitations').delete().eq('event_id', eventId)
+      await supabase.from('mtg_event_config').delete().eq('event_id', eventId)
+      await supabase.from('mtg_event_registrations').delete().eq('event_id', eventId)
+      await supabase.from('pokemon_event_config').delete().eq('event_id', eventId)
+      await supabase.from('pokemon_event_registrations').delete().eq('event_id', eventId)
+      await supabase.from('yugioh_event_config').delete().eq('event_id', eventId)
+      await supabase.from('warhammer40k_event_config').delete().eq('event_id', eventId)
+
+      const { error } = await supabase
+        .from('events')
+        .delete()
+        .eq('id', eventId)
+
+      if (error) {
+        return errorResponse(error.message, 500)
+      }
+
+      return jsonResponse({ message: `Event "${event.title}" deleted` })
     }
 
     // Delete group

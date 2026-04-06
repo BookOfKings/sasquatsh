@@ -496,6 +496,61 @@ export interface AdminGroupListResponse {
   limit: number
 }
 
+// Admin event type
+export interface AdminEvent {
+  id: string
+  title: string
+  gameTitle: string | null
+  gameSystem: string | null
+  eventDate: string
+  startTime: string | null
+  durationMinutes: number | null
+  city: string | null
+  state: string | null
+  status: string
+  isPublic: boolean
+  maxPlayers: number | null
+  hostIsPlaying: boolean
+  registrationCount: number
+  primaryGameThumbnail: string | null
+  host: {
+    id: string
+    displayName: string | null
+    username: string | null
+    avatarUrl: string | null
+  } | null
+  createdAt: string
+}
+
+export interface AdminEventListResponse {
+  events: AdminEvent[]
+  total: number
+  page: number
+  limit: number
+}
+
+// Get list of events (admin only)
+export async function getAdminEvents(
+  token: string,
+  options?: { search?: string; page?: number; limit?: number; showPast?: boolean }
+): Promise<AdminEventListResponse> {
+  const params = new URLSearchParams({ action: 'events' })
+  if (options?.search) params.set('search', options.search)
+  if (options?.page) params.set('page', options.page.toString())
+  if (options?.limit) params.set('limit', options.limit.toString())
+  if (options?.showPast) params.set('showPast', 'true')
+
+  return authenticatedRequest<AdminEventListResponse>(`/admin-stats?${params}`, token)
+}
+
+// Delete an event (admin only)
+export async function deleteAdminEvent(token: string, eventId: string): Promise<{ message: string }> {
+  return authenticatedRequest<{ message: string }>('/admin-stats?action=delete-event', token, {
+    method: 'POST',
+    body: JSON.stringify({ eventId }),
+  })
+}
+
 // Get list of groups (admin only)
 export async function getAdminGroups(
   token: string,
@@ -751,8 +806,8 @@ export async function getMtgCacheStats(): Promise<MtgCacheStats> {
 }
 
 // Warm Commander staples
-export async function warmMtgStaples(token: string): Promise<MtgCacheWarmResult> {
-  return authenticatedRequest<MtgCacheWarmResult>('/scryfall-cache-warmer?action=warm-staples', token, {
+export async function warmMtgStaples(token: string, offset = 0): Promise<MtgCacheWarmResult & { hasMore?: boolean; nextOffset?: number | null; totalStaples?: number }> {
+  return authenticatedRequest<MtgCacheWarmResult & { hasMore?: boolean; nextOffset?: number | null; totalStaples?: number }>(`/scryfall-cache-warmer?action=warm-staples&offset=${offset}`, token, {
     method: 'POST',
   })
 }
@@ -772,8 +827,8 @@ export async function warmMtgBySearch(token: string, query: string, pages = 3): 
 }
 
 // Refresh stale MTG cache entries
-export async function refreshMtgStaleCache(token: string, limit = 100): Promise<MtgCacheWarmResult> {
-  return authenticatedRequest<MtgCacheWarmResult>(`/scryfall-cache-warmer?action=refresh-stale&limit=${limit}`, token, {
+export async function refreshMtgStaleCache(token: string): Promise<MtgCacheWarmResult & { hasMore?: boolean; remaining?: number }> {
+  return authenticatedRequest<MtgCacheWarmResult & { hasMore?: boolean; remaining?: number }>('/scryfall-cache-warmer?action=refresh-stale', token, {
     method: 'POST',
   })
 }

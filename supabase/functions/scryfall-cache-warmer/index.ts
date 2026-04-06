@@ -5,7 +5,7 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
 const SCRYFALL_API_BASE = 'https://api.scryfall.com'
-const DELAY_BETWEEN_REQUESTS = 100 // 100ms = 10 req/sec (Scryfall limit)
+const DELAY_BETWEEN_REQUESTS = 250 // 250ms = 4 req/sec (well under Scryfall's ~10 req/sec limit)
 const CACHE_TTL_HOURS = 24
 
 // Top Commander staples - most commonly played cards
@@ -436,13 +436,23 @@ Deno.serve(async (req) => {
     return errorResponse(authError || 'Unauthorized', 403)
   }
 
-  // POST: Warm staples
+  // POST: Warm staples (processes in batches to avoid resource limits)
   if (action === 'warm-staples') {
-    console.log(`Starting warm-staples: ${COMMANDER_STAPLES.length} cards`)
-    const result = await warmCardsByName(supabase, COMMANDER_STAPLES)
+    const batchSize = 10
+    const offset = parseInt(url.searchParams.get('offset') || '0', 10)
+    const batch = COMMANDER_STAPLES.slice(offset, offset + batchSize)
+    const hasMore = offset + batchSize < COMMANDER_STAPLES.length
+
+    console.log(`Starting warm-staples: batch ${Math.floor(offset / batchSize) + 1} (${batch.length} cards, offset ${offset}/${COMMANDER_STAPLES.length})`)
+    const result = await warmCardsByName(supabase, batch)
     return jsonResponse({
       action: 'warm-staples',
       ...result,
+      batchOffset: offset,
+      batchSize,
+      totalStaples: COMMANDER_STAPLES.length,
+      hasMore,
+      nextOffset: hasMore ? offset + batchSize : null,
     })
   }
 
@@ -473,27 +483,30 @@ Deno.serve(async (req) => {
     })
   }
 
-  // POST: Refresh stale entries
+  // POST: Refresh stale entries (batched)
   if (action === 'refresh-stale') {
-    const limit = parseInt(url.searchParams.get('limit') || '100', 10)
+    const batchSize = 10
     const staleThreshold = new Date(Date.now() - CACHE_TTL_HOURS * 60 * 60 * 1000).toISOString()
 
-    const { data: staleCards } = await supabase
+    const { data: staleCards, count } = await supabase
       .from('scryfall_cards_cache')
-      .select('name')
+      .select('name', { count: 'exact' })
       .lt('cached_at', staleThreshold)
       .order('cached_at', { ascending: true })
-      .limit(limit)
+      .limit(batchSize)
 
     if (!staleCards || staleCards.length === 0) {
-      return jsonResponse({ action: 'refresh-stale', message: 'No stale entries found', cached: 0 })
+      return jsonResponse({ action: 'refresh-stale', message: 'No stale entries found', cached: 0, skipped: 0, failed: 0, total: 0, hasMore: false, remaining: 0 })
     }
 
-    console.log(`Refreshing ${staleCards.length} stale entries`)
+    console.log(`Refreshing ${staleCards.length} stale entries (${count} total stale)`)
     const result = await warmCardsByName(supabase, staleCards.map(c => c.name))
+    const remaining = Math.max(0, (count ?? 0) - staleCards.length)
     return jsonResponse({
       action: 'refresh-stale',
       ...result,
+      hasMore: remaining > 0,
+      remaining,
     })
   }
 

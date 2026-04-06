@@ -259,12 +259,15 @@ Deno.serve(async (req) => {
       }
 
       // Apply radius filter if we have nearby zip codes
-      if (nearbyZipCodes && nearbyZipCodes.length > 0) {
-        query = query.in('postal_code', nearbyZipCodes)
-      }
-
-      // Apply other filters (city/state only if not using radius search)
-      if (!nearbyZipCodes) {
+      if (nearbyZip && radiusMiles) {
+        if (nearbyZipCodes && nearbyZipCodes.length > 0) {
+          query = query.in('postal_code', nearbyZipCodes)
+        } else {
+          // Zip code not found in database - return no results rather than showing everything
+          return jsonResponse([])
+        }
+      } else {
+        // No radius search - use city/state text filtering
         if (city) query = query.ilike('city', `%${city}%`)
         if (state) query = query.eq('state', state)
       }

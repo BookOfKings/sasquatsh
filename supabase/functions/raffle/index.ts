@@ -156,7 +156,12 @@ Deno.serve(async (req) => {
           mailInAddress: e.mail_in_address,
           mailInVerified: e.mail_in_verified,
           createdAt: e.created_at,
-          user: e.user,
+          user: e.user ? {
+            id: (e.user as Record<string, unknown>).id,
+            displayName: (e.user as Record<string, unknown>).display_name,
+            avatarUrl: (e.user as Record<string, unknown>).avatar_url,
+            subscriptionTier: (e.user as Record<string, unknown>).subscription_tier,
+          } : null,
         })),
       })
     }

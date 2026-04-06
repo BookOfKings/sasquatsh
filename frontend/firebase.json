@@ -15,6 +15,18 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "redirects": [
+      {
+        "source": "/events",
+        "destination": "/games",
+        "type": 301
+      },
+      {
+        "source": "/events/create",
+        "destination": "/games/create",
+        "type": 301
+      }
+    ],
     "rewrites": [
       {
         "source": "**",

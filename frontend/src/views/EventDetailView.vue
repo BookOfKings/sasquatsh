@@ -8,6 +8,7 @@ import { inviteGroupMembersToEvent } from '@/services/eventsApi'
 import { registerForSession, cancelSessionRegistration } from '@/services/sessionsApi'
 import { supabase } from '@/services/supabase'
 import ShareModal from '@/components/common/ShareModal.vue'
+import AddToCalendar from '@/components/events/AddToCalendar.vue'
 import D20Spinner from '@/components/common/D20Spinner.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 import SessionScheduleGrid from '@/components/events/SessionScheduleGrid.vue'
@@ -908,6 +909,17 @@ function goToLogin() {
             Sign in to join
           </button>
         </div>
+
+        <!-- Add to Calendar -->
+        <AddToCalendar
+          v-if="event"
+          :title="event.title"
+          :date="event.eventDate"
+          :start-time="event.startTime"
+          :duration-minutes="event.durationMinutes"
+          :location="[event.addressLine1, event.city, event.state, event.postalCode].filter(Boolean).join(', ')"
+          :description="`${event.title}${event.description ? ' - ' + event.description : ''}${event.venue ? ' at ' + event.venue.name : ''}`"
+        />
       </div>
 
       <!-- MTG Event Details Sections -->

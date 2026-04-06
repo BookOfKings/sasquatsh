@@ -184,7 +184,8 @@ Deno.serve(async (req) => {
       .eq('user_id', user.id)
 
     // Get user's upcoming events (registered)
-    const { data: registrations } = await supabase
+    const today = new Date().toISOString().split('T')[0]
+    const { data: allRegistrations } = await supabase
       .from('event_registrations')
       .select(`
         status,
@@ -192,9 +193,16 @@ Deno.serve(async (req) => {
       `)
       .eq('user_id', user.id)
       .in('status', ['pending', 'confirmed'])
-      .gte('events.event_date', new Date().toISOString().split('T')[0])
-      .order('events(event_date)', { ascending: true })
-      .limit(5)
+
+    // Filter to upcoming events and sort by date (embedded table filters not supported via query builder)
+    const registrations = (allRegistrations ?? [])
+      .filter(r => r.event && (r.event as Record<string, unknown>).event_date >= today)
+      .sort((a, b) => {
+        const dateA = (a.event as Record<string, unknown>).event_date as string
+        const dateB = (b.event as Record<string, unknown>).event_date as string
+        return dateA.localeCompare(dateB)
+      })
+      .slice(0, 5)
 
     // Get user's hosted events count
     const { count: hostedCount } = await supabase

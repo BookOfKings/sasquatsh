@@ -26,6 +26,7 @@ const isLoading = ref(true)
 const error = ref<string | null>(null)
 const isInitialized = ref(false)
 const redirectHandled = ref(false) // Track if we've already handled redirect result
+const signupInProgress = ref(false) // Prevent onAuthStateChanged from interfering during signup
 
 // Detect if user is on a mobile device
 function isMobileDevice(): boolean {
@@ -123,6 +124,16 @@ async function initializeAuth(): Promise<void> {
           return
         }
 
+        // Skip if signup is in progress - signup handles its own sync
+        if (signupInProgress.value) {
+          console.log('[Auth] Signup in progress, skipping onAuthStateChanged sync')
+          firebaseUser.value = fbUser
+          isLoading.value = false
+          isInitialized.value = true
+          resolve()
+          return
+        }
+
         console.log('[Auth] Syncing user with backend...')
         try {
           const idToken = await fbUser.getIdToken()
@@ -184,6 +195,7 @@ async function signupWithEmail(
 ): Promise<{ ok: boolean; message: string }> {
   isLoading.value = true
   error.value = null
+  signupInProgress.value = true
 
   try {
     const result = await createUserWithEmailAndPassword(auth, email, password)
@@ -198,6 +210,7 @@ async function signupWithEmail(
       try {
         const idToken = await result.user.getIdToken()
         user.value = await getCurrentUser(idToken, { username, recaptchaToken })
+        firebaseUser.value = result.user
       } catch (syncErr: any) {
         console.error('Failed to sync user with backend:', syncErr)
         // If backend sync fails (e.g., username taken), delete the Firebase user
@@ -217,6 +230,7 @@ async function signupWithEmail(
     error.value = message
     return { ok: false, message }
   } finally {
+    signupInProgress.value = false
     isLoading.value = false
   }
 }

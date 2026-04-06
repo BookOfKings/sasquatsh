@@ -45,9 +45,11 @@ import {
   warmMtgStaples,
   warmMtgCommanders,
   refreshMtgStaleCache,
+  getAdminEvents,
+  deleteAdminEvent,
 } from '@/services/adminApi'
 import type { EventLocation } from '@/types/social'
-import type { BggCacheStats, BggCacheEntry, AdminStats, ServiceHealth, AdminUser, AdminGroup, AdminGroupMember, AdminNote, AdminBug, MtgCacheStats, MtgCacheWarmResult } from '@/services/adminApi'
+import type { BggCacheStats, BggCacheEntry, AdminStats, ServiceHealth, AdminUser, AdminGroup, AdminGroupMember, AdminNote, AdminBug, MtgCacheStats, MtgCacheWarmResult, AdminEvent } from '@/services/adminApi'
 import { listBggCache, refreshBggGame, updateBggCacheEntry } from '@/services/adminApi'
 import { getAllAds, getAdStats, createAd, updateAd, deleteAd, toggleAdActive } from '@/services/adsApi'
 import type { Ad, AdStats, CreateAdInput } from '@/services/adsApi'
@@ -78,8 +80,17 @@ function withMinLoadingTime<T>(promise: Promise<T>, startTime: number): Promise<
   })
 }
 
-const activeTab = ref<'dashboard' | 'users' | 'groups' | 'notes' | 'bugs' | 'chatReports' | 'ads' | 'raffles' | 'locations' | 'caches'>('dashboard')
+const activeTab = ref<'dashboard' | 'users' | 'groups' | 'events' | 'notes' | 'bugs' | 'chatReports' | 'ads' | 'raffles' | 'locations' | 'caches'>('dashboard')
 const activeCacheTab = ref<'bgg' | 'mtg'>('bgg')
+
+// Events state
+const deletingEventId = ref<string | null>(null)
+const eventsLoading = ref(false)
+const adminEvents = ref<AdminEvent[]>([])
+const eventsTotal = ref(0)
+const eventsPage = ref(1)
+const eventsSearch = ref('')
+const eventsShowPast = ref(false)
 
 // Dashboard state
 const dashboardLoading = ref(false)
@@ -101,6 +112,7 @@ const cacheImporting = ref(false)
 const mtgCacheStats = ref<MtgCacheStats | null>(null)
 const mtgCacheLoading = ref(false)
 const mtgCacheWarming = ref(false)
+const mtgWarmProgress = ref('')
 const mtgWarmResult = ref<MtgCacheWarmResult | null>(null)
 const cacheGames = ref<BggCacheEntry[]>([])
 const cacheGamesTotal = ref(0)
@@ -532,19 +544,41 @@ async function loadMtgCacheStats() {
 async function handleWarmMtgStaples() {
   mtgCacheWarming.value = true
   mtgWarmResult.value = null
+  mtgWarmProgress.value = 'Starting...'
   errorMessage.value = ''
+  let totalCached = 0, totalSkipped = 0, totalFailed = 0
   try {
     const token = await auth.getIdToken()
     if (!token) return
-    const result = await warmMtgStaples(token)
-    mtgWarmResult.value = result
-    successMessage.value = `Cached ${result.cached} cards (${result.skipped} skipped, ${result.failed} failed)`
+
+    let offset = 0
+    let hasMore = true
+    let batchNum = 0
+    while (hasMore) {
+      batchNum++
+      mtgWarmProgress.value = `Batch ${batchNum}: ${totalCached} cached, ${totalSkipped} skipped so far...`
+      await new Promise(r => setTimeout(r, 0)) // let Vue re-render
+      const result = await warmMtgStaples(token, offset)
+      totalCached += result.cached
+      totalSkipped += result.skipped
+      totalFailed += result.failed
+      hasMore = result.hasMore ?? false
+      offset = result.nextOffset ?? 0
+    }
+
+    mtgWarmResult.value = { action: 'warm-staples', cached: totalCached, skipped: totalSkipped, failed: totalFailed, total: totalCached + totalSkipped + totalFailed }
+    mtgWarmProgress.value = ''
+    successMessage.value = `Cached ${totalCached} cards (${totalSkipped} skipped, ${totalFailed} failed)`
     await loadMtgCacheStats()
     setTimeout(() => successMessage.value = '', 5000)
   } catch (err) {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to warm MTG cache'
+    if (totalCached > 0) {
+      errorMessage.value += ` (${totalCached} cached before error)`
+    }
   } finally {
     mtgCacheWarming.value = false
+    mtgWarmProgress.value = ''
   }
 }
 
@@ -570,19 +604,39 @@ async function handleWarmMtgCommanders() {
 async function handleRefreshMtgStale() {
   mtgCacheWarming.value = true
   mtgWarmResult.value = null
+  mtgWarmProgress.value = 'Checking for stale entries...'
   errorMessage.value = ''
+  let totalCached = 0, totalSkipped = 0, totalFailed = 0
   try {
     const token = await auth.getIdToken()
     if (!token) return
-    const result = await refreshMtgStaleCache(token)
-    mtgWarmResult.value = result
-    successMessage.value = `Refreshed ${result.cached} stale entries`
+
+    let hasMore = true
+    let batchNum = 0
+    while (hasMore) {
+      batchNum++
+      mtgWarmProgress.value = `Batch ${batchNum}: ${totalCached} refreshed, ${totalFailed} failed so far...`
+      await new Promise(r => setTimeout(r, 0)) // let Vue re-render
+      const result = await refreshMtgStaleCache(token)
+      totalCached += result.cached
+      totalSkipped += result.skipped
+      totalFailed += result.failed
+      hasMore = result.hasMore ?? false
+    }
+
+    mtgWarmResult.value = { action: 'refresh-stale', cached: totalCached, skipped: totalSkipped, failed: totalFailed, total: totalCached + totalSkipped + totalFailed }
+    mtgWarmProgress.value = ''
+    successMessage.value = `Refreshed ${totalCached} stale entries (${totalSkipped} skipped, ${totalFailed} failed)`
     await loadMtgCacheStats()
     setTimeout(() => successMessage.value = '', 5000)
   } catch (err) {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to refresh stale MTG cache'
+    if (totalCached > 0) {
+      errorMessage.value += ` (${totalCached} refreshed before error)`
+    }
   } finally {
     mtgCacheWarming.value = false
+    mtgWarmProgress.value = ''
   }
 }
 
@@ -980,6 +1034,51 @@ function handleUserSearch() {
 }
 
 // Group Management Functions
+async function loadEvents() {
+  eventsLoading.value = true
+  errorMessage.value = ''
+  const startTime = Date.now()
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    const result = await getAdminEvents(token, {
+      search: eventsSearch.value || undefined,
+      page: eventsPage.value,
+      limit: 20,
+      showPast: eventsShowPast.value,
+    })
+    adminEvents.value = result.events
+    eventsTotal.value = result.total
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to load events'
+  } finally {
+    const elapsed = Date.now() - startTime
+    if (elapsed < MIN_LOADING_TIME) {
+      await new Promise(resolve => setTimeout(resolve, MIN_LOADING_TIME - elapsed))
+    }
+    eventsLoading.value = false
+  }
+}
+
+async function handleDeleteEvent(event: AdminEvent) {
+  if (!confirm(`Delete event "${event.title}"? This will remove all registrations and cannot be undone.`)) return
+
+  deletingEventId.value = event.id
+  errorMessage.value = ''
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    await deleteAdminEvent(token, event.id)
+    successMessage.value = `Event "${event.title}" deleted`
+    await loadEvents()
+    setTimeout(() => successMessage.value = '', 3000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to delete event'
+  } finally {
+    deletingEventId.value = null
+  }
+}
+
 async function loadGroups() {
   groupsLoading.value = true
   errorMessage.value = ''
@@ -2165,15 +2264,15 @@ function getLocationTypeLabel(location: EventLocation): string {
 </script>
 
 <template>
-  <div class="container-narrow py-8">
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 py-8 overflow-x-hidden">
     <div class="mb-6">
       <h1 class="text-2xl font-bold">Site Administration</h1>
     </div>
 
     <!-- Tabs -->
-    <div class="flex gap-1 mb-6 border-b border-gray-200">
+    <div class="flex gap-0.5 mb-6 border-b border-gray-200 overflow-x-auto -mx-4 px-4 scrollbar-hide">
       <button
-        class="px-4 py-2 text-sm font-medium transition-colors -mb-px"
+        class="px-3 py-2 text-sm font-medium transition-colors -mb-px whitespace-nowrap"
         :class="activeTab === 'dashboard'
           ? 'text-primary-600 border-b-2 border-primary-500'
           : 'text-gray-500 hover:text-gray-700'"
@@ -2182,7 +2281,7 @@ function getLocationTypeLabel(location: EventLocation): string {
         Dashboard
       </button>
       <button
-        class="px-4 py-2 text-sm font-medium transition-colors -mb-px"
+        class="px-3 py-2 text-sm font-medium transition-colors -mb-px whitespace-nowrap"
         :class="activeTab === 'users'
           ? 'text-primary-600 border-b-2 border-primary-500'
           : 'text-gray-500 hover:text-gray-700'"
@@ -2191,7 +2290,7 @@ function getLocationTypeLabel(location: EventLocation): string {
         Users
       </button>
       <button
-        class="px-4 py-2 text-sm font-medium transition-colors -mb-px"
+        class="px-3 py-2 text-sm font-medium transition-colors -mb-px whitespace-nowrap"
         :class="activeTab === 'groups'
           ? 'text-primary-600 border-b-2 border-primary-500'
           : 'text-gray-500 hover:text-gray-700'"
@@ -2200,7 +2299,16 @@ function getLocationTypeLabel(location: EventLocation): string {
         Groups
       </button>
       <button
-        class="px-4 py-2 text-sm font-medium transition-colors -mb-px"
+        class="px-3 py-2 text-sm font-medium transition-colors -mb-px whitespace-nowrap"
+        :class="activeTab === 'events'
+          ? 'text-primary-600 border-b-2 border-primary-500'
+          : 'text-gray-500 hover:text-gray-700'"
+        @click="activeTab = 'events'; loadEvents()"
+      >
+        Events
+      </button>
+      <button
+        class="px-3 py-2 text-sm font-medium transition-colors -mb-px whitespace-nowrap"
         :class="activeTab === 'notes'
           ? 'text-primary-600 border-b-2 border-primary-500'
           : 'text-gray-500 hover:text-gray-700'"
@@ -2209,7 +2317,7 @@ function getLocationTypeLabel(location: EventLocation): string {
         Notes
       </button>
       <button
-        class="px-4 py-2 text-sm font-medium transition-colors -mb-px"
+        class="px-3 py-2 text-sm font-medium transition-colors -mb-px whitespace-nowrap"
         :class="activeTab === 'bugs'
           ? 'text-primary-600 border-b-2 border-primary-500'
           : 'text-gray-500 hover:text-gray-700'"
@@ -2218,7 +2326,7 @@ function getLocationTypeLabel(location: EventLocation): string {
         Bugs
       </button>
       <button
-        class="px-4 py-2 text-sm font-medium transition-colors -mb-px"
+        class="px-3 py-2 text-sm font-medium transition-colors -mb-px whitespace-nowrap"
         :class="activeTab === 'chatReports'
           ? 'text-primary-600 border-b-2 border-primary-500'
           : 'text-gray-500 hover:text-gray-700'"
@@ -2227,7 +2335,7 @@ function getLocationTypeLabel(location: EventLocation): string {
         Chat Reports
       </button>
       <button
-        class="px-4 py-2 text-sm font-medium transition-colors -mb-px"
+        class="px-3 py-2 text-sm font-medium transition-colors -mb-px whitespace-nowrap"
         :class="activeTab === 'ads'
           ? 'text-primary-600 border-b-2 border-primary-500'
           : 'text-gray-500 hover:text-gray-700'"
@@ -2236,7 +2344,7 @@ function getLocationTypeLabel(location: EventLocation): string {
         Ads
       </button>
       <button
-        class="px-4 py-2 text-sm font-medium transition-colors -mb-px"
+        class="px-3 py-2 text-sm font-medium transition-colors -mb-px whitespace-nowrap"
         :class="activeTab === 'raffles'
           ? 'text-primary-600 border-b-2 border-primary-500'
           : 'text-gray-500 hover:text-gray-700'"
@@ -2245,16 +2353,16 @@ function getLocationTypeLabel(location: EventLocation): string {
         Raffles
       </button>
       <button
-        class="px-4 py-2 text-sm font-medium transition-colors -mb-px"
+        class="px-3 py-2 text-sm font-medium transition-colors -mb-px whitespace-nowrap"
         :class="activeTab === 'locations'
           ? 'text-primary-600 border-b-2 border-primary-500'
           : 'text-gray-500 hover:text-gray-700'"
         @click="activeTab = 'locations'"
       >
-        Event Locations
+        Locations
       </button>
       <button
-        class="px-4 py-2 text-sm font-medium transition-colors -mb-px"
+        class="px-3 py-2 text-sm font-medium transition-colors -mb-px whitespace-nowrap"
         :class="activeTab === 'caches'
           ? 'text-primary-600 border-b-2 border-primary-500'
           : 'text-gray-500 hover:text-gray-700'"
@@ -2716,12 +2824,13 @@ function getLocationTypeLabel(location: EventLocation): string {
           <div
             v-for="user in users"
             :key="user.id"
-            class="card p-4 flex items-center gap-4"
+            class="card p-4"
             :class="{
               'bg-red-50 border-red-200': user.accountStatus === 'banned',
               'bg-orange-50 border-orange-200': user.isSuspended && user.accountStatus !== 'banned'
             }"
           >
+            <div class="flex items-start gap-3">
             <!-- Avatar -->
             <UserAvatar
               :avatar-url="user.avatarUrl"
@@ -2787,14 +2896,15 @@ function getLocationTypeLabel(location: EventLocation): string {
                 Tier override: {{ user.subscriptionOverrideReason }}
               </p>
             </div>
+            </div>
 
-            <!-- Created date -->
-            <div class="text-sm text-gray-500 flex-shrink-0">
+            <!-- Created date & Actions -->
+            <div class="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
+            <div class="text-sm text-gray-500">
               Joined {{ new Date(user.createdAt).toLocaleDateString() }}
             </div>
 
-            <!-- Actions -->
-            <div class="flex-shrink-0 flex gap-1 flex-wrap">
+            <div class="flex gap-1 flex-wrap">
               <!-- Edit button -->
               <button
                 class="btn-ghost text-gray-600 text-sm"
@@ -2929,6 +3039,7 @@ function getLocationTypeLabel(location: EventLocation): string {
                 </svg>
               </button>
             </div>
+            </div>
           </div>
         </div>
 
@@ -2986,50 +3097,51 @@ function getLocationTypeLabel(location: EventLocation): string {
           <div
             v-for="group in groups"
             :key="group.id"
-            class="card p-4 flex items-center gap-4"
+            class="card p-4"
           >
-            <!-- Logo -->
-            <div class="flex-shrink-0">
-              <img
-                v-if="group.logoUrl"
-                :src="group.logoUrl"
-                :alt="group.name"
-                class="w-10 h-10 rounded-lg object-cover"
-              />
-              <div
-                v-else
-                class="w-10 h-10 rounded-lg bg-gray-200 flex items-center justify-center text-gray-500 font-medium"
-              >
-                {{ (group.name || 'G').charAt(0).toUpperCase() }}
+            <div class="flex items-start gap-3">
+              <!-- Logo -->
+              <div class="flex-shrink-0">
+                <img
+                  v-if="group.logoUrl"
+                  :src="group.logoUrl"
+                  :alt="group.name"
+                  class="w-10 h-10 rounded-lg object-cover"
+                />
+                <div
+                  v-else
+                  class="w-10 h-10 rounded-lg bg-gray-200 flex items-center justify-center text-gray-500 font-medium"
+                >
+                  {{ (group.name || 'G').charAt(0).toUpperCase() }}
+                </div>
+              </div>
+
+              <!-- Group info -->
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="font-medium text-gray-900">{{ group.name }}</span>
+                  <span v-if="group.isPublic" class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                    Public
+                  </span>
+                  <span v-else class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                    Private
+                  </span>
+                </div>
+                <p class="text-sm text-gray-500">
+                  /g/{{ group.slug }} &bull; {{ group.memberCount }} member{{ group.memberCount !== 1 ? 's' : '' }}
+                </p>
+                <p v-if="group.description" class="text-sm text-gray-500 truncate mt-1">
+                  {{ group.description }}
+                </p>
               </div>
             </div>
 
-            <!-- Group info -->
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2">
-                <span class="font-medium text-gray-900">{{ group.name }}</span>
-                <span v-if="group.isPublic" class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-                  Public
-                </span>
-                <span v-else class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-                  Private
-                </span>
+            <!-- Created date & Actions -->
+            <div class="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
+              <div class="text-sm text-gray-500">
+                Created {{ new Date(group.createdAt).toLocaleDateString() }}
               </div>
-              <p class="text-sm text-gray-500">
-                /g/{{ group.slug }} &bull; {{ group.memberCount }} member{{ group.memberCount !== 1 ? 's' : '' }}
-              </p>
-              <p v-if="group.description" class="text-sm text-gray-500 truncate mt-1">
-                {{ group.description }}
-              </p>
-            </div>
-
-            <!-- Created date -->
-            <div class="text-sm text-gray-500 flex-shrink-0">
-              Created {{ new Date(group.createdAt).toLocaleDateString() }}
-            </div>
-
-            <!-- Actions -->
-            <div class="flex-shrink-0 flex gap-2">
+              <div class="flex gap-2">
               <button
                 class="btn-ghost text-blue-600 text-sm"
                 @click="openMembersDialog(group)"
@@ -3050,6 +3162,7 @@ function getLocationTypeLabel(location: EventLocation): string {
                 </svg>
                 Delete
               </button>
+              </div>
             </div>
           </div>
         </div>
@@ -3070,6 +3183,155 @@ function getLocationTypeLabel(location: EventLocation): string {
             class="btn-outline text-sm"
             :disabled="groupsPage >= Math.ceil(groupsTotal / 20)"
             @click="groupsPage++; loadGroups()"
+          >
+            Next
+          </button>
+        </div>
+      </template>
+    </div>
+
+    <!-- Events Tab -->
+    <div v-if="activeTab === 'events'">
+      <div class="flex items-center justify-between mb-4">
+        <p class="text-gray-500">All events in the system</p>
+        <label class="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            v-model="eventsShowPast"
+            @change="eventsPage = 1; loadEvents()"
+            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+          Show past events
+        </label>
+      </div>
+
+      <div class="mb-4">
+        <input
+          v-model="eventsSearch"
+          type="text"
+          placeholder="Search by title, game, or city..."
+          class="input w-full"
+          @input="eventsPage = 1; loadEvents()"
+        />
+      </div>
+
+      <div v-if="eventsLoading" class="text-center py-12">
+        <D20Spinner size="lg" class="mx-auto" />
+      </div>
+
+      <template v-else>
+        <p class="text-sm text-gray-500 mb-3">{{ eventsTotal }} {{ eventsShowPast ? 'total' : 'upcoming' }} events</p>
+
+        <div v-if="adminEvents.length === 0" class="text-center py-12 text-gray-500">
+          No events found
+        </div>
+
+        <div v-else class="space-y-3">
+          <div
+            v-for="event in adminEvents"
+            :key="event.id"
+            class="card p-4"
+          >
+            <div class="flex items-start gap-3">
+              <!-- Game thumbnail -->
+              <div class="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden flex-shrink-0">
+                <img
+                  v-if="event.primaryGameThumbnail"
+                  :src="event.primaryGameThumbnail"
+                  :alt="event.gameTitle || event.title"
+                  class="w-full h-full object-cover"
+                />
+                <img
+                  v-else-if="event.gameSystem === 'mtg'"
+                  src="/icons/mtg-logo.png"
+                  alt="MTG"
+                  class="w-8 h-8 object-contain"
+                />
+                <img
+                  v-else-if="event.gameSystem === 'pokemon_tcg'"
+                  src="/icons/pokemon-logo.png"
+                  alt="Pokemon TCG"
+                  class="w-8 h-8 object-contain"
+                />
+                <img
+                  v-else-if="event.gameSystem === 'yugioh'"
+                  src="/icons/yugioh-logo.png"
+                  alt="Yu-Gi-Oh!"
+                  class="w-8 h-8 object-contain"
+                />
+                <img
+                  v-else-if="event.gameSystem === 'warhammer40k'"
+                  src="/icons/warhammer40k-logo.png"
+                  alt="Warhammer 40k"
+                  class="w-8 h-8 object-contain"
+                />
+                <svg v-else class="w-6 h-6 text-gray-300" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M18.27 6C19.28 8.17 19.05 10.73 17.94 12.81C17 14.5 15.65 15.93 14.5 17.5C14 18.2 13.5 18.95 13.13 19.8C12.92 20.34 12.74 20.9 12.6 21.5H11.5C11.35 20.9 11.17 20.34 10.96 19.8C10.59 18.95 10.09 18.2 9.58 17.5C8.43 15.93 7.08 14.5 6.15 12.81C5.04 10.73 4.81 8.17 5.82 6C6.71 4.05 8.63 2.5 11.04 2.5C13.45 2.5 15.37 4.05 16.27 6H18.27Z"/>
+                </svg>
+              </div>
+              <div class="flex-1 min-w-0">
+              <div class="flex flex-wrap items-center gap-2 mb-1">
+                <h3 class="font-semibold text-lg">{{ event.title }}</h3>
+                <span
+                  v-if="event.gameSystem && event.gameSystem !== 'board_game'"
+                  class="px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-700 whitespace-nowrap"
+                >
+                  {{ event.gameSystem === 'mtg' ? 'MTG' : event.gameSystem === 'pokemon_tcg' ? 'Pokemon' : event.gameSystem === 'yugioh' ? 'Yu-Gi-Oh' : event.gameSystem === 'warhammer40k' ? 'Warhammer 40k' : event.gameSystem }}
+                </span>
+                <span
+                  class="px-2 py-0.5 text-xs rounded-full whitespace-nowrap"
+                  :class="event.status === 'published' ? 'bg-green-100 text-green-700' : event.status === 'draft' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'"
+                >
+                  {{ event.status }}
+                </span>
+                <span v-if="!event.isPublic" class="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">Private</span>
+              </div>
+              <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600">
+                <span>{{ new Date(event.eventDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) }}</span>
+                <span v-if="event.startTime">{{ event.startTime.slice(0, 5) }}</span>
+                <span v-if="event.durationMinutes">{{ event.durationMinutes }} min</span>
+                <span v-if="event.city">{{ event.city }}<span v-if="event.state">, {{ event.state }}</span></span>
+              </div>
+              <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500 mt-1">
+                <span v-if="event.host">Hosted by {{ event.host.displayName || event.host.username || 'Unknown' }}</span>
+                <span>{{ event.registrationCount }}{{ event.maxPlayers ? '/' + event.maxPlayers : '' }} registered</span>
+                <span v-if="event.gameTitle" class="truncate max-w-[200px]">Game: {{ event.gameTitle }}</span>
+              </div>
+              <div class="flex items-center gap-2 mt-2">
+                <a
+                  :href="'/games/' + event.id"
+                  target="_blank"
+                  class="btn-ghost text-sm"
+                >
+                  View
+                </a>
+                <button
+                  class="btn-ghost text-sm text-red-600 hover:text-red-700 hover:bg-red-50"
+                  :disabled="deletingEventId === event.id"
+                  @click="handleDeleteEvent(event)"
+                >
+                  <span v-if="deletingEventId === event.id">Deleting...</span>
+                  <span v-else>Delete</span>
+                </button>
+              </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="eventsTotal > 20" class="flex items-center justify-between mt-4">
+          <button
+            class="btn-ghost text-sm"
+            :disabled="eventsPage === 1"
+            @click="eventsPage--; loadEvents()"
+          >
+            Previous
+          </button>
+          <span class="text-sm text-gray-500">Page {{ eventsPage }} of {{ Math.ceil(eventsTotal / 20) }}</span>
+          <button
+            class="btn-ghost text-sm"
+            :disabled="eventsPage >= Math.ceil(eventsTotal / 20)"
+            @click="eventsPage++; loadEvents()"
           >
             Next
           </button>
@@ -4219,7 +4481,7 @@ function getLocationTypeLabel(location: EventLocation): string {
       <!-- Cache Sub-tabs -->
       <div class="flex gap-4 mb-6 border-b border-gray-200">
         <button
-          class="px-4 py-2 text-sm font-medium transition-colors -mb-px"
+          class="px-3 py-2 text-sm font-medium transition-colors -mb-px whitespace-nowrap"
           :class="activeCacheTab === 'bgg'
             ? 'text-primary-600 border-b-2 border-primary-500'
             : 'text-gray-500 hover:text-gray-700'"
@@ -4228,7 +4490,7 @@ function getLocationTypeLabel(location: EventLocation): string {
           BoardGameGeek
         </button>
         <button
-          class="px-4 py-2 text-sm font-medium transition-colors -mb-px"
+          class="px-3 py-2 text-sm font-medium transition-colors -mb-px whitespace-nowrap"
           :class="activeCacheTab === 'mtg'
             ? 'text-primary-600 border-b-2 border-primary-500'
             : 'text-gray-500 hover:text-gray-700'"
@@ -4612,6 +4874,17 @@ function getLocationTypeLabel(location: EventLocation): string {
             >
               Refresh Stale
             </button>
+          </div>
+
+          <!-- Progress indicator -->
+          <div v-if="mtgWarmProgress" class="p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <div class="flex items-center gap-3">
+              <svg class="animate-spin h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+              </svg>
+              <span class="text-sm text-blue-700 font-medium">{{ mtgWarmProgress }}</span>
+            </div>
           </div>
         </div>
         </div>

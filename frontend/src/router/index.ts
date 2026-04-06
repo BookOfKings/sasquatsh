@@ -277,4 +277,12 @@ router.beforeEach(async (to) => {
   return true
 })
 
+// Update canonical URL on each navigation
+router.afterEach((to) => {
+  const canonical = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null
+  if (canonical) {
+    canonical.href = `https://sasquatsh.com${to.path}`
+  }
+})
+
 export default router

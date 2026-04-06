@@ -13,6 +13,11 @@
       "type": "stdio",
       "command": "cmd",
       "args": ["/c", "npx", "-y", "chrome-devtools-mcp@latest"]
+    },
+    "obsidian": {
+      "type": "stdio",
+      "command": "mcp-obsidian",
+      "args": ["C:/code/GameNightApp/ObsidianVault"]
     }
   }
 }
