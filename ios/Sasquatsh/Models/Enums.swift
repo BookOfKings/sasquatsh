@@ -175,6 +175,46 @@ enum EventLocationStatus: String, Codable {
     case rejected
 }
 
+enum GameSystem: String, Codable, CaseIterable, Identifiable {
+    case boardGame = "board_game"
+    case mtg
+    case pokemonTcg = "pokemon_tcg"
+    case yugioh
+    case warhammer40k
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .boardGame: return "Board Game"
+        case .mtg: return "Magic: The Gathering"
+        case .pokemonTcg: return "Pokémon TCG"
+        case .yugioh: return "Yu-Gi-Oh!"
+        case .warhammer40k: return "Warhammer 40K"
+        }
+    }
+
+    var shortName: String {
+        switch self {
+        case .boardGame: return "Board Game"
+        case .mtg: return "MTG"
+        case .pokemonTcg: return "Pokémon"
+        case .yugioh: return "Yu-Gi-Oh!"
+        case .warhammer40k: return "40K"
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .boardGame: return "dice"
+        case .mtg: return "suit.spade.fill"
+        case .pokemonTcg: return "bolt.circle.fill"
+        case .yugioh: return "star.circle.fill"
+        case .warhammer40k: return "shield.fill"
+        }
+    }
+}
+
 enum AppTimezone: String, CaseIterable, Identifiable {
     case eastern = "America/New_York"
     case central = "America/Chicago"

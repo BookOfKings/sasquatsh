@@ -83,6 +83,9 @@ struct PlanningSessionDetailView: View {
                     // Game Suggestions
                     gameSuggestionsSection(session)
 
+                    // Chat
+                    planningChatSection
+
                     // Items to Bring
                     itemsSection(session)
 
@@ -352,6 +355,34 @@ struct PlanningSessionDetailView: View {
                 Text("No items yet")
                     .font(.md3BodyMedium)
                     .foregroundStyle(Color.md3OnSurfaceVariant)
+            }
+        }
+        .padding()
+        .cardStyle()
+        .padding(.horizontal)
+    }
+
+    @ViewBuilder
+    private var planningChatSection: some View {
+        let tier = authVM.user?.subscriptionTier ?? .free
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Chat")
+                .font(.md3TitleMedium)
+                .foregroundStyle(Color.md3OnSurface)
+
+            if TierConfig.hasFeature(tier, feature: \.chat) {
+                ChatPanelView(contextType: "planning", contextId: sessionId)
+                    .frame(height: 400)
+            } else {
+                HStack(spacing: 8) {
+                    Image(systemName: "lock.fill")
+                        .foregroundStyle(Color.md3OnSurfaceVariant)
+                    Text("Upgrade to Basic to chat")
+                        .font(.md3BodyMedium)
+                        .foregroundStyle(Color.md3OnSurfaceVariant)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 20)
             }
         }
         .padding()

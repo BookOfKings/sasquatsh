@@ -143,11 +143,115 @@ struct RecurringGame: Codable, Identifiable {
     let groupId: String
     let title: String
     let description: String?
+    let frequency: String?
     let dayOfWeek: Int
+    let monthlyWeek: Int?
     let startTime: String
     let durationMinutes: Int
     let maxPlayers: Int
+    let hostIsPlaying: Bool?
     let locationDetails: String?
+    let eventLocationId: String?
+    let addressLine1: String?
+    let city: String?
+    let state: String?
+    let postalCode: String?
+    let timezone: String?
+    let gameSystem: String?
+    let gameTitle: String?
+    let isPublic: Bool?
     let isActive: Bool
+    let nextOccurrenceDate: String?
+    let lastGeneratedDate: String?
+    let hostUserId: String?
+    let createdByUserId: String?
     let createdAt: String
+
+    var frequencyDisplayName: String {
+        switch frequency {
+        case "weekly": return "Weekly"
+        case "biweekly": return "Every 2 Weeks"
+        case "monthly": return "Monthly"
+        default: return "Weekly"
+        }
+    }
+
+    var dayOfWeekName: String {
+        let days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+        guard dayOfWeek >= 0, dayOfWeek < 7 else { return "" }
+        return days[dayOfWeek]
+    }
+
+    var monthlyWeekName: String? {
+        guard frequency == "monthly", let week = monthlyWeek else { return nil }
+        switch week {
+        case 1: return "1st"
+        case 2: return "2nd"
+        case 3: return "3rd"
+        case 4: return "4th"
+        case -1: return "Last"
+        default: return nil
+        }
+    }
+
+    var scheduleDescription: String {
+        let time = startTime
+        switch frequency {
+        case "monthly":
+            if let weekName = monthlyWeekName {
+                return "\(weekName) \(dayOfWeekName) at \(time)"
+            }
+            return "\(dayOfWeekName) at \(time) (monthly)"
+        case "biweekly":
+            return "Every other \(dayOfWeekName) at \(time)"
+        default:
+            return "Every \(dayOfWeekName) at \(time)"
+        }
+    }
+}
+
+struct CreateRecurringGameInput: Codable {
+    var groupId: String
+    var title: String
+    var description: String?
+    var frequency: String
+    var dayOfWeek: Int
+    var monthlyWeek: Int?
+    var startTime: String
+    var durationMinutes: Int?
+    var maxPlayers: Int?
+    var hostIsPlaying: Bool?
+    var locationDetails: String?
+    var eventLocationId: String?
+    var addressLine1: String?
+    var city: String?
+    var state: String?
+    var postalCode: String?
+    var timezone: String?
+    var gameSystem: String?
+    var gameTitle: String?
+    var isPublic: Bool?
+}
+
+struct UpdateRecurringGameInput: Codable {
+    var title: String?
+    var description: String?
+    var frequency: String?
+    var dayOfWeek: Int?
+    var monthlyWeek: Int?
+    var startTime: String?
+    var durationMinutes: Int?
+    var maxPlayers: Int?
+    var hostIsPlaying: Bool?
+    var locationDetails: String?
+    var eventLocationId: String?
+    var addressLine1: String?
+    var city: String?
+    var state: String?
+    var postalCode: String?
+    var timezone: String?
+    var gameSystem: String?
+    var gameTitle: String?
+    var isPublic: Bool?
+    var isActive: Bool?
 }

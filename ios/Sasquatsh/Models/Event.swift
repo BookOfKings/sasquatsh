@@ -7,6 +7,7 @@ struct Event: Codable, Identifiable {
     var description: String?
     var gameTitle: String?
     var gameCategory: String?
+    var gameSystem: GameSystem?
     var eventDate: String
     var startTime: String?
     var durationMinutes: Int?
@@ -33,6 +34,10 @@ struct Event: Codable, Identifiable {
     var registrations: [EventRegistration]?
     var items: [EventItem]?
     var games: [EventGameSummary]?
+    var mtgConfig: MtgEventConfig?
+    var pokemonConfig: PokemonEventConfig?
+    var yugiohConfig: YugiohEventConfig?
+    var warhammer40kConfig: Warhammer40kEventConfig?
     let createdAt: String?
 }
 
@@ -41,6 +46,7 @@ struct EventSummary: Codable, Identifiable {
     let title: String
     let gameTitle: String?
     let gameCategory: String?
+    let gameSystem: GameSystem?
     let eventDate: String
     let startTime: String?
     let durationMinutes: Int?
@@ -93,6 +99,7 @@ struct CreateEventInput: Codable {
     var description: String?
     var gameTitle: String?
     var gameCategory: String?
+    var gameSystem: String?
     var eventDate: String
     var startTime: String
     var durationMinutes: Int?
@@ -115,6 +122,10 @@ struct CreateEventInput: Codable {
     var minAge: Int?
     var status: String?
     var groupId: String?
+    var mtgConfig: MtgEventConfigInput?
+    var pokemonConfig: PokemonEventConfigInput?
+    var yugiohConfig: YugiohEventConfigInput?
+    var warhammer40kConfig: Warhammer40kEventConfigInput?
 }
 
 struct UpdateEventInput: Codable {
@@ -122,6 +133,7 @@ struct UpdateEventInput: Codable {
     var description: String?
     var gameTitle: String?
     var gameCategory: String?
+    var gameSystem: String?
     var eventDate: String
     var startTime: String
     var durationMinutes: Int
@@ -143,6 +155,10 @@ struct UpdateEventInput: Codable {
     var isCharityEvent: Bool
     var minAge: Int?
     var status: String
+    var mtgConfig: MtgEventConfigInput?
+    var pokemonConfig: PokemonEventConfigInput?
+    var yugiohConfig: YugiohEventConfigInput?
+    var warhammer40kConfig: Warhammer40kEventConfigInput?
 }
 
 struct CreateEventItemInput: Codable {
@@ -156,6 +172,7 @@ struct EventSearchFilter {
     var state: String?
     var search: String?
     var gameCategory: GameCategory?
+    var gameSystem: GameSystem?
     var difficulty: DifficultyLevel?
     var dateFrom: String?
     var dateTo: String?
@@ -168,6 +185,7 @@ struct EventSearchFilter {
         if let state { items.append(.init(name: "state", value: state)) }
         if let search, !search.isEmpty { items.append(.init(name: "search", value: search)) }
         if let gameCategory { items.append(.init(name: "gameCategory", value: gameCategory.rawValue)) }
+        if let gameSystem { items.append(.init(name: "gameSystem", value: gameSystem.rawValue)) }
         if let difficulty { items.append(.init(name: "difficulty", value: difficulty.rawValue)) }
         if let dateFrom { items.append(.init(name: "dateFrom", value: dateFrom)) }
         if let dateTo { items.append(.init(name: "dateTo", value: dateTo)) }

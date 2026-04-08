@@ -21,6 +21,10 @@ struct EventCard: View {
 
                 Spacer()
 
+                if let system = event.gameSystem, system != .boardGame {
+                    BadgeView(text: system.shortName, color: system.badgeColor)
+                }
+
                 if event.isCharityEvent {
                     BadgeView(text: "Charity", color: .md3TertiaryContainer)
                 }

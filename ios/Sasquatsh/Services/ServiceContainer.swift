@@ -11,6 +11,9 @@ final class ServiceContainer {
     let social: SocialServiceProtocol
     let bgg: BGGServiceProtocol
     let billing: BillingServiceProtocol
+    let chat: ChatServiceProtocol
+    let raffle: RaffleServiceProtocol
+    let recurringGames: RecurringGamesServiceProtocol
 
     init(
         api: APIClient = APIClient(),
@@ -25,6 +28,9 @@ final class ServiceContainer {
         self.social = SocialService(api: api)
         self.bgg = BGGService(api: api)
         self.billing = BillingService(api: api)
+        self.chat = ChatService(api: api)
+        self.raffle = RaffleService(api: api)
+        self.recurringGames = RecurringGamesService(api: api)
     }
 }
 

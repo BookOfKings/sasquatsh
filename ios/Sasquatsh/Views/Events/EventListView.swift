@@ -21,6 +21,10 @@ struct EventListView: View {
                     HStack(spacing: 8) {
                         filterButton
 
+                        if let system = vm.selectedGameSystem {
+                            BadgeView(text: system.shortName, color: system.badgeColor)
+                        }
+
                         if vm.nearbyEnabled {
                             BadgeView(text: "Nearby \(vm.radiusMiles)mi", color: Color.md3PrimaryContainer)
                         }
@@ -132,11 +136,23 @@ struct EventListView: View {
     private var eventFilterSheet: some View {
         NavigationStack {
             Form {
-                Section("Category") {
-                    Picker("Game Category", selection: $vm.selectedCategory) {
-                        Text("Any").tag(GameCategory?.none)
-                        ForEach(GameCategory.allCases) { cat in
-                            Text(cat.displayName).tag(GameCategory?.some(cat))
+                Section("Game System") {
+                    Picker("Game System", selection: $vm.selectedGameSystem) {
+                        Text("Any").tag(GameSystem?.none)
+                        ForEach(GameSystem.allCases) { system in
+                            Label(system.displayName, systemImage: system.iconName)
+                                .tag(GameSystem?.some(system))
+                        }
+                    }
+                }
+
+                if vm.selectedGameSystem == nil || vm.selectedGameSystem == .boardGame {
+                    Section("Category") {
+                        Picker("Game Category", selection: $vm.selectedCategory) {
+                            Text("Any").tag(GameCategory?.none)
+                            ForEach(GameCategory.allCases) { cat in
+                                Text(cat.displayName).tag(GameCategory?.some(cat))
+                            }
                         }
                     }
                 }

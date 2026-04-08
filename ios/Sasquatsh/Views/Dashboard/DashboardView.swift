@@ -4,6 +4,7 @@ struct DashboardView: View {
     @Environment(\.services) private var services
     @Environment(AuthViewModel.self) private var authVM
     @State private var vm = DashboardViewModel()
+    @State private var raffleVM = RaffleViewModel()
 
     var body: some View {
         ScrollView {
@@ -30,6 +31,17 @@ struct DashboardView: View {
                         )
                     }
                     .padding(.horizontal)
+
+                    // Raffle banner
+                    if let raffle = raffleVM.raffle {
+                        NavigationLink {
+                            RaffleDetailView()
+                        } label: {
+                            RaffleBannerView(raffle: raffle)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal)
+                    }
 
                     // Ad banner for free tier
                     if TierConfig.getLimits(for: authVM.user?.subscriptionTier ?? .free).features.showAds {
@@ -111,10 +123,15 @@ struct DashboardView: View {
         .background(Color.md3SurfaceContainer)
         .navigationTitle("Dashboard")
         .navigationBarTitleDisplayMode(.inline)
-        .refreshable { await vm.loadDashboard() }
+        .refreshable {
+            await vm.loadDashboard()
+            await raffleVM.loadActiveRaffle()
+        }
         .task {
             vm.configure(services: services)
+            raffleVM.configure(services: services)
             await vm.loadDashboard()
+            await raffleVM.loadActiveRaffle()
         }
     }
 

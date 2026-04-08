@@ -8,6 +8,7 @@ final class EventListViewModel {
     var error: String?
     var searchText = ""
     var selectedCategory: GameCategory?
+    var selectedGameSystem: GameSystem?
     var selectedDifficulty: DifficultyLevel?
     var nearbyEnabled = false
     var radiusMiles = 25
@@ -26,6 +27,7 @@ final class EventListViewModel {
             return EventSearchFilter(
                 search: searchText.isEmpty ? nil : searchText,
                 gameCategory: selectedCategory,
+                gameSystem: selectedGameSystem,
                 difficulty: selectedDifficulty,
                 nearbyZip: zip,
                 radiusMiles: radiusMiles
@@ -36,6 +38,7 @@ final class EventListViewModel {
             state: filterState?.isEmpty == true ? nil : filterState,
             search: searchText.isEmpty ? nil : searchText,
             gameCategory: selectedCategory,
+            gameSystem: selectedGameSystem,
             difficulty: selectedDifficulty
         )
     }
@@ -63,6 +66,7 @@ final class EventListViewModel {
     func clearFilters() {
         searchText = ""
         selectedCategory = nil
+        selectedGameSystem = nil
         selectedDifficulty = nil
         nearbyEnabled = false
         filterCity = nil
@@ -70,7 +74,8 @@ final class EventListViewModel {
     }
 
     var hasActiveFilters: Bool {
-        selectedCategory != nil || selectedDifficulty != nil ||
-        nearbyEnabled || filterCity != nil || filterState != nil
+        selectedCategory != nil || selectedGameSystem != nil ||
+        selectedDifficulty != nil || nearbyEnabled ||
+        filterCity != nil || filterState != nil
     }
 }

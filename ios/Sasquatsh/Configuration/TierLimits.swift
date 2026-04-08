@@ -4,12 +4,15 @@ struct TierFeatures {
     let tableInfo: Bool
     let planning: Bool
     let items: Bool
+    let chat: Bool
+    let recurringGames: Bool
     let showAds: Bool
 }
 
 struct TierLimits {
     let gamesPerEvent: Int?  // nil = unlimited
     let maxGroups: Int?      // nil = unlimited
+    let maxRecurringGamesPerGroup: Int?  // nil = unlimited
     let features: TierFeatures
 }
 
@@ -20,25 +23,29 @@ enum TierConfig {
             return TierLimits(
                 gamesPerEvent: 1,
                 maxGroups: 1,
-                features: TierFeatures(tableInfo: false, planning: false, items: false, showAds: true)
+                maxRecurringGamesPerGroup: 0,
+                features: TierFeatures(tableInfo: false, planning: false, items: false, chat: false, recurringGames: false, showAds: true)
             )
         case .basic:
             return TierLimits(
                 gamesPerEvent: 5,
                 maxGroups: 5,
-                features: TierFeatures(tableInfo: true, planning: true, items: false, showAds: false)
+                maxRecurringGamesPerGroup: 1,
+                features: TierFeatures(tableInfo: true, planning: true, items: false, chat: true, recurringGames: true, showAds: false)
             )
         case .pro:
             return TierLimits(
                 gamesPerEvent: 10,
                 maxGroups: 10,
-                features: TierFeatures(tableInfo: true, planning: true, items: true, showAds: false)
+                maxRecurringGamesPerGroup: nil,
+                features: TierFeatures(tableInfo: true, planning: true, items: true, chat: true, recurringGames: true, showAds: false)
             )
         case .premium:
             return TierLimits(
                 gamesPerEvent: nil,
                 maxGroups: nil,
-                features: TierFeatures(tableInfo: true, planning: true, items: true, showAds: false)
+                maxRecurringGamesPerGroup: nil,
+                features: TierFeatures(tableInfo: true, planning: true, items: true, chat: true, recurringGames: true, showAds: false)
             )
         }
     }
@@ -54,6 +61,11 @@ enum TierConfig {
 
     static func canAddGame(_ tier: SubscriptionTier, currentCount: Int) -> Bool {
         guard let max = getLimits(for: tier).gamesPerEvent else { return true }
+        return currentCount < max
+    }
+
+    static func canCreateRecurringGame(_ tier: SubscriptionTier, currentCount: Int) -> Bool {
+        guard let max = getLimits(for: tier).maxRecurringGamesPerGroup else { return true }
         return currentCount < max
     }
 
@@ -92,6 +104,14 @@ enum TierConfig {
 
         if limits.features.items {
             features.append("Event items tracking")
+        }
+
+        if limits.features.chat {
+            features.append("Chat")
+        }
+
+        if limits.features.recurringGames {
+            features.append("Recurring games")
         }
 
         if !limits.features.showAds {

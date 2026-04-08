@@ -12,18 +12,30 @@ struct EditEventView: View {
         NavigationStack {
             Form {
                 Section("Basic Information") {
+                    Picker("Game System", selection: $vm.gameSystem) {
+                        ForEach(GameSystem.allCases) { system in
+                            Label(system.displayName, systemImage: system.iconName)
+                                .tag(system)
+                        }
+                    }
+
                     TextField("Title", text: $vm.title)
                     TextField("Description", text: $vm.description, axis: .vertical)
                         .lineLimit(3...6)
-                    TextField("Game Title", text: $vm.gameTitle)
 
-                    Picker("Category", selection: $vm.gameCategory) {
-                        Text("None").tag(GameCategory?.none)
-                        ForEach(GameCategory.allCases) { cat in
-                            Text(cat.displayName).tag(GameCategory?.some(cat))
+                    if vm.isBoardGame {
+                        TextField("Game Title", text: $vm.gameTitle)
+
+                        Picker("Category", selection: $vm.gameCategory) {
+                            Text("None").tag(GameCategory?.none)
+                            ForEach(GameCategory.allCases) { cat in
+                                Text(cat.displayName).tag(GameCategory?.some(cat))
+                            }
                         }
                     }
                 }
+
+                editGameSystemConfigSections
 
                 Section("Date & Time") {
                     DatePicker("Date", selection: $vm.eventDate, displayedComponents: .date)
@@ -182,6 +194,34 @@ struct EditEventView: View {
                 vm.configure(services: services)
                 vm.loadForEdit(event: event)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var editGameSystemConfigSections: some View {
+        switch vm.gameSystem {
+        case .boardGame:
+            EmptyView()
+        case .mtg:
+            MtgConfigFormSections(config: Binding(
+                get: { vm.mtgConfig ?? MtgConfigState() },
+                set: { vm.mtgConfig = $0 }
+            ))
+        case .pokemonTcg:
+            PokemonConfigFormSections(config: Binding(
+                get: { vm.pokemonConfig ?? PokemonConfigState() },
+                set: { vm.pokemonConfig = $0 }
+            ))
+        case .yugioh:
+            YugiohConfigFormSections(config: Binding(
+                get: { vm.yugiohConfig ?? YugiohConfigState() },
+                set: { vm.yugiohConfig = $0 }
+            ))
+        case .warhammer40k:
+            Warhammer40kConfigFormSections(config: Binding(
+                get: { vm.warhammer40kConfig ?? Warhammer40kConfigState() },
+                set: { vm.warhammer40kConfig = $0 }
+            ))
         }
     }
 }

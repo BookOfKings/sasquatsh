@@ -12,6 +12,7 @@ struct GroupDetailView: View {
     @State private var showJoinRequestMessage = false
     @State private var joinRequestMessage = ""
     @State private var selectedTab = 0
+    @State private var recurringGamesVM = RecurringGamesViewModel()
 
     var body: some View {
         ScrollView {
@@ -36,18 +37,22 @@ struct GroupDetailView: View {
 
                     Picker("Section", selection: $selectedTab) {
                         Text("Members").tag(0)
-                        Text("Planning").tag(1)
-                        if isAdmin { Text("Requests").tag(2) }
-                        if isAdmin { Text("Invites").tag(3) }
+                        Text("Chat").tag(1)
+                        Text("Games").tag(2)
+                        Text("Planning").tag(3)
+                        if isAdmin { Text("Requests").tag(4) }
+                        if isAdmin { Text("Invites").tag(5) }
                     }
                     .pickerStyle(.segmented)
                     .padding(.horizontal)
 
                     switch selectedTab {
                     case 0: membersSection
-                    case 1: planningSection
-                    case 2: joinRequestsSection
-                    case 3: invitationsSection
+                    case 1: groupChatSection
+                    case 2: recurringGamesSection
+                    case 3: planningSection
+                    case 4: joinRequestsSection
+                    case 5: invitationsSection
                     default: EmptyView()
                     }
                 }
@@ -200,6 +205,126 @@ struct GroupDetailView: View {
                 }
                 .padding(.horizontal)
             }
+        }
+    }
+
+    // MARK: - Recurring Games
+
+    private var recurringGamesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if isAdmin {
+                HStack {
+                    Text("Recurring Games")
+                        .font(.md3TitleMedium)
+                        .foregroundStyle(Color.md3OnSurface)
+                    Spacer()
+                    let tier = authVM.user?.subscriptionTier ?? .free
+                    if TierConfig.canCreateRecurringGame(tier, currentCount: recurringGamesVM.games.count) {
+                        Button {
+                            recurringGamesVM.editingGame = nil
+                            recurringGamesVM.showForm = true
+                        } label: {
+                            Image(systemName: "plus.circle")
+                                .foregroundStyle(Color.md3Primary)
+                        }
+                    } else if !TierConfig.hasFeature(tier, feature: \.recurringGames) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "lock.fill")
+                                .font(.md3LabelSmall)
+                            Text("Upgrade")
+                                .font(.md3LabelSmall)
+                        }
+                        .foregroundStyle(Color.md3OnSurfaceVariant)
+                    }
+                }
+                .padding(.horizontal)
+            }
+
+            if recurringGamesVM.isLoading && recurringGamesVM.games.isEmpty {
+                LoadingView()
+            } else if recurringGamesVM.games.isEmpty {
+                Text("No recurring games scheduled")
+                    .font(.md3BodyMedium)
+                    .foregroundStyle(Color.md3OnSurfaceVariant)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 20)
+            } else {
+                ForEach(recurringGamesVM.games) { game in
+                    RecurringGameCard(
+                        game: game,
+                        isAdmin: isAdmin,
+                        onEdit: {
+                            recurringGamesVM.editingGame = game
+                            recurringGamesVM.showForm = true
+                        },
+                        onToggleActive: {
+                            Task { await recurringGamesVM.toggleActive(game: game) }
+                        },
+                        onDelete: {
+                            recurringGamesVM.deletingGame = game
+                            recurringGamesVM.showDeleteConfirm = true
+                        }
+                    )
+                    .padding(.horizontal)
+                }
+            }
+
+            if let error = recurringGamesVM.error {
+                Text(error)
+                    .font(.md3BodySmall)
+                    .foregroundStyle(Color.md3Error)
+                    .padding(.horizontal)
+            }
+        }
+        .sheet(isPresented: $recurringGamesVM.showForm) {
+            RecurringGameFormSheet(
+                groupId: groupId,
+                game: recurringGamesVM.editingGame
+            ) { createInput, updateInput in
+                Task {
+                    if let createInput {
+                        await recurringGamesVM.createGame(input: createInput)
+                    } else if let updateInput, let id = recurringGamesVM.editingGame?.id {
+                        await recurringGamesVM.updateGame(id: id, input: updateInput)
+                    }
+                }
+            }
+        }
+        .alert("Delete Recurring Game", isPresented: $recurringGamesVM.showDeleteConfirm) {
+            Toggle("Also delete future events", isOn: $recurringGamesVM.deleteFutureEvents)
+            Button("Delete", role: .destructive) {
+                Task { await recurringGamesVM.deleteGame() }
+            }
+            Button("Cancel", role: .cancel) {
+                recurringGamesVM.deletingGame = nil
+            }
+        } message: {
+            Text("Are you sure you want to delete this recurring game?")
+        }
+        .task {
+            recurringGamesVM.configure(services: services, groupId: groupId)
+            await recurringGamesVM.loadGames()
+        }
+    }
+
+    @ViewBuilder
+    private var groupChatSection: some View {
+        let tier = authVM.user?.subscriptionTier ?? .free
+        if TierConfig.hasFeature(tier, feature: \.chat) {
+            ChatPanelView(contextType: "group", contextId: groupId)
+                .frame(height: 500)
+                .padding(.horizontal)
+        } else {
+            VStack(spacing: 12) {
+                Image(systemName: "lock.fill")
+                    .font(.title2)
+                    .foregroundStyle(Color.md3OnSurfaceVariant)
+                Text("Upgrade to Basic to chat")
+                    .font(.md3BodyMedium)
+                    .foregroundStyle(Color.md3OnSurfaceVariant)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 40)
         }
     }
 

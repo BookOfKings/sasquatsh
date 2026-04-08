@@ -5,6 +5,7 @@ import SwiftUI
 final class CreateEditEventViewModel {
     var title = ""
     var description = ""
+    var gameSystem: GameSystem = .boardGame
     var gameTitle = ""
     var gameCategory: GameCategory?
     var eventDate = Date()
@@ -31,6 +32,12 @@ final class CreateEditEventViewModel {
     var minAge: Int?
     var status: EventStatus = .published
     var groupId: String?
+
+    // Game system config states
+    var mtgConfig: MtgConfigState?
+    var pokemonConfig: PokemonConfigState?
+    var yugiohConfig: YugiohConfigState?
+    var warhammer40kConfig: Warhammer40kConfigState?
 
     var selectedGames: [BggGame] = []
     var isFetchingGameDetails = false
@@ -118,6 +125,7 @@ final class CreateEditEventViewModel {
         eventId = event.id
         title = event.title
         description = event.description ?? ""
+        gameSystem = event.gameSystem ?? .boardGame
         gameTitle = event.gameTitle ?? ""
         gameCategory = event.gameCategory.flatMap { GameCategory(rawValue: $0) }
         eventDate = event.eventDate.toDate ?? Date()
@@ -145,6 +153,20 @@ final class CreateEditEventViewModel {
         if let st = event.startTime, let time = parseTimeString(st) {
             startTime = time
         }
+
+        // Load game system configs
+        if let config = event.mtgConfig {
+            mtgConfig = MtgConfigState(from: config)
+        }
+        if let config = event.pokemonConfig {
+            pokemonConfig = PokemonConfigState(from: config)
+        }
+        if let config = event.yugiohConfig {
+            yugiohConfig = YugiohConfigState(from: config)
+        }
+        if let config = event.warhammer40kConfig {
+            warhammer40kConfig = Warhammer40kConfigState(from: config)
+        }
     }
 
     func save() async -> Event? {
@@ -162,37 +184,7 @@ final class CreateEditEventViewModel {
                     description: description.isEmpty ? nil : description,
                     gameTitle: gameTitle.isEmpty ? nil : gameTitle,
                     gameCategory: gameCategory?.rawValue,
-                    eventDate: eventDate.apiDateString,
-                    startTime: timeFormatter.string(from: startTime),
-                    durationMinutes: durationMinutes,
-                    setupMinutes: setupMinutes,
-                    addressLine1: addressLine1.isEmpty ? nil : addressLine1,
-                    city: city.isEmpty ? nil : city,
-                    state: state.isEmpty ? nil : state,
-                    postalCode: postalCode.isEmpty ? nil : postalCode,
-                    locationDetails: locationDetails.isEmpty ? nil : locationDetails,
-                    eventLocationId: eventLocationId,
-                    venueHall: venueHall,
-                    venueRoom: venueRoom,
-                    venueTable: venueTable,
-                    timezone: timezone.rawValue,
-                    hostIsPlaying: hostIsPlaying,
-                    difficultyLevel: difficultyLevel?.rawValue,
-                    maxPlayers: maxPlayers,
-                    isPublic: isPublic,
-                    isCharityEvent: isCharityEvent,
-                    minAge: minAge,
-                    status: status.rawValue
-                )
-                let event = try await services.events.updateEvent(id: eventId, input: input)
-                isLoading = false
-                return event
-            } else {
-                let input = CreateEventInput(
-                    title: title,
-                    description: description.isEmpty ? nil : description,
-                    gameTitle: gameTitle.isEmpty ? nil : gameTitle,
-                    gameCategory: gameCategory?.rawValue,
+                    gameSystem: gameSystem.rawValue,
                     eventDate: eventDate.apiDateString,
                     startTime: timeFormatter.string(from: startTime),
                     durationMinutes: durationMinutes,
@@ -214,7 +206,47 @@ final class CreateEditEventViewModel {
                     isCharityEvent: isCharityEvent,
                     minAge: minAge,
                     status: status.rawValue,
-                    groupId: groupId
+                    mtgConfig: mtgConfig?.toInput(),
+                    pokemonConfig: pokemonConfig?.toInput(),
+                    yugiohConfig: yugiohConfig?.toInput(),
+                    warhammer40kConfig: warhammer40kConfig?.toInput()
+                )
+                let event = try await services.events.updateEvent(id: eventId, input: input)
+                isLoading = false
+                return event
+            } else {
+                let input = CreateEventInput(
+                    title: title,
+                    description: description.isEmpty ? nil : description,
+                    gameTitle: gameTitle.isEmpty ? nil : gameTitle,
+                    gameCategory: gameCategory?.rawValue,
+                    gameSystem: gameSystem.rawValue,
+                    eventDate: eventDate.apiDateString,
+                    startTime: timeFormatter.string(from: startTime),
+                    durationMinutes: durationMinutes,
+                    setupMinutes: setupMinutes,
+                    addressLine1: addressLine1.isEmpty ? nil : addressLine1,
+                    city: city.isEmpty ? nil : city,
+                    state: state.isEmpty ? nil : state,
+                    postalCode: postalCode.isEmpty ? nil : postalCode,
+                    locationDetails: locationDetails.isEmpty ? nil : locationDetails,
+                    eventLocationId: eventLocationId,
+                    venueHall: venueHall,
+                    venueRoom: venueRoom,
+                    venueTable: venueTable,
+                    timezone: timezone.rawValue,
+                    hostIsPlaying: hostIsPlaying,
+                    difficultyLevel: difficultyLevel?.rawValue,
+                    maxPlayers: maxPlayers,
+                    isPublic: isPublic,
+                    isCharityEvent: isCharityEvent,
+                    minAge: minAge,
+                    status: status.rawValue,
+                    groupId: groupId,
+                    mtgConfig: mtgConfig?.toInput(),
+                    pokemonConfig: pokemonConfig?.toInput(),
+                    yugiohConfig: yugiohConfig?.toInput(),
+                    warhammer40kConfig: warhammer40kConfig?.toInput()
                 )
                 let event = try await services.events.createEvent(input: input)
 
@@ -240,6 +272,40 @@ final class CreateEditEventViewModel {
             self.error = error.localizedDescription
             isLoading = false
             return nil
+        }
+    }
+
+    var isBoardGame: Bool { gameSystem == .boardGame }
+
+    func gameSystemDidChange() {
+        mtgConfig = nil
+        pokemonConfig = nil
+        yugiohConfig = nil
+        warhammer40kConfig = nil
+
+        switch gameSystem {
+        case .boardGame:
+            break
+        case .mtg:
+            mtgConfig = MtgConfigState()
+            durationMinutes = 180
+            maxPlayers = 8
+        case .pokemonTcg:
+            pokemonConfig = PokemonConfigState()
+            hostIsPlaying = false
+            maxPlayers = 16
+            durationMinutes = 240
+        case .yugioh:
+            yugiohConfig = YugiohConfigState()
+            hostIsPlaying = false
+            maxPlayers = 16
+            durationMinutes = 240
+        case .warhammer40k:
+            warhammer40kConfig = Warhammer40kConfigState()
+            hostIsPlaying = false
+            maxPlayers = 8
+            durationMinutes = 180
+            setupMinutes = 30
         }
     }
 

@@ -60,6 +60,7 @@ struct CreateEventView: View {
     private var eventForm: some View {
         Form {
             basicInfoSection
+            gameSystemConfigSections
             dateTimeSection
             locationSection
             gameSettingsSection
@@ -69,6 +70,37 @@ struct CreateEventView: View {
                     Text(error).foregroundStyle(Color.md3Error)
                 }
             }
+        }
+        .onChange(of: vm.gameSystem) { _, _ in
+            vm.gameSystemDidChange()
+        }
+    }
+
+    @ViewBuilder
+    private var gameSystemConfigSections: some View {
+        switch vm.gameSystem {
+        case .boardGame:
+            EmptyView()
+        case .mtg:
+            MtgConfigFormSections(config: Binding(
+                get: { vm.mtgConfig ?? MtgConfigState() },
+                set: { vm.mtgConfig = $0 }
+            ))
+        case .pokemonTcg:
+            PokemonConfigFormSections(config: Binding(
+                get: { vm.pokemonConfig ?? PokemonConfigState() },
+                set: { vm.pokemonConfig = $0 }
+            ))
+        case .yugioh:
+            YugiohConfigFormSections(config: Binding(
+                get: { vm.yugiohConfig ?? YugiohConfigState() },
+                set: { vm.yugiohConfig = $0 }
+            ))
+        case .warhammer40k:
+            Warhammer40kConfigFormSections(config: Binding(
+                get: { vm.warhammer40kConfig ?? Warhammer40kConfigState() },
+                set: { vm.warhammer40kConfig = $0 }
+            ))
         }
     }
 
@@ -85,45 +117,54 @@ struct CreateEventView: View {
                 }
             }
 
+            Picker("Game System", selection: $vm.gameSystem) {
+                ForEach(GameSystem.allCases) { system in
+                    Label(system.displayName, systemImage: system.iconName)
+                        .tag(system)
+                }
+            }
+
             TextField("Title", text: $vm.title)
 
-            Button {
-                let tier = authVM.user?.subscriptionTier ?? .free
-                if TierConfig.canAddGame(tier, currentCount: vm.selectedGames.count) {
-                    showGameSearch = true
-                } else {
-                    showUpgradePrompt = true
+            if vm.isBoardGame {
+                Button {
+                    let tier = authVM.user?.subscriptionTier ?? .free
+                    if TierConfig.canAddGame(tier, currentCount: vm.selectedGames.count) {
+                        showGameSearch = true
+                    } else {
+                        showUpgradePrompt = true
+                    }
+                } label: {
+                    Label("Search BoardGameGeek", systemImage: "magnifyingglass")
                 }
-            } label: {
-                Label("Search BoardGameGeek", systemImage: "magnifyingglass")
-            }
 
-            if vm.isFetchingGameDetails {
-                HStack {
-                    ProgressView()
-                        .tint(Color.md3Primary)
-                    Text("Loading game details...")
-                        .font(.md3BodySmall)
-                        .foregroundStyle(Color.md3OnSurfaceVariant)
+                if vm.isFetchingGameDetails {
+                    HStack {
+                        ProgressView()
+                            .tint(Color.md3Primary)
+                        Text("Loading game details...")
+                            .font(.md3BodySmall)
+                            .foregroundStyle(Color.md3OnSurfaceVariant)
+                    }
                 }
-            }
 
-            ForEach(Array(vm.selectedGames.enumerated()), id: \.element.id) { index, game in
-                SelectedGameCard(
-                    game: game,
-                    isPrimary: index == 0,
-                    onSetPrimary: { vm.setPrimaryGame(at: index) },
-                    onRemove: { vm.removeGame(at: index) }
-                )
-                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
-            }
+                ForEach(Array(vm.selectedGames.enumerated()), id: \.element.id) { index, game in
+                    SelectedGameCard(
+                        game: game,
+                        isPrimary: index == 0,
+                        onSetPrimary: { vm.setPrimaryGame(at: index) },
+                        onRemove: { vm.removeGame(at: index) }
+                    )
+                    .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                }
 
-            TextField("Game Title", text: $vm.gameTitle)
+                TextField("Game Title", text: $vm.gameTitle)
 
-            Picker("Category", selection: $vm.gameCategory) {
-                Text("None").tag(GameCategory?.none)
-                ForEach(GameCategory.allCases) { cat in
-                    Text(cat.displayName).tag(GameCategory?.some(cat))
+                Picker("Category", selection: $vm.gameCategory) {
+                    Text("None").tag(GameCategory?.none)
+                    ForEach(GameCategory.allCases) { cat in
+                        Text(cat.displayName).tag(GameCategory?.some(cat))
+                    }
                 }
             }
 

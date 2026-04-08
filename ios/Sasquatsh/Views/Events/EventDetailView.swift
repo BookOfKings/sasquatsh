@@ -37,6 +37,7 @@ struct EventDetailView: View {
                     }
 
                     detailsSection(event)
+                    gameSystemConfigSection(event)
 
                     if let desc = event.description, !desc.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
@@ -54,6 +55,7 @@ struct EventDetailView: View {
                     gamesSection(event)
                     itemsSection(event)
                     registrationsSection(event)
+                    chatSection
                 }
                 .padding(.vertical)
             }
@@ -144,6 +146,9 @@ struct EventDetailView: View {
                     }
                 }
                 Spacer()
+                if let system = event.gameSystem, system != .boardGame {
+                    BadgeView(text: system.shortName, color: system.badgeColor)
+                }
                 BadgeView(text: event.status.capitalized, color: statusColor(event.status))
                 if event.hostIsPlaying == false {
                     BadgeView(text: "Not Playing", color: .md3SecondaryContainer)
@@ -399,6 +404,165 @@ struct EventDetailView: View {
         .padding()
         .cardStyle()
         .padding(.horizontal)
+    }
+
+    // MARK: - Chat
+
+    @ViewBuilder
+    private var chatSection: some View {
+        let tier = authVM.user?.subscriptionTier ?? .free
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Chat")
+                .font(.md3TitleMedium)
+                .foregroundStyle(Color.md3OnSurface)
+
+            if TierConfig.hasFeature(tier, feature: \.chat) {
+                ChatPanelView(contextType: "event", contextId: eventId)
+                    .frame(height: 400)
+            } else {
+                HStack(spacing: 8) {
+                    Image(systemName: "lock.fill")
+                        .foregroundStyle(Color.md3OnSurfaceVariant)
+                    Text("Upgrade to Basic to chat")
+                        .font(.md3BodyMedium)
+                        .foregroundStyle(Color.md3OnSurfaceVariant)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 20)
+            }
+        }
+        .padding()
+        .cardStyle()
+        .padding(.horizontal)
+    }
+
+    // MARK: - Game System Config
+
+    @ViewBuilder
+    private func gameSystemConfigSection(_ event: Event) -> some View {
+        if let config = event.mtgConfig {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("MTG Details")
+                    .font(.md3TitleMedium)
+                    .foregroundStyle(Color.md3OnSurface)
+                detailRow(icon: "rectangle.stack", text: "Format: \(config.formatDisplayName)")
+                if !config.eventTypeDisplayName.isEmpty {
+                    detailRow(icon: "flag", text: "Event Type: \(config.eventTypeDisplayName)")
+                }
+                if let powerLevel = config.powerLevelDisplayName {
+                    detailRow(icon: "gauge.medium", text: "Power Level: \(powerLevel)")
+                }
+                if let matchStyle = config.matchStyle {
+                    detailRow(icon: "sportscourt", text: matchStyle == "bo3" ? "Best of 3" : "Best of 1")
+                }
+                if config.allowProxies == true {
+                    detailRow(icon: "doc.on.doc", text: "Proxies Allowed\(config.proxyLimit.map { " (limit: \($0))" } ?? "")")
+                }
+                if let fee = config.entryFee, fee > 0 {
+                    detailRow(icon: "dollarsign.circle", text: "Entry Fee: $\(String(format: "%.2f", fee))")
+                }
+                if config.hasPrizes == true {
+                    detailRow(icon: "trophy", text: config.prizeStructure ?? "Prizes Available")
+                }
+            }
+            .padding()
+            .cardStyle()
+            .padding(.horizontal)
+        } else if let config = event.pokemonConfig {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Pokémon TCG Details")
+                    .font(.md3TitleMedium)
+                    .foregroundStyle(Color.md3OnSurface)
+                detailRow(icon: "rectangle.stack", text: "Format: \(config.formatDisplayName)")
+                if !config.eventTypeDisplayName.isEmpty {
+                    detailRow(icon: "flag", text: "Event Type: \(config.eventTypeDisplayName)")
+                }
+                if let bestOf = config.bestOf {
+                    detailRow(icon: "sportscourt", text: "Best of \(bestOf)")
+                }
+                if config.allowProxies == true {
+                    detailRow(icon: "doc.on.doc", text: "Proxies Allowed")
+                }
+                if let fee = config.entryFee, fee > 0 {
+                    detailRow(icon: "dollarsign.circle", text: "Entry Fee: $\(String(format: "%.2f", fee))")
+                }
+                if config.hasPrizes == true {
+                    detailRow(icon: "trophy", text: config.prizeStructure ?? "Prizes Available")
+                }
+                if config.hasJuniorDivision == true || config.hasSeniorDivision == true || config.hasMastersDivision == true {
+                    let divisions = [
+                        config.hasJuniorDivision == true ? "Junior" : nil,
+                        config.hasSeniorDivision == true ? "Senior" : nil,
+                        config.hasMastersDivision == true ? "Masters" : nil
+                    ].compactMap { $0 }
+                    detailRow(icon: "person.3", text: "Divisions: \(divisions.joined(separator: ", "))")
+                }
+            }
+            .padding()
+            .cardStyle()
+            .padding(.horizontal)
+        } else if let config = event.yugiohConfig {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Yu-Gi-Oh! Details")
+                    .font(.md3TitleMedium)
+                    .foregroundStyle(Color.md3OnSurface)
+                detailRow(icon: "rectangle.stack", text: "Format: \(config.formatDisplayName)")
+                if !config.eventTypeDisplayName.isEmpty {
+                    detailRow(icon: "flag", text: "Event Type: \(config.eventTypeDisplayName)")
+                }
+                if let bestOf = config.bestOf {
+                    detailRow(icon: "sportscourt", text: "Best of \(bestOf)")
+                }
+                if config.isOfficialEvent == true {
+                    detailRow(icon: "checkmark.seal", text: "Official Event")
+                }
+                if config.awardsOtsPoints == true {
+                    detailRow(icon: "star.circle", text: "Awards OTS Points")
+                }
+                if let fee = config.entryFee, fee > 0 {
+                    detailRow(icon: "dollarsign.circle", text: "Entry Fee: $\(String(format: "%.2f", fee))")
+                }
+                if config.hasPrizes == true {
+                    detailRow(icon: "trophy", text: config.prizeStructure ?? "Prizes Available")
+                }
+            }
+            .padding()
+            .cardStyle()
+            .padding(.horizontal)
+        } else if let config = event.warhammer40kConfig {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Warhammer 40K Details")
+                    .font(.md3TitleMedium)
+                    .foregroundStyle(Color.md3OnSurface)
+                if !config.gameTypeDisplayName.isEmpty {
+                    detailRow(icon: "shield", text: "Game Type: \(config.gameTypeDisplayName)")
+                }
+                if let points = config.pointsLimit {
+                    detailRow(icon: "number", text: "\(points) Points")
+                }
+                if let mode = config.playerModeDisplayName {
+                    detailRow(icon: "person.2", text: "Mode: \(mode)")
+                }
+                if !config.eventTypeDisplayName.isEmpty {
+                    detailRow(icon: "flag", text: "Event Type: \(config.eventTypeDisplayName)")
+                }
+                if config.battleReadyRequired == true {
+                    detailRow(icon: "paintbrush", text: "Battle Ready Required")
+                }
+                if config.wysiwygRequired == true {
+                    detailRow(icon: "eye", text: "WYSIWYG Required")
+                }
+                if let fee = config.entryFee, fee > 0 {
+                    detailRow(icon: "dollarsign.circle", text: "Entry Fee: $\(String(format: "%.2f", fee))")
+                }
+                if config.hasPrizes == true {
+                    detailRow(icon: "trophy", text: config.prizeStructure ?? "Prizes Available")
+                }
+            }
+            .padding()
+            .cardStyle()
+            .padding(.horizontal)
+        }
     }
 
     // MARK: - Helpers
