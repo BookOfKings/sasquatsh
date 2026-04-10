@@ -53,9 +53,17 @@ struct RaffleDetailView: View {
 
     // MARK: - Prize
 
+    private func resolveImageURL(_ urlStr: String?) -> URL? {
+        guard let urlStr, !urlStr.isEmpty else { return nil }
+        if urlStr.hasPrefix("http") {
+            return URL(string: urlStr)
+        }
+        return URL(string: "https://sasquatsh.com\(urlStr)")
+    }
+
     private func prizeSection(_ raffle: Raffle) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            if let urlStr = raffle.prizeImageUrl, let url = URL(string: urlStr) {
+            if let url = resolveImageURL(raffle.prizeImageUrl) ?? resolveImageURL(raffle.bannerImageUrl) {
                 AsyncImage(url: url) { image in
                     image.resizable().aspectRatio(contentMode: .fill)
                 } placeholder: {

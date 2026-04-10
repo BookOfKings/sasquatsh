@@ -102,18 +102,34 @@ Deno.serve(async (req) => {
       .single()
 
     if (existingUser) {
+      // Parse body for optional fcmToken
+      let syncBody: { fcmToken?: string } = {}
+      try {
+        syncBody = await req.json()
+      } catch {
+        // No body is fine
+      }
+
       // Update last seen and return existing user
       // Don't overwrite avatar_url if user has uploaded their own avatar
+      const updateFields: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+        display_name: firebaseUser.name || existingUser.display_name,
+        // Only set avatar from Firebase if user doesn't have one
+        avatar_url: existingUser.avatar_url || firebaseUser.picture,
+        // Update auth_provider if not set (for existing users)
+        auth_provider: existingUser.auth_provider || firebaseUser.signInProvider || 'password',
+      }
+
+      // Store FCM token if provided (from iOS app)
+      if (syncBody.fcmToken) {
+        updateFields.fcm_token = syncBody.fcmToken
+        updateFields.fcm_token_updated_at = new Date().toISOString()
+      }
+
       const { data, error } = await supabase
         .from('users')
-        .update({
-          updated_at: new Date().toISOString(),
-          display_name: firebaseUser.name || existingUser.display_name,
-          // Only set avatar from Firebase if user doesn't have one
-          avatar_url: existingUser.avatar_url || firebaseUser.picture,
-          // Update auth_provider if not set (for existing users)
-          auth_provider: existingUser.auth_provider || firebaseUser.signInProvider || 'password',
-        })
+        .update(updateFields)
         .eq('firebase_uid', firebaseUser.uid)
         .select('id, firebase_uid, email, username, display_name, avatar_url, subscription_tier, subscription_expires_at, subscription_status, subscription_override_tier, account_status, is_admin, is_founding_member, blocked_user_ids, created_at, auth_provider')
         .single()

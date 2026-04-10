@@ -14,6 +14,9 @@ final class ServiceContainer {
     let chat: ChatServiceProtocol
     let raffle: RaffleServiceProtocol
     let recurringGames: RecurringGamesServiceProtocol
+    let sessions: SessionsServiceProtocol
+    let mtgDecks: MtgDeckServiceProtocol
+    let scryfall: ScryfallServiceProtocol
 
     init(
         api: APIClient = APIClient(),
@@ -31,6 +34,9 @@ final class ServiceContainer {
         self.chat = ChatService(api: api)
         self.raffle = RaffleService(api: api)
         self.recurringGames = RecurringGamesService(api: api)
+        self.sessions = SessionsService(api: api)
+        self.mtgDecks = MtgDeckService(api: api)
+        self.scryfall = ScryfallService(api: api)
     }
 }
 

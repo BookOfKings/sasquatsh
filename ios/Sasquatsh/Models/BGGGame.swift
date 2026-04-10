@@ -4,6 +4,7 @@ struct BggSearchResult: Codable, Identifiable {
     let bggId: Int
     let name: String
     let yearPublished: Int?
+    let thumbnailUrl: String?
 
     var id: Int { bggId }
 }

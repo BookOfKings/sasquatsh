@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { verifyFirebaseToken, createResponders, getCorsHeaders, getFirebaseToken } from '../_shared/firebase.ts'
+import { sendPushNotification } from '../_shared/push.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -111,6 +112,37 @@ Deno.serve(async (req) => {
       } catch (err) {
         // Don't fail registration if raffle entry fails
         console.error('Failed to award raffle entry:', err)
+      }
+    }
+
+    // Send push notification to event host
+    if (status === 'confirmed') {
+      try {
+        // Get host's FCM token and registering user's name
+        const { data: hostData } = await supabase
+          .from('users')
+          .select('fcm_token, display_name')
+          .eq('id', event.host_user_id)
+          .single()
+
+        const { data: playerData } = await supabase
+          .from('users')
+          .select('display_name')
+          .eq('id', user.id)
+          .single()
+
+        if (hostData?.fcm_token) {
+          const playerName = playerData?.display_name || 'Someone'
+          await sendPushNotification(
+            hostData.fcm_token,
+            'New Player Joined!',
+            `${playerName} registered for your game`,
+            { eventId: targetEventId, type: 'event_registration' }
+          )
+        }
+      } catch (err) {
+        // Never block registration for push notification failure
+        console.error('Failed to send push notification:', err)
       }
     }
 

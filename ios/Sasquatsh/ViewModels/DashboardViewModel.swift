@@ -25,8 +25,9 @@ final class DashboardViewModel {
             async let hosted = services.events.getHostedEvents()
             async let groups = services.groups.getMyGroups()
 
-            registeredEvents = try await registered
-            hostedEvents = try await hosted
+            let now = Date()
+            registeredEvents = try await registered.filter { $0.eventDate.toDate ?? .distantPast >= now }
+            hostedEvents = try await hosted.filter { $0.eventDate.toDate ?? .distantPast >= now }
             myGroups = try await groups
         } catch {
             self.error = error.localizedDescription

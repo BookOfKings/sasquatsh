@@ -5,6 +5,7 @@ struct LoginView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var showSignup = false
+    @State private var showForgotPassword = false
 
     var body: some View {
         NavigationStack {
@@ -74,6 +75,17 @@ struct LoginView: View {
                             }
                         }
                         .disabled(email.isEmpty || password.isEmpty || authVM.isLoading)
+
+                        HStack {
+                            Spacer()
+                            Button {
+                                showForgotPassword = true
+                            } label: {
+                                Text("Forgot Password?")
+                                    .font(.md3LabelMedium)
+                                    .foregroundStyle(Color.md3Primary)
+                            }
+                        }
                     }
                     .padding(.horizontal)
 
@@ -119,6 +131,9 @@ struct LoginView: View {
             .background(Color.md3Surface)
             .fullScreenCover(isPresented: $showSignup) {
                 SignupView()
+            }
+            .navigationDestination(isPresented: $showForgotPassword) {
+                ForgotPasswordView()
             }
         }
     }

@@ -5,7 +5,6 @@ struct CreateEventView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AuthViewModel.self) private var authVM
     @State private var vm = CreateEditEventViewModel()
-    @State private var showGameSearch = false
     @State private var showVenueSelector = false
     @State private var showUpgradePrompt = false
 
@@ -36,13 +35,6 @@ struct CreateEventView: View {
                     vm.groupId = groupId
                     await vm.loadAvailableGroups()
                 }
-                .sheet(isPresented: $showGameSearch) {
-                    BGGGameSearchSheet { result in
-                        Task {
-                            await vm.addGame(from: result)
-                        }
-                    }
-                }
                 .sheet(isPresented: $showVenueSelector) {
                     VenueSelector { venue in
                         vm.selectVenue(venue)
@@ -60,6 +52,7 @@ struct CreateEventView: View {
     private var eventForm: some View {
         Form {
             basicInfoSection
+            gameSearchSection
             gameSystemConfigSections
             dateTimeSection
             locationSection
@@ -126,21 +119,99 @@ struct CreateEventView: View {
 
             TextField("Title", text: $vm.title)
 
-            if vm.isBoardGame {
-                Button {
-                    let tier = authVM.user?.subscriptionTier ?? .free
-                    if TierConfig.canAddGame(tier, currentCount: vm.selectedGames.count) {
-                        showGameSearch = true
-                    } else {
-                        showUpgradePrompt = true
+            TextField("Description", text: $vm.description, axis: .vertical)
+                .lineLimit(3...6)
+        }
+    }
+
+    // MARK: - Game Search
+
+    @ViewBuilder
+    private var gameSearchSection: some View {
+        if vm.isBoardGame {
+            Section("Game") {
+                // Inline search field
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(Color.md3OnSurfaceVariant)
+                    TextField("Search BoardGameGeek...", text: $vm.gameTitle)
+                        .onChange(of: vm.gameTitle) { _, newValue in
+                            vm.searchBGG(query: newValue)
+                        }
+                    if vm.isSearchingBGG {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(Color.md3Primary)
                     }
-                } label: {
-                    Label("Search BoardGameGeek", systemImage: "magnifyingglass")
+                    if !vm.gameTitle.isEmpty {
+                        Button {
+                            vm.gameTitle = ""
+                            vm.clearBGGSearch()
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(Color.md3OnSurfaceVariant)
+                        }
+                    }
                 }
 
+                // Search results
+                if !vm.bggSearchResults.isEmpty {
+                    ForEach(vm.bggSearchResults.prefix(8)) { result in
+                        Button {
+                            let tier = authVM.user?.subscriptionTier ?? .free
+                            if TierConfig.canAddGame(tier, currentCount: vm.selectedGames.count) {
+                                Task { await vm.addGame(from: result) }
+                                vm.clearBGGSearch()
+                            } else {
+                                showUpgradePrompt = true
+                            }
+                        } label: {
+                            HStack(spacing: 10) {
+                                // Thumbnail
+                                if let urlStr = result.thumbnailUrl, let url = URL(string: urlStr) {
+                                    AsyncImage(url: url) { image in
+                                        image.resizable().aspectRatio(contentMode: .fill)
+                                    } placeholder: {
+                                        Color.md3SurfaceVariant
+                                    }
+                                    .frame(width: 44, height: 44)
+                                    .clipShape(RoundedRectangle(cornerRadius: MD3Shape.small))
+                                } else {
+                                    RoundedRectangle(cornerRadius: MD3Shape.small)
+                                        .fill(Color.md3SurfaceVariant)
+                                        .frame(width: 44, height: 44)
+                                        .overlay {
+                                            Image(systemName: "dice")
+                                                .foregroundStyle(Color.md3OnSurfaceVariant)
+                                        }
+                                }
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(result.name)
+                                        .font(.md3BodyMedium)
+                                        .foregroundStyle(Color.md3OnSurface)
+                                        .lineLimit(1)
+                                    if let year = result.yearPublished {
+                                        Text("\(year)")
+                                            .font(.md3BodySmall)
+                                            .foregroundStyle(Color.md3OnSurfaceVariant)
+                                    }
+                                }
+
+                                Spacer()
+
+                                Image(systemName: "plus.circle.fill")
+                                    .foregroundStyle(Color.md3Primary)
+                            }
+                        }
+                    }
+                }
+
+                // Loading game details
                 if vm.isFetchingGameDetails {
                     HStack {
                         ProgressView()
+                            .controlSize(.small)
                             .tint(Color.md3Primary)
                         Text("Loading game details...")
                             .font(.md3BodySmall)
@@ -148,6 +219,7 @@ struct CreateEventView: View {
                     }
                 }
 
+                // Selected games
                 ForEach(Array(vm.selectedGames.enumerated()), id: \.element.id) { index, game in
                     SelectedGameCard(
                         game: game,
@@ -158,8 +230,6 @@ struct CreateEventView: View {
                     .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                 }
 
-                TextField("Game Title", text: $vm.gameTitle)
-
                 Picker("Category", selection: $vm.gameCategory) {
                     Text("None").tag(GameCategory?.none)
                     ForEach(GameCategory.allCases) { cat in
@@ -167,9 +237,6 @@ struct CreateEventView: View {
                     }
                 }
             }
-
-            TextField("Description", text: $vm.description, axis: .vertical)
-                .lineLimit(3...6)
         }
     }
 

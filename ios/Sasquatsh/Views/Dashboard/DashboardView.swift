@@ -5,32 +5,88 @@ struct DashboardView: View {
     @Environment(AuthViewModel.self) private var authVM
     @State private var vm = DashboardViewModel()
     @State private var raffleVM = RaffleViewModel()
+    @State private var showCreateEvent = false
 
     var body: some View {
         ScrollView {
             if vm.isLoading && vm.registeredEvents.isEmpty && vm.myGroups.isEmpty {
                 LoadingView()
             } else {
-                VStack(spacing: 20) {
-                    // Welcome
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Welcome back!")
-                                .font(.md3HeadlineMedium)
-                            if let name = authVM.user?.displayName ?? authVM.user?.username {
-                                Text(name)
-                                    .font(.md3BodyMedium)
-                                    .foregroundStyle(Color.md3OnSurfaceVariant)
-                            }
-                        }
-                        Spacer()
-                        UserAvatarView(
-                            url: authVM.user?.avatarUrl,
-                            name: authVM.user?.displayName ?? authVM.user?.username,
-                            size: 44
-                        )
+                VStack(spacing: 16) {
+                    // User header
+                    userHeader
+
+                    if let error = vm.error {
+                        ErrorBannerView(message: error) { vm.error = nil }
                     }
-                    .padding(.horizontal)
+
+                    // My Upcoming Games
+                    dashboardSection(
+                        title: "My Upcoming Games",
+                        icon: "calendar.badge.clock",
+                        items: vm.registeredEvents,
+                        emptyMessage: "You haven't signed up for any games yet.",
+                        emptyButtonTitle: "Browse Games",
+                        emptyButtonTab: 0
+                    ) { event in
+                        NavigationLink {
+                            EventDetailView(eventId: event.id)
+                        } label: {
+                            compactEventRow(event)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    // Games I'm Hosting
+                    dashboardSection(
+                        title: "Games I'm Hosting",
+                        icon: "star.fill",
+                        items: vm.hostedEvents,
+                        emptyMessage: "You haven't hosted any games yet.",
+                        emptyButtonTitle: "Host Your First Game",
+                        emptyAction: { showCreateEvent = true }
+                    ) { event in
+                        NavigationLink {
+                            EventDetailView(eventId: event.id)
+                        } label: {
+                            compactEventRow(event)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    // Groups I Manage
+                    dashboardSection(
+                        title: "Groups I Manage",
+                        icon: "person.3.fill",
+                        items: vm.managedGroups,
+                        emptyMessage: "You're not managing any groups yet.",
+                        emptyButtonTitle: "Create Group",
+                        emptyButtonTab: 1
+                    ) { group in
+                        NavigationLink {
+                            GroupDetailView(groupId: group.id)
+                        } label: {
+                            compactGroupRow(group)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    // Groups I'm In
+                    dashboardSection(
+                        title: "Groups I'm In",
+                        icon: "person.3",
+                        items: vm.memberGroups,
+                        emptyMessage: "You haven't joined any groups yet.",
+                        emptyButtonTitle: "Browse Groups",
+                        emptyButtonTab: 1
+                    ) { group in
+                        NavigationLink {
+                            GroupDetailView(groupId: group.id)
+                        } label: {
+                            compactGroupRow(group)
+                        }
+                        .buttonStyle(.plain)
+                    }
 
                     // Raffle banner
                     if let raffle = raffleVM.raffle {
@@ -42,80 +98,6 @@ struct DashboardView: View {
                         .buttonStyle(.plain)
                         .padding(.horizontal)
                     }
-
-                    // Ad banner for free tier
-                    if TierConfig.getLimits(for: authVM.user?.subscriptionTier ?? .free).features.showAds {
-                        UpgradeAdBanner()
-                            .padding(.horizontal)
-                    }
-
-                    if let error = vm.error {
-                        ErrorBannerView(message: error) { vm.error = nil }
-                    }
-
-                    dashboardSection(
-                        title: "My Upcoming Games",
-                        icon: "calendar.badge.clock",
-                        isEmpty: vm.registeredEvents.isEmpty,
-                        emptyMessage: "No upcoming games"
-                    ) {
-                        ForEach(vm.registeredEvents) { event in
-                            NavigationLink {
-                                EventDetailView(eventId: event.id)
-                            } label: {
-                                compactEventRow(event)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-
-                    dashboardSection(
-                        title: "Games I'm Hosting",
-                        icon: "star.fill",
-                        isEmpty: vm.hostedEvents.isEmpty,
-                        emptyMessage: "Not hosting any games"
-                    ) {
-                        ForEach(vm.hostedEvents) { event in
-                            NavigationLink {
-                                EventDetailView(eventId: event.id)
-                            } label: {
-                                compactEventRow(event)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-
-                    dashboardSection(
-                        title: "Groups I Manage",
-                        icon: "person.3.fill",
-                        isEmpty: vm.managedGroups.isEmpty,
-                        emptyMessage: "Not managing any groups"
-                    ) {
-                        ForEach(vm.managedGroups) { group in
-                            NavigationLink {
-                                GroupDetailView(groupId: group.id)
-                            } label: {
-                                compactGroupRow(group)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-
-                    dashboardSection(
-                        title: "My Groups",
-                        icon: "person.3",
-                        isEmpty: vm.memberGroups.isEmpty,
-                        emptyMessage: "Not a member of any groups"
-                    ) {
-                        ForEach(vm.memberGroups) { group in
-                            NavigationLink {
-                                GroupDetailView(groupId: group.id)
-                            } label: {
-                                compactGroupRow(group)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
                 }
                 .padding(.vertical)
             }
@@ -123,6 +105,9 @@ struct DashboardView: View {
         .background(Color.md3SurfaceContainer)
         .navigationTitle("Dashboard")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showCreateEvent) {
+            CreateEventView()
+        }
         .refreshable {
             await vm.loadDashboard()
             await raffleVM.loadActiveRaffle()
@@ -135,15 +120,60 @@ struct DashboardView: View {
         }
     }
 
-    private func dashboardSection<Content: View>(
+    // MARK: - User Header
+
+    private var userHeader: some View {
+        HStack(spacing: 12) {
+            UserAvatarView(
+                url: authVM.user?.avatarUrl,
+                name: authVM.user?.displayName ?? authVM.user?.username,
+                size: 48
+            )
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(authVM.user?.displayName ?? authVM.user?.username ?? "")
+                    .font(.md3TitleMedium)
+                    .foregroundStyle(Color.md3OnSurface)
+                Text(authVM.user?.email ?? "")
+                    .font(.md3BodySmall)
+                    .foregroundStyle(Color.md3OnSurfaceVariant)
+            }
+
+            Spacer()
+
+            Button {
+                showCreateEvent = true
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "plus")
+                    Text("Host a Game")
+                }
+                .font(.md3LabelMedium)
+                .foregroundStyle(Color.md3OnPrimary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.md3Primary)
+                .clipShape(RoundedRectangle(cornerRadius: MD3Shape.medium))
+            }
+        }
+        .padding()
+        .background(Color.md3Surface)
+    }
+
+    // MARK: - Dashboard Section
+
+    private func dashboardSection<Item: Identifiable, Content: View>(
         title: String,
         icon: String,
-        isEmpty: Bool,
+        items: [Item],
         emptyMessage: String,
-        @ViewBuilder content: () -> Content
+        emptyButtonTitle: String,
+        emptyButtonTab: Int? = nil,
+        emptyAction: (() -> Void)? = nil,
+        @ViewBuilder rowContent: @escaping (Item) -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
+            HStack(spacing: 8) {
                 Image(systemName: icon)
                     .foregroundStyle(Color.md3Primary)
                 Text(title)
@@ -151,19 +181,43 @@ struct DashboardView: View {
                     .foregroundStyle(Color.md3OnSurface)
             }
 
-            if isEmpty {
-                Text(emptyMessage)
-                    .font(.md3BodyMedium)
-                    .foregroundStyle(Color.md3OnSurfaceVariant)
-                    .padding(.vertical, 8)
+            if items.isEmpty {
+                VStack(spacing: 12) {
+                    Text(emptyMessage)
+                        .font(.md3BodyMedium)
+                        .foregroundStyle(Color.md3OnSurfaceVariant)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+
+                    Button {
+                        if let action = emptyAction {
+                            action()
+                        }
+                        // Tab switching would require a binding passed from MainTabView
+                        // For now the button text serves as guidance
+                    } label: {
+                        Text(emptyButtonTitle)
+                            .font(.md3LabelLarge)
+                            .foregroundStyle(Color.md3OnPrimary)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 10)
+                            .background(Color.md3Primary)
+                            .clipShape(RoundedRectangle(cornerRadius: MD3Shape.medium))
+                    }
+                }
+                .padding(.vertical, 8)
             } else {
-                content()
+                ForEach(items) { item in
+                    rowContent(item)
+                }
             }
         }
         .padding()
         .cardStyle()
         .padding(.horizontal)
     }
+
+    // MARK: - Row Views
 
     private func compactEventRow(_ event: EventSummary) -> some View {
         HStack {

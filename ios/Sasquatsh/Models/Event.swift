@@ -28,6 +28,7 @@ struct Event: Codable, Identifiable {
     var confirmedCount: Int
     var isPublic: Bool
     var isCharityEvent: Bool
+    var isMultiTable: Bool?
     var minAge: Int?
     var status: String
     let host: UserSummary?

@@ -114,6 +114,10 @@ enum RaffleEntryType: String, CaseIterable, Identifiable {
     }
 }
 
+struct RaffleResponse: Codable {
+    let raffle: Raffle?
+}
+
 struct MailInEntryInput: Codable {
     let raffleId: String
     let name: String

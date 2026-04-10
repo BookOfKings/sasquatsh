@@ -60,11 +60,11 @@ final class SocialService: SocialServiceProtocol {
     }
 
     func getEventLocations() async throws -> [EventLocation] {
-        try await api.get("event-locations", authenticated: true)
+        try await api.get("event-locations", queryItems: [.init(name: "forEvent", value: "true")], authenticated: false)
     }
 
     func getHotLocations() async throws -> [EventLocation] {
-        try await api.get("event-locations", queryItems: [.init(name: "hot", value: "true")], authenticated: true)
+        try await api.get("event-locations", queryItems: [.init(name: "hot", value: "true")], authenticated: false)
     }
 
     func createEventLocation(input: CreateEventLocationInput) async throws -> EventLocation {

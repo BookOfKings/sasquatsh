@@ -43,6 +43,11 @@ final class CreateEditEventViewModel {
     var isFetchingGameDetails = false
     var availableGroups: [GroupSummary] = []
 
+    // Inline BGG search
+    var bggSearchResults: [BggSearchResult] = []
+    var isSearchingBGG = false
+    private var bggSearchTask: Task<Void, Never>?
+
     var isLoading = false
     var error: String?
     var isEditing = false
@@ -276,6 +281,30 @@ final class CreateEditEventViewModel {
     }
 
     var isBoardGame: Bool { gameSystem == .boardGame }
+
+    func searchBGG(query: String) {
+        bggSearchTask?.cancel()
+        guard query.count >= 2 else {
+            bggSearchResults = []
+            return
+        }
+        bggSearchTask = Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled, let services else { return }
+            isSearchingBGG = true
+            do {
+                bggSearchResults = try await services.bgg.searchGames(query: query)
+            } catch {
+                if !Task.isCancelled { bggSearchResults = [] }
+            }
+            isSearchingBGG = false
+        }
+    }
+
+    func clearBGGSearch() {
+        bggSearchResults = []
+        bggSearchTask?.cancel()
+    }
 
     func gameSystemDidChange() {
         mtgConfig = nil

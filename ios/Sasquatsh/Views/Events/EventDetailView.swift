@@ -54,6 +54,9 @@ struct EventDetailView: View {
                     actionButtons(event)
                     gamesSection(event)
                     itemsSection(event)
+                    if event.isMultiTable == true {
+                        SessionScheduleView(eventId: eventId)
+                    }
                     registrationsSection(event)
                     chatSection
                 }

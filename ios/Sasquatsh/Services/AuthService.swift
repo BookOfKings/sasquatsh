@@ -12,6 +12,7 @@ protocol AuthServiceProtocol: Sendable {
     func getCurrentUser() -> FirebaseAuth.User?
     func addStateListener(_ callback: @escaping (FirebaseAuth.User?) -> Void) -> AuthStateDidChangeListenerHandle
     func removeStateListener(_ handle: AuthStateDidChangeListenerHandle)
+    func resetPassword(email: String) async throws
 }
 
 final class AuthService: AuthServiceProtocol {
@@ -79,5 +80,9 @@ final class AuthService: AuthServiceProtocol {
 
     func removeStateListener(_ handle: AuthStateDidChangeListenerHandle) {
         Auth.auth().removeStateDidChangeListener(handle)
+    }
+
+    func resetPassword(email: String) async throws {
+        try await Auth.auth().sendPasswordReset(withEmail: email)
     }
 }

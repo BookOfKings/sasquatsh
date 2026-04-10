@@ -1,9 +1,13 @@
 import UIKit
 import FirebaseCore
+import FirebaseAuth
+import FirebaseMessaging
 import GoogleSignIn
+import UserNotifications
 
-class AppDelegate: NSObject, UIApplicationDelegate {
+class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate {
     static var firebaseConfigured = false
+    static var fcmToken: String?
 
     func application(
         _ application: UIApplication,
@@ -14,7 +18,25 @@ class AppDelegate: NSObject, UIApplicationDelegate {
            let appId = dict["GOOGLE_APP_ID"] as? String,
            !appId.contains("placeholder") {
             FirebaseApp.configure()
+            // Use default keychain access (works on simulator without code signing)
+            try? Auth.auth().useUserAccessGroup(nil)
             Self.firebaseConfigured = true
+
+            // Set up push notifications
+            UNUserNotificationCenter.current().delegate = self
+            Messaging.messaging().delegate = self
+
+            // Request notification permission
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
+                if granted {
+                    DispatchQueue.main.async {
+                        application.registerForRemoteNotifications()
+                    }
+                }
+                if let error {
+                    print("[Sasquatsh] Notification permission error: \(error)")
+                }
+            }
         } else {
             print("[Sasquatsh] GoogleService-Info.plist not configured. Download it from Firebase Console.")
             print("[Sasquatsh] Running in preview mode — auth features disabled.")
@@ -23,6 +45,56 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         configureAppearance()
         return true
     }
+
+    // MARK: - Push Notification Token
+
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        Messaging.messaging().apnsToken = deviceToken
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        print("[Sasquatsh] Failed to register for remote notifications: \(error)")
+    }
+
+    // MARK: - FCM Delegate
+
+    func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+        guard let fcmToken else { return }
+        print("[Sasquatsh] FCM token received: \(fcmToken.prefix(20))...")
+        Self.fcmToken = fcmToken
+
+        // Post notification so AuthViewModel can pick it up
+        NotificationCenter.default.post(
+            name: .fcmTokenReceived,
+            object: nil,
+            userInfo: ["token": fcmToken]
+        )
+    }
+
+    // MARK: - Notification Display
+
+    // Show notification even when app is in foreground
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .badge, .sound])
+    }
+
+    // Handle notification tap
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let userInfo = response.notification.request.content.userInfo
+        // Could navigate to event detail using eventId from userInfo
+        print("[Sasquatsh] Notification tapped: \(userInfo)")
+        completionHandler()
+    }
+
+    // MARK: - Appearance
 
     private func configureAppearance() {
         // MD3 Nav Bar
@@ -38,21 +110,8 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         UINavigationBar.appearance().standardAppearance = navAppearance
         UINavigationBar.appearance().scrollEdgeAppearance = navAppearance
 
-        // MD3 Tab Bar
-        let tabFont = UIFont(name: "Inter-Medium", size: 10) ?? .systemFont(ofSize: 10)
-        let tabAppearance = UITabBarAppearance()
-        tabAppearance.configureWithDefaultBackground()
-        // md3SurfaceContainer background
-        tabAppearance.backgroundColor = UIColor(red: 0.961, green: 0.961, blue: 0.941, alpha: 1)
-
-        let itemAppearance = UITabBarItemAppearance()
-        let unselectedColor = UIColor(red: 0.286, green: 0.271, blue: 0.310, alpha: 1) // md3OnSurfaceVariant
-        itemAppearance.normal.titleTextAttributes = [.font: tabFont, .foregroundColor: unselectedColor]
-        itemAppearance.normal.iconColor = unselectedColor
-        itemAppearance.selected.titleTextAttributes = [.font: tabFont]
-        tabAppearance.stackedLayoutAppearance = itemAppearance
-        UITabBar.appearance().standardAppearance = tabAppearance
-        UITabBar.appearance().scrollEdgeAppearance = tabAppearance
+        // Hide system tab bar (using custom MD3 tab bar)
+        UITabBar.appearance().isHidden = true
     }
 
     func application(
@@ -63,4 +122,10 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         guard Self.firebaseConfigured else { return false }
         return GIDSignIn.sharedInstance.handle(url)
     }
+}
+
+// MARK: - Notification Name
+
+extension Notification.Name {
+    static let fcmTokenReceived = Notification.Name("fcmTokenReceived")
 }

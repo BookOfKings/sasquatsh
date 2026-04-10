@@ -1,4 +1,7 @@
 import Foundation
+import os.log
+
+private let logger = Logger(subsystem: "com.sasquatsh.ios", category: "Raffle")
 
 protocol RaffleServiceProtocol {
     func getActiveRaffle() async throws -> Raffle?
@@ -15,16 +18,21 @@ final class RaffleService: RaffleServiceProtocol {
 
     func getActiveRaffle() async throws -> Raffle? {
         do {
-            let raffle: Raffle = try await api.get("raffle", authenticated: true)
-            return raffle
+            let response: RaffleResponse = try await api.get("raffle", authenticated: true)
+            if let raffle = response.raffle {
+                logger.error("DEBUG Raffle loaded: \(raffle.prizeName) banner=\(raffle.bannerImageUrl ?? "nil") prize=\(raffle.prizeImageUrl ?? "nil")")
+            }
+            return response.raffle
         } catch {
+            logger.error("Error loading active raffle: \(error.localizedDescription)")
             return nil
         }
     }
 
     func getRaffle(id: String) async throws -> Raffle {
         let queryItems = [URLQueryItem(name: "id", value: id)]
-        return try await api.get("raffle", queryItems: queryItems, authenticated: true)
+        let response: RaffleResponse = try await api.get("raffle", queryItems: queryItems, authenticated: true)
+        return response.raffle!
     }
 
     func submitMailInEntry(raffleId: String, name: String, address: String) async throws {

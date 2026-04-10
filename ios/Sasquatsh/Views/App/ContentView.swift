@@ -28,11 +28,14 @@ struct ContentView: View {
     private var launchScreen: some View {
         ZStack {
             Color.primaryBrand.ignoresSafeArea()
-            VStack(spacing: 20) {
+            VStack(spacing: 16) {
                 Image("LogoWhite")
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 120, height: 120)
+                Text("Sasquatsh")
+                    .font(.system(size: 28, weight: .bold, design: .default))
+                    .foregroundStyle(.white)
                 ProgressView()
                     .tint(.white)
             }

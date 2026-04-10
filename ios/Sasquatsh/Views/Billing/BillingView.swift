@@ -25,6 +25,25 @@ struct BillingView: View {
                     }
 
                     currentPlanCard
+
+                    NavigationLink {
+                        PricingView()
+                    } label: {
+                        HStack {
+                            Image(systemName: "sparkles")
+                                .foregroundStyle(Color.md3Primary)
+                            Text("View All Plans")
+                                .font(.md3LabelLarge)
+                                .foregroundStyle(Color.md3Primary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.md3BodySmall)
+                                .foregroundStyle(Color.md3OnSurfaceVariant)
+                        }
+                        .padding()
+                        .cardStyle()
+                    }
+
                     paymentMethodCard
                     invoiceHistoryCard
                 }

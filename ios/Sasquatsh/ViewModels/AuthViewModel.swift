@@ -103,7 +103,12 @@ final class AuthViewModel {
     private func syncUser() async {
         guard let services else { return }
         do {
-            let syncedUser: User = try await services.api.post("auth-sync", authenticated: true)
+            // Include FCM token if available
+            struct SyncInput: Codable {
+                let fcmToken: String?
+            }
+            let input = SyncInput(fcmToken: AppDelegate.fcmToken)
+            let syncedUser: User = try await services.api.post("auth-sync", body: input, authenticated: true)
             self.user = syncedUser
             self.error = nil
         } catch {

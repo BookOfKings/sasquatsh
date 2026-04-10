@@ -103,6 +103,26 @@ struct ProfileView: View {
                     }
                     .buttonStyle(.plain)
 
+                    // MTG Decks
+                    NavigationLink {
+                        MyDecksView()
+                    } label: {
+                        HStack {
+                            Image(systemName: "rectangle.stack")
+                                .foregroundStyle(Color.md3Primary)
+                            Text("My MTG Decks")
+                                .font(.md3TitleSmall)
+                                .foregroundStyle(Color.md3OnSurface)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.md3BodySmall)
+                                .foregroundStyle(Color.md3OnSurfaceVariant)
+                        }
+                        .padding()
+                        .cardStyle()
+                    }
+                    .buttonStyle(.plain)
+
                     // Bio
                     if let bio = profile.bio, !bio.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
