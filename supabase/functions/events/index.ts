@@ -349,6 +349,39 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Get events for a specific group (member-only)
+    if (type === 'group') {
+      const groupId = url.searchParams.get('groupId')
+      if (!groupId) return errorResponse('Missing groupId parameter', 400)
+
+      // Verify user is a member of this group
+      const { data: membership } = await supabase
+        .from('group_memberships')
+        .select('id')
+        .eq('group_id', groupId)
+        .eq('user_id', user.id)
+        .single()
+
+      if (!membership) return errorResponse('Not a member of this group', 403)
+
+      const { data, error } = await supabase
+        .from('events')
+        .select(`
+          id, title, game_title, game_category, game_system, event_date, start_time,
+          duration_minutes, city, state, difficulty_level, max_players, host_is_playing,
+          is_public, is_charity_event, min_age, status,
+          host:users!host_user_id(id, display_name, avatar_url, is_founding_member, is_admin),
+          registrations:event_registrations(count),
+          games:event_games(thumbnail_url, is_primary)
+        `)
+        .eq('group_id', groupId)
+        .gte('event_date', new Date().toISOString().split('T')[0])
+        .order('event_date', { ascending: true })
+
+      if (error) return errorResponse(error.message, 500)
+      return jsonResponse(data.map(transformEventSummary))
+    }
+
     return errorResponse('Invalid type parameter', 400)
   }
 

@@ -30,6 +30,13 @@
     <link rel="manifest" href="/site.webmanifest" />
     <meta name="theme-color" content="#2D5A3D" />
 
+    <!-- Redirect .web.app and .firebaseapp.com to canonical domain -->
+    <script>
+      if (location.hostname !== 'sasquatsh.com' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        location.replace('https://sasquatsh.com' + location.pathname + location.search + location.hash);
+      }
+    </script>
+
     <!-- reCAPTCHA v3 -->
     <script src="https://www.google.com/recaptcha/api.js?render=6LfZ-HcsAAAAALniN1xOkc_I5t443MorPE66H0CK" async defer></script>
   </head>

@@ -4,7 +4,10 @@ import { useRoute, useRouter } from 'vue-router'
 import { useGroupStore } from '@/stores/useGroupStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { getGroupPlanningSessions } from '@/services/planningApi'
+import { getGroupEvents } from '@/services/eventsApi'
 import type { PlanningSession } from '@/types/planning'
+import type { EventSummary } from '@/types/events'
+import EventList from '@/components/events/EventList.vue'
 import GroupAdminPanel from '@/components/groups/GroupAdminPanel.vue'
 import EditGroupModal from '@/components/groups/EditGroupModal.vue'
 import ChatPanel from '@/components/chat/ChatPanel.vue'
@@ -31,13 +34,15 @@ const isMember = computed(() => !!userMembership.value)
 const showEditModal = ref(false)
 const planningSessions = ref<PlanningSession[]>([])
 const loadingPlans = ref(false)
+const groupEvents = ref<EventSummary[]>([])
+const loadingEvents = ref(false)
 const showChat = ref(false)
 
 onMounted(async () => {
   await groupStore.loadGroup(groupSlug.value)
   if (group.value && auth.isAuthenticated.value) {
     await groupStore.loadGroupMembers(group.value.id)
-    await loadPlanningSessions()
+    await Promise.all([loadPlanningSessions(), loadGroupEvents()])
   }
 })
 
@@ -56,11 +61,25 @@ async function loadPlanningSessions() {
   }
 }
 
+async function loadGroupEvents() {
+  if (!group.value || !isMember.value) return
+  loadingEvents.value = true
+  try {
+    const token = await auth.getIdToken()
+    if (token) {
+      groupEvents.value = await getGroupEvents(token, group.value.id)
+    }
+  } catch (err) {
+    console.error('Failed to load group events:', err)
+  } finally {
+    loadingEvents.value = false
+  }
+}
+
 watch(() => auth.isAuthenticated.value, async (isAuth) => {
   if (isAuth && group.value) {
     await groupStore.loadGroupMembers(group.value.id)
-    // loadPlanningSessions checks isMember internally
-    await loadPlanningSessions()
+    await Promise.all([loadPlanningSessions(), loadGroupEvents()])
   }
 })
 
@@ -258,17 +277,6 @@ async function handleGroupUpdated() {
               </div>
             </template>
 
-            <!-- Member - show leave button -->
-            <button
-              v-if="isMember && !isOwner"
-              class="btn-outline text-red-600 border-red-300 hover:bg-red-50"
-              @click="handleLeave"
-            >
-              <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M16,17V14H9V10H16V7L21,12L16,17M14,2A2,2 0 0,1 16,4V6H14V4H5V20H14V18H16V20A2,2 0 0,1 14,22H5A2,2 0 0,1 3,20V4A2,2 0 0,1 5,2H14Z"/>
-              </svg>
-              Leave Group
-            </button>
           </template>
 
           <!-- Not authenticated -->
@@ -280,55 +288,23 @@ async function handleGroupUpdated() {
         </div>
       </div>
 
-      <!-- Admin Panel (for owner/admin) -->
-      <GroupAdminPanel
-        v-if="isAdmin && group"
-        :group-id="group.id"
-        :is-owner="isOwner"
-        @toast="(msg, type) => showMessage(type === 'success', msg)"
-        class="mb-6"
-      />
-
-      <!-- Members Section (for all members, when not admin - admins see this in admin panel) -->
-      <div v-if="isMember && !isAdmin && group" class="card mb-6">
-        <div class="p-4 border-b border-gray-100 flex items-center justify-between">
+      <!-- Upcoming Group Events Section -->
+      <div v-if="isMember" class="card mb-6">
+        <div class="p-4 border-b border-gray-100">
           <h2 class="font-semibold flex items-center gap-2">
             <svg class="w-5 h-5 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12,5.5A3.5,3.5 0 0,1 15.5,9A3.5,3.5 0 0,1 12,12.5A3.5,3.5 0 0,1 8.5,9A3.5,3.5 0 0,1 12,5.5M5,8C5.56,8 6.08,8.15 6.53,8.42C6.38,9.85 6.8,11.27 7.66,12.38C7.16,13.34 6.16,14 5,14A3,3 0 0,1 2,11A3,3 0 0,1 5,8M19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14C17.84,14 16.84,13.34 16.34,12.38C17.2,11.27 17.62,9.85 17.47,8.42C17.92,8.15 18.44,8 19,8M5.5,18.25C5.5,16.18 8.41,14.5 12,14.5C15.59,14.5 18.5,16.18 18.5,18.25V20H5.5V18.25M0,20V18.5C0,17.11 1.89,15.94 4.45,15.6C3.86,16.28 3.5,17.22 3.5,18.25V20H0M24,20H20.5V18.25C20.5,17.22 20.14,16.28 19.55,15.6C22.11,15.94 24,17.11 24,18.5V20Z"/>
+              <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
             </svg>
-            Members ({{ groupStore.groupMembers.value.length }})
+            Upcoming Games
           </h2>
         </div>
-        <div class="divide-y divide-gray-100">
-          <div
-            v-for="member in groupStore.groupMembers.value"
-            :key="member.id"
-            class="flex items-center gap-3 p-4"
-          >
-            <div class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
-              <img
-                v-if="member.avatarUrl"
-                :src="member.avatarUrl"
-                class="w-full h-full object-cover"
-                alt=""
-              />
-              <svg v-else class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
-              </svg>
-            </div>
-            <div class="flex-1 min-w-0">
-              <div class="font-medium text-gray-900">{{ member.displayName || member.username || 'Unknown' }}</div>
-              <div v-if="member.username" class="text-sm text-gray-500">@{{ member.username }}</div>
-            </div>
-            <span :class="[
-              'text-xs px-2 py-1 rounded-full',
-              member.role === 'owner' ? 'bg-purple-100 text-purple-700' :
-              member.role === 'admin' ? 'bg-blue-100 text-blue-700' :
-              'bg-gray-100 text-gray-700'
-            ]">
-              {{ member.role }}
-            </span>
-          </div>
+        <div class="p-4">
+          <EventList
+            :events="groupEvents"
+            :loading="loadingEvents"
+            empty-text="No upcoming games scheduled for this group yet."
+            @select="(event) => router.push(`/events/${event.id}`)"
+          />
         </div>
       </div>
 
@@ -388,30 +364,8 @@ async function handleGroupUpdated() {
         </div>
       </div>
 
-      <!-- Recurring Games Section -->
-      <RecurringGamesList
-        v-if="group"
-        :group-id="group.id"
-        :is-admin="isAdmin || isOwner"
-      />
-
-      <!-- Upcoming Games Section -->
-      <div class="card mb-6">
-        <div class="p-4 border-b border-gray-100">
-          <h2 class="font-semibold flex items-center gap-2">
-            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
-            </svg>
-            Upcoming Games
-          </h2>
-        </div>
-        <p class="text-gray-500 text-center py-8">
-          No upcoming games scheduled for this group yet.
-        </p>
-      </div>
-
       <!-- Group Chat (visible to members only) -->
-      <div v-if="isMember && group" class="card">
+      <div v-if="isMember && group" class="card mb-6">
         <div class="p-4 border-b border-gray-100">
           <button
             class="w-full flex items-center justify-between text-left"
@@ -439,6 +393,78 @@ async function handleGroupUpdated() {
             :context-id="group.id"
           />
         </div>
+      </div>
+
+      <!-- Recurring Games Section -->
+      <RecurringGamesList
+        v-if="group"
+        :group-id="group.id"
+        :is-admin="isAdmin || isOwner"
+      />
+
+      <!-- Members Section (for all members, when not admin - admins see this in admin panel) -->
+      <div v-if="isMember && !isAdmin && group" class="card mb-6">
+        <div class="p-4 border-b border-gray-100 flex items-center justify-between">
+          <h2 class="font-semibold flex items-center gap-2">
+            <svg class="w-5 h-5 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12,5.5A3.5,3.5 0 0,1 15.5,9A3.5,3.5 0 0,1 12,12.5A3.5,3.5 0 0,1 8.5,9A3.5,3.5 0 0,1 12,5.5M5,8C5.56,8 6.08,8.15 6.53,8.42C6.38,9.85 6.8,11.27 7.66,12.38C7.16,13.34 6.16,14 5,14A3,3 0 0,1 2,11A3,3 0 0,1 5,8M19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14C17.84,14 16.84,13.34 16.34,12.38C17.2,11.27 17.62,9.85 17.47,8.42C17.92,8.15 18.44,8 19,8M5.5,18.25C5.5,16.18 8.41,14.5 12,14.5C15.59,14.5 18.5,16.18 18.5,18.25V20H5.5V18.25M0,20V18.5C0,17.11 1.89,15.94 4.45,15.6C3.86,16.28 3.5,17.22 3.5,18.25V20H0M24,20H20.5V18.25C20.5,17.22 20.14,16.28 19.55,15.6C22.11,15.94 24,17.11 24,18.5V20Z"/>
+            </svg>
+            Members ({{ groupStore.groupMembers.value.length }})
+          </h2>
+        </div>
+        <div class="divide-y divide-gray-100">
+          <div
+            v-for="member in groupStore.groupMembers.value"
+            :key="member.id"
+            class="flex items-center gap-3 p-4"
+          >
+            <div class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+              <img
+                v-if="member.avatarUrl"
+                :src="member.avatarUrl"
+                class="w-full h-full object-cover"
+                alt=""
+              />
+              <svg v-else class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="font-medium text-gray-900">{{ member.displayName || member.username || 'Unknown' }}</div>
+              <div v-if="member.username" class="text-sm text-gray-500">@{{ member.username }}</div>
+            </div>
+            <span :class="[
+              'text-xs px-2 py-1 rounded-full',
+              member.role === 'owner' ? 'bg-purple-100 text-purple-700' :
+              member.role === 'admin' ? 'bg-blue-100 text-blue-700' :
+              'bg-gray-100 text-gray-700'
+            ]">
+              {{ member.role }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Admin Panel (for owner/admin) -->
+      <GroupAdminPanel
+        v-if="isAdmin && group"
+        :group-id="group.id"
+        :is-owner="isOwner"
+        @toast="(msg, type) => showMessage(type === 'success', msg)"
+        class="mb-6"
+      />
+
+      <!-- Leave Group (at the very bottom for members who aren't owners) -->
+      <div v-if="isMember && !isOwner" class="mb-6 text-center">
+        <button
+          class="btn-outline text-red-600 border-red-300 hover:bg-red-50"
+          @click="handleLeave"
+        >
+          <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M16,17V14H9V10H16V7L21,12L16,17M14,2A2,2 0 0,1 16,4V6H14V4H5V20H14V18H16V20A2,2 0 0,1 14,22H5A2,2 0 0,1 3,20V4A2,2 0 0,1 5,2H14Z"/>
+          </svg>
+          Leave Group
+        </button>
       </div>
     </template>
 

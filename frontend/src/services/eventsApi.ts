@@ -306,6 +306,10 @@ export async function getHostedEvents(token: string): Promise<EventSummary[]> {
   return authenticatedRequest<EventSummary[]>('/events?type=hosted', token)
 }
 
+export async function getGroupEvents(token: string, groupId: string): Promise<EventSummary[]> {
+  return authenticatedRequest<EventSummary[]>(`/events?type=group&groupId=${groupId}`, token)
+}
+
 export async function createEvent(
   token: string,
   data: CreateEventInput
