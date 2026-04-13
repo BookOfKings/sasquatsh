@@ -1,16 +1,21 @@
 package com.sasquatsh.app.ui.navigation
 
+import android.app.Activity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.sasquatsh.app.ui.auth.AuthViewModel
+import com.sasquatsh.app.ui.events.EventDetailScreen
+import com.sasquatsh.app.ui.events.EventListScreen
 import com.sasquatsh.app.ui.auth.ForgotPasswordScreen
 import com.sasquatsh.app.ui.auth.LoginScreen
 import com.sasquatsh.app.ui.auth.SignupScreen
@@ -67,10 +72,21 @@ fun AppNavigation(
         ) {
             // Auth
             composable(Routes.Login.route) {
+                val activity = LocalContext.current as Activity
+
+                val googleSignInLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.StartActivityForResult()
+                ) { result ->
+                    authViewModel.handleGoogleSignInResult(result)
+                }
+
                 LoginScreen(
                     uiState = authState,
                     onLogin = { email, password -> authViewModel.loginWithEmail(email, password) },
-                    onGoogleSignIn = { /* TODO: Google Sign-In flow */ },
+                    onGoogleSignIn = {
+                        val client = authViewModel.getGoogleSignInClient(activity)
+                        googleSignInLauncher.launch(client.signInIntent)
+                    },
                     onNavigateToSignup = { navController.navigate(Routes.Signup.route) },
                     onNavigateToForgotPassword = { navController.navigate(Routes.ForgotPassword.route) },
                     onClearError = { authViewModel.clearError() },
@@ -100,12 +116,18 @@ fun AppNavigation(
                 DashboardScreen(
                     onNavigateToEvents = { navController.navigate(Routes.Events.route) },
                     onNavigateToGroups = { navController.navigate(Routes.Groups.route) },
+                    onNavigateToEvent = { id -> navController.navigate(Routes.EventDetail.withId(id)) },
+                    onNavigateToGroup = { slug -> navController.navigate(Routes.GroupDetail.withSlug(slug)) },
+                    onNavigateToCreateEvent = { navController.navigate(Routes.CreateEvent.route) },
+                    onNavigateToProfile = { navController.navigate(Routes.Profile.route) },
                 )
             }
 
             composable(Routes.Events.route) {
-                // TODO: Phase 2 - EventListScreen
-                PlaceholderScreen("Games / Events")
+                EventListScreen(
+                    onNavigateToEvent = { id -> navController.navigate(Routes.EventDetail.withId(id)) },
+                    onNavigateToCreateEvent = { navController.navigate(Routes.CreateEvent.route) },
+                )
             }
 
             composable(Routes.Groups.route) {
@@ -141,12 +163,45 @@ fun AppNavigation(
                 )
             }
 
-            // Placeholder routes for features not yet built
+            // Event routes
+            composable(Routes.EventDetail.route) {
+                EventDetailScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToEdit = { id -> navController.navigate(Routes.EditEvent.withId(id)) },
+                )
+            }
+            composable(Routes.CreateEvent.route) {
+                PlaceholderScreen("Create Event")
+            }
+            composable(Routes.EditEvent.route) {
+                PlaceholderScreen("Edit Event")
+            }
+
+            // Planning routes
+            composable(Routes.PlanGameNight.route) {
+                PlaceholderScreen("Plan Game Night")
+            }
+            composable(Routes.PlanningSession.route) {
+                PlaceholderScreen("Planning Session")
+            }
+
+            // Invitation routes
+            composable(Routes.GroupInvite.route) {
+                PlaceholderScreen("Group Invite")
+            }
+            composable(Routes.EventInvite.route) {
+                PlaceholderScreen("Event Invite")
+            }
+
+            // Other routes
             composable(Routes.CreateGroup.route) {
                 PlaceholderScreen("Create Group")
             }
             composable(Routes.MtgDecks.route) {
                 PlaceholderScreen("MTG Decks")
+            }
+            composable(Routes.MtgDeckBuilder.route) {
+                PlaceholderScreen("Deck Builder")
             }
             composable(Routes.LookingForPlayers.route) {
                 PlaceholderScreen("Looking for Players")

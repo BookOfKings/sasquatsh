@@ -52,6 +52,20 @@ class GroupsRepository @Inject constructor(
         }
     }
 
+    suspend fun getGroupById(groupId: String): ApiResult<GroupDetailDto> {
+        return try {
+            val response = groupsApi.getGroupById(groupId)
+            if (response.isSuccessful) {
+                val body = response.body() ?: return ApiResult.Error("Empty response")
+                ApiResult.Success(body)
+            } else {
+                ApiResult.Error("Failed to load group: ${response.code()}", response.code())
+            }
+        } catch (e: Exception) {
+            ApiResult.Error(e.message ?: "Failed to load group")
+        }
+    }
+
     suspend fun joinGroup(id: String): ApiResult<Unit> {
         return try {
             val response = groupsApi.joinGroup(id)

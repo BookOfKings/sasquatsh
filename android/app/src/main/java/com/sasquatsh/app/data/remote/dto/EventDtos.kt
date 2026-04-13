@@ -40,6 +40,7 @@ data class EventSummaryDto(
 @JsonClass(generateAdapter = true)
 data class EventDetailDto(
     @Json(name = "id") val id: String,
+    @Json(name = "hostUserId") val hostUserId: String?,
     @Json(name = "title") val title: String,
     @Json(name = "description") val description: String?,
     @Json(name = "gameTitle") val gameTitle: String?,

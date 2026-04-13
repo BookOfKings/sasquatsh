@@ -10,6 +10,8 @@ import com.sasquatsh.app.domain.model.SubscriptionTier
 import com.sasquatsh.app.domain.model.User
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
@@ -21,6 +23,9 @@ class AuthRepository @Inject constructor(
     private val authApi: AuthApi,
 ) {
     val currentFirebaseUser: FirebaseUser? get() = firebaseAuth.currentUser
+
+    private val _currentUser = MutableStateFlow<User?>(null)
+    val currentUser: StateFlow<User?> = _currentUser
 
     val authStateFlow: Flow<FirebaseUser?> = callbackFlow {
         val listener = FirebaseAuth.AuthStateListener { auth ->
@@ -79,8 +84,18 @@ class AuthRepository @Inject constructor(
         }
     }
 
+    suspend fun syncExistingUser() {
+        val fbUser = firebaseAuth.currentUser ?: return
+        val provider = fbUser.providerData
+            .firstOrNull { it.providerId != "firebase" }
+            ?.providerId ?: "email"
+        val result = syncUser(fbUser, if (provider == "google.com") "google" else "email")
+        android.util.Log.d("AuthRepo", "syncExistingUser result: $result, currentUser: ${_currentUser.value?.id}")
+    }
+
     fun logout() {
         firebaseAuth.signOut()
+        _currentUser.value = null
     }
 
     suspend fun deleteAccount(): ApiResult<Unit> {
@@ -99,6 +114,7 @@ class AuthRepository @Inject constructor(
         avatarUrl: String? = null,
     ): ApiResult<User> {
         return try {
+            android.util.Log.d("AuthRepo", "syncUser called for ${fbUser.email}, provider=$provider")
             val response = authApi.syncAuth(
                 AuthSyncRequest(
                     email = fbUser.email ?: "",
@@ -107,21 +123,26 @@ class AuthRepository @Inject constructor(
                     authProvider = provider,
                 )
             )
+            android.util.Log.d("AuthRepo", "syncAuth response: code=${response.code()}, successful=${response.isSuccessful}")
+            if (!response.isSuccessful) {
+                val errorBody = response.errorBody()?.string()
+                android.util.Log.e("AuthRepo", "syncAuth error body: $errorBody")
+            }
             if (response.isSuccessful) {
                 val body = response.body() ?: return ApiResult.Error("Empty response")
-                ApiResult.Success(
-                    User(
-                        id = body.id,
-                        firebaseUid = body.firebaseUid,
-                        email = body.email,
-                        displayName = body.displayName,
-                        username = body.username,
-                        avatarUrl = body.avatarUrl,
-                        subscriptionTier = SubscriptionTier.fromValue(body.subscriptionTier),
-                        isAdmin = body.isAdmin ?: false,
-                        isFoundingMember = body.isFoundingMember ?: false,
-                    )
+                val user = User(
+                    id = body.id,
+                    firebaseUid = fbUser.uid,
+                    email = body.email ?: fbUser.email ?: "",
+                    displayName = body.displayName,
+                    username = body.username,
+                    avatarUrl = body.avatarUrl,
+                    subscriptionTier = SubscriptionTier.fromValue(body.subscriptionTier),
+                    isAdmin = body.isAdmin ?: false,
+                    isFoundingMember = body.isFoundingMember ?: false,
                 )
+                _currentUser.value = user
+                ApiResult.Success(user)
             } else {
                 ApiResult.Error("Auth sync failed: ${response.code()}")
             }

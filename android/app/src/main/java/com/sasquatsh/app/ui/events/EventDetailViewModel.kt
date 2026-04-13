@@ -17,6 +17,8 @@ data class EventDetailUiState(
     val event: EventDetailDto? = null,
     val isLoading: Boolean = false,
     val isRegistering: Boolean = false,
+    val canEdit: Boolean = false,
+    val currentUserId: String? = null,
     val error: String? = null,
     val actionMessage: String? = null,
 )
@@ -25,6 +27,8 @@ data class EventDetailUiState(
 class EventDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val eventsRepository: EventsRepository,
+    private val authRepository: com.sasquatsh.app.data.repository.AuthRepository,
+    private val groupsRepository: com.sasquatsh.app.data.repository.GroupsRepository,
 ) : ViewModel() {
 
     private val eventId: String = checkNotNull(savedStateHandle["eventId"])
@@ -39,9 +43,39 @@ class EventDetailViewModel @Inject constructor(
     fun loadEvent() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
+
+            // Wait briefly for auth sync to complete if currentUser is null
+            if (authRepository.currentUser.value == null) {
+                authRepository.syncExistingUser()
+            }
+
             when (val result = eventsRepository.getEvent(eventId)) {
                 is ApiResult.Success -> {
-                    _uiState.update { it.copy(isLoading = false, event = result.data) }
+                    val event = result.data
+                    val currentUser = authRepository.currentUser.value
+                    val currentUserId = currentUser?.id
+                    val hostUserId = event.hostUserId
+
+                    val isHost = currentUserId != null && currentUserId == hostUserId
+                    val isSiteAdmin = currentUser?.isAdmin == true
+
+                    // Check if user is a group admin/owner for this event's group
+                    var isGroupAdmin = false
+                    if (!isHost && !isSiteAdmin && event.groupId != null && currentUserId != null) {
+                        val groupResult = groupsRepository.getGroupById(event.groupId)
+                        if (groupResult is ApiResult.Success) {
+                            val membership = groupResult.data.userMembership
+                            isGroupAdmin = membership != null &&
+                                (membership.role == "owner" || membership.role == "admin")
+                        }
+                    }
+
+                    _uiState.update { it.copy(
+                        isLoading = false,
+                        event = event,
+                        canEdit = isHost || isSiteAdmin || isGroupAdmin,
+                        currentUserId = currentUserId,
+                    ) }
                 }
                 is ApiResult.Error -> {
                     _uiState.update { it.copy(isLoading = false, error = result.message) }

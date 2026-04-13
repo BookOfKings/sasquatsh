@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Schedule
@@ -62,6 +63,7 @@ import com.sasquatsh.app.ui.components.UserAvatar
 @Composable
 fun EventDetailScreen(
     onNavigateBack: () -> Unit,
+    onNavigateToEdit: ((String) -> Unit)? = null,
     viewModel: EventDetailViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -138,8 +140,11 @@ fun EventDetailScreen(
                 EventDetailContent(
                     event = uiState.event!!,
                     isRegistering = uiState.isRegistering,
+                    isEditable = uiState.canEdit,
+                    debugCurrentUserId = uiState.currentUserId,
                     onRegister = { viewModel.register() },
                     onUnregister = { viewModel.unregister() },
+                    onEdit = { onNavigateToEdit?.invoke(uiState.event!!.id) },
                     modifier = Modifier.padding(padding),
                 )
             }
@@ -151,8 +156,11 @@ fun EventDetailScreen(
 private fun EventDetailContent(
     event: EventDetailDto,
     isRegistering: Boolean,
+    isEditable: Boolean,
+    debugCurrentUserId: String? = null,
     onRegister: () -> Unit,
     onUnregister: () -> Unit,
+    onEdit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val confirmedCount = event.registrations?.count { it.status == "confirmed" } ?: 0
@@ -163,43 +171,69 @@ private fun EventDetailContent(
             .fillMaxSize()
             .verticalScroll(rememberScrollState()),
     ) {
-        // Game thumbnail
+        // Game thumbnail — display at natural size, centered, not blown up
         val primaryGame = event.games?.firstOrNull { it.isPrimary == true }
         val thumbnailUrl = primaryGame?.thumbnailUrl
         if (!thumbnailUrl.isNullOrBlank()) {
-            AsyncImage(
-                model = thumbnailUrl,
-                contentDescription = event.gameTitle ?: event.title,
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(200.dp),
-                contentScale = ContentScale.Crop,
-            )
+                    .height(180.dp)
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                AsyncImage(
+                    model = thumbnailUrl,
+                    contentDescription = event.gameTitle ?: event.title,
+                    modifier = Modifier
+                        .height(160.dp)
+                        .clip(MaterialTheme.shapes.medium),
+                    contentScale = ContentScale.Fit,
+                )
+            }
         }
 
         Column(
             modifier = Modifier.padding(16.dp),
         ) {
-            // Title
-            Text(
-                text = event.title,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-            )
+            // Title + Edit button
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = event.title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f),
+                )
+                if (isEditable) {
+                    IconButton(onClick = onEdit) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edit Event",
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // DEBUG: remove after confirming edit works
+            Text(
+                text = "canEdit: $isEditable | hostUserId: ${event.hostUserId} | myId: ${debugCurrentUserId}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+
             // Game system chip
-            event.gameCategory?.let { category ->
-                val gameSystem = try {
-                    GameSystem.fromValue(category)
-                } catch (_: Exception) {
-                    null
-                }
-                if (gameSystem != null) {
-                    GameSystemChip(gameSystem = gameSystem)
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
+            val gameSystemValue = event.gameSystem ?: event.gameCategory
+            if (gameSystemValue != null) {
+                val gameSystem = GameSystem.fromValue(gameSystemValue)
+                GameSystemChip(gameSystem = gameSystem)
+                Spacer(modifier = Modifier.height(12.dp))
             }
 
             // Date & Time
@@ -212,7 +246,7 @@ private fun EventDetailContent(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = event.eventDate,
+                    text = formatDate(event.eventDate),
                     style = MaterialTheme.typography.bodyLarge,
                 )
             }
@@ -228,9 +262,15 @@ private fun EventDetailContent(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     val timeText = buildString {
-                        append(event.startTime)
+                        append(formatTime(event.startTime))
                         event.durationMinutes?.let { mins ->
-                            append(" (${mins}min)")
+                            if (mins >= 60 && mins % 60 == 0) {
+                                append(" (${mins / 60} hour${if (mins / 60 != 1) "s" else ""})")
+                            } else if (mins >= 60) {
+                                append(" (${mins / 60}h ${mins % 60}m)")
+                            } else {
+                                append(" (${mins}min)")
+                            }
                         }
                     }
                     Text(
@@ -430,6 +470,29 @@ private fun EventDetailContent(
             // Bottom spacing for FAB clearance
             Spacer(modifier = Modifier.height(32.dp))
         }
+    }
+}
+
+private fun formatDate(dateStr: String): String {
+    return try {
+        val date = java.time.LocalDate.parse(dateStr)
+        val formatter = java.time.format.DateTimeFormatter.ofPattern("EEE, MMM d, yyyy")
+        date.format(formatter)
+    } catch (e: Exception) {
+        dateStr
+    }
+}
+
+private fun formatTime(timeStr: String): String {
+    return try {
+        val parts = timeStr.split(":")
+        val hour = parts[0].toInt()
+        val minutes = parts[1]
+        val ampm = if (hour >= 12) "PM" else "AM"
+        val hour12 = if (hour % 12 == 0) 12 else hour % 12
+        "$hour12:$minutes $ampm"
+    } catch (e: Exception) {
+        timeStr
     }
 }
 
