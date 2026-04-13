@@ -355,6 +355,11 @@ export function jsonResponse(data: unknown, status = 200, req?: Request): Respon
 }
 
 export function errorResponse(message: string, status = 400, req?: Request): Response {
+  // For server errors (5xx), log the real message but return a generic one to the client
+  if (status >= 500) {
+    console.error(`[${status}] ${message}`)
+    return jsonResponse({ error: 'Something went wrong. Please try again.' }, status, req)
+  }
   return jsonResponse({ error: message }, status, req)
 }
 

@@ -15,6 +15,7 @@ export interface PlanningSession {
   maxParticipants: number | null
   maxGames: number // Tier-based limit: Basic=5, Pro=10
   tableCount: number | null // For multi-table sessions
+  openToGroup: boolean // When true, any group member can join
   scheduledSessions: ScheduleEntry[] | null // Game schedule before finalize
   hostSessionPreferences: HostPreference[] | null // Host's preferred sessions
   inviteeCount?: number
@@ -136,12 +137,13 @@ export interface CreatePlanningSessionInput {
   title: string
   description?: string
   responseDeadline: string
-  inviteeUserIds: string[]
+  inviteeUserIds?: string[]
   proposedDates: { date: string; startTime?: string }[]
   sendEmailInvites?: boolean
   initialGameSuggestions?: SuggestGameInput[]
   maxParticipants?: number
   tableCount?: number // For multi-table sessions (>= 2)
+  openToGroup?: boolean
 }
 
 export interface PlanningResponseInput {

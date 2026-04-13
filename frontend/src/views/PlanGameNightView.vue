@@ -48,6 +48,7 @@ const form = reactive({
   maxParticipants: 8,
   isMultiTable: false,
   tableCount: 2,
+  openToGroup: false,
 })
 
 const slug = computed(() => route.params.slug as string)
@@ -56,7 +57,7 @@ const isValid = computed(() => {
   return (
     form.title.trim() &&
     form.responseDeadline &&
-    form.selectedMemberIds.size > 0 &&
+    (form.openToGroup || form.selectedMemberIds.size > 0) &&
     form.proposedDates.filter(d => d.date).length >= 1
   )
 })
@@ -187,7 +188,8 @@ async function handleSubmit() {
       title: form.title.trim(),
       description: form.description.trim() || undefined,
       responseDeadline: new Date(form.responseDeadline).toISOString(),
-      inviteeUserIds: Array.from(form.selectedMemberIds),
+      inviteeUserIds: form.openToGroup ? undefined : Array.from(form.selectedMemberIds),
+      openToGroup: form.openToGroup || undefined,
       proposedDates: form.proposedDates
         .filter(d => d.date)
         .map(d => ({
@@ -310,51 +312,69 @@ function formatDate(dateStr: string): string {
         <!-- Select Members -->
         <div class="card p-6">
           <div class="flex items-center justify-between mb-4">
-            <h2 class="font-semibold">Invite Members *</h2>
-            <div class="flex gap-2">
-              <button type="button" class="text-sm text-primary-500 hover:text-primary-600" @click="selectAllMembers">
-                Select All
-              </button>
-              <span class="text-gray-300">|</span>
-              <button type="button" class="text-sm text-gray-500 hover:text-gray-600" @click="deselectAllMembers">
-                Deselect All
-              </button>
+            <h2 class="font-semibold">Invite Members{{ form.openToGroup ? '' : ' *' }}</h2>
+          </div>
+
+          <!-- Open to Group Toggle -->
+          <label class="flex items-center gap-3 p-3 rounded-lg bg-primary-50 border border-primary-200 cursor-pointer mb-4">
+            <input
+              type="checkbox"
+              v-model="form.openToGroup"
+              class="w-5 h-5 text-primary-500 rounded border-gray-300 focus:ring-primary-500"
+            />
+            <div>
+              <div class="font-medium text-primary-700">Open to all group members</div>
+              <div class="text-sm text-primary-600">Any current or future group member can join this game session</div>
             </div>
-          </div>
+          </label>
 
-          <div v-if="members.length === 0" class="text-gray-500 text-center py-4">
-            No members in this group yet.
-          </div>
-
-          <div v-else class="space-y-2 max-h-64 overflow-y-auto">
-            <label
-              v-for="member in members"
-              :key="member.userId"
-              class="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer"
-              :class="{ 'bg-primary-50': form.selectedMemberIds.has(member.userId) }"
-            >
-              <input
-                type="checkbox"
-                :checked="form.selectedMemberIds.has(member.userId)"
-                class="w-5 h-5 text-primary-500 rounded border-gray-300 focus:ring-primary-500"
-                @change="toggleMember(member.userId)"
-              />
-              <UserAvatar
-                :avatar-url="member.avatarUrl"
-                :display-name="member.displayName"
-                :is-founding-member="member.isFoundingMember"
-                :is-admin="member.isAdmin"
-                size="md"
-                class="flex-shrink-0"
-              />
-              <div class="flex-1 min-w-0">
-                <div class="font-medium">{{ member.displayName || member.username || 'Unknown' }}</div>
-                <div class="text-sm text-gray-500 capitalize">{{ member.role }}</div>
+          <template v-if="!form.openToGroup">
+            <div class="flex items-center justify-end mb-3">
+              <div class="flex gap-2">
+                <button type="button" class="text-sm text-primary-500 hover:text-primary-600" @click="selectAllMembers">
+                  Select All
+                </button>
+                <span class="text-gray-300">|</span>
+                <button type="button" class="text-sm text-gray-500 hover:text-gray-600" @click="deselectAllMembers">
+                  Deselect All
+                </button>
               </div>
-            </label>
-          </div>
+            </div>
 
-          <p class="text-sm text-gray-500 mt-3">
+            <div v-if="members.length === 0" class="text-gray-500 text-center py-4">
+              No members in this group yet.
+            </div>
+
+            <div v-else class="space-y-2 max-h-64 overflow-y-auto">
+              <label
+                v-for="member in members"
+                :key="member.userId"
+                class="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer"
+                :class="{ 'bg-primary-50': form.selectedMemberIds.has(member.userId) }"
+              >
+                <input
+                  type="checkbox"
+                  :checked="form.selectedMemberIds.has(member.userId)"
+                  class="w-5 h-5 text-primary-500 rounded border-gray-300 focus:ring-primary-500"
+                  @change="toggleMember(member.userId)"
+                />
+                <UserAvatar
+                  :avatar-url="member.avatarUrl"
+                  :display-name="member.displayName"
+                  :is-founding-member="member.isFoundingMember"
+                  :is-admin="member.isAdmin"
+                  size="md"
+                  class="flex-shrink-0"
+                />
+                <div class="flex-1 min-w-0">
+                  <div class="font-medium">{{ member.displayName || member.username || 'Unknown' }}</div>
+                  <div class="text-sm text-gray-500 capitalize">{{ member.role }}</div>
+                </div>
+              </label>
+            </div>
+          </template>
+
+          <p v-if="!form.openToGroup" class="text-sm text-gray-500 mt-3">
             {{ form.selectedMemberIds.size }} member{{ form.selectedMemberIds.size === 1 ? '' : 's' }} selected
           </p>
         </div>

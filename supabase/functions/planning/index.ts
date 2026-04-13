@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
         .select(`
           id, group_id, created_by_user_id, title, description,
           response_deadline, status, finalized_date, created_event_id, created_at,
-          max_participants, table_count,
+          max_participants, table_count, open_to_group,
           group:groups(id, name, slug),
           created_by:users!created_by_user_id(id, display_name, username, avatar_url, is_founding_member, is_admin, subscription_tier, subscription_override_tier),
           invitees:planning_invitees(count)
@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
         .select(`
           id, group_id, created_by_user_id, title, description,
           response_deadline, status, finalized_date, finalized_game_id, created_event_id, created_at,
-          max_participants, max_games, table_count, scheduled_sessions, host_session_preferences,
+          max_participants, max_games, table_count, open_to_group, scheduled_sessions, host_session_preferences,
           group:groups(id, name, slug),
           created_by:users!created_by_user_id(id, display_name, username, avatar_url, is_founding_member, is_admin, subscription_tier, subscription_override_tier)
         `)
@@ -126,7 +126,7 @@ Deno.serve(async (req) => {
         return errorResponse('Session not found', 404)
       }
 
-      // Verify user is creator or invitee
+      // Verify user is creator, invitee, or group member (if open_to_group)
       const { data: invitee } = await supabase
         .from('planning_invitees')
         .select('id')
@@ -135,7 +135,28 @@ Deno.serve(async (req) => {
         .single()
 
       const isCreator = session.created_by_user_id === user.id
-      if (!isCreator && !invitee) {
+      let isGroupMemberForOpen = false
+      if (!isCreator && !invitee && session.open_to_group) {
+        // Check if user is a group member
+        const { data: groupMembership } = await supabase
+          .from('group_memberships')
+          .select('id')
+          .eq('group_id', session.group_id)
+          .eq('user_id', user.id)
+          .single()
+        isGroupMemberForOpen = !!groupMembership
+
+        // Auto-add them as an invitee so they can participate
+        if (isGroupMemberForOpen) {
+          await supabase.from('planning_invitees').upsert({
+            session_id: sessionId,
+            user_id: user.id,
+            has_slot: true,
+          }, { onConflict: 'session_id,user_id' })
+        }
+      }
+
+      if (!isCreator && !invitee && !isGroupMemberForOpen) {
         return errorResponse('You need to be invited to view this planning session', 403)
       }
 
@@ -226,8 +247,15 @@ Deno.serve(async (req) => {
         )
       }
 
-      if (!body.groupId || !body.title || !body.responseDeadline || !body.inviteeUserIds?.length || !body.proposedDates?.length) {
-        return errorResponse('groupId, title, responseDeadline, inviteeUserIds, and proposedDates required', 400)
+      const openToGroup = body.openToGroup === true
+
+      if (!body.groupId || !body.title || !body.responseDeadline || !body.proposedDates?.length) {
+        return errorResponse('groupId, title, responseDeadline, and proposedDates required', 400)
+      }
+
+      // inviteeUserIds required unless openToGroup is true
+      if (!openToGroup && !body.inviteeUserIds?.length) {
+        return errorResponse('inviteeUserIds required (or set openToGroup to true)', 400)
       }
 
       if (body.proposedDates.length < 1) {
@@ -254,17 +282,19 @@ Deno.serve(async (req) => {
         return errorResponse('Must be group owner or admin to create planning sessions', 403)
       }
 
-      // Verify all invitees are group members
-      const { data: validMembers } = await supabase
-        .from('group_memberships')
-        .select('user_id')
-        .eq('group_id', body.groupId)
-        .in('user_id', body.inviteeUserIds)
+      // Verify invitees are group members (skip if open_to_group with no explicit invitees)
+      if (body.inviteeUserIds?.length) {
+        const { data: validMembers } = await supabase
+          .from('group_memberships')
+          .select('user_id')
+          .eq('group_id', body.groupId)
+          .in('user_id', body.inviteeUserIds)
 
-      const validUserIds = new Set(validMembers?.map(m => m.user_id) ?? [])
-      const invalidIds = body.inviteeUserIds.filter((id: string) => !validUserIds.has(id))
-      if (invalidIds.length > 0) {
-        return errorResponse('Some invitees are not members of this group', 400)
+        const validUserIds = new Set(validMembers?.map(m => m.user_id) ?? [])
+        const invalidIds = body.inviteeUserIds.filter((id: string) => !validUserIds.has(id))
+        if (invalidIds.length > 0) {
+          return errorResponse('Some invitees are not members of this group', 400)
+        }
       }
 
       // Game suggestions are unlimited during planning.
@@ -293,6 +323,7 @@ Deno.serve(async (req) => {
           max_participants: body.maxParticipants || null,
           max_games: maxGamesForDisplay,
           table_count: body.tableCount || null,
+          open_to_group: openToGroup,
         })
         .select()
         .single()
@@ -300,7 +331,7 @@ Deno.serve(async (req) => {
       if (sessionError) return errorResponse(sessionError.message, 500)
 
       // Add invitees (always include the creator so they can participate too)
-      const allInviteeIds = new Set<string>(body.inviteeUserIds)
+      const allInviteeIds = new Set<string>(body.inviteeUserIds || [])
       allInviteeIds.add(user.id) // Ensure creator is included
 
       // Creator always gets a slot (first participant) and is auto-accepted
@@ -1676,6 +1707,7 @@ function transformSessionSummary(row: Record<string, unknown>) {
     maxParticipants: row.max_participants ?? null,
     maxGames: row.max_games ?? 5,
     tableCount: row.table_count ?? null,
+    openToGroup: row.open_to_group ?? false,
     scheduledSessions: row.scheduled_sessions ?? null,
     hostSessionPreferences: row.host_session_preferences ?? null,
     inviteeCount: (row.invitees as { count: number }[])?.[0]?.count ?? 0,

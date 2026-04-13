@@ -762,7 +762,7 @@ Deno.serve(async (req) => {
           invite_code: code,
           invited_email: body.email?.trim() || null,
           invited_user_id: body.userId || null,
-          max_uses: body.userId ? 1 : (body.maxUses || 1), // Direct invites are always single-use
+          max_uses: body.userId ? 1 : (body.maxUses || null), // Direct invites are single-use; link invites are unlimited by default
           expires_at: expiresAt,
           status: 'pending',
         })
