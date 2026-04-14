@@ -905,6 +905,7 @@ function formatRelativeTime(isoString: string | null): string {
                 :avatar-url="session.createdBy?.avatarUrl ?? undefined"
                 :display-name="session.createdBy?.displayName ?? undefined"
                 :username="session.createdBy?.username ?? undefined"
+                :user-id="session.createdByUserId"
                 size="xs"
                 :is-founding-member="session.createdBy?.isFoundingMember"
                 :is-admin="session.createdBy?.isAdmin"
@@ -1493,6 +1494,7 @@ function formatRelativeTime(isoString: string | null): string {
                       :display-name="invitee.user?.displayName"
                       :is-founding-member="invitee.user?.isFoundingMember"
                       :is-admin="invitee.user?.isAdmin"
+                      :user-id="invitee.userId"
                       size="lg"
                     />
                   </div>
@@ -1816,6 +1818,7 @@ function formatRelativeTime(isoString: string | null): string {
                 :display-name="member.displayName"
                 :is-founding-member="member.isFoundingMember"
                 :is-admin="member.isAdmin"
+                :user-id="member.userId"
                 size="sm"
               />
               <div class="flex-1 min-w-0">

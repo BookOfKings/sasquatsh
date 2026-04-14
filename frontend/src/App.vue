@@ -83,6 +83,12 @@ function goToMyCollection() {
   mobileMenuOpen.value = false
 }
 
+function goToBadges() {
+  router.push('/badges')
+  userMenuOpen.value = false
+  mobileMenuOpen.value = false
+}
+
 function goToLogin() {
   router.push('/login')
 }
@@ -230,6 +236,15 @@ async function handleLogout() {
                       My Collection
                     </button>
                     <button
+                      @click="goToBadges"
+                      class="w-full flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z"/>
+                      </svg>
+                      Achievements
+                    </button>
+                    <button
                       @click="goToDashboard"
                       class="w-full flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors"
                     >
@@ -366,6 +381,13 @@ async function handleLogout() {
                   <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
                 </svg>
                 My Collection
+              </button>
+
+              <button @click="goToBadges" class="flex items-center gap-3 px-4 py-3 hover:bg-primary-600 rounded-lg transition-colors text-left">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z"/>
+                </svg>
+                Achievements
               </button>
 
               <!-- Plan info in mobile menu -->

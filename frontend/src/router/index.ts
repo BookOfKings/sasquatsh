@@ -49,6 +49,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/UserCollectionView.vue'),
   },
   {
+    path: '/badges',
+    name: 'badges',
+    component: () => import('@/views/BadgesView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/games',
     name: 'games',
     component: () => import('@/views/EventsView.vue'),
