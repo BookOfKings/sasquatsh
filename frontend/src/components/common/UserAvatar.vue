@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { getPublicProfile } from '@/services/profileApi'
 import { getUserCollection } from '@/services/collectionsApi'
+import { getUserBadges, type UserBadge } from '@/services/badgesApi'
 import type { PublicProfile } from '@/types/profile'
 
 const props = withDefaults(defineProps<{
@@ -41,11 +42,13 @@ const router = useRouter()
 const showPopover = ref(false)
 const popoverProfile = ref<PublicProfile | null>(null)
 const popoverGameCount = ref<number | null>(null)
+const popoverBadges = ref<UserBadge[]>([])
 const popoverLoading = ref(false)
 const popoverEl = ref<HTMLElement | null>(null)
 
-async function handleAvatarClick() {
+async function handleAvatarClick(e: Event) {
   if (!props.userId) return
+  e.stopPropagation()
   if (showPopover.value) {
     showPopover.value = false
     return
@@ -58,13 +61,20 @@ async function handleAvatarClick() {
     const profile = await getPublicProfile(props.userId)
     popoverProfile.value = profile
 
-    // Try to get collection count (will fail silently if private)
+    // Fetch badges and collection count in parallel
+    const promises: Promise<void>[] = []
+
+    promises.push(
+      getUserBadges(props.userId).then(b => { popoverBadges.value = b }).catch(() => {})
+    )
+
     if ((profile as any).collectionVisibility === 'public') {
-      try {
-        const games = await getUserCollection(props.userId)
-        popoverGameCount.value = games.length
-      } catch { /* private or error */ }
+      promises.push(
+        getUserCollection(props.userId).then(g => { popoverGameCount.value = g.length }).catch(() => {})
+      )
     }
+
+    await Promise.all(promises)
   } catch {
     // profile fetch failed
   } finally {
@@ -115,7 +125,7 @@ const iconSizeClasses = {
         ringClass,
         userId ? 'cursor-pointer' : ''
       ]"
-      @click.stop="handleAvatarClick"
+      @click="userId ? handleAvatarClick($event) : undefined"
     >
       <img
         v-if="props.avatarUrl"
@@ -242,6 +252,27 @@ const iconSizeClasses = {
               {{ popoverGameCount }}
             </span>
           </button>
+
+          <!-- Badges -->
+          <div v-if="popoverBadges.length > 0" class="mt-2">
+            <div class="text-[10px] text-gray-400 mb-1">Badges ({{ popoverBadges.length }})</div>
+            <div class="flex flex-wrap gap-1">
+              <div
+                v-for="ub in popoverBadges.slice(0, 8)"
+                :key="ub.id"
+                :title="ub.badge.name + ' — ' + ub.badge.description"
+                class="w-6 h-6"
+              >
+                <div v-if="ub.badge.icon_svg" v-html="ub.badge.icon_svg" class="w-full h-full"></div>
+                <div v-else class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
+                  <svg class="w-3 h-3 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z"/>
+                  </svg>
+                </div>
+              </div>
+              <span v-if="popoverBadges.length > 8" class="text-[10px] text-gray-400 self-center">+{{ popoverBadges.length - 8 }}</span>
+            </div>
+          </div>
         </template>
       </div>
     </Teleport>

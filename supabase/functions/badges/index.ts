@@ -204,6 +204,72 @@ Deno.serve(async (req) => {
     return jsonResponse({ pinned: true })
   }
 
+  // POST /badges?action=compute-all - Compute badges for ALL users (admin only)
+  if (req.method === 'POST' && action === 'compute-all') {
+    const token = getFirebaseToken(req)
+    if (!token) return errorResponse('Authentication required', 401)
+    const decoded = await verifyFirebaseToken(token)
+    if (!decoded) return errorResponse('Invalid token', 401)
+
+    // Verify admin
+    const { data: adminUser } = await supabase
+      .from('users')
+      .select('id, is_admin')
+      .eq('firebase_uid', decoded.uid)
+      .single()
+    if (!adminUser?.is_admin) return errorResponse('Admin access required', 403)
+
+    // Get all users
+    const { data: allUsers } = await supabase
+      .from('users')
+      .select('id, is_founding_member, collection_visibility, created_at')
+
+    if (!allUsers) return errorResponse('Failed to load users', 500)
+
+    // Get all badge definitions
+    const { data: allBadges } = await supabase
+      .from('badges')
+      .select('*')
+      .eq('is_active', true)
+
+    if (!allBadges) return errorResponse('Failed to load badges', 500)
+
+    const launchDate = new Date('2026-02-01')
+    let totalAwarded = 0
+
+    for (const user of allUsers) {
+      // Get already earned
+      const { data: earnedBadges } = await supabase
+        .from('user_badges')
+        .select('badge_id')
+        .eq('user_id', user.id)
+      const earnedIds = new Set((earnedBadges ?? []).map(b => b.badge_id))
+
+      // Compute counts
+      const counts = await computeActivityCounts(supabase, user.id)
+      counts.is_founding_member = user.is_founding_member ? 1 : 0
+      counts.collection_public = user.collection_visibility === 'public' ? 1 : 0
+      const signupDate = new Date(user.created_at)
+      counts.early_signup = ((signupDate.getTime() - launchDate.getTime()) / (1000 * 60 * 60 * 24)) <= 30 ? 1 : 0
+
+      // Award new badges
+      const newBadges: Array<{ user_id: string; badge_id: number }> = []
+      for (const badge of allBadges) {
+        if (earnedIds.has(badge.id)) continue
+        if ((counts[badge.requirement_type] ?? 0) >= badge.requirement_count) {
+          newBadges.push({ user_id: user.id, badge_id: badge.id })
+        }
+      }
+
+      if (newBadges.length > 0) {
+        await supabase.from('user_badges').upsert(newBadges, { onConflict: 'user_id,badge_id' })
+        totalAwarded += newBadges.length
+      }
+    }
+
+    return jsonResponse({ usersProcessed: allUsers.length, badgesAwarded: totalAwarded })
+  }
+
   return errorResponse('Method not allowed', 405)
 })
 
