@@ -191,7 +191,7 @@ function handleSave() {
   emit('save', schedule, preferences)
 }
 
-// Drag and drop handlers
+// Drag and drop handlers (desktop)
 let draggedGameId: string | null = null
 
 function onDragStart(e: DragEvent, suggestionId: string) {
@@ -214,6 +214,81 @@ function onDrop(e: DragEvent, tableNumber: number, slotIndex: number) {
     assignGame(tableNumber, slotIndex, draggedGameId)
     draggedGameId = null
   }
+}
+
+// Touch drag and drop handlers (mobile)
+let touchDragId: string | null = null
+let touchGhost: HTMLElement | null = null
+let touchHighlight: Element | null = null
+
+function onTouchStart(e: TouchEvent, suggestionId: string) {
+  const touch = e.touches[0]
+  if (!touch) return
+  touchDragId = suggestionId
+  // Create a floating ghost element
+  const target = e.currentTarget as HTMLElement
+  touchGhost = target.cloneNode(true) as HTMLElement
+  touchGhost.style.position = 'fixed'
+  touchGhost.style.zIndex = '9999'
+  touchGhost.style.opacity = '0.85'
+  touchGhost.style.pointerEvents = 'none'
+  touchGhost.style.width = `${target.offsetWidth}px`
+  touchGhost.style.transform = 'rotate(2deg) scale(1.05)'
+  touchGhost.style.left = `${touch.clientX - target.offsetWidth / 2}px`
+  touchGhost.style.top = `${touch.clientY - 20}px`
+  document.body.appendChild(touchGhost)
+}
+
+function onTouchMove(e: TouchEvent) {
+  if (!touchDragId) return
+  e.preventDefault()
+  const touch = e.touches[0]
+  if (!touch || !touchGhost) return
+  touchGhost.style.left = `${touch.clientX - touchGhost.offsetWidth / 2}px`
+  touchGhost.style.top = `${touch.clientY - 20}px`
+  // Highlight the drop zone under the finger
+  const dropZone = findDropZone(touch.clientX, touch.clientY)
+  if (touchHighlight !== dropZone) {
+    if (touchHighlight) touchHighlight.classList.remove('touch-drag-over')
+    touchHighlight = dropZone
+    if (touchHighlight) touchHighlight.classList.add('touch-drag-over')
+  }
+}
+
+function onTouchEnd(e: TouchEvent) {
+  if (!touchDragId) return
+  const touch = e.changedTouches[0]
+  if (touch) {
+    const dropZone = findDropZone(touch.clientX, touch.clientY)
+    if (dropZone) {
+      const tableNumber = Number(dropZone.getAttribute('data-table'))
+      const slotIndex = Number(dropZone.getAttribute('data-slot'))
+      if (!isNaN(tableNumber) && !isNaN(slotIndex)) {
+        assignGame(tableNumber, slotIndex, touchDragId)
+      }
+    }
+  }
+  // Cleanup
+  if (touchGhost) {
+    touchGhost.remove()
+    touchGhost = null
+  }
+  if (touchHighlight) {
+    touchHighlight.classList.remove('touch-drag-over')
+    touchHighlight = null
+  }
+  touchDragId = null
+}
+
+function findDropZone(x: number, y: number): Element | null {
+  const zones = document.querySelectorAll('[data-drop-zone]')
+  for (const zone of zones) {
+    const rect = zone.getBoundingClientRect()
+    if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+      return zone
+    }
+  }
+  return null
 }
 
 // Count scheduled games
@@ -247,9 +322,12 @@ watch(
           <div
             v-for="game in unscheduledGames"
             :key="game.id"
-            class="flex items-center gap-2 p-2 bg-white border border-gray-200 rounded-lg cursor-grab hover:border-primary-300 hover:shadow-sm transition-all"
+            class="flex items-center gap-2 p-2 bg-white border border-gray-200 rounded-lg cursor-grab hover:border-primary-300 hover:shadow-sm transition-all select-none"
             draggable="true"
             @dragstart="onDragStart($event, game.id)"
+            @touchstart="onTouchStart($event, game.id)"
+            @touchmove="onTouchMove"
+            @touchend="onTouchEnd"
           >
             <img
               v-if="game.thumbnailUrl"
@@ -317,6 +395,9 @@ watch(
                       ? 'border-primary-200 bg-primary-50'
                       : 'border-gray-200 bg-gray-50 hover:border-gray-300'
                   ]"
+                  data-drop-zone
+                  :data-table="tableIdx"
+                  :data-slot="slotIdx - 1"
                   @dragover="onDragOver"
                   @drop="onDrop($event, tableIdx, slotIdx - 1)"
                 >
@@ -418,3 +499,11 @@ watch(
     </div>
   </div>
 </template>
+
+<style scoped>
+.touch-drag-over {
+  border-color: var(--color-primary-400, #5fa36b) !important;
+  background-color: var(--color-primary-100, #dcedde) !important;
+  border-style: solid !important;
+}
+</style>

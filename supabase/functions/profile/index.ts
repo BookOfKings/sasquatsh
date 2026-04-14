@@ -36,6 +36,7 @@ function toUserProfile(row: Record<string, unknown>) {
     isAdmin: row.is_admin as boolean ?? false,
     isFoundingMember: row.is_founding_member as boolean ?? false,
     blockedUserIds: row.blocked_user_ids as string[] ?? [],
+    collectionVisibility: (row.collection_visibility as string) ?? 'private',
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
     authProvider: (row.auth_provider as string) ?? 'password',
@@ -56,6 +57,7 @@ function toPublicProfile(row: Record<string, unknown>) {
     favoriteGames: row.favorite_games as string[] | null,
     preferredGameTypes: row.preferred_game_types as string[] | null,
     isFoundingMember: row.is_founding_member as boolean ?? false,
+    collectionVisibility: (row.collection_visibility as string) ?? 'private',
     createdAt: row.created_at as string,
   }
 }
@@ -309,6 +311,7 @@ Deno.serve(async (req) => {
     if (body.activeLocationRoom !== undefined) updates.active_location_room = body.activeLocationRoom?.trim() || null
     if (body.activeLocationTable !== undefined) updates.active_location_table = body.activeLocationTable?.trim() || null
     if (body.timezone !== undefined) updates.timezone = body.timezone?.trim() || null
+    if (body.collectionVisibility !== undefined) updates.collection_visibility = body.collectionVisibility
 
     const { data, error } = await supabase
       .from('users')

@@ -38,6 +38,17 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/my-collection',
+    name: 'my-collection',
+    component: () => import('@/views/MyCollectionView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/collection/:userId',
+    name: 'user-collection',
+    component: () => import('@/views/UserCollectionView.vue'),
+  },
+  {
     path: '/games',
     name: 'games',
     component: () => import('@/views/EventsView.vue'),

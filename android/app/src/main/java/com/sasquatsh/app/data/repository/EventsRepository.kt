@@ -33,6 +33,10 @@ class EventsRepository @Inject constructor(
         return safeApiCall { eventsApi.getGroupEvents(groupId) }
     }
 
+    suspend fun updateEvent(eventId: String, body: Map<String, Any?>): ApiResult<EventDetailDto> {
+        return safeApiCall { eventsApi.updateEvent(eventId, body) }
+    }
+
     suspend fun registerForEvent(eventId: String): ApiResult<Unit> {
         return safeApiCall { eventsApi.registerForEvent(eventId) }
     }

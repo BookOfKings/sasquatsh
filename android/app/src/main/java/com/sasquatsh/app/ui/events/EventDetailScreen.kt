@@ -141,7 +141,6 @@ fun EventDetailScreen(
                     event = uiState.event!!,
                     isRegistering = uiState.isRegistering,
                     isEditable = uiState.canEdit,
-                    debugCurrentUserId = uiState.currentUserId,
                     onRegister = { viewModel.register() },
                     onUnregister = { viewModel.unregister() },
                     onEdit = { onNavigateToEdit?.invoke(uiState.event!!.id) },
@@ -157,7 +156,6 @@ private fun EventDetailContent(
     event: EventDetailDto,
     isRegistering: Boolean,
     isEditable: Boolean,
-    debugCurrentUserId: String? = null,
     onRegister: () -> Unit,
     onUnregister: () -> Unit,
     onEdit: () -> Unit,
@@ -219,14 +217,6 @@ private fun EventDetailContent(
             }
 
             Spacer(modifier = Modifier.height(8.dp))
-
-            // DEBUG: remove after confirming edit works
-            Text(
-                text = "canEdit: $isEditable | hostUserId: ${event.hostUserId} | myId: ${debugCurrentUserId}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-            )
-            Spacer(modifier = Modifier.height(4.dp))
 
             // Game system chip
             val gameSystemValue = event.gameSystem ?: event.gameCategory

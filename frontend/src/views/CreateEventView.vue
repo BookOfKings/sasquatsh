@@ -443,6 +443,7 @@ function handleVenueSubmitted(venue: EventLocation) {
                   v-model="gameSearchQuery"
                   placeholder="Search for a board game..."
                   :disabled="loading"
+                  :show-collection-tab="true"
                   @select="handleGameSelect"
                 />
                 <p class="text-sm text-gray-500 mt-1">

@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed, onMounted } from 'vue'
 import { searchBggGames, getBggGame } from '@/services/bggApi'
+import { getMyCollection, type CollectionGame } from '@/services/collectionsApi'
+import { useAuthStore } from '@/stores/useAuthStore'
 import type { BggSearchResult, BggGame } from '@/types/bgg'
 
 const props = defineProps<{
   modelValue: string
   placeholder?: string
   disabled?: boolean
+  showCollectionTab?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -14,11 +17,17 @@ const emit = defineEmits<{
   (e: 'select', game: BggGame): void
 }>()
 
+const auth = useAuthStore()
 const inputValue = ref(props.modelValue)
 const showDropdown = ref(false)
 const loading = ref(false)
 const results = ref<BggSearchResult[]>([])
 const loadingGame = ref<number | null>(null)
+const searchSource = ref<'bgg' | 'collection'>(props.showCollectionTab ? 'collection' : 'bgg')
+
+// Collection state
+const collectionGames = ref<CollectionGame[]>([])
+const collectionLoaded = ref(false)
 
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
 
@@ -26,12 +35,44 @@ watch(() => props.modelValue, (newVal) => {
   inputValue.value = newVal
 })
 
+// Load collection when tab is shown
+onMounted(async () => {
+  if (props.showCollectionTab) {
+    await loadCollection()
+  }
+})
+
+async function loadCollection() {
+  if (collectionLoaded.value) return
+  try {
+    const token = await auth.getIdToken()
+    if (token) {
+      collectionGames.value = await getMyCollection(token)
+      collectionLoaded.value = true
+    }
+  } catch (err) {
+    console.error('Failed to load collection:', err)
+  }
+}
+
+// Filtered collection based on input
+const filteredCollection = computed(() => {
+  const q = inputValue.value.trim().toLowerCase()
+  if (!q) return collectionGames.value
+  return collectionGames.value.filter(g => g.game_name.toLowerCase().includes(q))
+})
+
 function handleInput(event: Event) {
   const value = (event.target as HTMLInputElement).value
   inputValue.value = value
   emit('update:modelValue', value)
 
-  // Debounce search
+  if (searchSource.value === 'collection') {
+    showDropdown.value = filteredCollection.value.length > 0
+    return
+  }
+
+  // BGG search with debounce
   if (searchTimeout) clearTimeout(searchTimeout)
 
   if (value.trim().length < 2) {
@@ -52,6 +93,30 @@ function handleInput(event: Event) {
       loading.value = false
     }
   }, 300)
+}
+
+function selectCollectionGame(game: CollectionGame) {
+  // Map CollectionGame to BggGame shape
+  const bggGame: BggGame = {
+    bggId: game.bgg_id,
+    name: game.game_name,
+    thumbnailUrl: game.thumbnail_url,
+    imageUrl: game.image_url,
+    minPlayers: game.min_players,
+    maxPlayers: game.max_players,
+    playingTime: game.playing_time,
+    yearPublished: game.year_published,
+    description: null,
+    categories: [],
+    mechanics: [],
+    weight: null,
+    minPlaytime: game.playing_time,
+    maxPlaytime: game.playing_time,
+  }
+  inputValue.value = game.game_name
+  emit('update:modelValue', game.game_name)
+  emit('select', bggGame)
+  showDropdown.value = false
 }
 
 async function selectGame(result: BggSearchResult) {
@@ -77,20 +142,58 @@ function handleBlur() {
 }
 
 function handleFocus() {
-  if (results.value.length > 0) {
+  if (searchSource.value === 'collection') {
+    showDropdown.value = filteredCollection.value.length > 0
+  } else if (results.value.length > 0) {
     showDropdown.value = true
+  }
+}
+
+function switchSource(source: 'bgg' | 'collection') {
+  searchSource.value = source
+  showDropdown.value = false
+  results.value = []
+  if (source === 'collection') {
+    loadCollection()
+    if (inputValue.value.trim()) {
+      showDropdown.value = filteredCollection.value.length > 0
+    }
   }
 }
 </script>
 
 <template>
   <div class="relative">
+    <!-- Source tabs -->
+    <div v-if="showCollectionTab" class="flex gap-1 mb-2">
+      <button
+        type="button"
+        class="px-3 py-1 text-xs font-medium rounded-full transition-colors"
+        :class="searchSource === 'collection'
+          ? 'bg-primary-500 text-white'
+          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+        @click="switchSource('collection')"
+      >
+        My Collection
+      </button>
+      <button
+        type="button"
+        class="px-3 py-1 text-xs font-medium rounded-full transition-colors"
+        :class="searchSource === 'bgg'
+          ? 'bg-primary-500 text-white'
+          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+        @click="switchSource('bgg')"
+      >
+        Search BGG
+      </button>
+    </div>
+
     <div class="relative">
       <input
         :value="inputValue"
         type="text"
         class="input pr-10"
-        :placeholder="placeholder || 'Search for a game...'"
+        :placeholder="searchSource === 'collection' ? 'Filter your collection...' : (placeholder || 'Search for a game...')"
         :disabled="disabled"
         @input="handleInput"
         @focus="handleFocus"
@@ -107,8 +210,8 @@ function handleFocus() {
       </div>
     </div>
 
-    <!-- Powered by BGG attribution -->
-    <div class="flex items-center justify-end mt-1">
+    <!-- Powered by BGG attribution (only for BGG search) -->
+    <div v-if="searchSource === 'bgg'" class="flex items-center justify-end mt-1">
       <a
         href="https://boardgamegeek.com"
         target="_blank"
@@ -123,9 +226,47 @@ function handleFocus() {
       </a>
     </div>
 
-    <!-- Dropdown -->
+    <!-- Collection Dropdown -->
     <div
-      v-if="showDropdown"
+      v-if="showDropdown && searchSource === 'collection'"
+      class="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto"
+    >
+      <button
+        v-for="game in filteredCollection"
+        :key="game.bgg_id"
+        type="button"
+        class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0"
+        @click="selectCollectionGame(game)"
+      >
+        <img
+          v-if="game.thumbnail_url"
+          :src="game.thumbnail_url"
+          :alt="game.game_name"
+          class="w-12 h-12 object-cover rounded-lg flex-shrink-0 bg-gray-100"
+        />
+        <div v-else class="w-12 h-12 flex items-center justify-center bg-gray-100 rounded-lg flex-shrink-0">
+          <svg class="w-6 h-6 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
+          </svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="font-medium text-gray-900 truncate">{{ game.game_name }}</div>
+          <div class="text-sm text-gray-500">
+            <span v-if="game.year_published">{{ game.year_published }}</span>
+            <span v-if="game.min_players && game.max_players"> · {{ game.min_players }}-{{ game.max_players }}p</span>
+            <span v-if="game.playing_time"> · {{ game.playing_time }}min</span>
+          </div>
+        </div>
+      </button>
+
+      <div v-if="filteredCollection.length === 0" class="px-4 py-3 text-gray-500 text-sm">
+        {{ collectionGames.length === 0 ? 'Your collection is empty — add games in My Collection' : 'No matching games in your collection' }}
+      </div>
+    </div>
+
+    <!-- BGG Search Dropdown -->
+    <div
+      v-if="showDropdown && searchSource === 'bgg'"
       class="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto"
     >
       <button

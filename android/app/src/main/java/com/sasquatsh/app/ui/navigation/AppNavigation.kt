@@ -14,6 +14,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.sasquatsh.app.ui.auth.AuthViewModel
+import com.sasquatsh.app.ui.events.EditEventScreen
 import com.sasquatsh.app.ui.events.EventDetailScreen
 import com.sasquatsh.app.ui.events.EventListScreen
 import com.sasquatsh.app.ui.auth.ForgotPasswordScreen
@@ -174,7 +175,9 @@ fun AppNavigation(
                 PlaceholderScreen("Create Event")
             }
             composable(Routes.EditEvent.route) {
-                PlaceholderScreen("Edit Event")
+                EditEventScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                )
             }
 
             // Planning routes

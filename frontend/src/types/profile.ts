@@ -24,6 +24,7 @@ export interface UserProfile {
   isAdmin: boolean
   isFoundingMember: boolean
   blockedUserIds: string[]
+  collectionVisibility: 'public' | 'private'
   createdAt: string
   updatedAt: string
   authProvider?: 'password' | 'google.com' | 'facebook.com' | string
@@ -81,6 +82,7 @@ export interface PublicProfile {
   favoriteGames: string[] | null
   preferredGameTypes: string[] | null
   isFoundingMember: boolean
+  collectionVisibility: 'public' | 'private'
   createdAt: string
 }
 
@@ -104,4 +106,5 @@ export interface UpdateProfileInput {
   bio?: string | null
   favoriteGames?: string[] | null
   preferredGameTypes?: string[] | null
+  collectionVisibility?: 'public' | 'private'
 }

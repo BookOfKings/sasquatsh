@@ -574,6 +574,7 @@ function goToLogin() {
               :display-name="event.host?.displayName"
               :is-founding-member="event.host?.isFoundingMember"
               :is-admin="event.host?.isAdmin"
+              :user-id="event.hostUserId"
               size="lg"
               class="flex-shrink-0"
             />
@@ -1095,6 +1096,7 @@ function goToLogin() {
               :display-name="reg.user?.displayName"
               :is-founding-member="reg.user?.isFoundingMember"
               :is-admin="reg.user?.isAdmin"
+              :user-id="reg.userId"
               size="md"
               class="flex-shrink-0"
             />
