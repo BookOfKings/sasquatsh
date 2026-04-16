@@ -20,6 +20,7 @@ final class ServiceContainer {
     let firstPlayer: FirstPlayerServiceProtocol
     let collections: CollectionsServiceProtocol
     let storeKit: StoreKitService
+    let badges: BadgesServiceProtocol
 
     init(
         api: APIClient = APIClient(),
@@ -43,6 +44,7 @@ final class ServiceContainer {
         self.firstPlayer = FirstPlayerService(client: api)
         self.collections = CollectionsService(api: api)
         self.storeKit = StoreKitService()
+        self.badges = BadgesService(api: api)
     }
 }
 

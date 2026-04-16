@@ -1,4 +1,5 @@
 import SwiftUI
+import EventKit
 
 struct EventDetailView: View {
     let eventId: String
@@ -16,6 +17,8 @@ struct EventDetailView: View {
     @State private var showUpgradePrompt = false
     @State private var upgradePromptType: LimitType = .games
     @State private var showItemsUpgradePrompt = false
+    @State private var calendarMessage: String?
+    @State private var showCalendarAlert = false
 
     var body: some View {
         ScrollView {
@@ -69,23 +72,33 @@ struct EventDetailView: View {
         .navigationTitle(vm.event?.title ?? "Game")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if let event = vm.event, let userId = authVM.user?.id, vm.isHost(userId: userId) {
-                ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(placement: .primaryAction) {
+                if let event = vm.event {
+                    let isHost = authVM.user?.id != nil && vm.isHost(userId: authVM.user!.id)
                     Menu {
-                        Button { showEditEvent = true } label: {
-                            Label("Edit", systemImage: "pencil")
+                        Button { addToCalendar(event) } label: {
+                            Label("Add to Calendar", systemImage: "calendar.badge.plus")
                         }
                         Button { showShareSheet = true } label: {
                             Label("Share", systemImage: "square.and.arrow.up")
                         }
-                        Button(role: .destructive) { showDeleteConfirm = true } label: {
-                            Label("Delete", systemImage: "trash")
+                        if isHost {
+                            Divider()
+                            Button { showEditEvent = true } label: {
+                                Label("Edit", systemImage: "pencil")
+                            }
+                            Button(role: .destructive) { showDeleteConfirm = true } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
                 }
             }
+        }
+        .alert(calendarMessage ?? "", isPresented: $showCalendarAlert) {
+            Button("OK") {}
         }
         .sheet(isPresented: $showEditEvent) {
             if let event = vm.event {
@@ -168,7 +181,7 @@ struct EventDetailView: View {
             // Host info
             if let host = event.host {
                 HStack(spacing: 10) {
-                    UserAvatarView(url: host.avatarUrl, name: host.displayName, size: 40)
+                    UserAvatarView(url: host.avatarUrl, name: host.displayName, size: 40, userId: host.id)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Hosted by")
                             .font(.md3LabelSmall)
@@ -198,8 +211,15 @@ struct EventDetailView: View {
                 .foregroundStyle(Color.md3OnSurface)
 
             HStack(spacing: 20) {
-                detailRow(icon: "calendar", text: event.eventDate.toDate?.displayDate ?? event.eventDate)
-                detailRow(icon: "clock", text: event.startTime ?? "TBD")
+                // Date — tap to add to calendar
+                Button { addToCalendar(event) } label: {
+                    detailRow(icon: "calendar", text: event.eventDate.toDate?.displayDate ?? event.eventDate, tappable: true)
+                }
+
+                // Time
+                Button { addToCalendar(event) } label: {
+                    detailRow(icon: "clock", text: event.startTime?.to12HourTime ?? "TBD", tappable: true)
+                }
             }
 
             HStack(spacing: 20) {
@@ -207,8 +227,12 @@ struct EventDetailView: View {
                 detailRow(icon: "person.2", text: "\(event.confirmedCount)/\(event.maxPlayers ?? 0) players")
             }
 
+            // Address — tap to open in Maps
             if let city = event.city, let state = event.state {
-                detailRow(icon: "mappin", text: "\(event.addressLine1.map { "\($0), " } ?? "")\(city), \(state)")
+                let address = "\(event.addressLine1.map { "\($0), " } ?? "")\(city), \(state)"
+                Button { openInMaps(address: address) } label: {
+                    detailRow(icon: "mappin", text: address, tappable: true)
+                }
             }
 
             if event.venueHall != nil || event.venueRoom != nil || event.venueTable != nil {
@@ -373,7 +397,7 @@ struct EventDetailView: View {
                 ForEach(regs) { reg in
                     VStack(spacing: 0) {
                         HStack(spacing: 10) {
-                            UserAvatarView(url: reg.user?.avatarUrl, name: reg.user?.displayName, size: 36)
+                            UserAvatarView(url: reg.user?.avatarUrl, name: reg.user?.displayName, size: 36, userId: reg.user?.id)
 
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(reg.user?.displayName ?? "Player")
@@ -626,13 +650,22 @@ struct EventDetailView: View {
 
     // MARK: - Helpers
 
-    private func detailRow(icon: String, text: String) -> some View {
+    private func detailRow(icon: String, text: String, tappable: Bool = false) -> some View {
         HStack(spacing: 6) {
             Image(systemName: icon)
                 .foregroundStyle(Color.md3Primary)
                 .frame(width: 20)
             Text(text)
                 .font(.md3BodyMedium)
+                .foregroundStyle(tappable ? Color.md3Primary : Color.md3OnSurface)
+                .underline(tappable)
+        }
+    }
+
+    private func openInMaps(address: String) {
+        let encoded = address.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? address
+        if let url = URL(string: "maps://?q=\(encoded)") {
+            UIApplication.shared.open(url)
         }
     }
 
@@ -643,6 +676,78 @@ struct EventDetailView: View {
         case "cancelled": return .md3ErrorContainer
         case "completed": return .md3TertiaryContainer
         default: return .md3PrimaryContainer
+        }
+    }
+
+    private func addToCalendar(_ event: Event) {
+        let store = EKEventStore()
+        store.requestWriteOnlyAccessToEvents { granted, error in
+            DispatchQueue.main.async {
+                guard granted else {
+                    calendarMessage = "Calendar access denied. Enable in Settings > Privacy > Calendars."
+                    showCalendarAlert = true
+                    return
+                }
+
+                let calEvent = EKEvent(eventStore: store)
+                calEvent.title = event.title
+                calEvent.notes = [event.gameTitle, event.description].compactMap { $0 }.joined(separator: "\n")
+
+                // Parse date + time
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+                if let tz = event.timezone {
+                    dateFormatter.timeZone = TimeZone(identifier: tz)
+                }
+
+                if let date = dateFormatter.date(from: event.eventDate) {
+                    if let startTime = event.startTime {
+                        let timeFormatter = DateFormatter()
+                        timeFormatter.dateFormat = "HH:mm:ss"
+                        if let tz = event.timezone {
+                            timeFormatter.timeZone = TimeZone(identifier: tz)
+                        }
+                        if let time = timeFormatter.date(from: startTime) {
+                            let calendar = Calendar.current
+                            let timeComponents = calendar.dateComponents([.hour, .minute], from: time)
+                            var dateComponents = calendar.dateComponents([.year, .month, .day], from: date)
+                            dateComponents.hour = timeComponents.hour
+                            dateComponents.minute = timeComponents.minute
+                            if let tz = event.timezone {
+                                dateComponents.timeZone = TimeZone(identifier: tz)
+                            }
+                            calEvent.startDate = calendar.date(from: dateComponents) ?? date
+                        } else {
+                            calEvent.startDate = date
+                        }
+                    } else {
+                        calEvent.startDate = date
+                    }
+
+                    let duration = (event.durationMinutes ?? 120) + (event.setupMinutes ?? 0)
+                    calEvent.endDate = calEvent.startDate.addingTimeInterval(TimeInterval(duration * 60))
+                } else {
+                    calEvent.startDate = Date()
+                    calEvent.endDate = Date().addingTimeInterval(7200)
+                }
+
+                // Location
+                let locationParts = [event.addressLine1, event.city, event.state].compactMap { $0 }
+                if !locationParts.isEmpty {
+                    calEvent.location = locationParts.joined(separator: ", ")
+                }
+
+                calEvent.calendar = store.defaultCalendarForNewEvents
+
+                do {
+                    try store.save(calEvent, span: .thisEvent)
+                    calendarMessage = "Added to your calendar!"
+                    showCalendarAlert = true
+                } catch {
+                    calendarMessage = "Failed to add: \(error.localizedDescription)"
+                    showCalendarAlert = true
+                }
+            }
         }
     }
 }

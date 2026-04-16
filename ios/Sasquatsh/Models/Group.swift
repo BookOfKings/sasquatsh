@@ -109,6 +109,16 @@ struct CreateInvitationInput: Codable {
     var expiresInDays: Int?
 }
 
+struct PendingGroupInvitation: Codable, Identifiable {
+    let id: String
+    let inviteCode: String
+    let status: String
+    let createdAt: String
+    let expiresAt: String?
+    let invitedBy: UserSummary?
+    let group: InvitationGroupInfo?
+}
+
 struct InvitationPreview: Codable {
     let inviteCode: String
     let invitedEmail: String?

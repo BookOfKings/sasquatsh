@@ -20,6 +20,61 @@ struct DashboardView: View {
                         ErrorBannerView(message: error) { vm.error = nil }
                     }
 
+                    // Pending Group Invitations
+                    if !vm.pendingInvitations.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                Image(systemName: "envelope.badge.fill")
+                                    .foregroundStyle(Color.md3Tertiary)
+                                Text("Group Invitations")
+                                    .font(.md3TitleMedium)
+                                    .foregroundStyle(Color.md3OnSurface)
+                            }
+
+                            ForEach(vm.pendingInvitations) { invite in
+                                HStack(spacing: 10) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(invite.group?.name ?? "Group")
+                                            .font(.md3TitleSmall)
+                                            .foregroundStyle(Color.md3OnSurface)
+                                        if let invitedBy = invite.invitedBy {
+                                            Text("Invited by \(invitedBy.displayName ?? "someone")")
+                                                .font(.md3BodySmall)
+                                                .foregroundStyle(Color.md3OnSurfaceVariant)
+                                        }
+                                    }
+
+                                    Spacer()
+
+                                    Button {
+                                        Task { await vm.respondToInvitation(invite, accept: false) }
+                                    } label: {
+                                        Text("Decline")
+                                            .font(.md3LabelLarge)
+                                            .foregroundStyle(Color.md3OnSurfaceVariant)
+                                    }
+
+                                    Button {
+                                        Task { await vm.respondToInvitation(invite, accept: true) }
+                                    } label: {
+                                        Text("Accept")
+                                            .font(.md3LabelLarge)
+                                            .padding(.horizontal, 14)
+                                            .frame(height: 32)
+                                            .background(Color.md3Primary)
+                                            .foregroundStyle(Color.md3OnPrimary)
+                                            .clipShape(Capsule())
+                                    }
+                                }
+                                .padding(12)
+                                .background(Color.md3TertiaryContainer.opacity(0.3))
+                                .clipShape(RoundedRectangle(cornerRadius: MD3Shape.medium))
+                            }
+                        }
+                        .padding()
+                        .cardStyle()
+                    }
+
                     // My Upcoming Games
                     dashboardSection(
                         title: "My Upcoming Games",
@@ -230,7 +285,7 @@ struct DashboardView: View {
                         .font(.md3BodySmall)
                         .foregroundStyle(Color.md3OnSurfaceVariant)
                     if let startTime = event.startTime {
-                        Text(startTime)
+                        Text(startTime.to12HourTime)
                             .font(.md3BodySmall)
                             .foregroundStyle(Color.md3OnSurfaceVariant)
                     }

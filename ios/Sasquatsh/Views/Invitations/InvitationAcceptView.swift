@@ -64,7 +64,7 @@ struct InvitationAcceptView: View {
 
                             HStack(spacing: 12) {
                                 Label(event.eventDate.toDate?.displayDate ?? event.eventDate, systemImage: "calendar")
-                                Label(event.startTime ?? "TBD", systemImage: "clock")
+                                Label(event.startTime.to12HourTime, systemImage: "clock")
                             }
                             .font(.md3BodySmall)
 

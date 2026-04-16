@@ -63,7 +63,7 @@ struct EventCard: View {
 
                 if let startTime = event.startTime {
                     Label {
-                        Text(startTime)
+                        Text(startTime.to12HourTime)
                             .font(.md3BodySmall)
                     } icon: {
                         Image(systemName: "clock")

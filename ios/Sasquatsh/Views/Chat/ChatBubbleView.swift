@@ -12,7 +12,8 @@ struct ChatBubbleView: View {
                 UserAvatarView(
                     url: message.user?.avatarUrl,
                     name: message.user?.displayName,
-                    size: 28
+                    size: 28,
+                    userId: message.user?.id
                 )
             }
 

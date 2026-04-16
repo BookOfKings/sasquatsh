@@ -26,6 +26,8 @@ struct ProfileEditSheet: View {
     @State private var selectedGameTypes: Set<GameCategory> = []
     @State private var showVenueSelector = false
     @State private var isSaving = false
+    @State private var collectionVisibility: String = "private"
+    @State private var birthYear: String = ""
 
     var body: some View {
         NavigationStack {
@@ -34,6 +36,8 @@ struct ProfileEditSheet: View {
                     TextField("Display Name", text: $displayName)
                     TextField("Username", text: $username)
                         .autocapitalization(.none)
+                    TextField("Birth Year", text: $birthYear)
+                        .keyboardType(.numberPad)
                 }
 
                 Section("About") {
@@ -104,6 +108,13 @@ struct ProfileEditSheet: View {
                         } label: {
                             Label("Clear Active Location", systemImage: "xmark")
                         }
+                    }
+                }
+
+                Section("Game Collection") {
+                    Picker("Visibility", selection: $collectionVisibility) {
+                        Text("Private").tag("private")
+                        Text("Public").tag("public")
                     }
                 }
 
@@ -187,6 +198,8 @@ struct ProfileEditSheet: View {
                 if let types = profile.preferredGameTypes {
                     selectedGameTypes = Set(types.compactMap { GameCategory(rawValue: $0) })
                 }
+                collectionVisibility = profile.collectionVisibility ?? "private"
+                birthYear = profile.birthYear.map { String($0) } ?? ""
             }
             .sheet(isPresented: $showVenueSelector) {
                 VenueSelector { venue in
@@ -232,11 +245,15 @@ struct ProfileEditSheet: View {
             timezone: timezone.rawValue,
             bio: bio.isEmpty ? nil : bio,
             favoriteGames: games.isEmpty ? nil : games,
-            preferredGameTypes: gameTypes
+            preferredGameTypes: gameTypes,
+            collectionVisibility: collectionVisibility
         )
 
         if let miles = Int(maxTravelMiles) {
             input.maxTravelMiles = miles
+        }
+        if let year = Int(birthYear), year > 1900 && year <= Calendar.current.component(.year, from: Date()) {
+            input.birthYear = year
         }
 
         if hasActiveLocation {

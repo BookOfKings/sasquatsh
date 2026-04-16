@@ -9,6 +9,11 @@ struct ProfileView: View {
     @State private var showBlockedUsers = false
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var showDeleteAvatarConfirm = false
+    @State private var showChangePassword = false
+    @State private var showDeleteAccount = false
+    @State private var deleteConfirmText = ""
+    @State private var isDeleting = false
+    @State private var accountError: String?
 
     var body: some View {
         ScrollView {
@@ -94,6 +99,49 @@ struct ProfileView: View {
                             }
                             Spacer()
                             SubscriptionBadgeView(tier: profile.subscriptionTier ?? .free)
+                            Image(systemName: "chevron.right")
+                                .font(.md3BodySmall)
+                                .foregroundStyle(Color.md3OnSurfaceVariant)
+                        }
+                        .padding()
+                        .cardStyle()
+                    }
+                    .buttonStyle(.plain)
+
+                    // Badges
+                    NavigationLink {
+                        BadgesView()
+                    } label: {
+                        HStack {
+                            Image(systemName: "trophy.fill")
+                                .foregroundStyle(Color.md3Tertiary)
+                            Text("Badges & Achievements")
+                                .font(.md3TitleSmall)
+                                .foregroundStyle(Color.md3OnSurface)
+                            Spacer()
+                            Text("\(0)") // TODO: show earned count
+                                .font(.md3LabelLarge)
+                                .foregroundStyle(Color.md3Primary)
+                            Image(systemName: "chevron.right")
+                                .font(.md3BodySmall)
+                                .foregroundStyle(Color.md3OnSurfaceVariant)
+                        }
+                        .padding()
+                        .cardStyle()
+                    }
+                    .buttonStyle(.plain)
+
+                    // Game Collection
+                    NavigationLink {
+                        MyCollectionView()
+                    } label: {
+                        HStack {
+                            Image(systemName: "dice")
+                                .foregroundStyle(Color.md3Primary)
+                            Text("My Game Collection")
+                                .font(.md3TitleSmall)
+                                .foregroundStyle(Color.md3OnSurface)
+                            Spacer()
                             Image(systemName: "chevron.right")
                                 .font(.md3BodySmall)
                                 .foregroundStyle(Color.md3OnSurfaceVariant)
@@ -241,6 +289,13 @@ struct ProfileView: View {
                     .padding()
                     .cardStyle()
 
+                    // Legal
+                    VStack(alignment: .leading, spacing: 4) {
+                        LegalLinksView()
+                    }
+                    .padding()
+                    .cardStyle()
+
                     // Actions
                     VStack(spacing: 12) {
                         Button {
@@ -260,6 +315,19 @@ struct ProfileView: View {
                                 .foregroundStyle(Color.md3OnSurfaceVariant)
                         }
 
+                        // Change Password (only for email/password users)
+                        if services.auth.getCurrentUser()?.providerData.first?.providerID != "google.com" {
+                            Button {
+                                showChangePassword = true
+                            } label: {
+                                Label("Change Password", systemImage: "lock.rotation")
+                                    .font(.md3LabelLarge)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 40)
+                                    .foregroundStyle(Color.md3OnSurfaceVariant)
+                            }
+                        }
+
                         Button(role: .destructive) {
                             authVM.logout()
                         } label: {
@@ -268,6 +336,16 @@ struct ProfileView: View {
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 40)
                                 .foregroundStyle(Color.md3Error)
+                        }
+
+                        Button(role: .destructive) {
+                            showDeleteAccount = true
+                        } label: {
+                            Label("Delete Account", systemImage: "trash")
+                                .font(.md3LabelLarge)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 40)
+                                .foregroundStyle(Color.md3Error.opacity(0.7))
                         }
                     }
                 }
@@ -305,6 +383,40 @@ struct ProfileView: View {
             vm.configure(services: services)
             await vm.loadProfile()
         }
+        .sheet(isPresented: $showChangePassword) {
+            ChangePasswordSheet(services: services)
+        }
+        .alert("Delete Account", isPresented: $showDeleteAccount) {
+            TextField("Type DELETE to confirm", text: $deleteConfirmText)
+            Button("Cancel", role: .cancel) {
+                deleteConfirmText = ""
+            }
+            Button("Delete Forever", role: .destructive) {
+                guard deleteConfirmText == "DELETE" else {
+                    accountError = "You must type DELETE to confirm"
+                    return
+                }
+                Task {
+                    isDeleting = true
+                    do {
+                        try await services.profile.deleteAccount()
+                        authVM.logout()
+                    } catch {
+                        accountError = error.localizedDescription
+                    }
+                    isDeleting = false
+                    deleteConfirmText = ""
+                }
+            }
+            .disabled(deleteConfirmText != "DELETE")
+        } message: {
+            Text("This will permanently delete your account, all your events, groups, and data. This cannot be undone.")
+        }
+        .alert("Error", isPresented: .init(get: { accountError != nil }, set: { if !$0 { accountError = nil } })) {
+            Button("OK") { accountError = nil }
+        } message: {
+            Text(accountError ?? "")
+        }
     }
 
     private func statItem(value: Int, label: String) -> some View {
@@ -329,40 +441,4 @@ struct ProfileView: View {
     }
 }
 
-struct FlowLayout: Layout {
-    var spacing: CGFloat = 8
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let result = layoutSubviews(proposal: proposal, subviews: subviews)
-        return result.size
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let result = layoutSubviews(proposal: proposal, subviews: subviews)
-        for (index, position) in result.positions.enumerated() {
-            subviews[index].place(at: CGPoint(x: bounds.minX + position.x, y: bounds.minY + position.y), proposal: .unspecified)
-        }
-    }
-
-    private func layoutSubviews(proposal: ProposedViewSize, subviews: Subviews) -> (size: CGSize, positions: [CGPoint]) {
-        let maxWidth = proposal.width ?? .infinity
-        var positions: [CGPoint] = []
-        var x: CGFloat = 0
-        var y: CGFloat = 0
-        var rowHeight: CGFloat = 0
-
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-            if x + size.width > maxWidth && x > 0 {
-                x = 0
-                y += rowHeight + spacing
-                rowHeight = 0
-            }
-            positions.append(CGPoint(x: x, y: y))
-            rowHeight = max(rowHeight, size.height)
-            x += size.width + spacing
-        }
-
-        return (CGSize(width: maxWidth, height: y + rowHeight), positions)
-    }
-}
+// FlowLayout is defined in UserProfileSheet.swift

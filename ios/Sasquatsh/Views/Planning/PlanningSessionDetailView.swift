@@ -14,6 +14,7 @@ struct PlanningSessionDetailView: View {
     @State private var newItemCategory: ItemCategory = .food
     @State private var newItemQuantity = ""
     @State private var showUpgradePrompt = false
+    @State private var showAddInvitees = false
 
     var body: some View {
         ScrollView {
@@ -89,6 +90,17 @@ struct PlanningSessionDetailView: View {
                     // Items to Bring
                     itemsSection(session)
 
+                    // Add Invitees (creator only, open sessions)
+                    if session.status == .open && session.createdByUserId == authVM.user?.id {
+                        Button {
+                            showAddInvitees = true
+                        } label: {
+                            Label("Add Invitees", systemImage: "person.badge.plus")
+                                .secondaryButtonStyle()
+                        }
+                        .padding(.horizontal)
+                    }
+
                     // Finalize
                     if session.status == .open && session.createdByUserId == authVM.user?.id {
                         Button {
@@ -154,6 +166,11 @@ struct PlanningSessionDetailView: View {
         }
         .sheet(isPresented: $showUpgradePrompt) {
             UpgradePromptView(limitType: .items, currentTier: authVM.user?.subscriptionTier ?? .free)
+        }
+        .sheet(isPresented: $showAddInvitees) {
+            PlanningAddInviteesSheet(sessionId: sessionId, groupId: vm.session?.groupId ?? "") {
+                Task { await vm.loadSession(id: sessionId) }
+            }
         }
         .alert("Finalize Session", isPresented: $showFinalize) {
             Button("Finalize") {

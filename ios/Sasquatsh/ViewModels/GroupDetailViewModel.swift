@@ -165,6 +165,16 @@ final class GroupDetailViewModel {
         }
     }
 
+    func transferOwnership(to userId: String) async {
+        guard let services, let group else { return }
+        do {
+            try await services.groups.transferOwnership(groupId: group.id, newOwnerId: userId)
+            await loadGroup(id: group.id)
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
     func userRole(userId: String) -> MemberRole? {
         members.first { $0.userId == userId }?.role
     }

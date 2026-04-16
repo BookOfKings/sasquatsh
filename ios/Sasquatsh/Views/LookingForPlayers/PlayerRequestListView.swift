@@ -198,7 +198,7 @@ struct PlayerRequestListView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 if let host = request.host {
-                    UserAvatarView(url: host.avatarUrl, name: host.displayName, size: 36)
+                    UserAvatarView(url: host.avatarUrl, name: host.displayName, size: 36, userId: host.id)
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(request.event?.title ?? "Game Night")
@@ -227,7 +227,7 @@ struct PlayerRequestListView: View {
                     }
                     HStack(spacing: 12) {
                         Label(event.eventDate.toDate?.displayDate ?? event.eventDate, systemImage: "calendar")
-                        Label(event.startTime, systemImage: "clock")
+                        Label(event.startTime.to12HourTime, systemImage: "clock")
                     }
                     .font(.md3BodySmall)
                     .foregroundStyle(Color.md3OnSurfaceVariant)

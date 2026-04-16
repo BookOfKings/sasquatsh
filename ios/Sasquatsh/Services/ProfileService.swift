@@ -9,6 +9,15 @@ protocol ProfileServiceProtocol: Sendable {
     func checkUsername(username: String) async throws -> UsernameCheckResponse
     func uploadAvatar(imageData: Data, fileName: String, mimeType: String) async throws -> AvatarUploadResponse
     func deleteAvatar() async throws -> AvatarDeleteResponse
+    func deleteAccount() async throws
+    func searchUsers(query: String) async throws -> [UserSearchResult]
+}
+
+struct UserSearchResult: Codable, Identifiable {
+    let id: String
+    let username: String
+    let displayName: String?
+    let avatarUrl: String?
 }
 
 struct BlockActionResponse: Codable {
@@ -66,5 +75,16 @@ final class ProfileService: ProfileServiceProtocol {
 
     func deleteAvatar() async throws -> AvatarDeleteResponse {
         try await api.post("profile", queryItems: [.init(name: "action", value: "delete-avatar")])
+    }
+
+    func deleteAccount() async throws {
+        try await api.deleteVoid("profile", queryItems: [.init(name: "action", value: "delete-account")])
+    }
+
+    func searchUsers(query: String) async throws -> [UserSearchResult] {
+        try await api.get("profile", queryItems: [
+            .init(name: "action", value: "search"),
+            .init(name: "q", value: query)
+        ], authenticated: true)
     }
 }

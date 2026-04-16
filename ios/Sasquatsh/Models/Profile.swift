@@ -23,6 +23,7 @@ struct UserProfile: Codable, Identifiable {
     var bio: String?
     var favoriteGames: [String]?
     var preferredGameTypes: [String]?
+    var collectionVisibility: String?
     let isAdmin: Bool
     let subscriptionTier: SubscriptionTier?
     let subscriptionExpiresAt: String?
@@ -110,6 +111,7 @@ struct UpdateProfileInput: Codable {
     var bio: String?
     var favoriteGames: [String]?
     var preferredGameTypes: [String]?
+    var collectionVisibility: String?
 }
 
 struct AvatarUploadResponse: Codable {

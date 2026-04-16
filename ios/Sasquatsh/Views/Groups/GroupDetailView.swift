@@ -13,6 +13,10 @@ struct GroupDetailView: View {
     @State private var joinRequestMessage = ""
     @State private var selectedTab = 0
     @State private var recurringGamesVM = RecurringGamesViewModel()
+    @State private var showTransferConfirm = false
+    @State private var transferTargetId: String?
+    @State private var transferTargetName = ""
+    @State private var showInviteSearch = false
 
     var body: some View {
         ScrollView {
@@ -102,6 +106,19 @@ struct GroupDetailView: View {
         } message: {
             Text("Are you sure? This cannot be undone.")
         }
+        .alert("Transfer Ownership", isPresented: $showTransferConfirm) {
+            Button("Transfer", role: .destructive) {
+                if let targetId = transferTargetId {
+                    Task { await vm.transferOwnership(to: targetId) }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Transfer ownership to \(transferTargetName)? You will be demoted to admin.")
+        }
+        .sheet(isPresented: $showInviteSearch) {
+            UserSearchInviteSheet(groupId: groupId)
+        }
         .alert("Request to Join", isPresented: $showJoinRequestMessage) {
             TextField("Message (optional)", text: $joinRequestMessage)
             Button("Send Request") {
@@ -119,6 +136,11 @@ struct GroupDetailView: View {
     private var isAdmin: Bool {
         guard let userId = authVM.user?.id else { return false }
         return vm.isAdmin(userId: userId)
+    }
+
+    private var isOwner: Bool {
+        guard let userId = authVM.user?.id else { return false }
+        return vm.userRole(userId: userId) == .owner
     }
 
     private var isMember: Bool {
@@ -350,7 +372,7 @@ struct GroupDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             ForEach(vm.members) { member in
                 HStack {
-                    UserAvatarView(url: member.avatarUrl, name: member.displayName, size: 36)
+                    UserAvatarView(url: member.avatarUrl, name: member.displayName, size: 36, userId: member.userId)
                     VStack(alignment: .leading) {
                         Text(member.displayName ?? "Member")
                             .font(.md3BodyMedium)
@@ -369,6 +391,13 @@ struct GroupDetailView: View {
                             } else if member.role == .admin {
                                 Button("Remove Admin") {
                                     Task { await vm.changeRole(userId: member.userId, to: .member) }
+                                }
+                            }
+                            if isOwner {
+                                Button("Transfer Ownership") {
+                                    transferTargetId = member.userId
+                                    transferTargetName = member.displayName ?? "this member"
+                                    showTransferConfirm = true
                                 }
                             }
                             Button("Remove", role: .destructive) {
@@ -534,6 +563,18 @@ struct GroupDetailView: View {
                         }
                     }
                 }
+            }
+
+            Button {
+                showInviteSearch = true
+            } label: {
+                Label("Invite by Username", systemImage: "person.badge.plus")
+                    .font(.md3LabelLarge)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 36)
+                    .background(Color.md3SecondaryContainer)
+                    .foregroundStyle(Color.md3OnSecondaryContainer)
+                    .clipShape(Capsule())
             }
         }
         .padding()

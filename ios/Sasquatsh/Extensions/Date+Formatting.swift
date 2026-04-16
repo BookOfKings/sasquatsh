@@ -48,4 +48,24 @@ extension String {
     var toDate: Date? {
         Date.apiDateTimeFormatter.date(from: self) ?? Date.apiDateFormatter.date(from: self)
     }
+
+    /// Converts "HH:mm:ss" or "HH:mm" to "h:mm a" (e.g. "10:00 AM")
+    var to12HourTime: String {
+        let input = DateFormatter()
+        input.dateFormat = "HH:mm:ss"
+        input.locale = Locale(identifier: "en_US_POSIX")
+        if let date = input.date(from: self) {
+            let output = DateFormatter()
+            output.dateFormat = "h:mm a"
+            return output.string(from: date)
+        }
+        // Try without seconds
+        input.dateFormat = "HH:mm"
+        if let date = input.date(from: self) {
+            let output = DateFormatter()
+            output.dateFormat = "h:mm a"
+            return output.string(from: date)
+        }
+        return self
+    }
 }

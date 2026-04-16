@@ -17,6 +17,7 @@ protocol PlanningServiceProtocol: Sendable {
     func claimItem(sessionId: String, itemId: String) async throws
     func unclaimItem(sessionId: String, itemId: String) async throws
     func removeItem(sessionId: String, itemId: String) async throws
+    func addInvitees(sessionId: String, userIds: [String]) async throws
 }
 
 struct FinalizeResponse: Codable {
@@ -135,6 +136,13 @@ final class PlanningService: PlanningServiceProtocol {
             .init(name: "id", value: sessionId),
             .init(name: "action", value: "remove-item"),
             .init(name: "itemId", value: itemId)
+        ])
+    }
+
+    func addInvitees(sessionId: String, userIds: [String]) async throws {
+        try await api.postVoid("planning", body: ["userIds": userIds], queryItems: [
+            .init(name: "id", value: sessionId),
+            .init(name: "action", value: "add-invitees")
         ])
     }
 }

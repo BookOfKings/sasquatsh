@@ -13,6 +13,7 @@ protocol AuthServiceProtocol: Sendable {
     func addStateListener(_ callback: @escaping (FirebaseAuth.User?) -> Void) -> AuthStateDidChangeListenerHandle
     func removeStateListener(_ handle: AuthStateDidChangeListenerHandle)
     func resetPassword(email: String) async throws
+    func changePassword(newPassword: String) async throws
 }
 
 final class AuthService: AuthServiceProtocol {
@@ -84,5 +85,12 @@ final class AuthService: AuthServiceProtocol {
 
     func resetPassword(email: String) async throws {
         try await Auth.auth().sendPasswordReset(withEmail: email)
+    }
+
+    func changePassword(newPassword: String) async throws {
+        guard let user = Auth.auth().currentUser else {
+            throw NSError(domain: "AuthService", code: 0, userInfo: [NSLocalizedDescriptionKey: "Not signed in"])
+        }
+        try await user.updatePassword(to: newPassword)
     }
 }

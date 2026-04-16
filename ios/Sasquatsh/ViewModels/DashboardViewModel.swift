@@ -6,6 +6,7 @@ final class DashboardViewModel {
     var registeredEvents: [EventSummary] = []
     var hostedEvents: [EventSummary] = []
     var myGroups: [GroupSummary] = []
+    var pendingInvitations: [PendingGroupInvitation] = []
     var isLoading = false
     var error: String?
 
@@ -24,15 +25,30 @@ final class DashboardViewModel {
             async let registered = services.events.getRegisteredEvents()
             async let hosted = services.events.getHostedEvents()
             async let groups = services.groups.getMyGroups()
+            async let invitations = services.groups.getMyPendingInvitations()
 
             let now = Date()
             registeredEvents = try await registered.filter { $0.eventDate.toDate ?? .distantPast >= now }
             hostedEvents = try await hosted.filter { $0.eventDate.toDate ?? .distantPast >= now }
             myGroups = try await groups
+            pendingInvitations = (try? await invitations) ?? []
         } catch {
             self.error = error.localizedDescription
         }
         isLoading = false
+    }
+
+    func respondToInvitation(_ invitation: PendingGroupInvitation, accept: Bool) async {
+        guard let services else { return }
+        do {
+            try await services.groups.respondToInvitation(invitationId: invitation.id, accept: accept)
+            pendingInvitations.removeAll { $0.id == invitation.id }
+            if accept {
+                await loadDashboard()
+            }
+        } catch {
+            self.error = error.localizedDescription
+        }
     }
 
     var managedGroups: [GroupSummary] {

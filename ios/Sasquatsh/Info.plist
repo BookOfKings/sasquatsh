@@ -29,6 +29,8 @@
 	<string>1</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>Sasquatsh would like to add game events to your calendar.</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>Inter-Regular.ttf</string>
@@ -36,9 +38,9 @@
 		<string>Inter-SemiBold.ttf</string>
 		<string>Inter-Bold.ttf</string>
 	</array>
-	<key>UILaunchScreen</key>
-	<dict/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>UILaunchScreen</key>
+	<dict/>
 </dict>
 </plist>

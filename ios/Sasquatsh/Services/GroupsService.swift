@@ -21,6 +21,8 @@ protocol GroupsServiceProtocol: Sendable {
     func createInvitation(groupId: String, input: CreateInvitationInput?) async throws -> GroupInvitation
     func getInvitations(groupId: String) async throws -> [GroupInvitation]
     func revokeInvitation(groupId: String, inviteId: String) async throws
+    func getMyPendingInvitations() async throws -> [PendingGroupInvitation]
+    func respondToInvitation(invitationId: String, accept: Bool) async throws
     func previewInvite(code: String) async throws -> InvitationPreview
     func acceptInvite(code: String) async throws -> AcceptInviteResponse
 }
@@ -162,6 +164,20 @@ final class GroupsService: GroupsServiceProtocol {
             .init(name: "id", value: groupId),
             .init(name: "action", value: "revoke-invite"),
             .init(name: "inviteId", value: inviteId)
+        ])
+    }
+
+    func getMyPendingInvitations() async throws -> [PendingGroupInvitation] {
+        try await api.get("groups", queryItems: [
+            .init(name: "action", value: "my-invitations")
+        ], authenticated: true)
+    }
+
+    func respondToInvitation(invitationId: String, accept: Bool) async throws {
+        struct Response: Decodable { let message: String }
+        let _: Response = try await api.post("groups", body: ["response": accept ? "accept" : "decline"], queryItems: [
+            .init(name: "action", value: "respond-invite"),
+            .init(name: "inviteId", value: invitationId)
         ])
     }
 
