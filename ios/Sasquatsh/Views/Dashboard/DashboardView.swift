@@ -103,8 +103,7 @@ struct DashboardView: View {
             }
         }
         .background(Color.md3SurfaceContainer)
-        .navigationTitle("Dashboard")
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showCreateEvent) {
             CreateEventView()
         }

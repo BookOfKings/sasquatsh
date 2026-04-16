@@ -36,6 +36,8 @@
 		<string>Inter-SemiBold.ttf</string>
 		<string>Inter-Bold.ttf</string>
 	</array>
+	<key>UILaunchScreen</key>
+	<dict/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 </dict>

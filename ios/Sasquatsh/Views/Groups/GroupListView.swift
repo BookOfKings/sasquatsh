@@ -91,8 +91,7 @@ struct GroupListView: View {
             .padding(.vertical)
         }
         .background(Color.md3SurfaceContainer)
-        .navigationTitle("Groups")
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(for: String.self) { groupId in
             GroupDetailView(groupId: groupId)
         }

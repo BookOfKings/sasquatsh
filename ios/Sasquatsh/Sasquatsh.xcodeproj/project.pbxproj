@@ -22,6 +22,7 @@
 		1253B2F15277D5930839A846 /* CreateEditGroupViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6865609300836F444E3AB16 /* CreateEditGroupViewModel.swift */; };
 		1276E44D3C15DEA3DEAE0C94 /* PricingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55638E29B2D38C463F09D0C8 /* PricingView.swift */; };
 		17F938584FF981ECE5D0D2E7 /* CreatePlanningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A4D4F3DB45643D6466B2897 /* CreatePlanningView.swift */; };
+		18D0E4065A3C20F6A8E444D3 /* CollectionsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F64B57444CDB3A4BA5B855DA /* CollectionsService.swift */; };
 		1916B80F0BABA97F071FD015 /* CreateGroupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62D1059107133F9D8E556772 /* CreateGroupView.swift */; };
 		1BB426043896FD05B8BF93D1 /* CreatePlanningViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F05FC1803E16A6AF4F5B567A /* CreatePlanningViewModel.swift */; };
 		1E401A76948A8038BA86C906 /* GameSystemConfigStates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70C33D7E3564D3ED89F9E5F2 /* GameSystemConfigStates.swift */; };
@@ -30,6 +31,7 @@
 		23EE6401957D9897637A6004 /* EventCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47F7225DD96ADB78075F1B35 /* EventCard.swift */; };
 		2830AFD5E729AE4350A03FE4 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 09F4EE7D7AB2265657E612CE /* FirebaseAuth */; };
 		2AC40F058134425AAD7070F6 /* ChatBubbleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4724AD16BE418636880756F4 /* ChatBubbleView.swift */; };
+		2BCF155DD9D158A71446EFF1 /* AppearanceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04D038602C7F61EB29AA9735 /* AppearanceManager.swift */; };
 		2F9C108E4E78A5123F79D229 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 7CE0FF10489FF32378DDF57F /* GoogleSignIn */; };
 		30B93E220FA41CBF7E4BF1D3 /* DeepLinkHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 440C03CDD0F3F03EEFE02F0E /* DeepLinkHandler.swift */; };
 		33A5636C735C5DAF3A60A955 /* BillingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F2DBFF0D57F5F692D35647E /* BillingViewModel.swift */; };
@@ -42,9 +44,11 @@
 		402155F36518A9CBC1A71B4C /* InvoiceDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4A889B5DC822F2CADAAC56B /* InvoiceDetailSheet.swift */; };
 		42BF6FC800FE20EB5189D3DE /* YugiohConfigFormSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4C6759C95DA345280F019BB /* YugiohConfigFormSections.swift */; };
 		44DA5E155E1FD270D43662C3 /* Inter-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = CB69205BEF530BAA1B7D5203 /* Inter-Medium.ttf */; };
+		455D61D564919210AB713958 /* FirstPlayerPickersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 809835A2C6B08A1CC8F9C97F /* FirstPlayerPickersView.swift */; };
 		4921C60582C41F4CCB2F78A7 /* Profile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 635ED1B2A1479F15A789AE18 /* Profile.swift */; };
 		4B9D9788C4922A6EB6D74B6A /* ServiceContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 490141838705D97AB71136E5 /* ServiceContainer.swift */; };
 		4D82458956A58528A0BDB0A6 /* BGGGame.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68497073E49C0FFB6DAF6C92 /* BGGGame.swift */; };
+		4F538AECA24E09C0857A4BF9 /* RoundCounterViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67E9D8BDEC3DEA0AF3FAB8B1 /* RoundCounterViewModel.swift */; };
 		522F56987C46DD04DCDA4701 /* DeckBuilderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E180C0517FCDF60823BB2840 /* DeckBuilderView.swift */; };
 		52E7BC2F17ED3C6C7BB1D4FA /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BCE5710D0FA9364FF4A52FE /* AppConfig.swift */; };
 		5328CBB5169C8A48D4295266 /* LoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 699D36C0B84A66EFF8C27496 /* LoadingView.swift */; };
@@ -54,17 +58,21 @@
 		59E5EAE156812DD2E09BBF1B /* RecurringGameCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F02C76D0CF2EF233B67CD11F /* RecurringGameCard.swift */; };
 		5A967723D01D0F76C39E8ABC /* BillingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34B2C80423D2FCACB98BB768 /* BillingService.swift */; };
 		5C35271CAD5DEEC4AE5CB0EC /* GroupsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12E6554BE8B1595FB9C27674 /* GroupsService.swift */; };
+		5C6A42B935FC7F8469C26FE7 /* SpinWheelPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91FF1347E013AAD4AE7A8E47 /* SpinWheelPickerView.swift */; };
 		5FF904557E0EE0D714DFDFCB /* RaffleViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A0509145CE728F7C0473CE4 /* RaffleViewModel.swift */; };
 		6123BDE94B073880DFA18EF1 /* MtgDeckService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FAF5A97FB657B20BE0B2DBF /* MtgDeckService.swift */; };
 		64E823272E49CE61E3EDD554 /* PlanningService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECB802B904C6BF1CE7A75475 /* PlanningService.swift */; };
+		65A9D3D15BAC9E9EEE2D1962 /* StoreKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F403DCA29B28B7F208DE79F /* StoreKitService.swift */; };
 		69E091015568B2F1C0BAFAEB /* SessionScheduleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB0F0E943C54D597EFBA7AF4 /* SessionScheduleView.swift */; };
 		6D3DFA6FF4405B04E102DE91 /* GameSystemConfigInputs.swift in Sources */ = {isa = PBXBuildFile; fileRef = F185E11C835ADD461B0D1E38 /* GameSystemConfigInputs.swift */; };
 		6DAB9B1DB903F457C6F3E516 /* Inter-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 266FD934DDDAE5D5FD9DD6ED /* Inter-SemiBold.ttf */; };
 		6F3B42CC5ECD211C3E69E31C /* BillingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 128EE348E35146FC567DA880 /* BillingView.swift */; };
 		6FBB3403751EC2D88004FE22 /* SubscriptionBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 495C52802A6157C17439F679 /* SubscriptionBadgeView.swift */; };
+		7133740EC992A5ACE4B12AE1 /* FirstPlayerPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 195DF7F486DACFDB36E13C69 /* FirstPlayerPickerView.swift */; };
 		72FFEAE4B778B46F37B09A99 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 6848446160A0BCF8D5D6FE72 /* FirebaseMessaging */; };
 		74E28F7EB6210282CE2102FA /* SelectedGameCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ADF97116F7F19E1EF9C65FC /* SelectedGameCard.swift */; };
 		76EC043F6ADA96E504720C9C /* SearchBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D4AF8BC67136AEDDFD48EB4 /* SearchBarView.swift */; };
+		78B1D1F20DAAE3F5E542E234 /* RoundCounterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89935F48EF0538F701A40320 /* RoundCounterView.swift */; };
 		79A7555D7C82E911FBB684B3 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63551D019DCB16C3313D188D /* ContentView.swift */; };
 		7A7A4571EBF9944807040E65 /* ProfileViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AB9339EA4909837A41BAEB /* ProfileViewModel.swift */; };
 		7B614282510D36ACFD75D888 /* GameSystemConfigs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00016DBE6ACAA099B8B5D8A8 /* GameSystemConfigs.swift */; };
@@ -72,11 +80,13 @@
 		7CEDF47FD7655D3B28F3135C /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = DEF11D0B40AD8C4D4965F31B /* FirebaseCore */; };
 		7E5B662E4F22CE4128540C41 /* MD3Tokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = C13C6EB31F3939E7DC3B90F2 /* MD3Tokens.swift */; };
 		7ECDF1F45FB33DEDC85C1C4B /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7B8BDA523F557A719A6BA85 /* AuthService.swift */; };
+		7FF0600FB60F1868D32E14F2 /* RoundCounterPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66FE87DDCB3604C86FA71397 /* RoundCounterPersistence.swift */; };
 		8044C8A1BAF5763502BD8E48 /* Inter-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 638D09AC73FF86181FE1CBCF /* Inter-Regular.ttf */; };
 		80FD12A9F3CBACF6D3195CE2 /* GameSystem+UI.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2E420AEA1E35365725C0071 /* GameSystem+UI.swift */; };
 		8169258A938E8BE98762B871 /* DeckBuilderViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE85AEE663D57FBBD60ED68F /* DeckBuilderViewModel.swift */; };
 		822A66E7ADFA50355238CD73 /* Warhammer40kConfigFormSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = A43E6EACE6A3EA9862915894 /* Warhammer40kConfigFormSections.swift */; };
 		8302485B04E3BB9257E5FD50 /* Group.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82239BC06838D85C12838149 /* Group.swift */; };
+		854ACCF17F130892B88902E3 /* RoundCounter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D9B821DBF6A98782DBD63DA /* RoundCounter.swift */; };
 		8584505D8D87C279B3DDF591 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28FB028D53B67E61B6DFC888 /* AuthViewModel.swift */; };
 		88B61871843C6441DF4DE435 /* ProfileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEF6FB8EA384204DC11CD9E6 /* ProfileService.swift */; };
 		8C8642A7ED011D54F8DCDE12 /* BGGGameSearchSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95E7F2AF9913C4E6AB76EB86 /* BGGGameSearchSheet.swift */; };
@@ -84,12 +94,15 @@
 		8EEB389D147BBCE8B5421089 /* DashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E4589F8F9897567610F5D9 /* DashboardViewModel.swift */; };
 		926EA564C47C4E61D7D76EB1 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 19866FD0BAD51079404BA8FA /* GoogleService-Info.plist */; };
 		9427D53864F30F2BF718793B /* RaffleService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D7D5847D8F04420CE571CB6 /* RaffleService.swift */; };
+		9490DB362B7172534F74FC0F /* StatementPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BCE96EDFD16152B644D85A7 /* StatementPickerView.swift */; };
+		94D57548BBA71EF6ABC81418 /* CardDrawPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0A3D6844649EC55BA3BE2B5 /* CardDrawPickerView.swift */; };
 		94ED30EB786C437D5CDAA413 /* Color+Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EDE65FF81BEADD8F9B0ABD7 /* Color+Theme.swift */; };
 		9577BB225446A1BD451392C7 /* GroupCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79D18F756218515C4DF714CD /* GroupCard.swift */; };
 		9650620851518186A63E33BA /* CreatePlayerRequestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F3BCCE786304239C4D6C084 /* CreatePlayerRequestView.swift */; };
 		9BAEBF227BC1C49B20B586D5 /* DeckListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B6A6C8BE8A06EAD83A4ED05 /* DeckListViewModel.swift */; };
 		9CE1253F384D1AA9B8EFCDAE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF6C91682B7B19AF31F48F35 /* AppDelegate.swift */; };
 		9D70C1D1679C66A1F7454800 /* BlockedUsersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F196A3FA2549EAF6CB3C49A /* BlockedUsersView.swift */; };
+		9DFDFFA2917FA38D612040F3 /* ToolboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 882CC12CB0D3670B76CF2C26 /* ToolboxView.swift */; };
 		9ED99524842528A884114779 /* Billing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 346C79A5DD4B34E3954D3396 /* Billing.swift */; };
 		A0E56F17ECBCB79E22B32161 /* ChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D30003D7922137D808395B1 /* ChatViewModel.swift */; };
 		A167309A0F9C95386513E704 /* EditGroupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A2925081021E864B8E0DD5D /* EditGroupView.swift */; };
@@ -101,6 +114,7 @@
 		AA6913F2DF5301A871E91C50 /* Inter-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 4EAAFF83E27A708FD9D1247A /* Inter-Bold.ttf */; };
 		ABD6DB4176A5B770D6D6F194 /* InvitationViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFE9B94BD1B567139526C86E /* InvitationViewModel.swift */; };
 		AC1438218C7F0CC9A119716F /* SasquatshApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF36A1ECDB70C83799469DBB /* SasquatshApp.swift */; };
+		AC1540A28CD0922F3521C6A8 /* FirstPlayerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E841CD5FF80726D18FDC770E /* FirstPlayerService.swift */; };
 		ADE5DB6E6E40C9C3FCFE76F2 /* Chat.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA9D684CAABB40E24D863FF0 /* Chat.swift */; };
 		B1632D8F816D1B30CB0763A0 /* InvitationAcceptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A03AB180666805001B636AE1 /* InvitationAcceptView.swift */; };
 		B1A3F4D69B905E499475ADB8 /* TierLimits.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87E0EC72A4CB07754D73955A /* TierLimits.swift */; };
@@ -112,6 +126,7 @@
 		B7389190C98E16B41BD5F626 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0367690B9A1D96863883A2A1 /* EmptyStateView.swift */; };
 		BA9FF5ABF3303DA25830E77A /* VenueSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27971E1867A8E8294EB40364 /* VenueSelector.swift */; };
 		BB4147C5144D34B88DD61CD8 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35977C29126AD0D681F5C926 /* MainTabView.swift */; };
+		BC6F6F29194626E32CB18B90 /* RandomGamePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2AE8F15CCB2E5E5643A06B9 /* RandomGamePickerView.swift */; };
 		BDB6A48752C884F8F185CEED /* PlayerRequestListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E648B0520E26B86A607EB66 /* PlayerRequestListView.swift */; };
 		BE351499743160C6B89DFF44 /* ScryfallService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0E5FAC3ED299C6F0832C36F /* ScryfallService.swift */; };
 		BF47BE30537694F2140DC7FD /* PlayerRequestListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39BDF4673E31AAB926BD78FE /* PlayerRequestListViewModel.swift */; };
@@ -119,6 +134,7 @@
 		C2DF294C6D2A5E86C86BC468 /* SessionsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78AF703B4E49734A05E1A262 /* SessionsViewModel.swift */; };
 		C6752BA89A02F9AD900147DD /* BadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C454E778E50A4EF42F1D9475 /* BadgeView.swift */; };
 		C777AC995AA26FE7697E9576 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 66642DC44F0E86693C3861D5 /* GoogleSignInSwift */; };
+		CBE3C77D709FF79F1EBF2DF3 /* CompactNavBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ACE8A9944EAEDE322C1B3A4 /* CompactNavBar.swift */; };
 		CC420201089691DD32C842F3 /* CreateEventView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4FEA81336C6531E474D11A3 /* CreateEventView.swift */; };
 		D0328C23A9B45C42F2AB4C85 /* RaffleDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57A70B4BE2F250E846FB098B /* RaffleDetailView.swift */; };
 		D03F32CAA5EF88C3DB64F996 /* EventDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D147A7ABA1618BE7D31FE0FE /* EventDetailViewModel.swift */; };
@@ -148,11 +164,15 @@
 /* Begin PBXFileReference section */
 		00016DBE6ACAA099B8B5D8A8 /* GameSystemConfigs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSystemConfigs.swift; sourceTree = "<group>"; };
 		0367690B9A1D96863883A2A1 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
+		04D038602C7F61EB29AA9735 /* AppearanceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceManager.swift; sourceTree = "<group>"; };
+		0ACE8A9944EAEDE322C1B3A4 /* CompactNavBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactNavBar.swift; sourceTree = "<group>"; };
 		0DFDA7742C94F267A62EEDF7 /* RaffleBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaffleBannerView.swift; sourceTree = "<group>"; };
+		0F403DCA29B28B7F208DE79F /* StoreKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitService.swift; sourceTree = "<group>"; };
 		0F8F4C637071DD7C51125F31 /* GroupListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupListViewModel.swift; sourceTree = "<group>"; };
 		128EE348E35146FC567DA880 /* BillingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillingView.swift; sourceTree = "<group>"; };
 		12E6554BE8B1595FB9C27674 /* GroupsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupsService.swift; sourceTree = "<group>"; };
 		13BED0474677651D0E031C06 /* GroupInviteAcceptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupInviteAcceptView.swift; sourceTree = "<group>"; };
+		195DF7F486DACFDB36E13C69 /* FirstPlayerPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstPlayerPickerView.swift; sourceTree = "<group>"; };
 		19866FD0BAD51079404BA8FA /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		19E4589F8F9897567610F5D9 /* DashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViewModel.swift; sourceTree = "<group>"; };
 		1ACB90EEDF42483B944B697D /* Planning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Planning.swift; sourceTree = "<group>"; };
@@ -166,6 +186,7 @@
 		28FB028D53B67E61B6DFC888 /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
 		29A2CEF9FC64AAC3A4FCD5FF /* GroupDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupDetailView.swift; sourceTree = "<group>"; };
 		2B6A6C8BE8A06EAD83A4ED05 /* DeckListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeckListViewModel.swift; sourceTree = "<group>"; };
+		2BCE96EDFD16152B644D85A7 /* StatementPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatementPickerView.swift; sourceTree = "<group>"; };
 		2BD63A93BE64B892D1972DBB /* MyDecksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyDecksView.swift; sourceTree = "<group>"; };
 		3245FBB1970E8E00028FE76E /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		3271CD64ABD8B77E1BF308C2 /* PokemonConfigFormSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PokemonConfigFormSections.swift; sourceTree = "<group>"; };
@@ -212,10 +233,13 @@
 		638D09AC73FF86181FE1CBCF /* Inter-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Inter-Regular.ttf"; sourceTree = "<group>"; };
 		642BE2C36B06E61A401907B4 /* SessionsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsService.swift; sourceTree = "<group>"; };
 		664C94DD68BC94B66095D756 /* UpgradeAdBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpgradeAdBanner.swift; sourceTree = "<group>"; };
+		66FE87DDCB3604C86FA71397 /* RoundCounterPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundCounterPersistence.swift; sourceTree = "<group>"; };
+		67E9D8BDEC3DEA0AF3FAB8B1 /* RoundCounterViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundCounterViewModel.swift; sourceTree = "<group>"; };
 		68497073E49C0FFB6DAF6C92 /* BGGGame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BGGGame.swift; sourceTree = "<group>"; };
 		699D36C0B84A66EFF8C27496 /* LoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingView.swift; sourceTree = "<group>"; };
 		6A2925081021E864B8E0DD5D /* EditGroupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditGroupView.swift; sourceTree = "<group>"; };
 		6CC2E26055D8A47D0C6E1603 /* EventDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventDetailView.swift; sourceTree = "<group>"; };
+		6D9B821DBF6A98782DBD63DA /* RoundCounter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundCounter.swift; sourceTree = "<group>"; };
 		6FAF5A97FB657B20BE0B2DBF /* MtgDeckService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MtgDeckService.swift; sourceTree = "<group>"; };
 		70C33D7E3564D3ED89F9E5F2 /* GameSystemConfigStates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSystemConfigStates.swift; sourceTree = "<group>"; };
 		7150D1F5584C0447F3735EC2 /* HotLocationsBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotLocationsBar.swift; sourceTree = "<group>"; };
@@ -224,12 +248,16 @@
 		7DAF0682609D1F8D02A59FF6 /* MtgDeck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MtgDeck.swift; sourceTree = "<group>"; };
 		7E2BBD711CB929C54A883306 /* EditEventView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditEventView.swift; sourceTree = "<group>"; };
 		7E648B0520E26B86A607EB66 /* PlayerRequestListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerRequestListView.swift; sourceTree = "<group>"; };
+		809835A2C6B08A1CC8F9C97F /* FirstPlayerPickersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstPlayerPickersView.swift; sourceTree = "<group>"; };
 		82239BC06838D85C12838149 /* Group.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Group.swift; sourceTree = "<group>"; };
 		8556AE68300285504708F2F3 /* UserAvatarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserAvatarView.swift; sourceTree = "<group>"; };
 		858AD977CB30B8696F05EDEB /* RecurringGameFormSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurringGameFormSheet.swift; sourceTree = "<group>"; };
 		85C8B870BD2BB10903D3A097 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		87E0EC72A4CB07754D73955A /* TierLimits.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TierLimits.swift; sourceTree = "<group>"; };
+		882CC12CB0D3670B76CF2C26 /* ToolboxView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolboxView.swift; sourceTree = "<group>"; };
+		89935F48EF0538F701A40320 /* RoundCounterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundCounterView.swift; sourceTree = "<group>"; };
 		9187E017788AE013CA39846D /* ErrorBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorBannerView.swift; sourceTree = "<group>"; };
+		91FF1347E013AAD4AE7A8E47 /* SpinWheelPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpinWheelPickerView.swift; sourceTree = "<group>"; };
 		95E7F2AF9913C4E6AB76EB86 /* BGGGameSearchSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BGGGameSearchSheet.swift; sourceTree = "<group>"; };
 		980CE74737A48FB69C3F59FA /* MDCIcons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MDCIcons.swift; sourceTree = "<group>"; };
 		98AA45092A100C9AC0A4CF86 /* EventListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventListView.swift; sourceTree = "<group>"; };
@@ -237,6 +265,7 @@
 		9EDE65FF81BEADD8F9B0ABD7 /* Color+Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Theme.swift"; sourceTree = "<group>"; };
 		9F196A3FA2549EAF6CB3C49A /* BlockedUsersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockedUsersView.swift; sourceTree = "<group>"; };
 		A03AB180666805001B636AE1 /* InvitationAcceptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvitationAcceptView.swift; sourceTree = "<group>"; };
+		A2AE8F15CCB2E5E5643A06B9 /* RandomGamePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RandomGamePickerView.swift; sourceTree = "<group>"; };
 		A43E6EACE6A3EA9862915894 /* Warhammer40kConfigFormSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Warhammer40kConfigFormSections.swift; sourceTree = "<group>"; };
 		A4FEA81336C6531E474D11A3 /* CreateEventView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateEventView.swift; sourceTree = "<group>"; };
 		A578C1EE487A4DC4B3E69B97 /* ChatPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatPanelView.swift; sourceTree = "<group>"; };
@@ -246,6 +275,7 @@
 		ABC0A8EC1AB571959EDD04D0 /* Raffle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Raffle.swift; sourceTree = "<group>"; };
 		AEF6FB8EA384204DC11CD9E6 /* ProfileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileService.swift; sourceTree = "<group>"; };
 		B037B268425325C58696DFE5 /* CreateEditEventViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateEditEventViewModel.swift; sourceTree = "<group>"; };
+		B0A3D6844649EC55BA3BE2B5 /* CardDrawPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardDrawPickerView.swift; sourceTree = "<group>"; };
 		B0E5FAC3ED299C6F0832C36F /* ScryfallService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScryfallService.swift; sourceTree = "<group>"; };
 		B6D3AAF21ACED5E5A645FC83 /* Sasquatsh.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Sasquatsh.entitlements; sourceTree = "<group>"; };
 		B7B8BDA523F557A719A6BA85 /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
@@ -267,6 +297,7 @@
 		DF36A1ECDB70C83799469DBB /* SasquatshApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SasquatshApp.swift; sourceTree = "<group>"; };
 		E180C0517FCDF60823BB2840 /* DeckBuilderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeckBuilderView.swift; sourceTree = "<group>"; };
 		E4A889B5DC822F2CADAAC56B /* InvoiceDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvoiceDetailSheet.swift; sourceTree = "<group>"; };
+		E841CD5FF80726D18FDC770E /* FirstPlayerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstPlayerService.swift; sourceTree = "<group>"; };
 		E97FF4373012917A14226AA7 /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
 		EB0F0E943C54D597EFBA7AF4 /* SessionScheduleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionScheduleView.swift; sourceTree = "<group>"; };
 		ECB802B904C6BF1CE7A75475 /* PlanningService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanningService.swift; sourceTree = "<group>"; };
@@ -277,6 +308,7 @@
 		F1AB9339EA4909837A41BAEB /* ProfileViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileViewModel.swift; sourceTree = "<group>"; };
 		F1D7AE6ED2AB2336532F2645 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		F4A068C57A437E287E86542B /* GroupDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupDetailViewModel.swift; sourceTree = "<group>"; };
+		F64B57444CDB3A4BA5B855DA /* CollectionsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionsService.swift; sourceTree = "<group>"; };
 		F6865609300836F444E3AB16 /* CreateEditGroupViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateEditGroupViewModel.swift; sourceTree = "<group>"; };
 		FD9D22ED74432741D6A87FC0 /* RecurringGamesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurringGamesViewModel.swift; sourceTree = "<group>"; };
 		FF6C91682B7B19AF31F48F35 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -445,6 +477,7 @@
 				3F11C8C178687ECC44F0FA1E /* PlayerRequest.swift */,
 				635ED1B2A1479F15A789AE18 /* Profile.swift */,
 				ABC0A8EC1AB571959EDD04D0 /* Raffle.swift */,
+				6D9B821DBF6A98782DBD63DA /* RoundCounter.swift */,
 				4403228FF8F246A9C534E5EE /* Session.swift */,
 				5ACC89A4BA8DE1E27D335678 /* User.swift */,
 			);
@@ -456,6 +489,7 @@
 			children = (
 				C454E778E50A4EF42F1D9475 /* BadgeView.swift */,
 				95E7F2AF9913C4E6AB76EB86 /* BGGGameSearchSheet.swift */,
+				0ACE8A9944EAEDE322C1B3A4 /* CompactNavBar.swift */,
 				0367690B9A1D96863883A2A1 /* EmptyStateView.swift */,
 				9187E017788AE013CA39846D /* ErrorBannerView.swift */,
 				47F7225DD96ADB78075F1B35 /* EventCard.swift */,
@@ -507,6 +541,7 @@
 				F1AB9339EA4909837A41BAEB /* ProfileViewModel.swift */,
 				5A0509145CE728F7C0473CE4 /* RaffleViewModel.swift */,
 				FD9D22ED74432741D6A87FC0 /* RecurringGamesViewModel.swift */,
+				67E9D8BDEC3DEA0AF3FAB8B1 /* RoundCounterViewModel.swift */,
 				78AF703B4E49734A05E1A262 /* SessionsViewModel.swift */,
 			);
 			path = ViewModels;
@@ -521,6 +556,21 @@
 				D4C6759C95DA345280F019BB /* YugiohConfigFormSections.swift */,
 			);
 			path = GameSystemForms;
+			sourceTree = "<group>";
+		};
+		A6B935162C55F812BF7C6F18 /* Toolbox */ = {
+			isa = PBXGroup;
+			children = (
+				B0A3D6844649EC55BA3BE2B5 /* CardDrawPickerView.swift */,
+				809835A2C6B08A1CC8F9C97F /* FirstPlayerPickersView.swift */,
+				195DF7F486DACFDB36E13C69 /* FirstPlayerPickerView.swift */,
+				A2AE8F15CCB2E5E5643A06B9 /* RandomGamePickerView.swift */,
+				89935F48EF0538F701A40320 /* RoundCounterView.swift */,
+				91FF1347E013AAD4AE7A8E47 /* SpinWheelPickerView.swift */,
+				2BCE96EDFD16152B644D85A7 /* StatementPickerView.swift */,
+				882CC12CB0D3670B76CF2C26 /* ToolboxView.swift */,
+			);
+			path = Toolbox;
 			sourceTree = "<group>";
 		};
 		B979BC91D42C2617CD24C79C /* Views */ = {
@@ -540,6 +590,7 @@
 				E901CCD95CE84DF1A68741B2 /* Profile */,
 				2C232E99FC6E924A6990064E /* Raffle */,
 				78BB34FCA9767F323B311499 /* Shared */,
+				A6B935162C55F812BF7C6F18 /* Toolbox */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -577,21 +628,26 @@
 			isa = PBXGroup;
 			children = (
 				3245FBB1970E8E00028FE76E /* APIClient.swift */,
+				04D038602C7F61EB29AA9735 /* AppearanceManager.swift */,
 				B7B8BDA523F557A719A6BA85 /* AuthService.swift */,
 				DA2DFD00F4C0D3B7E1570D9A /* BGGService.swift */,
 				34B2C80423D2FCACB98BB768 /* BillingService.swift */,
 				E97FF4373012917A14226AA7 /* ChatService.swift */,
+				F64B57444CDB3A4BA5B855DA /* CollectionsService.swift */,
 				CC7A243720B78351933EE080 /* EventsService.swift */,
+				E841CD5FF80726D18FDC770E /* FirstPlayerService.swift */,
 				12E6554BE8B1595FB9C27674 /* GroupsService.swift */,
 				6FAF5A97FB657B20BE0B2DBF /* MtgDeckService.swift */,
 				ECB802B904C6BF1CE7A75475 /* PlanningService.swift */,
 				AEF6FB8EA384204DC11CD9E6 /* ProfileService.swift */,
 				5D7D5847D8F04420CE571CB6 /* RaffleService.swift */,
 				C6581204096B3F286444DACD /* RecurringGamesService.swift */,
+				66FE87DDCB3604C86FA71397 /* RoundCounterPersistence.swift */,
 				B0E5FAC3ED299C6F0832C36F /* ScryfallService.swift */,
 				490141838705D97AB71136E5 /* ServiceContainer.swift */,
 				642BE2C36B06E61A401907B4 /* SessionsService.swift */,
 				530CAFF6F552CC375A21BCC4 /* SocialService.swift */,
+				0F403DCA29B28B7F208DE79F /* StoreKitService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -681,7 +737,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2600;
+				LastUpgradeCheck = 1600;
 				TargetAttributes = {
 					C033C39CB3F096D1C489ED2D = {
 						DevelopmentTeam = 6QFGMUQY98;
@@ -735,6 +791,7 @@
 				F5AC6CFB8C943598A390D4BE /* APIClient.swift in Sources */,
 				52E7BC2F17ED3C6C7BB1D4FA /* AppConfig.swift in Sources */,
 				9CE1253F384D1AA9B8EFCDAE /* AppDelegate.swift in Sources */,
+				2BCF155DD9D158A71446EFF1 /* AppearanceManager.swift in Sources */,
 				7ECDF1F45FB33DEDC85C1C4B /* AuthService.swift in Sources */,
 				8584505D8D87C279B3DDF591 /* AuthViewModel.swift in Sources */,
 				4D82458956A58528A0BDB0A6 /* BGGGame.swift in Sources */,
@@ -747,12 +804,15 @@
 				33A5636C735C5DAF3A60A955 /* BillingViewModel.swift in Sources */,
 				9D70C1D1679C66A1F7454800 /* BlockedUsersView.swift in Sources */,
 				56FCD4CE77CB754F70F96E4F /* CardDetailSheet.swift in Sources */,
+				94D57548BBA71EF6ABC81418 /* CardDrawPickerView.swift in Sources */,
 				ADE5DB6E6E40C9C3FCFE76F2 /* Chat.swift in Sources */,
 				2AC40F058134425AAD7070F6 /* ChatBubbleView.swift in Sources */,
 				37C2ABF54FE001BFD368E156 /* ChatPanelView.swift in Sources */,
 				A2819422496536448C9A2D69 /* ChatService.swift in Sources */,
 				A0E56F17ECBCB79E22B32161 /* ChatViewModel.swift in Sources */,
+				18D0E4065A3C20F6A8E444D3 /* CollectionsService.swift in Sources */,
 				94ED30EB786C437D5CDAA413 /* Color+Theme.swift in Sources */,
+				CBE3C77D709FF79F1EBF2DF3 /* CompactNavBar.swift in Sources */,
 				79A7555D7C82E911FBB684B3 /* ContentView.swift in Sources */,
 				3907A18EFB76F290E8E82100 /* CreateEditEventViewModel.swift in Sources */,
 				1253B2F15277D5930839A846 /* CreateEditGroupViewModel.swift in Sources */,
@@ -782,6 +842,9 @@
 				C0B234F4EBF8D9CE9EE41D52 /* EventListView.swift in Sources */,
 				E4B3A75F26428E1C80A70219 /* EventListViewModel.swift in Sources */,
 				B5EFAB7D78F6E1BC2F6D5D62 /* EventsService.swift in Sources */,
+				7133740EC992A5ACE4B12AE1 /* FirstPlayerPickerView.swift in Sources */,
+				455D61D564919210AB713958 /* FirstPlayerPickersView.swift in Sources */,
+				AC1540A28CD0922F3521C6A8 /* FirstPlayerService.swift in Sources */,
 				083C3FE327E0CEE78DA3E815 /* Font+Inter.swift in Sources */,
 				FA59FDF9D1294FE03E0B945E /* ForgotPasswordView.swift in Sources */,
 				80FD12A9F3CBACF6D3195CE2 /* GameSystem+UI.swift in Sources */,
@@ -829,11 +892,16 @@
 				B4B6F100968CE46C00BED3D6 /* RaffleEntryBreakdownView.swift in Sources */,
 				9427D53864F30F2BF718793B /* RaffleService.swift in Sources */,
 				5FF904557E0EE0D714DFDFCB /* RaffleViewModel.swift in Sources */,
+				BC6F6F29194626E32CB18B90 /* RandomGamePickerView.swift in Sources */,
 				59E5EAE156812DD2E09BBF1B /* RecurringGameCard.swift in Sources */,
 				08CD9F10F9E112315C94ADC8 /* RecurringGameFormSheet.swift in Sources */,
 				DD9487F7CDC9B04EA68D2214 /* RecurringGamesService.swift in Sources */,
 				D62977F8DC2A57EA5B5B0A65 /* RecurringGamesViewModel.swift in Sources */,
 				B6FCA27EA651F05A8AC878A3 /* ReportMessageSheet.swift in Sources */,
+				854ACCF17F130892B88902E3 /* RoundCounter.swift in Sources */,
+				7FF0600FB60F1868D32E14F2 /* RoundCounterPersistence.swift in Sources */,
+				78B1D1F20DAAE3F5E542E234 /* RoundCounterView.swift in Sources */,
+				4F538AECA24E09C0857A4BF9 /* RoundCounterViewModel.swift in Sources */,
 				AC1438218C7F0CC9A119716F /* SasquatshApp.swift in Sources */,
 				BE351499743160C6B89DFF44 /* ScryfallService.swift in Sources */,
 				76EC043F6ADA96E504720C9C /* SearchBarView.swift in Sources */,
@@ -845,10 +913,14 @@
 				C2DF294C6D2A5E86C86BC468 /* SessionsViewModel.swift in Sources */,
 				070CD91519CEA3C4C2E4C9F3 /* SignupView.swift in Sources */,
 				09B6C07D0A658B8D48A94381 /* SocialService.swift in Sources */,
+				5C6A42B935FC7F8469C26FE7 /* SpinWheelPickerView.swift in Sources */,
+				9490DB362B7172534F74FC0F /* StatementPickerView.swift in Sources */,
+				65A9D3D15BAC9E9EEE2D1962 /* StoreKitService.swift in Sources */,
 				7C27AEEA948672EA1CE341F5 /* SubmitVenueSheet.swift in Sources */,
 				6FBB3403751EC2D88004FE22 /* SubscriptionBadgeView.swift in Sources */,
 				A38F6B10E9B1050A1C479EB2 /* TierCardView.swift in Sources */,
 				B1A3F4D69B905E499475ADB8 /* TierLimits.swift in Sources */,
+				9DFDFFA2917FA38D612040F3 /* ToolboxView.swift in Sources */,
 				EC20D42C0A1EB28FBBE56CB7 /* UpgradeAdBanner.swift in Sources */,
 				F76182FF58A8E98A0DB99052 /* UpgradePromptView.swift in Sources */,
 				ED72EC34E1724FE7EB08DED7 /* User.swift in Sources */,

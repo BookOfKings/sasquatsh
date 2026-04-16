@@ -35,16 +35,17 @@ struct GroupDetailView: View {
 
                     joinActions(group)
 
-                    Picker("Section", selection: $selectedTab) {
-                        Text("Members").tag(0)
-                        Text("Chat").tag(1)
-                        Text("Games").tag(2)
-                        Text("Planning").tag(3)
-                        if isAdmin { Text("Requests").tag(4) }
-                        if isAdmin { Text("Invites").tag(5) }
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            groupTabButton("Members", tag: 0)
+                            groupTabButton("Chat", tag: 1)
+                            groupTabButton("Games", tag: 2)
+                            groupTabButton("Planning", tag: 3)
+                            if isAdmin { groupTabButton("Requests", tag: 4) }
+                            if isAdmin { groupTabButton("Invites", tag: 5) }
+                        }
+                        .padding(.horizontal)
                     }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal)
 
                     switch selectedTab {
                     case 0: membersSection
@@ -123,6 +124,23 @@ struct GroupDetailView: View {
     private var isMember: Bool {
         guard let userId = authVM.user?.id else { return false }
         return vm.userRole(userId: userId) != nil
+    }
+
+    private func groupTabButton(_ title: String, tag: Int) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                selectedTab = tag
+            }
+        } label: {
+            Text(title)
+                .font(.md3LabelLarge)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(selectedTab == tag ? Color.md3Primary : Color.md3SurfaceContainerHigh)
+                .foregroundStyle(selectedTab == tag ? Color.md3OnPrimary : Color.md3OnSurfaceVariant)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Sections

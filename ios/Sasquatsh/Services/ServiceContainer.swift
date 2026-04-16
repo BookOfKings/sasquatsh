@@ -17,6 +17,9 @@ final class ServiceContainer {
     let sessions: SessionsServiceProtocol
     let mtgDecks: MtgDeckServiceProtocol
     let scryfall: ScryfallServiceProtocol
+    let firstPlayer: FirstPlayerServiceProtocol
+    let collections: CollectionsServiceProtocol
+    let storeKit: StoreKitService
 
     init(
         api: APIClient = APIClient(),
@@ -37,6 +40,9 @@ final class ServiceContainer {
         self.sessions = SessionsService(api: api)
         self.mtgDecks = MtgDeckService(api: api)
         self.scryfall = ScryfallService(api: api)
+        self.firstPlayer = FirstPlayerService(client: api)
+        self.collections = CollectionsService(api: api)
+        self.storeKit = StoreKitService()
     }
 }
 

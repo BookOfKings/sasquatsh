@@ -213,6 +213,16 @@ enum GameSystem: String, Codable, CaseIterable, Identifiable {
         case .warhammer40k: return "shield.fill"
         }
     }
+
+    var logoAssetName: String {
+        switch self {
+        case .boardGame: return "Logo"
+        case .mtg: return "mtg-logo"
+        case .pokemonTcg: return "pokemon-logo"
+        case .yugioh: return "yugioh-logo"
+        case .warhammer40k: return "warhammer40k-logo"
+        }
+    }
 }
 
 enum AppTimezone: String, CaseIterable, Identifiable {

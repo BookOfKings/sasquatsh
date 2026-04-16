@@ -5,6 +5,8 @@ struct SubscriptionInfo: Codable {
     let paymentMethod: PaymentMethod?
     let hasStripeAccount: Bool
     let hasActiveSubscription: Bool
+    let subscriptionSource: String?
+    let hasAppleSubscription: Bool?
 }
 
 struct SubscriptionDetail: Codable {
@@ -49,6 +51,8 @@ struct InvoicesResponse: Codable {
 struct CancelResponse: Codable {
     let message: String
     let cancelAt: String?
+    let manageUrl: String?
+    let source: String?
 }
 
 struct ReactivateResponse: Codable {

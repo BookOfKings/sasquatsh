@@ -220,6 +220,27 @@ struct ProfileView: View {
                         .cardStyle()
                     }
 
+                    // Appearance
+                    VStack(spacing: 8) {
+                        HStack {
+                            Image(systemName: "moon.circle.fill")
+                                .foregroundStyle(Color.md3Primary)
+                            Text("Appearance")
+                                .font(.md3TitleMedium)
+                                .foregroundStyle(Color.md3OnSurface)
+                            Spacer()
+                        }
+
+                        Picker("", selection: AppearanceManager.shared.$mode) {
+                            Text("System").tag(AppearanceMode.system)
+                            Text("Light").tag(AppearanceMode.light)
+                            Text("Dark").tag(AppearanceMode.dark)
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                    .padding()
+                    .cardStyle()
+
                     // Actions
                     VStack(spacing: 12) {
                         Button {
@@ -254,8 +275,7 @@ struct ProfileView: View {
             }
         }
         .background(Color.md3SurfaceContainer)
-        .navigationTitle("Profile")
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
         .refreshable { await vm.loadProfile() }
         .sheet(isPresented: $showEditSheet) {
             if let profile = vm.profile {

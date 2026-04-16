@@ -5,7 +5,7 @@ import FirebaseMessaging
 import GoogleSignIn
 import UserNotifications
 
-class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate {
+class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate, UIWindowSceneDelegate {
     static var firebaseConfigured = false
     static var fcmToken: String?
 

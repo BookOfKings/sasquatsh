@@ -56,8 +56,7 @@ struct PlayerRequestListView: View {
             }
         }
         .background(Color.md3SurfaceContainer)
-        .navigationTitle("Need Players?")
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {

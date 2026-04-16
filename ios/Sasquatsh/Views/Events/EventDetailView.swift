@@ -48,16 +48,18 @@ struct EventDetailView: View {
                                 .font(.md3BodyMedium)
                                 .foregroundStyle(Color.md3OnSurfaceVariant)
                         }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .cardStyle()
                         .padding(.horizontal)
                     }
 
                     actionButtons(event)
                     gamesSection(event)
-                    itemsSection(event)
                     if event.isMultiTable == true {
                         SessionScheduleView(eventId: eventId)
                     }
-                    registrationsSection(event)
+                    playersAndItemsSection(event)
                     chatSection
                 }
                 .padding(.vertical)
@@ -136,33 +138,65 @@ struct EventDetailView: View {
     // MARK: - Sections
 
     private func headerSection(_ event: Event) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                if let host = event.host {
-                    UserAvatarView(url: host.avatarUrl, name: host.displayName, size: 36)
-                    VStack(alignment: .leading) {
+        VStack(alignment: .leading, spacing: 12) {
+            // Title
+            Text(event.title)
+                .font(.md3HeadlineMedium)
+                .foregroundStyle(Color.md3OnSurface)
+
+            // Game title
+            if let gameTitle = event.gameTitle, !gameTitle.isEmpty {
+                Text(gameTitle)
+                    .font(.md3TitleMedium)
+                    .foregroundStyle(Color.md3OnSurfaceVariant)
+            }
+
+            // Badges
+            HStack(spacing: 8) {
+                if let system = event.gameSystem, system != .boardGame {
+                    BadgeView(text: system.shortName, color: system.badgeColor)
+                }
+                BadgeView(text: event.status.capitalized, color: statusColor(event.status))
+                if event.isCharityEvent {
+                    BadgeView(text: "Charity", color: .md3TertiaryContainer)
+                }
+                if event.hostIsPlaying == false {
+                    BadgeView(text: "Not Playing", color: .md3SecondaryContainer)
+                }
+            }
+
+            // Host info
+            if let host = event.host {
+                HStack(spacing: 10) {
+                    UserAvatarView(url: host.avatarUrl, name: host.displayName, size: 40)
+                    VStack(alignment: .leading, spacing: 2) {
                         Text("Hosted by")
                             .font(.md3LabelSmall)
                             .foregroundStyle(Color.md3OnSurfaceVariant)
                         Text(host.displayName ?? "Unknown")
                             .font(.md3TitleSmall)
+                            .foregroundStyle(Color.md3OnSurface)
                     }
-                }
-                Spacer()
-                if let system = event.gameSystem, system != .boardGame {
-                    BadgeView(text: system.shortName, color: system.badgeColor)
-                }
-                BadgeView(text: event.status.capitalized, color: statusColor(event.status))
-                if event.hostIsPlaying == false {
-                    BadgeView(text: "Not Playing", color: .md3SecondaryContainer)
                 }
             }
         }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.md3Surface)
+        .clipShape(RoundedRectangle(cornerRadius: MD3Shape.medium))
+        .overlay(
+            RoundedRectangle(cornerRadius: MD3Shape.medium)
+                .stroke(Color.md3OutlineVariant, lineWidth: 1)
+        )
         .padding(.horizontal)
     }
 
     private func detailsSection(_ event: Event) -> some View {
-        VStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Details")
+                .font(.md3TitleMedium)
+                .foregroundStyle(Color.md3OnSurface)
+
             HStack(spacing: 20) {
                 detailRow(icon: "calendar", text: event.eventDate.toDate?.displayDate ?? event.eventDate)
                 detailRow(icon: "clock", text: event.startTime ?? "TBD")
@@ -198,6 +232,8 @@ struct EventDetailView: View {
                 detailRow(icon: "person.badge.shield.checkmark", text: "Ages \(minAge)+")
             }
         }
+        .padding()
+        .cardStyle()
         .padding(.horizontal)
     }
 
@@ -305,10 +341,11 @@ struct EventDetailView: View {
         .padding(.horizontal)
     }
 
-    private func itemsSection(_ event: Event) -> some View {
+    private func playersAndItemsSection(_ event: Event) -> some View {
         VStack(alignment: .leading, spacing: 12) {
+            // Header
             HStack {
-                Text("Items Needed")
+                Text("Players (\(event.confirmedCount)/\(event.maxPlayers ?? 0))")
                     .font(.md3TitleMedium)
                     .foregroundStyle(Color.md3OnSurface)
                 Spacer()
@@ -321,48 +358,96 @@ struct EventDetailView: View {
                             showItemsUpgradePrompt = true
                         }
                     } label: {
-                        Image(systemName: "plus.circle")
-                            .foregroundStyle(Color.md3Primary)
+                        HStack(spacing: 4) {
+                            Image(systemName: "plus.circle")
+                            Text("Add Item")
+                                .font(.md3LabelSmall)
+                        }
+                        .foregroundStyle(Color.md3Primary)
                     }
                 }
             }
 
-            if let items = event.items, !items.isEmpty {
-                ForEach(items) { item in
-                    HStack {
-                        VStack(alignment: .leading) {
+            // Player list with items
+            if let regs = event.registrations, !regs.isEmpty {
+                ForEach(regs) { reg in
+                    VStack(spacing: 0) {
+                        HStack(spacing: 10) {
+                            UserAvatarView(url: reg.user?.avatarUrl, name: reg.user?.displayName, size: 36)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(reg.user?.displayName ?? "Player")
+                                    .font(.md3BodyMedium)
+                                    .foregroundStyle(Color.md3OnSurface)
+
+                                // Show items this player is bringing
+                                if let items = event.items?.filter({ $0.claimedByUserId == reg.userId }), !items.isEmpty {
+                                    ForEach(items) { item in
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "bag.fill")
+                                                .font(.system(size: 10))
+                                                .foregroundStyle(Color.md3Primary)
+                                            Text(item.itemName)
+                                                .font(.md3LabelSmall)
+                                                .foregroundStyle(Color.md3OnSurfaceVariant)
+                                            if item.quantityNeeded > 1 {
+                                                Text("x\(item.quantityNeeded)")
+                                                    .font(.md3LabelSmall)
+                                                    .foregroundStyle(Color.md3OnSurfaceVariant)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Spacer()
+
+                            BadgeView(
+                                text: reg.status.capitalized,
+                                color: reg.status == "confirmed" ? .md3PrimaryContainer : .md3SecondaryContainer
+                            )
+                        }
+                        .padding(.vertical, 6)
+
+                        Divider()
+                    }
+                }
+            } else {
+                Text("No players registered yet")
+                    .font(.md3BodyMedium)
+                    .foregroundStyle(Color.md3OnSurfaceVariant)
+                    .padding(.vertical, 4)
+            }
+
+            // Unclaimed items
+            let unclaimedItems = event.items?.filter({ $0.claimedByUserId == nil }) ?? []
+            if !unclaimedItems.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Still Needed")
+                        .font(.md3TitleSmall)
+                        .foregroundStyle(Color.md3Error)
+                        .padding(.top, 4)
+
+                    ForEach(unclaimedItems) { item in
+                        HStack {
+                            Image(systemName: "circle")
+                                .font(.system(size: 10))
+                                .foregroundStyle(Color.md3OnSurfaceVariant)
                             Text(item.itemName)
                                 .font(.md3BodyMedium)
-                            Text(item.itemCategory.capitalized)
+                                .foregroundStyle(Color.md3OnSurface)
+                            Text("(\(item.itemCategory.capitalized))")
                                 .font(.md3BodySmall)
                                 .foregroundStyle(Color.md3OnSurfaceVariant)
-                        }
-                        Spacer()
-                        if let claimedBy = item.claimedByName {
-                            Text(claimedBy)
-                                .font(.md3BodySmall)
-                                .foregroundStyle(Color.md3OnSurfaceVariant)
-                            if item.claimedByUserId == authVM.user?.id {
-                                Button("Unclaim") {
-                                    Task { await vm.unclaimItem(item.id) }
-                                }
-                                .font(.md3LabelSmall)
-                                .foregroundStyle(Color.md3Error)
-                            }
-                        } else {
-                            Button("Claim") {
+                            Spacer()
+                            Button("I'll bring this") {
                                 Task { await vm.claimItem(item.id) }
                             }
                             .font(.md3LabelSmall)
                             .foregroundStyle(Color.md3Primary)
                         }
                     }
-                    .padding(.vertical, 4)
                 }
-            } else {
-                Text("No items needed")
-                    .font(.md3BodyMedium)
-                    .foregroundStyle(Color.md3OnSurfaceVariant)
             }
         }
         .padding()
@@ -378,35 +463,6 @@ struct EventDetailView: View {
             }
             Button("Cancel", role: .cancel) { newItemName = "" }
         }
-    }
-
-    private func registrationsSection(_ event: Event) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Registered Players (\(event.confirmedCount)/\(event.maxPlayers ?? 0))")
-                .font(.md3TitleMedium)
-                .foregroundStyle(Color.md3OnSurface)
-
-            if let regs = event.registrations, !regs.isEmpty {
-                ForEach(regs) { reg in
-                    HStack {
-                        UserAvatarView(url: reg.user?.avatarUrl, name: reg.user?.displayName, size: 32)
-                        Text(reg.user?.displayName ?? "Player")
-                            .font(.md3BodyMedium)
-                        Spacer()
-                        Text(reg.registeredAt.toDate?.relativeDisplay ?? "")
-                            .font(.md3BodySmall)
-                            .foregroundStyle(Color.md3OnSurfaceVariant)
-                    }
-                }
-            } else {
-                Text("No registrations yet")
-                    .font(.md3BodyMedium)
-                    .foregroundStyle(Color.md3OnSurfaceVariant)
-            }
-        }
-        .padding()
-        .cardStyle()
-        .padding(.horizontal)
     }
 
     // MARK: - Chat

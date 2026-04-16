@@ -24,6 +24,8 @@ struct SasquatshApp: App {
                     }
                     authVM.configure(services: services)
                     await authVM.initialize()
+                    services.storeKit.configure(api: services.api)
+                    await services.storeKit.loadProducts()
                 }
         }
     }

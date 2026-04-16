@@ -48,6 +48,7 @@ struct EventSummary: Codable, Identifiable {
     let gameTitle: String?
     let gameCategory: String?
     let gameSystem: GameSystem?
+    let primaryGameThumbnail: String?
     let eventDate: String
     let startTime: String?
     let durationMinutes: Int?

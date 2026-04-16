@@ -2,9 +2,37 @@ import SwiftUI
 
 struct MainTabView: View {
     @State private var selectedTab = 0
+    @State private var showToolbox = false
 
     var body: some View {
         VStack(spacing: 0) {
+            // Persistent header
+            HStack(spacing: 8) {
+                Image("Logo")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 22, height: 22)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+
+                Button {
+                    showToolbox = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("Gamer Toolbox")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Color.md3Primary)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Color.md3Primary)
+                    }
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
+            .background(Color.md3Surface)
+
             // Content
             Group {
                 switch selectedTab {
@@ -28,6 +56,9 @@ struct MainTabView: View {
             MD3TabBar(selectedTab: $selectedTab)
         }
         .ignoresSafeArea(.keyboard)
+        .fullScreenCover(isPresented: $showToolbox) {
+            ToolboxView()
+        }
     }
 }
 

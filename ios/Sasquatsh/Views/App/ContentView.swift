@@ -20,9 +20,8 @@ struct ContentView: View {
                 LoginView()
             }
         }
-        .dynamicTypeSize(...DynamicTypeSize.small)
-        .font(.md3BodyLarge)
         .tint(Color.md3Primary)
+        .preferredColorScheme(AppearanceManager.shared.colorScheme)
     }
 
     private var launchScreen: some View {

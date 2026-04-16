@@ -3,7 +3,7 @@ options:
   bundleIdPrefix: com.sasquatsh
   deploymentTarget:
     iOS: "18.0"
-  xcodeVersion: "26.0"
+  xcodeVersion: "16.0"
   groupSortPosition: top
   generateEmptyDirectories: true
 
@@ -67,6 +67,7 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLSchemes:
               - com.googleusercontent.apps.313358569933-dimgosjcmgo7fimhi56trekhu0jdm6sf
+        UILaunchScreen: {}
         UIApplicationSupportsIndirectInputEvents: true
         ITSAppUsesNonExemptEncryption: false
         UIAppFonts:

@@ -15,9 +15,12 @@ struct CreateEventView: View {
             eventForm
                 .navigationTitle("Create Game")
                 .navigationBarTitleDisplayMode(.inline)
+                .toolbarBackground(Color.md3Surface, for: .navigationBar)
+                .toolbarBackground(.visible, for: .navigationBar)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") { dismiss() }
+                            .foregroundStyle(Color.md3OnSurface)
                     }
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Create") {
@@ -28,6 +31,7 @@ struct CreateEventView: View {
                             }
                         }
                         .disabled(!vm.isValid || vm.isLoading)
+                        .foregroundStyle((!vm.isValid || vm.isLoading) ? Color.md3OnSurfaceVariant.opacity(0.3) : Color.md3Primary)
                     }
                 }
                 .task {

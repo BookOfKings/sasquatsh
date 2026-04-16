@@ -40,6 +40,18 @@ final class BillingViewModel {
         subscriptionInfo?.subscription.hasOverride ?? false
     }
 
+    var isAppleSubscription: Bool {
+        subscriptionInfo?.subscriptionSource == "apple"
+    }
+
+    var isStripeSubscription: Bool {
+        subscriptionInfo?.subscriptionSource == "stripe"
+    }
+
+    var manageAppleSubscriptionURL: URL {
+        URL(string: "https://apps.apple.com/account/subscriptions")!
+    }
+
     // MARK: - Data Loading
 
     func loadBillingInfo() async {
@@ -80,12 +92,23 @@ final class BillingViewModel {
 
     func cancelSubscription() async {
         guard let services else { return }
+
+        // Apple subscriptions can't be cancelled server-side
+        if isAppleSubscription {
+            await UIApplication.shared.open(manageAppleSubscriptionURL)
+            return
+        }
+
         actionLoading = true
         error = nil
         do {
             let result = try await services.billing.cancelSubscription()
-            successMessage = result.message
-            await loadBillingInfo()
+            if result.source == "apple", let url = result.manageUrl, let manageURL = URL(string: url) {
+                await UIApplication.shared.open(manageURL)
+            } else {
+                successMessage = result.message
+                await loadBillingInfo()
+            }
         } catch {
             self.error = error.localizedDescription
         }

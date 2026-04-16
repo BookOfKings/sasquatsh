@@ -4,9 +4,31 @@ struct EventCard: View {
     let event: EventSummary
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        HStack(spacing: 12) {
+            // Game thumbnail
+            if let urlStr = event.primaryGameThumbnail, let url = URL(string: urlStr) {
+                AsyncImage(url: url) { image in
+                    image.resizable().aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    Color.md3SurfaceVariant
+                }
+                .frame(width: 60, height: 60)
+                .clipShape(RoundedRectangle(cornerRadius: MD3Shape.small))
+            } else if let system = event.gameSystem, system != .boardGame {
+                RoundedRectangle(cornerRadius: MD3Shape.small)
+                    .fill(Color.md3SurfaceContainerHigh)
+                    .frame(width: 60, height: 60)
+                    .overlay {
+                        Image(system.logoAssetName)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 44, height: 44)
+                    }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
             HStack {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(event.title)
                         .font(.md3TitleMedium)
                         .foregroundStyle(Color.md3OnSurface)
@@ -83,7 +105,8 @@ struct EventCard: View {
                     }
                 }
             }
-        }
+            } // close inner VStack
+        } // close HStack
         .padding()
         .cardStyle()
     }

@@ -28,6 +28,26 @@ struct BggGame: Codable, Identifiable {
     var id: Int { bggId }
 }
 
+struct BggCachedGame: Codable, Identifiable {
+    let bggId: Int
+    let name: String
+    let yearPublished: Int?
+    let thumbnailUrl: String?
+    let minPlayers: Int?
+    let maxPlayers: Int?
+    let bggRank: Int?
+
+    var id: Int { bggId }
+}
+
+struct BggCacheListResponse: Codable {
+    let games: [BggCachedGame]
+    let total: Int
+    let page: Int
+    let limit: Int
+    let totalPages: Int
+}
+
 struct EventGame: Codable, Identifiable {
     let id: String
     let eventId: String

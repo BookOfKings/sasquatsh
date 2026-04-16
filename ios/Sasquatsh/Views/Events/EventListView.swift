@@ -87,8 +87,7 @@ struct EventListView: View {
             .padding(.vertical)
         }
         .background(Color.md3SurfaceContainer)
-        .navigationTitle("Games")
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(for: String.self) { eventId in
             EventDetailView(eventId: eventId)
         }
@@ -102,7 +101,9 @@ struct EventListView: View {
                 }
             }
         }
-        .sheet(isPresented: $showCreateEvent) {
+        .sheet(isPresented: $showCreateEvent, onDismiss: {
+            Task { await vm.loadEvents() }
+        }) {
             CreateEventView()
         }
         .sheet(isPresented: $showFilters) {
