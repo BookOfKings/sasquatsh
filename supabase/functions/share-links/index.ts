@@ -66,12 +66,22 @@ Deno.serve(async (req) => {
   if (req.method === 'GET' && code) {
     const { data: link, error } = await supabase
       .from('shareable_invite_links')
-      .select('*, group:groups(id, name, slug, logo_url, city, state)')
+      .select('*')
       .eq('invite_code', code)
       .eq('is_active', true)
       .single()
 
-    if (error || !link) return errorResponse('Invalid or expired invite link', 404)
+    if (error || !link) {
+      console.error('Link lookup error:', error)
+      return errorResponse('Invalid or expired invite link', 404)
+    }
+
+    // Get group info
+    const { data: groupData } = await supabase
+      .from('groups')
+      .select('id, name, slug, logo_url')
+      .eq('id', link.group_id)
+      .single()
 
     // Check expiry
     if (link.expires_at && new Date(link.expires_at) < new Date()) {
@@ -120,13 +130,11 @@ Deno.serve(async (req) => {
 
     return jsonResponse({
       linkType: link.link_type,
-      group: link.group ? {
-        id: (link.group as any).id,
-        name: (link.group as any).name,
-        slug: (link.group as any).slug,
-        logoUrl: (link.group as any).logo_url,
-        city: (link.group as any).city,
-        state: (link.group as any).state,
+      group: groupData ? {
+        id: groupData.id,
+        name: groupData.name,
+        slug: groupData.slug,
+        logoUrl: groupData.logo_url,
       } : null,
       target,
       invitedBy: creator ? {
@@ -201,7 +209,7 @@ Deno.serve(async (req) => {
     // 1. Join group if not already a member
     const { data: existingMember } = await supabase
       .from('group_memberships')
-      .select('id, status')
+      .select('id')
       .eq('group_id', link.group_id)
       .eq('user_id', user.id)
       .single()
@@ -211,13 +219,7 @@ Deno.serve(async (req) => {
         group_id: link.group_id,
         user_id: user.id,
         role: 'member',
-        status: 'active',
       })
-    } else if (existingMember.status !== 'active') {
-      await supabase
-        .from('group_memberships')
-        .update({ status: 'active' })
-        .eq('id', existingMember.id)
     }
 
     // 2. Resolve target
@@ -237,7 +239,7 @@ Deno.serve(async (req) => {
     if (target?.type === 'planning_session') {
       const { data: existingInvitee } = await supabase
         .from('planning_invitees')
-        .select('id')
+        .select('id, accepted_at')
         .eq('session_id', target.id)
         .eq('user_id', user.id)
         .single()
@@ -247,7 +249,13 @@ Deno.serve(async (req) => {
           session_id: target.id,
           user_id: user.id,
           has_slot: true,
+          accepted_at: new Date().toISOString(),
         })
+      } else if (!existingInvitee.accepted_at) {
+        await supabase
+          .from('planning_invitees')
+          .update({ accepted_at: new Date().toISOString() })
+          .eq('id', existingInvitee.id)
       }
     } else if (target?.type === 'event') {
       const { data: existingReg } = await supabase
@@ -321,7 +329,6 @@ Deno.serve(async (req) => {
       .select('role')
       .eq('group_id', groupId)
       .eq('user_id', user.id)
-      .eq('status', 'active')
       .single()
 
     if (!membership) return errorResponse('You must be a group member', 403)
