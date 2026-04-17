@@ -107,6 +107,11 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/GroupInviteView.vue'),
   },
   {
+    path: '/join/:code',
+    name: 'shareable-invite',
+    component: () => import('@/views/ShareableInviteView.vue'),
+  },
+  {
     path: '/groups/:slug',
     name: 'group-detail',
     component: () => import('@/views/GroupDetailView.vue'),

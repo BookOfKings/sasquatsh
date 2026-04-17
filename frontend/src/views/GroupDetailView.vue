@@ -12,6 +12,7 @@ import GroupAdminPanel from '@/components/groups/GroupAdminPanel.vue'
 import EditGroupModal from '@/components/groups/EditGroupModal.vue'
 import ChatPanel from '@/components/chat/ChatPanel.vue'
 import RecurringGamesList from '@/components/groups/RecurringGamesList.vue'
+import { createShareLink } from '@/services/shareLinksApi'
 
 const route = useRoute()
 const router = useRouter()
@@ -32,6 +33,34 @@ const isAdmin = computed(() => ['owner', 'admin'].includes(userMembership.value?
 const isMember = computed(() => !!userMembership.value)
 
 const showEditModal = ref(false)
+const recurringShareLink = ref('')
+const recurringShareLoading = ref(false)
+
+async function generateRecurringLink() {
+  if (!group.value) return
+  recurringShareLoading.value = true
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    const link = await createShareLink(token, {
+      groupId: group.value.id,
+      linkType: 'group_recurring',
+    })
+    recurringShareLink.value = link.url
+    await navigator.clipboard.writeText(link.url)
+    toast.message = 'Invite link copied to clipboard!'
+    toast.type = 'success'
+    toast.visible = true
+    setTimeout(() => { toast.visible = false }, 3000)
+  } catch (err) {
+    toast.message = err instanceof Error ? err.message : 'Failed to create link'
+    toast.type = 'error'
+    toast.visible = true
+  } finally {
+    recurringShareLoading.value = false
+  }
+}
+
 const planningSessions = ref<PlanningSession[]>([])
 const loadingPlans = ref(false)
 const groupEvents = ref<EventSummary[]>([])
@@ -173,6 +202,17 @@ async function handleGroupUpdated() {
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2">
               <h1 class="text-2xl font-bold text-gray-900">{{ group.name }}</h1>
+              <button
+                v-if="isMember"
+                @click="generateRecurringLink"
+                :disabled="recurringShareLoading"
+                class="p-1.5 text-gray-400 hover:text-primary-500 hover:bg-gray-100 rounded-lg transition-colors"
+                :title="recurringShareLink ? 'Link copied!' : 'Copy invite link'"
+              >
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M10.59,13.41C11,13.8 11,14.44 10.59,14.83C10.2,15.22 9.56,15.22 9.17,14.83C7.22,12.88 7.22,9.71 9.17,7.76L12.71,4.22C14.66,2.27 17.83,2.27 19.78,4.22C21.73,6.17 21.73,9.34 19.78,11.29L18.29,12.78C18.3,11.96 18.17,11.14 17.89,10.36L18.36,9.88C19.54,8.71 19.54,6.81 18.36,5.64C17.19,4.46 15.29,4.46 14.12,5.64L10.59,9.17C9.41,10.34 9.41,12.24 10.59,13.41M13.41,9.17C13.8,8.78 14.44,8.78 14.83,9.17C16.78,11.12 16.78,14.29 14.83,16.24L11.29,19.78C9.34,21.73 6.17,21.73 4.22,19.78C2.27,17.83 2.27,14.66 4.22,12.71L5.71,11.22C5.7,12.04 5.83,12.86 6.11,13.64L5.64,14.12C4.46,15.29 4.46,17.19 5.64,18.36C6.81,19.54 8.71,19.54 9.88,18.36L13.41,14.83C14.59,13.66 14.59,11.76 13.41,10.59C13,10.2 13,9.56 13.41,9.17Z"/>
+                </svg>
+              </button>
               <button
                 v-if="isAdmin"
                 @click="showEditModal = true"
