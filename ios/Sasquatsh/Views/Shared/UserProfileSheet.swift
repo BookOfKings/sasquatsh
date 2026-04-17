@@ -16,7 +16,7 @@ struct UserProfileSheet: View {
                 if isLoading {
                     VStack {
                         Spacer(minLength: 80)
-                        ProgressView()
+                    D20ProgressView(size: 32)
                         Spacer()
                     }
                 } else if let profile {

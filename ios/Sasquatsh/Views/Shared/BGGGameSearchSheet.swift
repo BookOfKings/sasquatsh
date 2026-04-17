@@ -30,7 +30,7 @@ struct BGGGameSearchSheet: View {
                     }
 
                 if isSearching {
-                    ProgressView()
+                    D20ProgressView(size: 32)
                         .tint(Color.md3Primary)
                         .padding()
                 }

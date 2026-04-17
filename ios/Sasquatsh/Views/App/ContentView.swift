@@ -4,10 +4,20 @@ struct ContentView: View {
     @Environment(AuthViewModel.self) private var authVM
     @Environment(DeepLinkHandler.self) private var deepLinkHandler
 
+    @State private var showSplash = true
+
     var body: some View {
         Group {
-            if !authVM.isInitialized {
+            if showSplash || !authVM.isInitialized {
                 launchScreen
+                    .onAppear {
+                        Task {
+                            try? await Task.sleep(for: .seconds(3))
+                            withAnimation(.easeOut(duration: 0.4)) {
+                                showSplash = false
+                            }
+                        }
+                    }
             } else if authVM.isAuthenticated {
                 MainTabView()
                     .sheet(item: gameInviteBinding) { code in
@@ -35,8 +45,8 @@ struct ContentView: View {
                 Text("Sasquatsh")
                     .font(.system(size: 28, weight: .bold, design: .default))
                     .foregroundStyle(.white)
-                ProgressView()
-                    .tint(.white)
+                D20SpinnerView(size: 120, color: UIColor(red: 0.388, green: 0.400, blue: 0.945, alpha: 1), numberColor: .black)
+                    .frame(width: 120, height: 120)
             }
         }
     }

@@ -72,7 +72,7 @@ struct MyCollectionView: View {
 
             if isLoading {
                 Spacer()
-                ProgressView()
+                    D20ProgressView(size: 32)
                 Spacer()
             } else if myGames.isEmpty {
                 Spacer()
@@ -116,7 +116,7 @@ struct MyCollectionView: View {
             if topGames.isEmpty && isLoading {
                 VStack {
                     Spacer()
-                    ProgressView()
+                    D20ProgressView(size: 32)
                     Spacer()
                 }
             } else {
@@ -150,8 +150,7 @@ struct MyCollectionView: View {
                 TextField("Search BoardGameGeek...", text: $searchQuery)
                     .onSubmit { searchBGG() }
                 if isSearching {
-                    ProgressView()
-                        .scaleEffect(0.8)
+                    D20ProgressView(size: 20)
                 }
                 if !searchQuery.isEmpty {
                     Button { searchQuery = ""; searchResults = [] } label: {
@@ -245,8 +244,7 @@ struct MyCollectionView: View {
 
             // Add/Remove button
             if isPending {
-                ProgressView()
-                    .scaleEffect(0.8)
+                D20ProgressView(size: 20)
             } else {
                 Button {
                     Task { await toggleGame(bggId: game.bggId ?? 0, game: game, isOwned: isOwned) }
@@ -296,7 +294,7 @@ struct MyCollectionView: View {
             Spacer()
 
             if isPending {
-                ProgressView().scaleEffect(0.8)
+                D20ProgressView(size: 20)
             } else {
                 Button {
                     Task { await addFromSearch(result) }

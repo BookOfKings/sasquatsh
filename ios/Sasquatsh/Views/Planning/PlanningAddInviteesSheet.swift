@@ -17,7 +17,7 @@ struct PlanningAddInviteesSheet: View {
         NavigationStack {
             Group {
                 if isLoading {
-                    ProgressView()
+                    D20ProgressView(size: 32)
                 } else if members.isEmpty {
                     Text("No group members available")
                         .font(.md3BodyMedium)

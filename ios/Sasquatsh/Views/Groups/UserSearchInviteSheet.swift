@@ -21,7 +21,7 @@ struct UserSearchInviteSheet: View {
                     TextField("Search by username...", text: $searchQuery)
                         .onSubmit { search() }
                     if isSearching {
-                        ProgressView().scaleEffect(0.8)
+                        D20ProgressView(size: 20)
                     }
                 }
                 .padding(10)

@@ -40,7 +40,7 @@ struct StatementPickerView: View {
                         }
                     } else if isLoading {
                         Spacer(minLength: 120)
-                        ProgressView()
+                    D20ProgressView(size: 32)
                             .tint(Color.md3Primary)
                             .scaleEffect(1.5)
                     } else {

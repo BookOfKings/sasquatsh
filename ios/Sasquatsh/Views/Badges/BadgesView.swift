@@ -60,7 +60,7 @@ struct BadgesView: View {
                 } label: {
                     HStack(spacing: 6) {
                         if isComputing {
-                            ProgressView().scaleEffect(0.7)
+                            D20ProgressView(size: 18)
                         } else {
                             Image(systemName: "arrow.clockwise")
                         }
@@ -109,7 +109,7 @@ struct BadgesView: View {
 
             if isLoading {
                 Spacer()
-                ProgressView()
+                    D20ProgressView(size: 32)
                 Spacer()
             } else {
                 ScrollView {

@@ -19,6 +19,7 @@
 		09E1FDC6B860F3B57C19E1CC /* ProfileEditSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40F32DF7BF48EE1FD1473BE8 /* ProfileEditSheet.swift */; };
 		0AE082A942BAA526868CA6D6 /* Date+Formatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BD7580C0BC2340AD65E8030 /* Date+Formatting.swift */; };
 		0D280CB17ABFBA4E60155CC5 /* RaffleBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DFDA7742C94F267A62EEDF7 /* RaffleBannerView.swift */; };
+		0F903DDD76E90105463FB598 /* TurnTrackerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72E507CA568E55C6C813D5C1 /* TurnTrackerView.swift */; };
 		104ABE6E3F28CB6718B55AC8 /* DeckImportSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4249B63C097107A63C6282E7 /* DeckImportSheet.swift */; };
 		1253B2F15277D5930839A846 /* CreateEditGroupViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6865609300836F444E3AB16 /* CreateEditGroupViewModel.swift */; };
 		1276E44D3C15DEA3DEAE0C94 /* PricingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55638E29B2D38C463F09D0C8 /* PricingView.swift */; };
@@ -42,6 +43,7 @@
 		37C2ABF54FE001BFD368E156 /* ChatPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A578C1EE487A4DC4B3E69B97 /* ChatPanelView.swift */; };
 		3907A18EFB76F290E8E82100 /* CreateEditEventViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B037B268425325C58696DFE5 /* CreateEditEventViewModel.swift */; };
 		3976F8CF93BE21E58CBE69FB /* Event.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D2A1F03BD64B2043F4A175C /* Event.swift */; };
+		3B5641518A5DD6D7D80F0732 /* D20ProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBA320620224214BBFCBE179 /* D20ProgressView.swift */; };
 		402155F36518A9CBC1A71B4C /* InvoiceDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4A889B5DC822F2CADAAC56B /* InvoiceDetailSheet.swift */; };
 		42BF6FC800FE20EB5189D3DE /* YugiohConfigFormSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4C6759C95DA345280F019BB /* YugiohConfigFormSections.swift */; };
 		44DA5E155E1FD270D43662C3 /* Inter-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = CB69205BEF530BAA1B7D5203 /* Inter-Medium.ttf */; };
@@ -49,6 +51,7 @@
 		4921C60582C41F4CCB2F78A7 /* Profile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 635ED1B2A1479F15A789AE18 /* Profile.swift */; };
 		4B9D9788C4922A6EB6D74B6A /* ServiceContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 490141838705D97AB71136E5 /* ServiceContainer.swift */; };
 		4D82458956A58528A0BDB0A6 /* BGGGame.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68497073E49C0FFB6DAF6C92 /* BGGGame.swift */; };
+		4EA135AF03DF1FBF8A55C9EF /* ScoreKeeperView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90B17AE8C963BACA8FC9BDAA /* ScoreKeeperView.swift */; };
 		4F538AECA24E09C0857A4BF9 /* RoundCounterViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67E9D8BDEC3DEA0AF3FAB8B1 /* RoundCounterViewModel.swift */; };
 		522F56987C46DD04DCDA4701 /* DeckBuilderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E180C0517FCDF60823BB2840 /* DeckBuilderView.swift */; };
 		52E7BC2F17ED3C6C7BB1D4FA /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BCE5710D0FA9364FF4A52FE /* AppConfig.swift */; };
@@ -116,6 +119,7 @@
 		A2819422496536448C9A2D69 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E97FF4373012917A14226AA7 /* ChatService.swift */; };
 		A3870D0AD4ECC48D33184BAD /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1D7AE6ED2AB2336532F2645 /* DashboardView.swift */; };
 		A38F6B10E9B1050A1C479EB2 /* TierCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F43EBA32C4F709AA1CE2F14 /* TierCardView.swift */; };
+		A456D26597A6854630F8789D /* D20SpinnerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62F470AAFFA58B135B669C4E /* D20SpinnerView.swift */; };
 		A6F619571D2E5AFD304E9693 /* PlanningSessionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E425370865E5C413EC17F5F /* PlanningSessionViewModel.swift */; };
 		AA6913F2DF5301A871E91C50 /* Inter-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 4EAAFF83E27A708FD9D1247A /* Inter-Bold.ttf */; };
 		ABD6DB4176A5B770D6D6F194 /* InvitationViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFE9B94BD1B567139526C86E /* InvitationViewModel.swift */; };
@@ -241,6 +245,7 @@
 		613913AD332E7865B90C50F0 /* SubmitVenueSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubmitVenueSheet.swift; sourceTree = "<group>"; };
 		619F5440859600B994496B5B /* PlanningSessionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanningSessionDetailView.swift; sourceTree = "<group>"; };
 		62D1059107133F9D8E556772 /* CreateGroupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateGroupView.swift; sourceTree = "<group>"; };
+		62F470AAFFA58B135B669C4E /* D20SpinnerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = D20SpinnerView.swift; sourceTree = "<group>"; };
 		63551D019DCB16C3313D188D /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		635ED1B2A1479F15A789AE18 /* Profile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Profile.swift; sourceTree = "<group>"; };
 		638D09AC73FF86181FE1CBCF /* Inter-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Inter-Regular.ttf"; sourceTree = "<group>"; };
@@ -256,6 +261,7 @@
 		6FAF5A97FB657B20BE0B2DBF /* MtgDeckService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MtgDeckService.swift; sourceTree = "<group>"; };
 		70C33D7E3564D3ED89F9E5F2 /* GameSystemConfigStates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSystemConfigStates.swift; sourceTree = "<group>"; };
 		7150D1F5584C0447F3735EC2 /* HotLocationsBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotLocationsBar.swift; sourceTree = "<group>"; };
+		72E507CA568E55C6C813D5C1 /* TurnTrackerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnTrackerView.swift; sourceTree = "<group>"; };
 		78AF703B4E49734A05E1A262 /* SessionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsViewModel.swift; sourceTree = "<group>"; };
 		79D18F756218515C4DF714CD /* GroupCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupCard.swift; sourceTree = "<group>"; };
 		7DAF0682609D1F8D02A59FF6 /* MtgDeck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MtgDeck.swift; sourceTree = "<group>"; };
@@ -271,6 +277,7 @@
 		882CC12CB0D3670B76CF2C26 /* ToolboxView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolboxView.swift; sourceTree = "<group>"; };
 		89935F48EF0538F701A40320 /* RoundCounterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundCounterView.swift; sourceTree = "<group>"; };
 		8D5B68110484E53B7A9631A9 /* UserCollectionListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserCollectionListView.swift; sourceTree = "<group>"; };
+		90B17AE8C963BACA8FC9BDAA /* ScoreKeeperView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreKeeperView.swift; sourceTree = "<group>"; };
 		9187E017788AE013CA39846D /* ErrorBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorBannerView.swift; sourceTree = "<group>"; };
 		91FF1347E013AAD4AE7A8E47 /* SpinWheelPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpinWheelPickerView.swift; sourceTree = "<group>"; };
 		95E7F2AF9913C4E6AB76EB86 /* BGGGameSearchSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BGGGameSearchSheet.swift; sourceTree = "<group>"; };
@@ -317,6 +324,7 @@
 		E841CD5FF80726D18FDC770E /* FirstPlayerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstPlayerService.swift; sourceTree = "<group>"; };
 		E97FF4373012917A14226AA7 /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
 		EB0F0E943C54D597EFBA7AF4 /* SessionScheduleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionScheduleView.swift; sourceTree = "<group>"; };
+		EBA320620224214BBFCBE179 /* D20ProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = D20ProgressView.swift; sourceTree = "<group>"; };
 		ECB802B904C6BF1CE7A75475 /* PlanningService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanningService.swift; sourceTree = "<group>"; };
 		EE85AEE663D57FBBD60ED68F /* DeckBuilderViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeckBuilderViewModel.swift; sourceTree = "<group>"; };
 		EFB0A4A4D8A5DBAADF8FEE5E /* ChangePasswordSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangePasswordSheet.swift; sourceTree = "<group>"; };
@@ -526,6 +534,8 @@
 				C454E778E50A4EF42F1D9475 /* BadgeView.swift */,
 				95E7F2AF9913C4E6AB76EB86 /* BGGGameSearchSheet.swift */,
 				0ACE8A9944EAEDE322C1B3A4 /* CompactNavBar.swift */,
+				EBA320620224214BBFCBE179 /* D20ProgressView.swift */,
+				62F470AAFFA58B135B669C4E /* D20SpinnerView.swift */,
 				0367690B9A1D96863883A2A1 /* EmptyStateView.swift */,
 				9187E017788AE013CA39846D /* ErrorBannerView.swift */,
 				47F7225DD96ADB78075F1B35 /* EventCard.swift */,
@@ -603,9 +613,11 @@
 				195DF7F486DACFDB36E13C69 /* FirstPlayerPickerView.swift */,
 				A2AE8F15CCB2E5E5643A06B9 /* RandomGamePickerView.swift */,
 				89935F48EF0538F701A40320 /* RoundCounterView.swift */,
+				90B17AE8C963BACA8FC9BDAA /* ScoreKeeperView.swift */,
 				91FF1347E013AAD4AE7A8E47 /* SpinWheelPickerView.swift */,
 				2BCE96EDFD16152B644D85A7 /* StatementPickerView.swift */,
 				882CC12CB0D3670B76CF2C26 /* ToolboxView.swift */,
+				72E507CA568E55C6C813D5C1 /* TurnTrackerView.swift */,
 			);
 			path = Toolbox;
 			sourceTree = "<group>";
@@ -867,6 +879,8 @@
 				17F938584FF981ECE5D0D2E7 /* CreatePlanningView.swift in Sources */,
 				1BB426043896FD05B8BF93D1 /* CreatePlanningViewModel.swift in Sources */,
 				9650620851518186A63E33BA /* CreatePlayerRequestView.swift in Sources */,
+				3B5641518A5DD6D7D80F0732 /* D20ProgressView.swift in Sources */,
+				A456D26597A6854630F8789D /* D20SpinnerView.swift in Sources */,
 				A3870D0AD4ECC48D33184BAD /* DashboardView.swift in Sources */,
 				8EEB389D147BBCE8B5421089 /* DashboardViewModel.swift in Sources */,
 				0AE082A942BAA526868CA6D6 /* Date+Formatting.swift in Sources */,
@@ -952,6 +966,7 @@
 				78B1D1F20DAAE3F5E542E234 /* RoundCounterView.swift in Sources */,
 				4F538AECA24E09C0857A4BF9 /* RoundCounterViewModel.swift in Sources */,
 				AC1438218C7F0CC9A119716F /* SasquatshApp.swift in Sources */,
+				4EA135AF03DF1FBF8A55C9EF /* ScoreKeeperView.swift in Sources */,
 				BE351499743160C6B89DFF44 /* ScryfallService.swift in Sources */,
 				76EC043F6ADA96E504720C9C /* SearchBarView.swift in Sources */,
 				74E28F7EB6210282CE2102FA /* SelectedGameCard.swift in Sources */,
@@ -970,6 +985,7 @@
 				A38F6B10E9B1050A1C479EB2 /* TierCardView.swift in Sources */,
 				B1A3F4D69B905E499475ADB8 /* TierLimits.swift in Sources */,
 				9DFDFFA2917FA38D612040F3 /* ToolboxView.swift in Sources */,
+				0F903DDD76E90105463FB598 /* TurnTrackerView.swift in Sources */,
 				EC20D42C0A1EB28FBBE56CB7 /* UpgradeAdBanner.swift in Sources */,
 				F76182FF58A8E98A0DB99052 /* UpgradePromptView.swift in Sources */,
 				ED72EC34E1724FE7EB08DED7 /* User.swift in Sources */,

@@ -175,7 +175,7 @@ struct PricingView: View {
         .overlay {
             if storeKit.purchaseInProgress {
                 Color.black.opacity(0.3).ignoresSafeArea()
-                ProgressView("Processing...")
+                D20ProgressView(size: 40, message: "Processing...")
                     .padding(24)
                     .background(Color.md3Surface)
                     .clipShape(RoundedRectangle(cornerRadius: MD3Shape.medium))

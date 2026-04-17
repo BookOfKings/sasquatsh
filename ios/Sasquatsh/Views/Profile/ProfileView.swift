@@ -31,7 +31,7 @@ struct ProfileView: View {
                                     .fill(Color.black.opacity(0.4))
                                     .frame(width: 80, height: 80)
                                     .overlay {
-                                        ProgressView()
+                    D20ProgressView(size: 32)
                                             .tint(.white)
                                     }
                             }

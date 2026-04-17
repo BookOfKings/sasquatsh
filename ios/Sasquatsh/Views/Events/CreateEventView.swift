@@ -143,7 +143,7 @@ struct CreateEventView: View {
                             vm.searchBGG(query: newValue)
                         }
                     if vm.isSearchingBGG {
-                        ProgressView()
+                    D20ProgressView(size: 32)
                             .controlSize(.small)
                             .tint(Color.md3Primary)
                     }
@@ -214,7 +214,7 @@ struct CreateEventView: View {
                 // Loading game details
                 if vm.isFetchingGameDetails {
                     HStack {
-                        ProgressView()
+                    D20ProgressView(size: 32)
                             .controlSize(.small)
                             .tint(Color.md3Primary)
                         Text("Loading game details...")

@@ -49,7 +49,7 @@ struct HotLocationsBar: View {
             }
 
             if isLoading {
-                ProgressView()
+                    D20ProgressView(size: 32)
                     .tint(Color.md3Primary)
             }
         }

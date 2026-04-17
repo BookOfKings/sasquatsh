@@ -35,6 +35,30 @@ struct ToolboxView: View {
                         .buttonStyle(.plain)
 
                         NavigationLink {
+                            TurnTrackerView()
+                        } label: {
+                            toolCard(
+                                icon: "arrow.triangle.2.circlepath",
+                                title: "Turn Tracker",
+                                description: "Keep track of whose turn it is. Never lose your place!",
+                                color: Color.md3Primary
+                            )
+                        }
+                        .buttonStyle(.plain)
+
+                        NavigationLink {
+                            ScoreKeeperView()
+                        } label: {
+                            toolCard(
+                                icon: "list.number",
+                                title: "Score Keeper",
+                                description: "Track scores for any game. Remembers your players!",
+                                color: Color(red: 0.388, green: 0.400, blue: 0.945)
+                            )
+                        }
+                        .buttonStyle(.plain)
+
+                        NavigationLink {
                             RandomGamePickerView()
                         } label: {
                             toolCard(

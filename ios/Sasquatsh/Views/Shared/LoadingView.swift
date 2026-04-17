@@ -5,9 +5,8 @@ struct LoadingView: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            ProgressView()
-                .controlSize(.large)
-                .tint(Color.md3Primary)
+            D20SpinnerView(size: 50)
+                .frame(width: 50, height: 50)
             Text(message)
                 .font(.md3BodyMedium)
                 .foregroundStyle(Color.md3OnSurfaceVariant)

@@ -63,7 +63,7 @@ struct DeckBuilderView: View {
                             vm.searchCards(query: newValue)
                         }
                     if vm.isSearching {
-                        ProgressView()
+                    D20ProgressView(size: 32)
                             .controlSize(.small)
                             .tint(Color.md3Primary)
                     }

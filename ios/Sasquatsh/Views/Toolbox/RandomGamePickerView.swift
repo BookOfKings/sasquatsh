@@ -233,7 +233,7 @@ struct RandomGamePickerView: View {
                     // Loading cache indicator
                     if isLoadingGames {
                         HStack(spacing: 8) {
-                            ProgressView()
+                    D20ProgressView(size: 32)
                                 .tint(Color.md3Primary)
                             Text("Loading game library...")
                                 .font(.md3BodySmall)
@@ -259,7 +259,7 @@ struct RandomGamePickerView: View {
                     }
 
                     if isLoading {
-                        ProgressView()
+                    D20ProgressView(size: 32)
                             .tint(Color.md3Primary)
                             .scaleEffect(1.3)
                             .padding(.top, 16)
@@ -319,7 +319,7 @@ struct RandomGamePickerView: View {
                     Color.md3SurfaceVariant
                         .frame(height: 160)
                         .overlay {
-                            ProgressView()
+                    D20ProgressView(size: 32)
                                 .tint(Color.md3Primary)
                         }
                 }
