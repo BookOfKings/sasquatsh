@@ -2,6 +2,7 @@
 export interface EventLocation {
   id: string
   name: string
+  addressLine1: string | null
   city: string
   state: string
   postalCode: string | null
@@ -25,6 +26,7 @@ export interface EventLocation {
 
 export interface CreateEventLocationInput {
   name: string
+  addressLine1?: string
   city: string
   state: string
   postalCode?: string

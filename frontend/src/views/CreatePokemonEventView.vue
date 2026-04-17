@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/useAuthStore'
 import { createPokemonEvent } from '@/services/pokemonEventApi'
 import EventDateTimeSection from '@/components/events/shared/EventDateTimeSection.vue'
 import EventLocationSection from '@/components/events/shared/EventLocationSection.vue'
+import SubmitVenueModal from '@/components/venues/SubmitVenueModal.vue'
 import EventPlayerSettingsSection from '@/components/events/shared/EventPlayerSettingsSection.vue'
 import PokemonFormatSelector from '@/components/pokemon/PokemonFormatSelector.vue'
 import PokemonEventStructureSection from '@/components/pokemon/PokemonEventStructureSection.vue'
@@ -27,6 +28,7 @@ const currentTier = computed((): SubscriptionTier => {
 })
 
 const loading = ref(false)
+const showVenueModal = ref(false)
 const errorMessage = ref('')
 
 // Selected format object (for passing to components)
@@ -436,6 +438,7 @@ async function handleSubmit() {
               v-model:venue-table="form.venueTable"
               :current-tier="currentTier"
               @location-select="handleLocationSelect"
+              @show-venue-modal="showVenueModal = true"
             />
           </section>
 
@@ -594,4 +597,10 @@ async function handleSubmit() {
       </div>
     </div>
   </div>
+
+    <SubmitVenueModal
+      :visible="showVenueModal"
+      @close="showVenueModal = false"
+      @submitted="showVenueModal = false"
+    />
 </template>

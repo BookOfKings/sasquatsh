@@ -308,6 +308,7 @@ const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 const form = reactive({
   name: '',
+  addressLine1: '',
   city: '',
   state: '',
   venue: '',
@@ -2080,6 +2081,7 @@ async function handleReject(location: EventLocation) {
 function openCreateDialog() {
   editingLocation.value = null
   form.name = ''
+  form.addressLine1 = ''
   form.city = ''
   form.state = ''
   form.venue = ''
@@ -2093,6 +2095,7 @@ function openCreateDialog() {
 function openEditDialog(location: EventLocation) {
   editingLocation.value = location
   form.name = location.name
+  form.addressLine1 = location.addressLine1 || ''
   form.city = location.city
   form.state = location.state
   form.venue = location.venue || ''
@@ -2146,6 +2149,7 @@ async function handleSave() {
 
     const payload = {
       name: form.name.trim(),
+      addressLine1: form.addressLine1.trim() || undefined,
       city: form.city.trim(),
       state: form.state.trim(),
       venue: form.venue.trim() || undefined,
@@ -4965,7 +4969,7 @@ function getLocationTypeLabel(location: EventLocation): string {
                 </span>
               </div>
               <p class="text-sm text-gray-600 mt-1">
-                {{ location.city }}, {{ location.state }}
+                <span v-if="location.addressLine1">{{ location.addressLine1 }}, </span>{{ location.city }}, {{ location.state }}
                 <span v-if="location.venue"> &bull; {{ location.venue }}</span>
               </p>
               <p class="text-sm text-gray-500">
@@ -5175,6 +5179,16 @@ function getLocationTypeLabel(location: EventLocation): string {
               type="text"
               class="input"
               :placeholder="form.locationType === 'temporary' ? 'e.g., Dice Tower West 2026' : 'e.g., Dragon\'s Lair Comics'"
+            />
+          </div>
+
+          <div>
+            <label class="label">Street Address</label>
+            <input
+              v-model="form.addressLine1"
+              type="text"
+              class="input"
+              placeholder="e.g., 3000 Paradise Rd"
             />
           </div>
 

@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/useAuthStore'
 import { getWarhammer40kEvent, updateWarhammer40kEvent } from '@/services/warhammer40kEventApi'
 import EventDateTimeSection from '@/components/events/shared/EventDateTimeSection.vue'
 import EventLocationSection from '@/components/events/shared/EventLocationSection.vue'
+import SubmitVenueModal from '@/components/venues/SubmitVenueModal.vue'
 import EventPlayerSettingsSection from '@/components/events/shared/EventPlayerSettingsSection.vue'
 import Warhammer40kGameSetupSection from '@/components/warhammer40k/Warhammer40kGameSetupSection.vue'
 import Warhammer40kMissionSection from '@/components/warhammer40k/Warhammer40kMissionSection.vue'
@@ -32,6 +33,7 @@ const currentTier = computed((): SubscriptionTier => {
 
 const loading = ref(false)
 const loadingEvent = ref(true)
+const showVenueModal = ref(false)
 const errorMessage = ref('')
 
 // Form state
@@ -367,6 +369,7 @@ async function handleSubmit() {
               v-model:venue-table="form.venueTable"
               :current-tier="currentTier"
               @location-select="handleLocationSelect"
+              @show-venue-modal="showVenueModal = true"
             />
           </section>
 
@@ -709,4 +712,10 @@ async function handleSubmit() {
       </div>
     </div>
   </div>
+
+    <SubmitVenueModal
+      :visible="showVenueModal"
+      @close="showVenueModal = false"
+      @submitted="showVenueModal = false"
+    />
 </template>

@@ -75,7 +75,8 @@ function formatDateRange(start: string, end: string): string {
         @click="selectLocation(location)"
       >
         <span class="font-medium">{{ location.name }}</span>
-        <span class="text-xs opacity-75">{{ getLocationLabel(location) }}</span>
+        <span class="text-xs opacity-75">{{ location.city }}, {{ location.state }}</span>
+        <span class="text-xs opacity-60">{{ getLocationLabel(location) }}</span>
         <span v-if="location.eventCount && location.eventCount > 0" class="bg-primary-500 text-white text-xs px-1.5 rounded-full">
           {{ location.eventCount }}
         </span>

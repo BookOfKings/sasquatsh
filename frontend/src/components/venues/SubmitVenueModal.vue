@@ -23,8 +23,10 @@ type LocationType = 'temporary' | 'permanent' | 'recurring'
 
 const form = ref({
   name: '',
+  addressLine1: '',
   city: '',
   state: '',
+  postalCode: '',
   venue: '',
   locationType: 'temporary' as LocationType,
   startDate: '',
@@ -59,8 +61,10 @@ watch(() => props.visible, (visible) => {
     // Reset form when opened
     form.value = {
       name: '',
+      addressLine1: '',
       city: '',
       state: '',
+      postalCode: '',
       venue: '',
       locationType: 'temporary',
       startDate: '',
@@ -98,8 +102,10 @@ async function handleSubmit() {
 
     const location = await submitVenue(token, {
       name: form.value.name.trim(),
+      addressLine1: form.value.addressLine1.trim() || undefined,
       city: form.value.city.trim(),
       state: form.value.state.trim(),
+      postalCode: form.value.postalCode.trim() || undefined,
       venue: form.value.venue.trim() || undefined,
       isPermanent: form.value.locationType === 'permanent',
       recurringDays: form.value.locationType === 'recurring' ? form.value.recurringDays : undefined,
@@ -237,9 +243,21 @@ const usStates = [
           />
         </div>
 
-        <!-- City and State -->
-        <div class="grid grid-cols-2 gap-4">
-          <div>
+        <!-- Street Address -->
+        <div>
+          <label class="label">Street Address</label>
+          <input
+            v-model="form.addressLine1"
+            type="text"
+            class="input"
+            placeholder="e.g., 3000 Paradise Rd"
+            maxlength="200"
+          />
+        </div>
+
+        <!-- City, State, Zip -->
+        <div class="grid grid-cols-4 gap-4">
+          <div class="col-span-2">
             <label class="label">City *</label>
             <input
               v-model="form.city"
@@ -253,11 +271,21 @@ const usStates = [
           <div>
             <label class="label">State *</label>
             <select v-model="form.state" class="input" required>
-              <option value="">Select state</option>
+              <option value="">Select</option>
               <option v-for="state in usStates" :key="state" :value="state">
                 {{ state }}
               </option>
             </select>
+          </div>
+          <div>
+            <label class="label">Zip</label>
+            <input
+              v-model="form.postalCode"
+              type="text"
+              class="input"
+              placeholder="89109"
+              maxlength="10"
+            />
           </div>
         </div>
 

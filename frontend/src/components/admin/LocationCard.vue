@@ -62,7 +62,7 @@ function getStatusClass(status: string): string {
           </span>
         </div>
         <p class="text-sm text-gray-500 mt-1">
-          {{ location.city }}, {{ location.state }}
+          <span v-if="location.addressLine1">{{ location.addressLine1 }}, </span>{{ location.city }}, {{ location.state }}
           <span v-if="location.venue"> &bull; {{ location.venue }}</span>
         </p>
         <p class="text-sm text-gray-500">

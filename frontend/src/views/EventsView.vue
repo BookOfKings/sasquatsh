@@ -7,6 +7,7 @@ import { getMyProfile } from '@/services/profileApi'
 import { getLocationById } from '@/services/venuesApi'
 import EventList from '@/components/events/EventList.vue'
 import AdBanner from '@/components/ads/AdBanner.vue'
+import SubmitVenueModal from '@/components/venues/SubmitVenueModal.vue'
 import HotLocationsBar from '@/components/venues/HotLocationsBar.vue'
 import type { EventSummary, EventSearchFilter } from '@/types/events'
 import type { EventLocation } from '@/types/social'
@@ -40,6 +41,7 @@ const auth = useAuthStore()
 
 // Filter state
 const showFilters = ref(false)
+const showVenueModal = ref(false)
 const searchText = ref('')
 const city = ref('')
 const state = ref('')
@@ -266,6 +268,17 @@ function goToCreateGame() {
         </svg>
         Host a Game
       </button>
+
+      <button
+        v-if="auth.isAuthenticated.value"
+        class="btn-outline text-sm"
+        @click="showVenueModal = true"
+      >
+        <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12,11.5A2.5,2.5 0 0,1 9.5,9A2.5,2.5 0 0,1 12,6.5A2.5,2.5 0 0,1 14.5,9A2.5,2.5 0 0,1 12,11.5M12,2A7,7 0 0,0 5,9C5,14.25 12,22 12,22C12,22 19,14.25 19,9A7,7 0 0,0 12,2Z"/>
+        </svg>
+        Suggest a Venue
+      </button>
     </div>
 
     <!-- Hot Venues Bar -->
@@ -458,5 +471,11 @@ function goToCreateGame() {
 
     <!-- Ad Banner for free tier users -->
     <AdBanner placement="events" />
+
+    <SubmitVenueModal
+      :visible="showVenueModal"
+      @close="showVenueModal = false"
+      @submitted="showVenueModal = false"
+    />
   </div>
 </template>

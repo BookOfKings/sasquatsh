@@ -9,6 +9,7 @@ function toEventLocation(row: Record<string, unknown>) {
   return {
     id: row.id as string,
     name: row.name as string,
+    addressLine1: row.address_line1 as string | null,
     city: row.city as string,
     state: row.state as string,
     postalCode: row.postal_code as string | null,
@@ -335,6 +336,7 @@ Deno.serve(async (req) => {
       .insert({
         name: body.name.trim(),
         name_normalized: normalizedName,
+        address_line1: body.addressLine1?.trim() || null,
         city: body.city.trim(),
         state: body.state.trim(),
         postal_code: body.postalCode?.trim() || null,
@@ -424,6 +426,7 @@ Deno.serve(async (req) => {
       updates.name = body.name.trim()
       updates.name_normalized = normalizeName(body.name)
     }
+    if (body.addressLine1 !== undefined) updates.address_line1 = body.addressLine1?.trim() || null
     if (body.city !== undefined) updates.city = body.city.trim()
     if (body.state !== undefined) updates.state = body.state.trim()
     if (body.postalCode !== undefined) updates.postal_code = body.postalCode?.trim() || null

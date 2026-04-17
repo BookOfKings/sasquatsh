@@ -103,7 +103,7 @@ function formatDateRange(start: string, end: string): string {
       <div class="flex-1">
         <div class="font-medium text-primary-900">{{ selectedLocation.name }}</div>
         <div class="text-sm text-primary-700">
-          {{ selectedLocation.city }}, {{ selectedLocation.state }}
+          <span v-if="selectedLocation.addressLine1">{{ selectedLocation.addressLine1 }}, </span>{{ selectedLocation.city }}, {{ selectedLocation.state }}
           <span class="text-primary-500">{{ getLocationSchedule(selectedLocation) }}</span>
         </div>
       </div>
@@ -164,7 +164,7 @@ function formatDateRange(start: string, end: string): string {
         <div class="flex-1 min-w-0">
           <div class="font-medium text-gray-900 truncate">{{ location.name }}</div>
           <div class="text-sm text-gray-500">
-            {{ location.city }}, {{ location.state }}
+            <span v-if="location.addressLine1">{{ location.addressLine1 }}, </span>{{ location.city }}, {{ location.state }}
             <span class="mx-1">-</span>
             <span class="text-gray-400">{{ getLocationSchedule(location) }}</span>
           </div>
