@@ -24,6 +24,15 @@ struct SasquatshApp: App {
                     }
                     authVM.configure(services: services)
                     await authVM.initialize()
+
+                    // UI Testing: auto-login with test credentials
+                    if ProcessInfo.processInfo.arguments.contains("--uitesting"),
+                       let email = ProcessInfo.processInfo.environment["TEST_EMAIL"],
+                       let password = ProcessInfo.processInfo.environment["TEST_PASSWORD"],
+                       !authVM.isAuthenticated {
+                        await authVM.login(email: email, password: password)
+                    }
+
                     services.storeKit.configure(api: services.api)
                     await services.storeKit.loadProducts()
                 }
