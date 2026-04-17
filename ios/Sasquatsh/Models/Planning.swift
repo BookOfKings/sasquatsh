@@ -19,6 +19,12 @@ struct PlanningSession: Codable, Identifiable {
     var dates: [PlanningDate]?
     var gameSuggestions: [GameSuggestion]?
     var items: [PlanningItem]?
+    var openToGroup: Bool?
+    var maxParticipants: Int?
+    var maxGames: Int?
+    var tableCount: Int?
+    var scheduledSessions: AnyCodable?
+    var hostSessionPreferences: AnyCodable?
 }
 
 struct PlanningGroupInfo: Codable {
@@ -33,6 +39,8 @@ struct PlanningInvitee: Codable, Identifiable {
     var hasResponded: Bool
     var respondedAt: String?
     var cannotAttendAny: Bool
+    var acceptedAt: String?
+    var hasSlot: Bool?
     let user: UserSummary?
 }
 
@@ -55,6 +63,15 @@ struct DateVoteUser: Codable {
     let avatarUrl: String?
 }
 
+struct GameSuggestionUser: Codable {
+    let id: String?
+    let displayName: String?
+    let avatarUrl: String?
+    let username: String?
+    let isFoundingMember: Bool?
+    let isAdmin: Bool?
+}
+
 struct GameSuggestion: Codable, Identifiable {
     let id: String
     let suggestedByUserId: String
@@ -67,7 +84,7 @@ struct GameSuggestion: Codable, Identifiable {
     let createdAt: String
     var voteCount: Int
     var hasVoted: Bool
-    let suggestedBy: UserSummary?
+    let suggestedBy: GameSuggestionUser?
 }
 
 struct CreatePlanningSessionInput: Codable {
@@ -102,6 +119,7 @@ struct PlanningItem: Codable, Identifiable {
     let claimedByUserId: String?
     let claimedAt: String?
     let createdAt: String
+    let addedByUserId: String?
     let claimedBy: UserSummary?
 
     var name: String { itemName }

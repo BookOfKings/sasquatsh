@@ -5,6 +5,7 @@ import SwiftUI
 final class DeepLinkHandler {
     var pendingGameInviteCode: String?
     var pendingGroupInviteCode: String?
+    var pendingShareLinkCode: String?
 
     func handle(url: URL) {
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: true) else { return }
@@ -26,6 +27,14 @@ final class DeepLinkHandler {
                 pendingGroupInviteCode = code
             }
         }
+
+        // sasquatsh.com/join/{code} — shareable invite link
+        if path.hasPrefix("/join/") {
+            let code = String(path.dropFirst("/join/".count))
+            if !code.isEmpty {
+                pendingShareLinkCode = code
+            }
+        }
     }
 
     func clearGameInvite() {
@@ -34,5 +43,9 @@ final class DeepLinkHandler {
 
     func clearGroupInvite() {
         pendingGroupInviteCode = nil
+    }
+
+    func clearShareLink() {
+        pendingShareLinkCode = nil
     }
 }

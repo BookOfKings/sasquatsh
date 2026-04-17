@@ -17,6 +17,7 @@ struct GroupDetailView: View {
     @State private var transferTargetId: String?
     @State private var transferTargetName = ""
     @State private var showInviteSearch = false
+    @State private var showShareLink = false
 
     var body: some View {
         ScrollView {
@@ -71,6 +72,9 @@ struct GroupDetailView: View {
             if isAdmin {
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
+                        Button { showShareLink = true } label: {
+                            Label("Share Invite Link", systemImage: "qrcode")
+                        }
                         Button { showEditGroup = true } label: {
                             Label("Edit", systemImage: "pencil")
                         }
@@ -118,6 +122,13 @@ struct GroupDetailView: View {
         }
         .sheet(isPresented: $showInviteSearch) {
             UserSearchInviteSheet(groupId: groupId)
+        }
+        .sheet(isPresented: $showShareLink) {
+            ShareInviteLinkSheet(
+                groupId: groupId,
+                linkType: "group_recurring",
+                title: "Share Group Invite"
+            )
         }
         .alert("Request to Join", isPresented: $showJoinRequestMessage) {
             TextField("Message (optional)", text: $joinRequestMessage)

@@ -15,6 +15,7 @@ struct PlanningSessionDetailView: View {
     @State private var newItemQuantity = ""
     @State private var showUpgradePrompt = false
     @State private var showAddInvitees = false
+    @State private var showShareLink = false
 
     var body: some View {
         ScrollView {
@@ -90,13 +91,26 @@ struct PlanningSessionDetailView: View {
                     // Items to Bring
                     itemsSection(session)
 
-                    // Add Invitees (creator only, open sessions)
+                    // Add Invitees + Share (creator only, open sessions)
                     if session.status == .open && session.createdByUserId == authVM.user?.id {
-                        Button {
-                            showAddInvitees = true
-                        } label: {
-                            Label("Add Invitees", systemImage: "person.badge.plus")
-                                .secondaryButtonStyle()
+                        HStack(spacing: 8) {
+                            Button {
+                                showAddInvitees = true
+                            } label: {
+                                Label("Add Invitees", systemImage: "person.badge.plus")
+                                    .secondaryButtonStyle()
+                            }
+
+                            Button {
+                                showShareLink = true
+                            } label: {
+                                Image(systemName: "qrcode")
+                                    .font(.md3LabelLarge)
+                                    .frame(width: 48, height: 40)
+                                    .background(Color.md3SecondaryContainer)
+                                    .foregroundStyle(Color.md3OnSecondaryContainer)
+                                    .clipShape(Capsule())
+                            }
                         }
                         .padding(.horizontal)
                     }
@@ -170,6 +184,16 @@ struct PlanningSessionDetailView: View {
         .sheet(isPresented: $showAddInvitees) {
             PlanningAddInviteesSheet(sessionId: sessionId, groupId: vm.session?.groupId ?? "") {
                 Task { await vm.loadSession(id: sessionId) }
+            }
+        }
+        .sheet(isPresented: $showShareLink) {
+            if let session = vm.session {
+                ShareInviteLinkSheet(
+                    groupId: session.groupId,
+                    linkType: "session",
+                    planningSessionId: sessionId,
+                    title: "Share Session Invite"
+                )
             }
         }
         .alert("Finalize Session", isPresented: $showFinalize) {

@@ -26,6 +26,9 @@ struct ContentView: View {
                     .sheet(item: groupInviteBinding) { code in
                         GroupInviteAcceptView(inviteCode: code.value)
                     }
+                    .sheet(item: shareLinkBinding) { code in
+                        ShareLinkAcceptView(code: code.value)
+                    }
             } else {
                 LoginView()
             }
@@ -62,6 +65,13 @@ struct ContentView: View {
         Binding(
             get: { deepLinkHandler.pendingGroupInviteCode.map { IdentifiableString(value: $0) } },
             set: { _ in deepLinkHandler.clearGroupInvite() }
+        )
+    }
+
+    private var shareLinkBinding: Binding<IdentifiableString?> {
+        Binding(
+            get: { deepLinkHandler.pendingShareLinkCode.map { IdentifiableString(value: $0) } },
+            set: { _ in deepLinkHandler.clearShareLink() }
         )
     }
 }

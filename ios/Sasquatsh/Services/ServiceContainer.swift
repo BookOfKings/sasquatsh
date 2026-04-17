@@ -21,6 +21,7 @@ final class ServiceContainer {
     let collections: CollectionsServiceProtocol
     let storeKit: StoreKitService
     let badges: BadgesServiceProtocol
+    let shareLinks: ShareLinksServiceProtocol
 
     init(
         api: APIClient = APIClient(),
@@ -45,6 +46,7 @@ final class ServiceContainer {
         self.collections = CollectionsService(api: api)
         self.storeKit = StoreKitService()
         self.badges = BadgesService(api: api)
+        self.shareLinks = ShareLinksService(api: api)
     }
 }
 
