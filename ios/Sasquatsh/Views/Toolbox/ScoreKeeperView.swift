@@ -87,6 +87,9 @@ struct ScoreKeeperView: View {
     @State private var highestWins = true
     @State private var history: [ScoreAction] = []
     @State private var showHistory = false
+    @State private var showEndConfirm = false
+    @State private var showPlayerHistory = false
+    @State private var playerHistoryId: UUID?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -352,54 +355,77 @@ struct ScoreKeeperView: View {
             .padding(.vertical, 8)
 
             ScrollView {
-                VStack(spacing: 8) {
+                VStack(spacing: 10) {
                     ForEach($players) { $player in
-                        HStack(spacing: 10) {
-                            Circle()
-                                .fill(playerColor(for: player))
-                                .frame(width: 10, height: 10)
+                        VStack(spacing: 8) {
+                            // Top row: name + score
+                            HStack {
+                                Circle()
+                                    .fill(playerColor(for: player))
+                                    .frame(width: 12, height: 12)
 
-                            Text(player.name)
-                                .font(.md3TitleMedium)
-                                .foregroundStyle(Color.md3OnSurface)
-                                .frame(width: 70, alignment: .leading)
-                                .lineLimit(1)
+                                Text(player.name)
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundStyle(Color.md3OnSurface)
+                                    .lineLimit(1)
 
-                            Text("\(player.score)")
-                                .font(.system(size: 28, weight: .bold, design: .rounded))
-                                .foregroundStyle(Color.md3OnSurface)
-                                .frame(minWidth: 45)
+                                Spacer()
 
-                            Spacer()
+                                Button {
+                                    playerHistoryId = player.id
+                                    showPlayerHistory = true
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Text("\(player.score)")
+                                            .font(.system(size: 32, weight: .bold, design: .rounded))
+                                            .foregroundStyle(Color.md3OnSurface)
+                                        Image(systemName: "clock.arrow.circlepath")
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(Color.md3OnSurfaceVariant)
+                                    }
+                                }
+                            }
 
-                            HStack(spacing: 3) {
+                            // Bottom row: buttons + custom input
+                            HStack(spacing: 6) {
                                 scoreButton("-5", amount: -5, player: $player)
                                 scoreButton("-1", amount: -1, player: $player)
                                 scoreButton("+1", amount: 1, player: $player)
                                 scoreButton("+5", amount: 5, player: $player)
-                            }
 
-                            TextField("+", text: Binding(
-                                get: { scoreInput[player.id] ?? "" },
-                                set: { scoreInput[player.id] = $0 }
-                            ))
-                            .keyboardType(.numbersAndPunctuation)
-                            .frame(width: 40)
-                            .multilineTextAlignment(.center)
-                            .padding(5)
-                            .background(Color.md3Surface)
-                            .clipShape(RoundedRectangle(cornerRadius: MD3Shape.small))
-                            .onSubmit {
-                                if let val = Int(scoreInput[player.id] ?? "") {
-                                    addScore(to: &player, amount: val)
-                                    scoreInput[player.id] = ""
+                                Spacer()
+
+                                TextField("±", text: Binding(
+                                    get: { scoreInput[player.id] ?? "" },
+                                    set: { scoreInput[player.id] = $0 }
+                                ))
+                                .keyboardType(.numbersAndPunctuation)
+                                .frame(width: 56)
+                                .multilineTextAlignment(.center)
+                                .padding(8)
+                                .background(Color.md3SurfaceContainerHigh)
+                                .clipShape(RoundedRectangle(cornerRadius: MD3Shape.small))
+                                .onSubmit {
+                                    if let val = Int(scoreInput[player.id] ?? "") {
+                                        addScore(to: &player, amount: val)
+                                        scoreInput[player.id] = ""
+                                    }
                                 }
                             }
                         }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
                         .background(Color.md3Surface)
                         .clipShape(RoundedRectangle(cornerRadius: MD3Shape.medium))
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                withAnimation {
+                                    players.removeAll { $0.id == player.id }
+                                }
+                            } label: {
+                                Label("Remove \(player.name)", systemImage: "trash")
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal, 16)
@@ -407,7 +433,7 @@ struct ScoreKeeperView: View {
             }
 
             Button {
-                withAnimation { phase = .finished }
+                showEndConfirm = true
             } label: {
                 Text("End Game")
                     .primaryButtonStyle()
@@ -416,8 +442,21 @@ struct ScoreKeeperView: View {
             .padding(.vertical, 12)
             .background(Color.md3SurfaceContainer)
         }
+        .alert("End Game?", isPresented: $showEndConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("End Game") {
+                withAnimation { phase = .finished }
+            }
+        } message: {
+            Text("Are you sure? You can go back to scoring if you hit it by mistake.")
+        }
         .sheet(isPresented: $showHistory) {
             historySheet
+        }
+        .sheet(isPresented: $showPlayerHistory) {
+            if let playerId = playerHistoryId {
+                playerHistorySheet(playerId: playerId)
+            }
         }
     }
 
@@ -427,11 +466,12 @@ struct ScoreKeeperView: View {
             addScore(to: &player.wrappedValue, amount: amount)
         } label: {
             Text(label)
-                .font(.system(size: 12, weight: .semibold))
-                .frame(width: 32, height: 30)
+                .font(.system(size: 16, weight: .semibold))
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
                 .background(isNegative ? Color.md3ErrorContainer.opacity(amount == -5 ? 1 : 0.5) : Color.md3PrimaryContainer.opacity(amount == 5 ? 1 : 0.5))
                 .foregroundStyle(isNegative ? Color.md3Error : Color.md3Primary)
-                .clipShape(RoundedRectangle(cornerRadius: MD3Shape.small))
+                .clipShape(RoundedRectangle(cornerRadius: MD3Shape.medium))
         }
     }
 
@@ -485,6 +525,83 @@ struct ScoreKeeperView: View {
             }
         }
         .presentationDetents([.medium, .large])
+    }
+
+    private func playerHistorySheet(playerId: UUID) -> some View {
+        let playerName = players.first(where: { $0.id == playerId })?.name ?? "Player"
+        let playerActions = history.filter { $0.playerId == playerId }
+
+        return NavigationStack {
+            Group {
+                if playerActions.isEmpty {
+                    VStack {
+                        Spacer()
+                        Text("No score changes yet")
+                            .font(.md3BodyMedium)
+                            .foregroundStyle(Color.md3OnSurfaceVariant)
+                        Spacer()
+                    }
+                } else {
+                    ScrollView {
+                        VStack(spacing: 6) {
+                            // Running total computed per entry
+                            let reversed = Array(playerActions.enumerated()).reversed()
+                            ForEach(Array(reversed), id: \.element.id) { index, action in
+                                let runningTotal = playerActions.prefix(index + 1).reduce(0) { $0 + $1.amount }
+                                HStack(spacing: 12) {
+                                    Text(action.amount > 0 ? "+\(action.amount)" : "\(action.amount)")
+                                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                                        .foregroundStyle(action.amount > 0 ? Color.md3Primary : Color.md3Error)
+                                        .frame(width: 55, alignment: .leading)
+
+                                    Text("= \(runningTotal)")
+                                        .font(.system(size: 16, weight: .medium, design: .rounded))
+                                        .foregroundStyle(Color.md3OnSurfaceVariant)
+
+                                    Spacer()
+
+                                    Text(action.timestamp.formatted(date: .omitted, time: .shortened))
+                                        .font(.md3BodySmall)
+                                        .foregroundStyle(Color.md3OnSurfaceVariant.opacity(0.6))
+
+                                    Button {
+                                        removeHistoryEntry(action)
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.system(size: 20))
+                                            .foregroundStyle(Color.md3Error.opacity(0.6))
+                                    }
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(Color.md3Surface)
+                                .clipShape(RoundedRectangle(cornerRadius: MD3Shape.small))
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                    }
+                }
+            }
+            .navigationTitle("\(playerName)'s History")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { showPlayerHistory = false }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func removeHistoryEntry(_ action: ScoreAction) {
+        // Reverse the score change
+        if let idx = players.firstIndex(where: { $0.id == action.playerId }) {
+            players[idx].score -= action.amount
+        }
+        // Remove from history
+        history.removeAll { $0.id == action.id }
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
 
     // MARK: - Results
@@ -562,6 +679,17 @@ struct ScoreKeeperView: View {
             }
 
             VStack(spacing: 8) {
+                // Go back to scoring (undo end game)
+                Button {
+                    withAnimation { phase = .playing }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.uturn.backward")
+                        Text("Back to Scoring")
+                    }
+                    .secondaryButtonStyle()
+                }
+
                 Button {
                     for i in players.indices { players[i].score = 0 }
                     scoreInput = [:]
