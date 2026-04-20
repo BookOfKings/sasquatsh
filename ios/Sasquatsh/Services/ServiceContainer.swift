@@ -22,6 +22,8 @@ final class ServiceContainer {
     let storeKit: StoreKitService
     let badges: BadgesServiceProtocol
     let shareLinks: ShareLinksServiceProtocol
+    let gameUpc: GameUpcServiceProtocol
+    let shelfScan: ShelfScanServiceProtocol
 
     init(
         api: APIClient = APIClient(),
@@ -47,6 +49,8 @@ final class ServiceContainer {
         self.storeKit = StoreKitService()
         self.badges = BadgesService(api: api)
         self.shareLinks = ShareLinksService(api: api)
+        self.gameUpc = GameUpcService(api: api)
+        self.shelfScan = ShelfScanService(api: api)
     }
 }
 

@@ -1,4 +1,5 @@
 import SwiftUI
+import AuthenticationServices
 
 struct LoginView: View {
     @Environment(AuthViewModel.self) private var authVM
@@ -98,6 +99,24 @@ struct LoginView: View {
                         Rectangle().fill(Color.md3OutlineVariant).frame(height: 1)
                     }
                     .padding(.horizontal)
+
+                    // Apple Sign-In
+                    Button {
+                        Task { await authVM.signInWithApple() }
+                    } label: {
+                        HStack {
+                            Image(systemName: "apple.logo")
+                            Text("Continue with Apple")
+                        }
+                        .font(.md3LabelLarge)
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 40)
+                        .background(Color.black)
+                        .clipShape(Capsule())
+                    }
+                    .padding(.horizontal)
+                    .disabled(authVM.isLoading)
 
                     // Google Sign-In
                     Button {

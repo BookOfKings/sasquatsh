@@ -3,7 +3,7 @@ import AudioToolbox
 
 // MARK: - Models
 
-struct ScoringPlayer: Identifiable, Codable {
+struct ScoringPlayer: Identifiable, Codable, Equatable {
     let id: UUID
     var name: String
     var score: Int
@@ -15,16 +15,38 @@ struct ScoringPlayer: Identifiable, Codable {
     }
 }
 
-struct ScoreAction: Identifiable {
-    let id = UUID()
+struct ScoreAction: Identifiable, Codable, Equatable {
+    let id: UUID
     let playerId: UUID
     let playerName: String
     let amount: Int
     let timestamp: Date
+
+    init(playerId: UUID, playerName: String, amount: Int, timestamp: Date = Date()) {
+        self.id = UUID()
+        self.playerId = playerId
+        self.playerName = playerName
+        self.amount = amount
+        self.timestamp = timestamp
+    }
 }
 
-enum ScoringPhase {
+enum ScoringPhase: String, Codable {
     case setup, playing, finished
+}
+
+struct PlayerHistoryTarget: Identifiable {
+    let id: UUID
+}
+
+// MARK: - Session State (persisted)
+
+struct ScoreKeeperSession: Codable {
+    var phase: ScoringPhase
+    var players: [ScoringPlayer]
+    var gameName: String
+    var highestWins: Bool
+    var history: [ScoreAction]
 }
 
 // MARK: - Persistence
@@ -38,6 +60,20 @@ actor ScoreKeeperPersistence {
 
     private var namesURL: URL { docsDir.appendingPathComponent("scorekeeper_names.json") }
     private var gamesURL: URL { docsDir.appendingPathComponent("scorekeeper_games.json") }
+    private var sessionURL: URL { docsDir.appendingPathComponent("scorekeeper_session.json") }
+
+    func saveSession(_ session: ScoreKeeperSession) {
+        try? JSONEncoder().encode(session).write(to: sessionURL, options: .atomic)
+    }
+
+    func loadSession() -> ScoreKeeperSession? {
+        guard let data = try? Data(contentsOf: sessionURL) else { return nil }
+        return try? JSONDecoder().decode(ScoreKeeperSession.self, from: data)
+    }
+
+    func clearSession() {
+        try? FileManager.default.removeItem(at: sessionURL)
+    }
 
     func loadSavedNames() -> [String] {
         guard let data = try? Data(contentsOf: namesURL),
@@ -88,8 +124,7 @@ struct ScoreKeeperView: View {
     @State private var history: [ScoreAction] = []
     @State private var showHistory = false
     @State private var showEndConfirm = false
-    @State private var showPlayerHistory = false
-    @State private var playerHistoryId: UUID?
+    @State private var playerHistoryTarget: PlayerHistoryTarget?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -108,7 +143,34 @@ struct ScoreKeeperView: View {
         .task {
             savedNames = await ScoreKeeperPersistence.shared.loadSavedNames()
             savedGames = await ScoreKeeperPersistence.shared.loadSavedGames()
+            // Restore active session if one exists
+            if let saved = await ScoreKeeperPersistence.shared.loadSession() {
+                phase = saved.phase
+                players = saved.players
+                gameName = saved.gameName
+                highestWins = saved.highestWins
+                history = saved.history
+            }
         }
+        .onChange(of: phase) { _, _ in saveSession() }
+        .onChange(of: players) { _, _ in saveSession() }
+        .onChange(of: history) { _, _ in saveSession() }
+    }
+
+    private func saveSession() {
+        guard phase != .setup else {
+            // Don't persist setup state — clear any saved session
+            Task { await ScoreKeeperPersistence.shared.clearSession() }
+            return
+        }
+        let session = ScoreKeeperSession(
+            phase: phase,
+            players: players,
+            gameName: gameName,
+            highestWins: highestWins,
+            history: history
+        )
+        Task { await ScoreKeeperPersistence.shared.saveSession(session) }
     }
 
     // MARK: - Setup
@@ -372,8 +434,7 @@ struct ScoreKeeperView: View {
                                 Spacer()
 
                                 Button {
-                                    playerHistoryId = player.id
-                                    showPlayerHistory = true
+                                    playerHistoryTarget = PlayerHistoryTarget(id: player.id)
                                 } label: {
                                     HStack(spacing: 4) {
                                         Text("\(player.score)")
@@ -453,10 +514,8 @@ struct ScoreKeeperView: View {
         .sheet(isPresented: $showHistory) {
             historySheet
         }
-        .sheet(isPresented: $showPlayerHistory) {
-            if let playerId = playerHistoryId {
-                playerHistorySheet(playerId: playerId)
-            }
+        .sheet(item: $playerHistoryTarget) { target in
+            playerHistorySheet(playerId: target.id)
         }
     }
 
@@ -587,7 +646,7 @@ struct ScoreKeeperView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { showPlayerHistory = false }
+                    Button("Done") { playerHistoryTarget = nil }
                 }
             }
         }

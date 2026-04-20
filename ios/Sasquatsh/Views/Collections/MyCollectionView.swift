@@ -13,6 +13,8 @@ struct MyCollectionView: View {
     @State private var filterText = ""
     @State private var pendingAdds: Set<Int> = []
     @State private var pendingRemoves: Set<Int> = []
+    @State private var showBarcodeScanner = false
+    @State private var showShelfScanner = false
 
     private var ownedBggIds: Set<Int> {
         Set(myGames.compactMap(\.bggId))
@@ -25,13 +27,37 @@ struct MyCollectionView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Tab picker
-            Picker("", selection: $activeTab) {
-                Text("My Games (\(myGames.count))").tag(0)
-                Text("Top 50").tag(1)
-                Text("Search BGG").tag(2)
+            // Tab picker + scan button
+            HStack(spacing: 8) {
+                Picker("", selection: $activeTab) {
+                    Text("My Games (\(myGames.count))").tag(0)
+                    Text("Top 50").tag(1)
+                    Text("Search").tag(2)
+                }
+                .pickerStyle(.segmented)
+
+                Button {
+                    showShelfScanner = true
+                } label: {
+                    Image(systemName: "books.vertical")
+                        .font(.system(size: 16))
+                        .frame(width: 36, height: 36)
+                        .background(Color.md3Tertiary)
+                        .foregroundStyle(Color.md3OnTertiary)
+                        .clipShape(RoundedRectangle(cornerRadius: MD3Shape.small))
+                }
+
+                Button {
+                    showBarcodeScanner = true
+                } label: {
+                    Image(systemName: "barcode.viewfinder")
+                        .font(.system(size: 18))
+                        .frame(width: 36, height: 36)
+                        .background(Color.md3Primary)
+                        .foregroundStyle(Color.md3OnPrimary)
+                        .clipShape(RoundedRectangle(cornerRadius: MD3Shape.small))
+                }
             }
-            .pickerStyle(.segmented)
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
 
@@ -49,6 +75,32 @@ struct MyCollectionView: View {
         .background(Color.md3SurfaceContainer)
         .navigationTitle("My Collection")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showShelfScanner) {
+            ShelfScannerSheet(ownedBggIds: ownedBggIds) { inputs in
+                Task {
+                    for input in inputs {
+                        do {
+                            let added = try await services.collections.addGame(input)
+                            myGames.append(contentsOf: added)
+                        } catch {}
+                    }
+                    myGames.sort { $0.gameName < $1.gameName }
+                }
+            }
+        }
+        .sheet(isPresented: $showBarcodeScanner) {
+            BarcodeScannerSheet(initialOwnedBggIds: ownedBggIds) { input in
+                Task {
+                    do {
+                        let added = try await services.collections.addGame(input)
+                        myGames.append(contentsOf: added)
+                        myGames.sort { $0.gameName < $1.gameName }
+                    } catch {
+                        self.error = error.localizedDescription
+                    }
+                }
+            }
+        }
         .task {
             await loadCollection()
         }

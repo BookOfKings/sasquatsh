@@ -27,9 +27,9 @@ final class DashboardViewModel {
             async let groups = services.groups.getMyGroups()
             async let invitations = services.groups.getMyPendingInvitations()
 
-            let now = Date()
-            registeredEvents = try await registered.filter { $0.eventDate.toDate ?? .distantPast >= now }
-            hostedEvents = try await hosted.filter { $0.eventDate.toDate ?? .distantPast >= now }
+            let startOfToday = Calendar.current.startOfDay(for: Date())
+            registeredEvents = try await registered.filter { $0.eventDate.toDate ?? .distantPast >= startOfToday }
+            hostedEvents = try await hosted.filter { $0.eventDate.toDate ?? .distantPast >= startOfToday }
             myGroups = try await groups
             pendingInvitations = (try? await invitations) ?? []
         } catch {

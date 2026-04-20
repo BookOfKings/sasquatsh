@@ -31,6 +31,8 @@
 	<false/>
 	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
 	<string>Sasquatsh would like to add game events to your calendar.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Sasquatsh uses the camera to scan board game barcodes and add them to your collection.</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>Inter-Regular.ttf</string>

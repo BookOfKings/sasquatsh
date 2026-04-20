@@ -1,5 +1,6 @@
 import SwiftUI
 import FirebaseAuth
+import AuthenticationServices
 
 @Observable
 @MainActor
@@ -84,6 +85,21 @@ final class AuthViewModel {
         do {
             _ = try await services.auth.signInWithGoogle()
             await syncUser()
+        } catch {
+            self.error = error.localizedDescription
+        }
+        isLoading = false
+    }
+
+    func signInWithApple() async {
+        guard let services else { return }
+        isLoading = true
+        error = nil
+        do {
+            _ = try await services.auth.signInWithApple()
+            await syncUser()
+        } catch let error as ASAuthorizationError where error.code == .canceled {
+            // User cancelled — don't show error
         } catch {
             self.error = error.localizedDescription
         }

@@ -2,11 +2,14 @@ import Foundation
 import FirebaseAuth
 import GoogleSignIn
 import FirebaseCore
+import AuthenticationServices
+import CryptoKit
 
 protocol AuthServiceProtocol: Sendable {
     func login(email: String, password: String) async throws -> FirebaseAuth.User
     func signup(email: String, password: String) async throws -> FirebaseAuth.User
     func signInWithGoogle() async throws -> FirebaseAuth.User
+    func signInWithApple() async throws -> FirebaseAuth.User
     func logout() throws
     func getIdToken() async -> String?
     func getCurrentUser() -> FirebaseAuth.User?
@@ -60,6 +63,60 @@ final class AuthService: AuthServiceProtocol {
         return authResult.user
     }
 
+    // Apple Sign-In nonce for Firebase
+    private var currentNonce: String?
+
+    func signInWithApple() async throws -> FirebaseAuth.User {
+        let nonce = randomNonceString()
+        currentNonce = nonce
+        let hashedNonce = sha256(nonce)
+
+        let appleResult = try await performAppleSignIn(hashedNonce: hashedNonce)
+
+        guard let appleIDCredential = appleResult.credential as? ASAuthorizationAppleIDCredential,
+              let appleIDToken = appleIDCredential.identityToken,
+              let idTokenString = String(data: appleIDToken, encoding: .utf8) else {
+            throw APIError.serverError("Unable to get Apple ID token")
+        }
+
+        let credential = OAuthProvider.appleCredential(
+            withIDToken: idTokenString,
+            rawNonce: nonce,
+            fullName: appleIDCredential.fullName
+        )
+        let authResult = try await Auth.auth().signIn(with: credential)
+        return authResult.user
+    }
+
+    private func performAppleSignIn(hashedNonce: String) async throws -> ASAuthorization {
+        try await withCheckedThrowingContinuation { continuation in
+            let delegate = AppleSignInDelegate(continuation: continuation)
+            // Retain the delegate
+            objc_setAssociatedObject(self, "appleDelegate", delegate, .OBJC_ASSOCIATION_RETAIN)
+
+            let request = ASAuthorizationAppleIDProvider().createRequest()
+            request.requestedScopes = [.fullName, .email]
+            request.nonce = hashedNonce
+
+            let controller = ASAuthorizationController(authorizationRequests: [request])
+            controller.delegate = delegate
+            controller.performRequests()
+        }
+    }
+
+    private func randomNonceString(length: Int = 32) -> String {
+        var randomBytes = [UInt8](repeating: 0, count: length)
+        _ = SecRandomCopyBytes(kSecRandomDefault, randomBytes.count, &randomBytes)
+        let charset: [Character] = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
+        return String(randomBytes.map { charset[Int($0) % charset.count] })
+    }
+
+    private func sha256(_ input: String) -> String {
+        let data = Data(input.utf8)
+        let hash = SHA256.hash(data: data)
+        return hash.compactMap { String(format: "%02x", $0) }.joined()
+    }
+
     func logout() throws {
         try Auth.auth().signOut()
         GIDSignIn.sharedInstance.signOut()
@@ -92,5 +149,23 @@ final class AuthService: AuthServiceProtocol {
             throw NSError(domain: "AuthService", code: 0, userInfo: [NSLocalizedDescriptionKey: "Not signed in"])
         }
         try await user.updatePassword(to: newPassword)
+    }
+}
+
+// MARK: - Apple Sign-In Delegate
+
+private class AppleSignInDelegate: NSObject, ASAuthorizationControllerDelegate {
+    let continuation: CheckedContinuation<ASAuthorization, Error>
+
+    init(continuation: CheckedContinuation<ASAuthorization, Error>) {
+        self.continuation = continuation
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        continuation.resume(returning: authorization)
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        continuation.resume(throwing: error)
     }
 }
