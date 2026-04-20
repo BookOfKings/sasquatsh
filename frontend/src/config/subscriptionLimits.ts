@@ -6,6 +6,7 @@ export interface TierLimits {
   gamesPerEvent: number
   maxGroups: number
   maxRecurringGamesPerGroup: number
+  shelfScansPerMonth: number // AI shelf recognition scans per month
   features: {
     tableInfo: boolean      // Can specify hall/room/table per game
     planning: boolean       // Access to game night planning feature
@@ -21,6 +22,7 @@ export const TIER_LIMITS: Record<SubscriptionTier, TierLimits> = {
     gamesPerEvent: 1,
     maxGroups: 1,
     maxRecurringGamesPerGroup: 0,
+    shelfScansPerMonth: 5,
     features: {
       tableInfo: false,
       planning: false,
@@ -34,6 +36,7 @@ export const TIER_LIMITS: Record<SubscriptionTier, TierLimits> = {
     gamesPerEvent: 5,
     maxGroups: 5,
     maxRecurringGamesPerGroup: 1,
+    shelfScansPerMonth: 20,
     features: {
       tableInfo: true,
       planning: true,
@@ -47,6 +50,7 @@ export const TIER_LIMITS: Record<SubscriptionTier, TierLimits> = {
     gamesPerEvent: 10,
     maxGroups: 10,
     maxRecurringGamesPerGroup: Infinity,
+    shelfScansPerMonth: Infinity,
     features: {
       tableInfo: true,
       planning: true,
@@ -61,6 +65,7 @@ export const TIER_LIMITS: Record<SubscriptionTier, TierLimits> = {
     gamesPerEvent: Infinity,
     maxGroups: Infinity,
     maxRecurringGamesPerGroup: Infinity,
+    shelfScansPerMonth: Infinity,
     features: {
       tableInfo: true,
       planning: true,
