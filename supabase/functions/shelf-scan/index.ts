@@ -3,9 +3,9 @@ import { createResponders, getCorsHeaders, getFirebaseToken, verifyFirebaseToken
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const gcpApiKey = Deno.env.get('GCP_VISION_API_KEY')!
+const geminiApiKey = Deno.env.get('GEMINI_API_KEY')!
 
-const VISION_API_URL = `https://vision.googleapis.com/v1/images:annotate?key=${gcpApiKey}`
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`
 
 // Tier limits for shelf scans per month
 const SCAN_LIMITS: Record<string, number> = {
@@ -79,73 +79,86 @@ Deno.serve(async (req) => {
     // Get image from request
     const contentType = req.headers.get('content-type') || ''
     let imageBase64: string
+    let mimeType = 'image/jpeg'
 
     if (contentType.includes('multipart/form-data')) {
       const formData = await req.formData()
       const file = formData.get('image') as File
       if (!file) return errorResponse('No image file provided', 400)
 
-      // Validate file type
       if (!file.type.startsWith('image/')) {
         return errorResponse('File must be an image', 400)
       }
-      // Max 10MB
       if (file.size > 10 * 1024 * 1024) {
         return errorResponse('Image must be under 10MB', 400)
       }
 
+      mimeType = file.type
       const buffer = await file.arrayBuffer()
       imageBase64 = btoa(String.fromCharCode(...new Uint8Array(buffer)))
     } else {
-      // JSON body with base64 image
       const body = await req.json()
       if (!body.image) return errorResponse('image field required (base64)', 400)
-      // Strip data URL prefix if present
       imageBase64 = body.image.replace(/^data:image\/[^;]+;base64,/, '')
+      if (body.mimeType) mimeType = body.mimeType
     }
 
-    // Call Google Cloud Vision API
-    let detectedTexts: string[]
+    // Call Gemini Flash to identify board games
+    let detectedTitles: string[]
     try {
-      const visionResponse = await fetch(VISION_API_URL, {
+      const geminiResponse = await fetch(GEMINI_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          requests: [{
-            image: { content: imageBase64 },
-            features: [
-              { type: 'TEXT_DETECTION', maxResults: 50 },
+          contents: [{
+            parts: [
+              {
+                text: 'Look at this image of a board game shelf or collection. List every board game title you can identify. Include games you can identify from their box art, logos, or spine text. Return ONLY the game names, one per line, with no numbering, bullets, descriptions, or other text. If you cannot identify any board games, respond with "NONE".'
+              },
+              {
+                inlineData: {
+                  mimeType,
+                  data: imageBase64,
+                },
+              },
             ],
           }],
+          generationConfig: {
+            temperature: 0.1,
+            maxOutputTokens: 2048,
+          },
         }),
       })
 
-      if (!visionResponse.ok) {
-        const errText = await visionResponse.text()
-        console.error('Vision API error:', visionResponse.status, errText)
+      if (!geminiResponse.ok) {
+        const errText = await geminiResponse.text()
+        console.error('Gemini API error:', geminiResponse.status, errText)
         return errorResponse('Failed to analyze image', 502)
       }
 
-      const visionData = await visionResponse.json()
-      const annotations = visionData.responses?.[0]?.textAnnotations
+      const geminiData = await geminiResponse.json()
+      const responseText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || ''
 
-      if (!annotations || annotations.length === 0) {
-        // Record scan even if no text found
+      if (!responseText || responseText.trim() === 'NONE') {
         await supabase.from('shelf_scans').insert({
           user_id: user.id,
           games_detected: 0,
           games_added: 0,
         })
-        return jsonResponse({ games: [], rawText: '', message: 'No text detected in image' })
+        return jsonResponse({ games: [], rawText: '', message: 'No board games detected in image' })
       }
 
-      // Full text from the image
-      const fullText = annotations[0].description as string
+      // Parse response — one game per line
+      detectedTitles = responseText
+        .split('\n')
+        .map((l: string) => l.trim())
+        .filter((l: string) => l.length >= 2 && l !== 'NONE')
+        // Remove any numbering or bullets the model might add despite instructions
+        .map((l: string) => l.replace(/^[\d]+[.\)]\s*/, '').replace(/^[-*•]\s*/, '').trim())
+        .filter((l: string) => l.length >= 2)
 
-      // Split into lines and extract potential game titles
-      detectedTexts = extractGameTitles(fullText)
     } catch (err) {
-      console.error('Vision API fetch error:', err)
+      console.error('Gemini fetch error:', err)
       return errorResponse('Failed to connect to image analysis service', 502)
     }
 
@@ -156,43 +169,69 @@ Deno.serve(async (req) => {
       name: string | null
       yearPublished: number | null
       thumbnailUrl: string | null
+      imageUrl: string | null
       minPlayers: number | null
       maxPlayers: number | null
       playingTime: number | null
       confidence: string
     }> = []
 
-    for (const title of detectedTexts.slice(0, 30)) { // Cap at 30 titles
+    for (const title of detectedTitles.slice(0, 50)) {
       try {
-        // Search local BGG cache first
-        const { data: cached } = await supabase
+        // Search local BGG cache — try exact match first, then fuzzy
+        const { data: exactMatch } = await supabase
           .from('bgg_games_cache')
-          .select('bgg_id, name, year_published, thumbnail_url, min_players, max_players, playing_time')
-          .ilike('name', `%${title}%`)
-          .order('bgg_rank', { ascending: true, nullsFirst: false })
+          .select('bgg_id, name, year_published, thumbnail_url, image_url, min_players, max_players, playing_time')
+          .ilike('name', title)
           .limit(1)
 
-        if (cached && cached.length > 0) {
-          const game = cached[0]
+        if (exactMatch && exactMatch.length > 0) {
+          const game = exactMatch[0]
           gameMatches.push({
             detectedTitle: title,
             bggId: game.bgg_id,
             name: game.name,
             yearPublished: game.year_published,
             thumbnailUrl: game.thumbnail_url,
+            imageUrl: game.image_url,
             minPlayers: game.min_players,
             maxPlayers: game.max_players,
             playingTime: game.playing_time,
             confidence: 'high',
           })
+          continue
+        }
+
+        // Fuzzy match
+        const { data: fuzzyMatch } = await supabase
+          .from('bgg_games_cache')
+          .select('bgg_id, name, year_published, thumbnail_url, image_url, min_players, max_players, playing_time')
+          .ilike('name', `%${title}%`)
+          .order('bgg_rank', { ascending: true, nullsFirst: false })
+          .limit(1)
+
+        if (fuzzyMatch && fuzzyMatch.length > 0) {
+          const game = fuzzyMatch[0]
+          gameMatches.push({
+            detectedTitle: title,
+            bggId: game.bgg_id,
+            name: game.name,
+            yearPublished: game.year_published,
+            thumbnailUrl: game.thumbnail_url,
+            imageUrl: game.image_url,
+            minPlayers: game.min_players,
+            maxPlayers: game.max_players,
+            playingTime: game.playing_time,
+            confidence: 'medium',
+          })
         } else {
-          // No cache match — return as unmatched
           gameMatches.push({
             detectedTitle: title,
             bggId: null,
             name: null,
             yearPublished: null,
             thumbnailUrl: null,
+            imageUrl: null,
             minPlayers: null,
             maxPlayers: null,
             playingTime: null,
@@ -213,44 +252,11 @@ Deno.serve(async (req) => {
 
     return jsonResponse({
       games: gameMatches,
-      rawText: detectedTexts.join('\n'),
-      totalDetected: detectedTexts.length,
+      rawText: detectedTitles.join('\n'),
+      totalDetected: detectedTitles.length,
       matched: gameMatches.filter(g => g.bggId).length,
     })
   }
 
   return errorResponse('Method not allowed', 405)
 })
-
-// Extract potential board game titles from OCR text
-function extractGameTitles(text: string): string[] {
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
-  const titles: string[] = []
-  const seen = new Set<string>()
-
-  for (const line of lines) {
-    // Skip very short lines (likely noise) or very long lines (paragraphs)
-    if (line.length < 3 || line.length > 60) continue
-
-    // Skip lines that are just numbers, dates, or common non-title text
-    if (/^\d+$/.test(line)) continue
-    if (/^\d{1,2}[\/\-]\d{1,2}/.test(line)) continue
-    if (/^(ages?\s*\d|players?|min|hrs?|edition|\d+\s*-\s*\d+\s*players?)$/i.test(line)) continue
-
-    // Clean up the line
-    const cleaned = line
-      .replace(/[™®©]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-
-    if (cleaned.length < 3) continue
-
-    const key = cleaned.toLowerCase()
-    if (!seen.has(key)) {
-      seen.add(key)
-      titles.push(cleaned)
-    }
-  }
-
-  return titles
-}
