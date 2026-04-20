@@ -71,3 +71,17 @@ export async function computeMyBadges(token: string): Promise<{ badges: UserBadg
 export async function togglePinBadge(token: string, badgeId: number): Promise<{ pinned: boolean }> {
   return authRequest(`/badges?action=pin&badgeId=${badgeId}`, token, { method: 'PUT' })
 }
+
+export async function adminAwardBadge(token: string, userId: string, badgeId: number): Promise<void> {
+  await authRequest('/badges?action=admin-award', token, {
+    method: 'POST',
+    body: JSON.stringify({ userId, badgeId }),
+  })
+}
+
+export async function adminRevokeBadge(token: string, userId: string, badgeId: number): Promise<void> {
+  await authRequest('/badges?action=admin-revoke', token, {
+    method: 'POST',
+    body: JSON.stringify({ userId, badgeId }),
+  })
+}

@@ -204,6 +204,50 @@ Deno.serve(async (req) => {
     return jsonResponse({ pinned: true })
   }
 
+  // POST /badges?action=admin-award — Award a badge to a user (admin only)
+  // POST /badges?action=admin-revoke — Revoke a badge from a user (admin only)
+  if (req.method === 'POST' && (action === 'admin-award' || action === 'admin-revoke')) {
+    const token = getFirebaseToken(req)
+    if (!token) return errorResponse('Authentication required', 401)
+    const decoded = await verifyFirebaseToken(token)
+    if (!decoded) return errorResponse('Invalid token', 401)
+
+    const { data: adminUser } = await supabase
+      .from('users')
+      .select('id, is_admin')
+      .eq('firebase_uid', decoded.uid)
+      .single()
+    if (!adminUser?.is_admin) return errorResponse('Admin access required', 403)
+
+    const body = await req.json()
+    const { userId, badgeId } = body
+    if (!userId || !badgeId) return errorResponse('userId and badgeId are required', 400)
+
+    if (action === 'admin-award') {
+      const { error } = await supabase
+        .from('user_badges')
+        .upsert({ user_id: userId, badge_id: badgeId }, { onConflict: 'user_id,badge_id' })
+
+      if (error) {
+        console.error('Award error:', error)
+        return errorResponse('Failed to award badge', 500)
+      }
+      return jsonResponse({ awarded: true })
+    } else {
+      const { error } = await supabase
+        .from('user_badges')
+        .delete()
+        .eq('user_id', userId)
+        .eq('badge_id', badgeId)
+
+      if (error) {
+        console.error('Revoke error:', error)
+        return errorResponse('Failed to revoke badge', 500)
+      }
+      return jsonResponse({ revoked: true })
+    }
+  }
+
   // POST /badges?action=compute-all - Compute badges for ALL users (admin only)
   if (req.method === 'POST' && action === 'compute-all') {
     const token = getFirebaseToken(req)

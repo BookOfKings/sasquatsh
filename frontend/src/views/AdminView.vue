@@ -52,6 +52,7 @@ import type { EventLocation } from '@/types/social'
 import type { BggCacheStats, BggCacheEntry, AdminStats, ServiceHealth, AdminUser, AdminGroup, AdminGroupMember, AdminNote, AdminBug, MtgCacheStats, MtgCacheWarmResult, AdminEvent } from '@/services/adminApi'
 import { listBggCache, refreshBggGame, updateBggCacheEntry } from '@/services/adminApi'
 import { getAllAds, getAdStats, createAd, updateAd, deleteAd, toggleAdActive } from '@/services/adsApi'
+import { getAllBadges, getUserBadges, adminAwardBadge, adminRevokeBadge, type Badge } from '@/services/badgesApi'
 import type { Ad, AdStats, CreateAdInput } from '@/services/adsApi'
 import { getChatReports, reviewChatReport, issueModerationAction, getChatModerationHistory } from '@/services/chatApi'
 import type { ChatReport, ChatModerationHistoryItem, ChatModerationAction } from '@/types/chat'
@@ -154,6 +155,10 @@ const userEditForm = reactive({
 })
 const savingUser = ref(false)
 const deletingUserId = ref<string | null>(null)
+const allBadgesList = ref<Badge[]>([])
+const userBadgeIds = ref<Set<number>>(new Set())
+const badgesLoading = ref(false)
+const badgeUpdating = ref<number | null>(null)
 const sendingPasswordReset = ref<string | null>(null)
 
 // Ban management
@@ -810,7 +815,7 @@ async function handleUnsuspendUser(user: AdminUser) {
   }
 }
 
-function openUserEditDialog(user: AdminUser) {
+async function openUserEditDialog(user: AdminUser) {
   editingUser.value = user
   userEditForm.displayName = user.displayName || ''
   userEditForm.username = user.username
@@ -819,6 +824,42 @@ function openUserEditDialog(user: AdminUser) {
   userEditForm.tier = user.subscriptionOverrideTier || user.subscriptionTier || 'free'
   userEditForm.tierReason = user.subscriptionOverrideReason || ''
   showUserEditDialog.value = true
+
+  // Load badges
+  badgesLoading.value = true
+  userBadgeIds.value = new Set()
+  try {
+    const [badges, earned] = await Promise.all([
+      allBadgesList.value.length ? Promise.resolve(allBadgesList.value) : getAllBadges(),
+      getUserBadges(user.id),
+    ])
+    allBadgesList.value = badges
+    userBadgeIds.value = new Set(earned.map(b => b.badge_id))
+  } catch (err) {
+    console.error('Failed to load badges:', err)
+  } finally {
+    badgesLoading.value = false
+  }
+}
+
+async function toggleUserBadge(badgeId: number) {
+  if (!editingUser.value) return
+  badgeUpdating.value = badgeId
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    if (userBadgeIds.value.has(badgeId)) {
+      await adminRevokeBadge(token, editingUser.value.id, badgeId)
+      userBadgeIds.value.delete(badgeId)
+    } else {
+      await adminAwardBadge(token, editingUser.value.id, badgeId)
+      userBadgeIds.value.add(badgeId)
+    }
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to update badge'
+  } finally {
+    badgeUpdating.value = null
+  }
 }
 
 async function editSignupUser(username: string) {
@@ -5630,6 +5671,55 @@ function getLocationTypeLabel(location: EventLocation): string {
                   placeholder="e.g., Beta tester, Support case, Promo"
                 />
               </div>
+            </div>
+          </div>
+
+          <!-- Badges Section -->
+          <div class="border-t border-gray-200 pt-4 mt-4">
+            <h4 class="font-medium text-gray-900 mb-3">Badges ({{ userBadgeIds.size }} earned)</h4>
+            <div v-if="badgesLoading" class="flex justify-center py-4">
+              <svg class="animate-spin h-5 w-5 text-primary-500" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+              </svg>
+            </div>
+            <div v-else class="max-h-48 overflow-y-auto space-y-1">
+              <button
+                v-for="badge in allBadgesList"
+                :key="badge.id"
+                @click="toggleUserBadge(badge.id)"
+                :disabled="badgeUpdating === badge.id"
+                class="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-sm transition-colors"
+                :class="userBadgeIds.has(badge.id) ? 'bg-primary-50 hover:bg-primary-100' : 'hover:bg-gray-50'"
+              >
+                <div class="w-5 h-5 flex-shrink-0">
+                  <svg v-if="badgeUpdating === badge.id" class="w-5 h-5 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                  </svg>
+                  <div
+                    v-else
+                    class="w-5 h-5 border-2 rounded flex items-center justify-center"
+                    :class="userBadgeIds.has(badge.id) ? 'bg-primary-500 border-primary-500' : 'border-gray-300'"
+                  >
+                    <svg v-if="userBadgeIds.has(badge.id)" class="w-3 h-3 text-white" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+                    </svg>
+                  </div>
+                </div>
+                <div v-if="badge.icon_svg" v-html="badge.icon_svg" class="w-5 h-5 flex-shrink-0" :class="!userBadgeIds.has(badge.id) ? 'grayscale opacity-40' : ''"></div>
+                <span class="flex-1 truncate" :class="userBadgeIds.has(badge.id) ? 'text-gray-900' : 'text-gray-400'">
+                  {{ badge.name }}
+                </span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0"
+                  :class="{
+                    'bg-amber-50 text-amber-700': badge.tier === 'bronze',
+                    'bg-gray-100 text-gray-600': badge.tier === 'silver',
+                    'bg-yellow-50 text-yellow-700': badge.tier === 'gold',
+                    'bg-emerald-50 text-emerald-700': badge.tier === 'platinum',
+                  }"
+                >{{ badge.tier }}</span>
+              </button>
             </div>
           </div>
         </div>
