@@ -198,13 +198,7 @@ function onDragStart(e: DragEvent, suggestionId: string) {
   draggedGameId = suggestionId
   if (e.dataTransfer) {
     e.dataTransfer.effectAllowed = 'move'
-  }
-}
-
-function onDragOver(e: DragEvent) {
-  e.preventDefault()
-  if (e.dataTransfer) {
-    e.dataTransfer.dropEffect = 'move'
+    e.dataTransfer.setData('text/plain', suggestionId)
   }
 }
 
@@ -398,8 +392,9 @@ watch(
                   data-drop-zone
                   :data-table="tableIdx"
                   :data-slot="slotIdx - 1"
-                  @dragover="onDragOver"
-                  @drop="onDrop($event, tableIdx, slotIdx - 1)"
+                  @dragover.prevent
+                  @dragenter.prevent
+                  @drop.prevent="onDrop($event, tableIdx, slotIdx - 1)"
                 >
                   <div class="text-xs text-gray-400 mb-1">Slot {{ slotIdx }}</div>
 

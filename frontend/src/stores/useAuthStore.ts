@@ -6,6 +6,7 @@ import {
   signInWithRedirect,
   getRedirectResult,
   GoogleAuthProvider,
+  OAuthProvider,
   EmailAuthProvider,
   signOut,
   onAuthStateChanged,
@@ -47,8 +48,9 @@ async function initializeAuth(): Promise<void> {
       const result = await getRedirectResult(auth)
       console.log('[Auth] getRedirectResult:', result ? 'user found' : 'no result')
       if (result?.user) {
-        console.log('[Auth] Google redirect successful, syncing user...')
+        console.log('[Auth] OAuth redirect successful, syncing user...')
         sessionStorage.removeItem('pendingGoogleRedirect')
+        sessionStorage.removeItem('pendingAppleRedirect')
         redirectHandled.value = true
         try {
           const idToken = await result.user.getIdToken()
@@ -67,8 +69,9 @@ async function initializeAuth(): Promise<void> {
         console.log('[Auth] No redirect result, will check onAuthStateChanged')
       }
     } catch (err: any) {
-      console.error('[Auth] Google redirect error:', err.code, err.message)
+      console.error('[Auth] OAuth redirect error:', err.code, err.message)
       sessionStorage.removeItem('pendingGoogleRedirect')
+      sessionStorage.removeItem('pendingAppleRedirect')
       if (err.code) {
         error.value = getAuthErrorMessage(err.code)
       } else {
@@ -77,9 +80,10 @@ async function initializeAuth(): Promise<void> {
     }
   } else {
     // Desktop: only check if we have the pending flag (for popup fallback)
-    const pendingRedirect = sessionStorage.getItem('pendingGoogleRedirect')
+    const pendingRedirect = sessionStorage.getItem('pendingGoogleRedirect') || sessionStorage.getItem('pendingAppleRedirect')
     if (pendingRedirect) {
       sessionStorage.removeItem('pendingGoogleRedirect')
+      sessionStorage.removeItem('pendingAppleRedirect')
       try {
         const result = await getRedirectResult(auth)
         if (result?.user) {
@@ -293,6 +297,57 @@ async function loginWithGoogle(): Promise<{ ok: boolean; message: string }> {
   }
 }
 
+async function loginWithApple(): Promise<{ ok: boolean; message: string }> {
+  isLoading.value = true
+  error.value = null
+
+  try {
+    const provider = new OAuthProvider('apple.com')
+    provider.addScope('email')
+    provider.addScope('name')
+
+    if (isMobileDevice()) {
+      sessionStorage.setItem('pendingAppleRedirect', 'true')
+      await signInWithRedirect(auth, provider)
+      return { ok: true, message: 'Redirecting to Apple...' }
+    }
+
+    let result
+    try {
+      result = await signInWithPopup(auth, provider)
+    } catch (popupErr: any) {
+      if (popupErr.code === 'auth/popup-blocked' || popupErr.code === 'auth/popup-closed-by-user') {
+        sessionStorage.setItem('pendingAppleRedirect', 'true')
+        await signInWithRedirect(auth, provider)
+        return { ok: true, message: 'Redirecting to Apple...' }
+      }
+      throw popupErr
+    }
+
+    if (result.user) {
+      try {
+        const idToken = await result.user.getIdToken()
+        user.value = await getCurrentUser(idToken)
+      } catch (syncErr: any) {
+        console.error('Failed to sync Apple user with backend:', syncErr)
+        await signOut(auth)
+        const message = syncErr?.message || 'Failed to create account. Please try again.'
+        error.value = message
+        return { ok: false, message }
+      }
+    }
+
+    return { ok: true, message: 'Welcome!' }
+  } catch (err: any) {
+    console.error('Apple sign-in error:', err.code, err.message)
+    const message = getAuthErrorMessage(err.code)
+    error.value = message
+    return { ok: false, message }
+  } finally {
+    isLoading.value = false
+  }
+}
+
 async function logout(): Promise<void> {
   await signOut(auth)
   user.value = null
@@ -434,6 +489,7 @@ export function useAuthStore() {
     loginWithEmail,
     signupWithEmail,
     loginWithGoogle,
+    loginWithApple,
     logout,
     resetPassword,
     changePassword,
