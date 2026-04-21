@@ -1273,29 +1273,73 @@ Deno.serve(async (req) => {
       // 10. Groups created by user - transfer ownership
       await supabase.from('groups').update({ created_by_user_id: adminUser.id }).eq('created_by_user_id', userId)
 
-      // Delete from Firebase Auth
+      // Delete from Firebase Auth using service account JWT
       let firebaseDeleteError: string | null = null
       if (targetUser.firebase_uid) {
         try {
-          const firebaseApiKey = Deno.env.get('FIREBASE_API_KEY')
-          if (firebaseApiKey) {
-            // Use Google Identity Platform Admin API via service account
-            // The Supabase edge function runtime has access to Google Cloud metadata
-            const metadataUrl = 'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token'
-            let accessToken: string | null = null
-            try {
-              const tokenResp = await fetch(metadataUrl, {
-                headers: { 'Metadata-Flavor': 'Google' },
-              })
-              if (tokenResp.ok) {
-                const tokenData = await tokenResp.json()
-                accessToken = tokenData.access_token
-              }
-            } catch {
-              // Not running on GCP, skip Firebase Auth deletion
+          const serviceAccountJson = Deno.env.get('FIREBASE_SERVICE_ACCOUNT')
+          if (!serviceAccountJson) {
+            firebaseDeleteError = 'FIREBASE_SERVICE_ACCOUNT not configured'
+          } else {
+            const sa = JSON.parse(serviceAccountJson)
+
+            // Create JWT for Google OAuth2 with Identity Toolkit scope
+            const header = { alg: 'RS256', typ: 'JWT' }
+            const now = Math.floor(Date.now() / 1000)
+            const payload = {
+              iss: sa.client_email,
+              scope: 'https://www.googleapis.com/auth/identitytoolkit https://www.googleapis.com/auth/firebase',
+              aud: 'https://oauth2.googleapis.com/token',
+              iat: now,
+              exp: now + 3600,
             }
 
-            if (accessToken) {
+            const enc = (obj: unknown) =>
+              btoa(JSON.stringify(obj)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+
+            const unsignedToken = `${enc(header)}.${enc(payload)}`
+
+            const pemContents = sa.private_key
+              .replace(/-----BEGIN PRIVATE KEY-----/, '')
+              .replace(/-----END PRIVATE KEY-----/, '')
+              .replace(/\s/g, '')
+
+            const binaryKey = Uint8Array.from(atob(pemContents), (c: string) => c.charCodeAt(0))
+
+            const cryptoKey = await crypto.subtle.importKey(
+              'pkcs8',
+              binaryKey,
+              { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+              false,
+              ['sign']
+            )
+
+            const signature = await crypto.subtle.sign(
+              'RSASSA-PKCS1-v1_5',
+              cryptoKey,
+              new TextEncoder().encode(unsignedToken)
+            )
+
+            const signatureB64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
+              .replace(/=/g, '')
+              .replace(/\+/g, '-')
+              .replace(/\//g, '_')
+
+            const jwt = `${unsignedToken}.${signatureB64}`
+
+            // Exchange JWT for access token
+            const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
+            })
+
+            if (!tokenResponse.ok) {
+              firebaseDeleteError = `Failed to get Firebase access token: ${await tokenResponse.text()}`
+            } else {
+              const tokenData = await tokenResponse.json()
+              const accessToken = tokenData.access_token
+
               const deleteResp = await fetch(
                 `https://identitytoolkit.googleapis.com/v1/projects/sasquatsh/accounts:delete`,
                 {
@@ -1303,7 +1347,6 @@ Deno.serve(async (req) => {
                   headers: {
                     'Authorization': `Bearer ${accessToken}`,
                     'Content-Type': 'application/json',
-                    'x-goog-user-project': 'sasquatsh',
                   },
                   body: JSON.stringify({ localId: targetUser.firebase_uid }),
                 }
@@ -1313,9 +1356,6 @@ Deno.serve(async (req) => {
                 firebaseDeleteError = errBody.error?.message || `Firebase delete failed: ${deleteResp.status}`
                 console.error('Firebase Auth delete error:', firebaseDeleteError)
               }
-            } else {
-              firebaseDeleteError = 'Could not obtain access token for Firebase Auth deletion'
-              console.warn(firebaseDeleteError)
             }
           }
         } catch (err) {
