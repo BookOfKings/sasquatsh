@@ -201,20 +201,30 @@ Deno.serve(async (req) => {
     }
 
     // Create new user - use username as display_name if not provided
+    // Use upsert to handle race conditions and provider linking
     const { data, error } = await supabase
       .from('users')
-      .insert({
+      .upsert({
         firebase_uid: firebaseUser.uid,
         email: firebaseUser.email,
         display_name: firebaseUser.name || username,
         avatar_url: firebaseUser.picture,
         username: username,
         auth_provider: firebaseUser.signInProvider || 'password',
-      })
+      }, { onConflict: 'firebase_uid' })
       .select()
       .single()
 
     if (error) {
+      // If upsert fails (e.g. username conflict), try fetching existing user
+      const { data: existing } = await supabase
+        .from('users')
+        .select('*')
+        .eq('firebase_uid', firebaseUser.uid)
+        .single()
+      if (existing) {
+        return jsonResponse(transformUser(existing))
+      }
       return errorResponse(error.message, 500)
     }
 
