@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { verifyFirebaseToken, createResponders, getCorsHeaders, getFirebaseToken } from '../_shared/firebase.ts'
+import { sendPushNotification } from '../_shared/push.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -327,6 +328,13 @@ Deno.serve(async (req) => {
       return errorResponse(error.message, 500)
     }
 
+    // Send push notifications to other participants (fire-and-forget)
+    try {
+      await sendChatPushNotifications(supabase, user.id, contextType, contextId, content)
+    } catch (err) {
+      console.error('Failed to send chat push notifications:', err)
+    }
+
     return jsonResponse({ message: transformMessage(data) })
   }
 
@@ -587,6 +595,89 @@ async function verifyContextAccess(
     default:
       return false
   }
+}
+
+async function sendChatPushNotifications(
+  supabase: ReturnType<typeof createClient>,
+  senderUserId: string,
+  contextType: ContextType,
+  contextId: string,
+  messageContent: string
+) {
+  // Get sender's display name
+  const { data: sender } = await supabase
+    .from('users')
+    .select('display_name')
+    .eq('id', senderUserId)
+    .single()
+
+  const senderName = sender?.display_name || 'Someone'
+
+  // Get participant user IDs based on context type
+  let participantUserIds: string[] = []
+
+  if (contextType === 'event') {
+    // Event: host + registered users
+    const { data: event } = await supabase
+      .from('events')
+      .select('host_user_id')
+      .eq('id', contextId)
+      .single()
+
+    const { data: regs } = await supabase
+      .from('event_registrations')
+      .select('user_id')
+      .eq('event_id', contextId)
+      .eq('status', 'confirmed')
+
+    const ids = new Set<string>()
+    if (event?.host_user_id) ids.add(event.host_user_id)
+    if (regs) regs.forEach((r: { user_id: string }) => ids.add(r.user_id))
+    participantUserIds = Array.from(ids)
+  } else if (contextType === 'group') {
+    // Group: all members
+    const { data: members } = await supabase
+      .from('group_memberships')
+      .select('user_id')
+      .eq('group_id', contextId)
+
+    participantUserIds = members?.map((m: { user_id: string }) => m.user_id) || []
+  } else if (contextType === 'planning') {
+    // Planning: all invitees
+    const { data: invitees } = await supabase
+      .from('planning_invitees')
+      .select('user_id')
+      .eq('session_id', contextId)
+
+    participantUserIds = invitees?.map((i: { user_id: string }) => i.user_id) || []
+  }
+
+  // Remove the sender
+  const recipientIds = participantUserIds.filter(id => id !== senderUserId)
+  if (recipientIds.length === 0) return
+
+  // Get FCM tokens for all recipients (batch query)
+  const { data: recipients } = await supabase
+    .from('users')
+    .select('fcm_token')
+    .in('id', recipientIds)
+    .not('fcm_token', 'is', null)
+
+  if (!recipients || recipients.length === 0) return
+
+  // Build notification
+  const contextLabel = contextType === 'event' ? 'Event' : contextType === 'group' ? 'Group' : 'Planning'
+  const title = `${senderName} in ${contextLabel} Chat`
+  const body = messageContent.length > 100 ? messageContent.substring(0, 97) + '...' : messageContent
+  const pushData = { contextType, contextId, type: 'chat_message' }
+
+  // Send to all recipients in parallel
+  const promises = recipients.map((r: { fcm_token: string }) =>
+    sendPushNotification(r.fcm_token, title, body, pushData).catch(err => {
+      console.error('Push failed for token:', err)
+    })
+  )
+  await Promise.allSettled(promises)
 }
 
 function transformMessage(row: Record<string, unknown>): ChatMessage {
