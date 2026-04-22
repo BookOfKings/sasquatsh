@@ -3,47 +3,58 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { createCheckoutSession } from '@/services/billingApi'
-import { TIER_FEATURES, TIER_PRICES, TIER_NAMES, type SubscriptionTier } from '@/config/subscriptionLimits'
+import { TIER_FEATURES, TIER_PRICES, TIER_NAMES } from '@/config/subscriptionLimits'
 import { getEffectiveTier } from '@/types/user'
 
 const router = useRouter()
 const auth = useAuthStore()
 
-const loading = ref<SubscriptionTier | null>(null)
+const loading = ref<string | null>(null)
 const error = ref('')
+const billingPeriod = ref<'monthly' | 'annual'>('monthly')
 
 const currentTier = computed(() => {
   if (!auth.user.value) return 'free'
   return getEffectiveTier(auth.user.value)
 })
 
-const plans = [
+const plans = computed(() => [
   {
-    tier: 'free' as SubscriptionTier,
+    tier: 'free',
+    checkoutTier: 'free',
     name: TIER_NAMES.free,
-    price: TIER_PRICES.free,
+    price: 0,
+    priceLabel: 'Free',
+    priceSubLabel: 'forever',
     features: TIER_FEATURES.free,
     highlighted: false,
   },
   {
-    tier: 'basic' as SubscriptionTier,
+    tier: 'basic',
+    checkoutTier: billingPeriod.value === 'monthly' ? 'basic' : 'basic_annual',
     name: TIER_NAMES.basic,
-    price: TIER_PRICES.basic,
+    price: billingPeriod.value === 'monthly' ? TIER_PRICES.basic : 49.99,
+    priceLabel: billingPeriod.value === 'monthly' ? `$${TIER_PRICES.basic}` : '$49.99',
+    priceSubLabel: billingPeriod.value === 'monthly' ? '/month' : '/year',
+    savings: billingPeriod.value === 'annual' ? `Save $${((TIER_PRICES.basic * 12) - 49.99).toFixed(2)}/yr` : '',
     features: TIER_FEATURES.basic,
     highlighted: true,
   },
   {
-    tier: 'pro' as SubscriptionTier,
+    tier: 'pro',
+    checkoutTier: billingPeriod.value === 'monthly' ? 'pro' : 'pro_annual',
     name: TIER_NAMES.pro,
-    price: TIER_PRICES.pro,
+    price: billingPeriod.value === 'monthly' ? TIER_PRICES.pro : 79.99,
+    priceLabel: billingPeriod.value === 'monthly' ? `$${TIER_PRICES.pro}` : '$79.99',
+    priceSubLabel: billingPeriod.value === 'monthly' ? '/month' : '/year',
+    savings: billingPeriod.value === 'annual' ? `Save $${((TIER_PRICES.pro * 12) - 79.99).toFixed(2)}/yr` : '',
     features: TIER_FEATURES.pro,
     highlighted: false,
   },
-]
+])
 
-async function handleSelectPlan(tier: SubscriptionTier) {
+async function handleSelectPlan(tier: string, checkoutTier: string) {
   if (tier === 'free') {
-    // Free plan - just go to signup if not logged in
     if (!auth.isAuthenticated.value) {
       router.push('/signup')
     }
@@ -51,17 +62,15 @@ async function handleSelectPlan(tier: SubscriptionTier) {
   }
 
   if (!auth.isAuthenticated.value) {
-    // Redirect to login with return URL
     router.push(`/login?redirect=/pricing&plan=${tier}`)
     return
   }
 
   if (tier === currentTier.value) {
-    // Already on this plan
     return
   }
 
-  loading.value = tier
+  loading.value = checkoutTier
   error.value = ''
 
   try {
@@ -70,12 +79,11 @@ async function handleSelectPlan(tier: SubscriptionTier) {
 
     const result = await createCheckoutSession(
       token,
-      tier as 'basic' | 'pro',
+      checkoutTier as 'basic' | 'pro' | 'basic_annual' | 'pro_annual',
       `${window.location.origin}/profile?checkout=success`,
       `${window.location.origin}/pricing?checkout=cancelled`
     )
 
-    // Redirect to Stripe Checkout
     window.location.href = result.url
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to start checkout'
@@ -83,7 +91,7 @@ async function handleSelectPlan(tier: SubscriptionTier) {
   }
 }
 
-function getButtonText(tier: SubscriptionTier): string {
+function getButtonText(tier: string): string {
   if (!auth.isAuthenticated.value) {
     return tier === 'free' ? 'Get Started' : 'Sign Up'
   }
@@ -105,7 +113,7 @@ function getButtonText(tier: SubscriptionTier): string {
   return 'Select'
 }
 
-function isCurrentPlan(tier: SubscriptionTier): boolean {
+function isCurrentPlan(tier: string): boolean {
   return auth.isAuthenticated.value && tier === currentTier.value
 }
 </script>
@@ -119,6 +127,25 @@ function isCurrentPlan(tier: SubscriptionTier): boolean {
         <p class="text-xl text-gray-600 max-w-2xl mx-auto">
           Choose the plan that's right for you. Upgrade or downgrade anytime.
         </p>
+
+        <!-- Billing Period Toggle -->
+        <div class="flex items-center justify-center gap-3 mt-8">
+          <span class="text-sm font-medium" :class="billingPeriod === 'monthly' ? 'text-gray-900' : 'text-gray-400'">Monthly</span>
+          <button
+            @click="billingPeriod = billingPeriod === 'monthly' ? 'annual' : 'monthly'"
+            class="relative w-14 h-7 rounded-full transition-colors"
+            :class="billingPeriod === 'annual' ? 'bg-primary-500' : 'bg-gray-300'"
+          >
+            <span
+              class="absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform"
+              :class="billingPeriod === 'annual' ? 'translate-x-7' : ''"
+            ></span>
+          </button>
+          <span class="text-sm font-medium" :class="billingPeriod === 'annual' ? 'text-gray-900' : 'text-gray-400'">
+            Annual
+            <span class="text-xs text-green-600 font-medium ml-1">Save 17%</span>
+          </span>
+        </div>
       </div>
 
       <!-- Error Message -->
@@ -164,16 +191,16 @@ function isCurrentPlan(tier: SubscriptionTier): boolean {
             <!-- Price -->
             <div class="mb-6">
               <span class="text-4xl font-bold text-gray-900">
-                ${{ plan.price }}
+                {{ plan.priceLabel }}
               </span>
-              <span v-if="plan.price > 0" class="text-gray-500">/month</span>
-              <span v-else class="text-gray-500">forever</span>
+              <span class="text-gray-500">{{ plan.priceSubLabel }}</span>
+              <div v-if="plan.savings" class="text-sm text-green-600 font-medium mt-1">{{ plan.savings }}</div>
             </div>
 
             <!-- CTA Button -->
             <button
-              @click="handleSelectPlan(plan.tier)"
-              :disabled="loading === plan.tier || isCurrentPlan(plan.tier)"
+              @click="handleSelectPlan(plan.tier, plan.checkoutTier)"
+              :disabled="loading === plan.checkoutTier || isCurrentPlan(plan.tier)"
               class="w-full py-3 px-6 rounded-lg font-semibold transition-colors mb-8"
               :class="[
                 plan.highlighted
@@ -182,7 +209,7 @@ function isCurrentPlan(tier: SubscriptionTier): boolean {
                 isCurrentPlan(plan.tier) ? 'cursor-default' : ''
               ]"
             >
-              <span v-if="loading === plan.tier" class="flex items-center justify-center gap-2">
+              <span v-if="loading === plan.checkoutTier" class="flex items-center justify-center gap-2">
                 <svg class="animate-spin h-5 w-5" viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/>
                   <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>

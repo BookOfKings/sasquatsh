@@ -15,12 +15,9 @@ const stripe = new Stripe(stripeSecretKey, {
 const PRICE_TO_TIER: Record<string, string> = {
   [Deno.env.get('STRIPE_PRICE_BASIC') || '']: 'basic',
   [Deno.env.get('STRIPE_PRICE_PRO') || '']: 'pro',
+  [Deno.env.get('STRIPE_PRICE_BASIC_ANNUAL') || '']: 'basic',
+  [Deno.env.get('STRIPE_PRICE_PRO_ANNUAL') || '']: 'pro',
 }
-
-// Debug: Log price mappings at startup
-console.log('PRICE_TO_TIER mapping:', JSON.stringify(PRICE_TO_TIER))
-console.log('STRIPE_PRICE_BASIC env:', Deno.env.get('STRIPE_PRICE_BASIC'))
-console.log('STRIPE_PRICE_PRO env:', Deno.env.get('STRIPE_PRICE_PRO'))
 
 Deno.serve(async (req) => {
   if (req.method !== 'POST') {

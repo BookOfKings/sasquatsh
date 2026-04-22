@@ -114,7 +114,7 @@ export async function getInvoice(token: string, invoiceId: string): Promise<{ in
 // Create checkout session for upgrade
 export async function createCheckoutSession(
   token: string,
-  tier: 'basic' | 'pro',
+  tier: 'basic' | 'pro' | 'basic_annual' | 'pro_annual',
   successUrl?: string,
   cancelUrl?: string
 ): Promise<CheckoutResponse> {

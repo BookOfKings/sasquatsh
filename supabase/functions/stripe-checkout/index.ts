@@ -10,6 +10,8 @@ const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const PRICE_IDS: Record<string, string> = {
   basic: Deno.env.get('STRIPE_PRICE_BASIC') || '',
   pro: Deno.env.get('STRIPE_PRICE_PRO') || '',
+  basic_annual: Deno.env.get('STRIPE_PRICE_BASIC_ANNUAL') || '',
+  pro_annual: Deno.env.get('STRIPE_PRICE_PRO_ANNUAL') || '',
 }
 
 const stripe = new Stripe(stripeSecretKey, {
@@ -64,8 +66,8 @@ Deno.serve(async (req) => {
 
   const { tier, successUrl, cancelUrl } = body
 
-  if (!tier || !['basic', 'pro'].includes(tier)) {
-    return errorResponse('Invalid tier. Must be "basic" or "pro"', 400)
+  if (!tier || !['basic', 'pro', 'basic_annual', 'pro_annual'].includes(tier)) {
+    return errorResponse('Invalid tier. Must be "basic", "pro", "basic_annual", or "pro_annual"', 400)
   }
 
   const priceId = PRICE_IDS[tier]
