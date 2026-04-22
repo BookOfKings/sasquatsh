@@ -17,15 +17,20 @@ async function authenticatedRequest<T>(
   token: string,
   options?: RequestInit
 ): Promise<T> {
-  const response = await fetch(`${FUNCTIONS_URL}${path}`, {
-    ...options,
-    headers: {
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      'X-Firebase-Token': token,
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
-  })
+  let response: Response
+  try {
+    response = await fetch(`${FUNCTIONS_URL}${path}`, {
+      ...options,
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'X-Firebase-Token': token,
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+    })
+  } catch {
+    throw new Error('Unable to connect to the server. Please check your internet connection and try again.')
+  }
 
   if (!response.ok) {
     let message = response.statusText
