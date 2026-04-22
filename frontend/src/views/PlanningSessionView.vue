@@ -24,7 +24,7 @@ import {
 import { getGroupMembers } from '@/services/groupsApi'
 import { supabase } from '@/services/supabase'
 import type { GroupMember } from '@/types/groups'
-import { searchBggGames, getBggGame } from '@/services/bggApi'
+import { searchBggGames } from '@/services/bggApi'
 import { getMyCollection, getUserCollection, type CollectionGame } from '@/services/collectionsApi'
 import type { PlanningSession, GameSuggestion, PlanningItem, ItemCategory } from '@/types/planning'
 import type { BggSearchResult } from '@/types/bgg'
@@ -96,6 +96,7 @@ const gameSearchSource = ref<'my_collection' | 'host_collection' | 'bgg'>('my_co
 const myCollectionGames = ref<CollectionGame[]>([])
 const hostCollectionGames = ref<CollectionGame[]>([])
 const collectionsLoaded = ref(false)
+const selectedGamesToAdd = ref<Map<number, { gameName: string; bggId: number; thumbnailUrl?: string; minPlayers?: number; maxPlayers?: number; playingTime?: number }>>(new Map())
 
 // Finalization state
 const finalizing = ref(false)
@@ -405,31 +406,43 @@ const filteredCollectionGames = computed(() => {
   return source.filter(g => g.game_name.toLowerCase().includes(q))
 })
 
-function selectCollectionGame(game: CollectionGame) {
-  if (!session.value) return
+function toggleGameSelection(bggId: number, gameName: string, thumbnailUrl?: string | null, minPlayers?: number | null, maxPlayers?: number | null, playingTime?: number | null) {
+  if (selectedGamesToAdd.value.has(bggId)) {
+    selectedGamesToAdd.value.delete(bggId)
+  } else {
+    selectedGamesToAdd.value.set(bggId, {
+      gameName,
+      bggId,
+      thumbnailUrl: thumbnailUrl ?? undefined,
+      minPlayers: minPlayers ?? undefined,
+      maxPlayers: maxPlayers ?? undefined,
+      playingTime: playingTime ?? undefined,
+    })
+  }
+}
+
+async function addSelectedGames() {
+  if (!session.value || selectedGamesToAdd.value.size === 0) return
 
   addingGame.value = true
-  const token = auth.getIdToken()
-  token.then(async (t) => {
-    if (!t) return
-    try {
-      await suggestGame(t, session.value!.id, {
-        gameName: game.game_name,
-        bggId: game.bgg_id,
-        thumbnailUrl: game.thumbnail_url ?? undefined,
-        minPlayers: game.min_players ?? undefined,
-        maxPlayers: game.max_players ?? undefined,
-        playingTime: game.playing_time ?? undefined,
-      })
-      gameSearchQuery.value = ''
-      showGameSearch.value = false
-      await loadSession(true)
-    } catch (err) {
-      errorMessage.value = err instanceof Error ? err.message : 'Failed to add game suggestion'
-    } finally {
-      addingGame.value = false
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+
+    for (const game of selectedGamesToAdd.value.values()) {
+      await suggestGame(token, session.value.id, game)
     }
-  })
+
+    selectedGamesToAdd.value.clear()
+    gameSearchQuery.value = ''
+    gameSearchResults.value = []
+    showGameSearch.value = false
+    await loadSession(true)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to add game suggestions'
+  } finally {
+    addingGame.value = false
+  }
 }
 
 function handleGameSearch() {
@@ -452,36 +465,7 @@ function handleGameSearch() {
   }, 300)
 }
 
-async function selectGameToSuggest(result: BggSearchResult) {
-  if (!session.value) return
-
-  addingGame.value = true
-  try {
-    const token = await auth.getIdToken()
-    if (!token) return
-
-    const game = await getBggGame(result.bggId)
-
-    await suggestGame(token, session.value.id, {
-      gameName: game.name,
-      bggId: game.bggId,
-      thumbnailUrl: game.thumbnailUrl ?? undefined,
-      minPlayers: game.minPlayers ?? undefined,
-      maxPlayers: game.maxPlayers ?? undefined,
-      playingTime: game.playingTime ?? undefined,
-    })
-
-    gameSearchQuery.value = ''
-    gameSearchResults.value = []
-    showGameSearch.value = false
-    // Preserve form state when reloading after game suggestion
-    await loadSession(true)
-  } catch (err) {
-    errorMessage.value = err instanceof Error ? err.message : 'Failed to add game suggestion'
-  } finally {
-    addingGame.value = false
-  }
-}
+// selectGameToSuggest removed — replaced by toggleGameSelection + addSelectedGames
 
 async function handleVoteGame(suggestion: GameSuggestion) {
   if (!session.value) return
@@ -1346,28 +1330,31 @@ function formatRelativeTime(isoString: string | null): string {
 
                 <!-- Collection results -->
                 <template v-if="gameSearchSource !== 'bgg'">
-                  <div v-if="filteredCollectionGames.length > 0" class="mt-2 border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
+                  <div v-if="filteredCollectionGames.length > 0" class="mt-2 border border-gray-200 rounded-lg max-h-60 overflow-y-auto">
                     <button
                       v-for="game in filteredCollectionGames"
                       :key="game.bgg_id"
-                      class="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-left border-b border-gray-100 last:border-0"
-                      :disabled="addingGame"
-                      @click="selectCollectionGame(game)"
+                      class="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-left border-b border-gray-100 last:border-0 transition-colors"
+                      :class="selectedGamesToAdd.has(game.bgg_id) ? 'bg-primary-50' : ''"
+                      @click="toggleGameSelection(game.bgg_id, game.game_name, game.thumbnail_url, game.min_players, game.max_players, game.playing_time)"
                     >
+                      <div
+                        class="w-5 h-5 border-2 rounded flex items-center justify-center flex-shrink-0 transition-colors"
+                        :class="selectedGamesToAdd.has(game.bgg_id) ? 'bg-primary-500 border-primary-500' : 'border-gray-300'"
+                      >
+                        <svg v-if="selectedGamesToAdd.has(game.bgg_id)" class="w-3 h-3 text-white" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+                        </svg>
+                      </div>
                       <img
                         v-if="game.thumbnail_url"
                         :src="game.thumbnail_url"
                         :alt="game.game_name"
                         class="w-10 h-10 object-cover rounded flex-shrink-0 bg-gray-100"
                       />
-                      <div v-else class="w-10 h-10 flex items-center justify-center bg-gray-100 rounded flex-shrink-0">
-                        <svg class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5Z"/>
-                        </svg>
-                      </div>
                       <div class="flex-1 min-w-0">
-                        <div class="font-medium truncate">{{ game.game_name }}</div>
-                        <div class="text-sm text-gray-500">
+                        <div class="font-medium truncate text-sm">{{ game.game_name }}</div>
+                        <div class="text-xs text-gray-500">
                           <span v-if="game.year_published">{{ game.year_published }}</span>
                           <span v-if="game.min_players && game.max_players"> · {{ game.min_players }}-{{ game.max_players }}p</span>
                           <span v-if="game.playing_time"> · {{ game.playing_time }}min</span>
@@ -1387,14 +1374,22 @@ function formatRelativeTime(isoString: string | null): string {
                 <!-- BGG search results -->
                 <template v-else>
                   <div v-if="searchingGames" class="mt-2 text-gray-500 text-sm">Searching...</div>
-                  <div v-else-if="gameSearchResults.length > 0" class="mt-2 border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
+                  <div v-else-if="gameSearchResults.length > 0" class="mt-2 border border-gray-200 rounded-lg max-h-60 overflow-y-auto">
                     <button
                       v-for="result in gameSearchResults"
                       :key="result.bggId"
-                      class="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-left border-b border-gray-100 last:border-0"
-                      :disabled="addingGame"
-                      @click="selectGameToSuggest(result)"
+                      class="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-left border-b border-gray-100 last:border-0 transition-colors"
+                      :class="selectedGamesToAdd.has(result.bggId) ? 'bg-primary-50' : ''"
+                      @click="toggleGameSelection(result.bggId, result.name, result.thumbnailUrl)"
                     >
+                      <div
+                        class="w-5 h-5 border-2 rounded flex items-center justify-center flex-shrink-0 transition-colors"
+                        :class="selectedGamesToAdd.has(result.bggId) ? 'bg-primary-500 border-primary-500' : 'border-gray-300'"
+                      >
+                        <svg v-if="selectedGamesToAdd.has(result.bggId)" class="w-3 h-3 text-white" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+                        </svg>
+                      </div>
                       <img
                         v-if="result.thumbnailUrl"
                         :src="result.thumbnailUrl"
@@ -1403,16 +1398,32 @@ function formatRelativeTime(isoString: string | null): string {
                       />
                       <div v-else class="w-10 h-10 flex items-center justify-center bg-gray-100 rounded flex-shrink-0">
                         <svg class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
+                          <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5Z"/>
                         </svg>
                       </div>
                       <div class="flex-1 min-w-0">
-                        <div class="font-medium truncate">{{ result.name }}</div>
-                        <div v-if="result.yearPublished" class="text-sm text-gray-500">{{ result.yearPublished }}</div>
+                        <div class="font-medium truncate text-sm">{{ result.name }}</div>
+                        <div v-if="result.yearPublished" class="text-xs text-gray-500">{{ result.yearPublished }}</div>
                       </div>
                     </button>
                   </div>
                 </template>
+
+                <!-- Add Selected button -->
+                <div v-if="selectedGamesToAdd.size > 0" class="mt-3 flex items-center justify-between">
+                  <span class="text-sm text-gray-600">{{ selectedGamesToAdd.size }} game{{ selectedGamesToAdd.size === 1 ? '' : 's' }} selected</span>
+                  <button
+                    class="btn-primary text-sm px-4 py-2"
+                    :disabled="addingGame"
+                    @click="addSelectedGames"
+                  >
+                    <svg v-if="addingGame" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                    Add {{ selectedGamesToAdd.size }} Game{{ selectedGamesToAdd.size === 1 ? '' : 's' }}
+                  </button>
+                </div>
               </div>
 
               <!-- Multi-vote explanation -->
