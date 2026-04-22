@@ -25,6 +25,7 @@ import { getGroupMembers } from '@/services/groupsApi'
 import { supabase } from '@/services/supabase'
 import type { GroupMember } from '@/types/groups'
 import { searchBggGames, getBggGame } from '@/services/bggApi'
+import { getMyCollection, getUserCollection, type CollectionGame } from '@/services/collectionsApi'
 import type { PlanningSession, GameSuggestion, PlanningItem, ItemCategory } from '@/types/planning'
 import type { BggSearchResult } from '@/types/bgg'
 import type { ScheduleEntry, HostPreference } from '@/types/sessions'
@@ -91,6 +92,10 @@ const gameSearchResults = ref<BggSearchResult[]>([])
 const searchingGames = ref(false)
 const addingGame = ref(false)
 const showGameSearch = ref(false)
+const gameSearchSource = ref<'my_collection' | 'host_collection' | 'bgg'>('my_collection')
+const myCollectionGames = ref<CollectionGame[]>([])
+const hostCollectionGames = ref<CollectionGame[]>([])
+const collectionsLoaded = ref(false)
 
 // Finalization state
 const finalizing = ref(false)
@@ -365,6 +370,67 @@ async function submitResponse() {
 }
 
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
+
+async function loadCollections() {
+  if (collectionsLoaded.value) return
+  try {
+    const token = await auth.getIdToken()
+    if (!token || !session.value) return
+
+    const promises: Promise<void>[] = []
+
+    // Load my collection
+    promises.push(
+      getMyCollection(token).then(g => { myCollectionGames.value = g }).catch(() => {})
+    )
+
+    // Load host's collection (if I'm not the host)
+    if (session.value.createdByUserId && session.value.createdByUserId !== auth.user.value?.id) {
+      promises.push(
+        getUserCollection(session.value.createdByUserId).then(g => { hostCollectionGames.value = g }).catch(() => {})
+      )
+    }
+
+    await Promise.all(promises)
+    collectionsLoaded.value = true
+  } catch {
+    // Silent fail — BGG search is always available
+  }
+}
+
+const filteredCollectionGames = computed(() => {
+  const source = gameSearchSource.value === 'my_collection' ? myCollectionGames.value : hostCollectionGames.value
+  const q = gameSearchQuery.value.trim().toLowerCase()
+  if (!q) return source
+  return source.filter(g => g.game_name.toLowerCase().includes(q))
+})
+
+function selectCollectionGame(game: CollectionGame) {
+  if (!session.value) return
+
+  addingGame.value = true
+  const token = auth.getIdToken()
+  token.then(async (t) => {
+    if (!t) return
+    try {
+      await suggestGame(t, session.value!.id, {
+        gameName: game.game_name,
+        bggId: game.bgg_id,
+        thumbnailUrl: game.thumbnail_url ?? undefined,
+        minPlayers: game.min_players ?? undefined,
+        maxPlayers: game.max_players ?? undefined,
+        playingTime: game.playing_time ?? undefined,
+      })
+      gameSearchQuery.value = ''
+      showGameSearch.value = false
+      await loadSession(true)
+    } catch (err) {
+      errorMessage.value = err instanceof Error ? err.message : 'Failed to add game suggestion'
+    } finally {
+      addingGame.value = false
+    }
+  })
+}
 
 function handleGameSearch() {
   if (searchTimeout) clearTimeout(searchTimeout)
@@ -1225,16 +1291,30 @@ function formatRelativeTime(isoString: string | null): string {
                 </p>
               </div>
               <div v-else class="mb-4">
-                <div class="relative">
-                  <input
-                    v-model="gameSearchQuery"
-                    type="text"
-                    class="input pr-10"
-                    placeholder="Search BoardGameGeek..."
-                    @input="handleGameSearch"
-                  />
+                <!-- Source tabs -->
+                <div class="flex gap-1 mb-2">
                   <button
-                    class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
+                    type="button"
+                    class="px-3 py-1 text-xs font-medium rounded-full transition-colors"
+                    :class="gameSearchSource === 'my_collection' ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                    @click="gameSearchSource = 'my_collection'; loadCollections()"
+                  >My Collection</button>
+                  <button
+                    v-if="session.createdByUserId && session.createdByUserId !== auth.user.value?.id"
+                    type="button"
+                    class="px-3 py-1 text-xs font-medium rounded-full transition-colors"
+                    :class="gameSearchSource === 'host_collection' ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                    @click="gameSearchSource = 'host_collection'; loadCollections()"
+                  >Host's Collection</button>
+                  <button
+                    type="button"
+                    class="px-3 py-1 text-xs font-medium rounded-full transition-colors"
+                    :class="gameSearchSource === 'bgg' ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                    @click="gameSearchSource = 'bgg'"
+                  >Search BGG</button>
+                  <div class="flex-1"></div>
+                  <button
+                    class="p-1 text-gray-400 hover:text-gray-600"
                     @click="showGameSearch = false; gameSearchQuery = ''; gameSearchResults = []"
                   >
                     <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
@@ -1242,39 +1322,97 @@ function formatRelativeTime(isoString: string | null): string {
                     </svg>
                   </button>
                 </div>
-                <!-- Powered by BGG -->
-                <div class="flex items-center justify-end mt-1">
+
+                <!-- Search input -->
+                <div class="relative">
+                  <input
+                    v-model="gameSearchQuery"
+                    type="text"
+                    class="input pr-10"
+                    :placeholder="gameSearchSource === 'bgg' ? 'Search BoardGameGeek...' : 'Filter collection...'"
+                    @input="gameSearchSource === 'bgg' ? handleGameSearch() : undefined"
+                  />
+                  <svg class="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"/>
+                  </svg>
+                </div>
+
+                <!-- BGG attribution -->
+                <div v-if="gameSearchSource === 'bgg'" class="flex items-center justify-end mt-1">
                   <a href="https://boardgamegeek.com" target="_blank" rel="noopener noreferrer" class="hover:opacity-80 transition-opacity">
                     <img src="/powered-by-bgg.svg" alt="Powered by BoardGameGeek" class="h-5" />
                   </a>
                 </div>
-                <div v-if="searchingGames" class="mt-2 text-gray-500 text-sm">Searching...</div>
-                <div v-else-if="gameSearchResults.length > 0" class="mt-2 border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
-                  <button
-                    v-for="result in gameSearchResults"
-                    :key="result.bggId"
-                    class="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-left border-b border-gray-100 last:border-0"
-                    :disabled="addingGame"
-                    @click="selectGameToSuggest(result)"
-                  >
-                    <!-- Game thumbnail -->
-                    <img
-                      v-if="result.thumbnailUrl"
-                      :src="result.thumbnailUrl"
-                      :alt="result.name"
-                      class="w-10 h-10 object-cover rounded flex-shrink-0 bg-gray-100"
-                    />
-                    <div v-else class="w-10 h-10 flex items-center justify-center bg-gray-100 rounded flex-shrink-0">
-                      <svg class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
-                      </svg>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                      <div class="font-medium truncate">{{ result.name }}</div>
-                      <div v-if="result.yearPublished" class="text-sm text-gray-500">{{ result.yearPublished }}</div>
-                    </div>
-                  </button>
-                </div>
+
+                <!-- Collection results -->
+                <template v-if="gameSearchSource !== 'bgg'">
+                  <div v-if="filteredCollectionGames.length > 0" class="mt-2 border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
+                    <button
+                      v-for="game in filteredCollectionGames"
+                      :key="game.bgg_id"
+                      class="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-left border-b border-gray-100 last:border-0"
+                      :disabled="addingGame"
+                      @click="selectCollectionGame(game)"
+                    >
+                      <img
+                        v-if="game.thumbnail_url"
+                        :src="game.thumbnail_url"
+                        :alt="game.game_name"
+                        class="w-10 h-10 object-cover rounded flex-shrink-0 bg-gray-100"
+                      />
+                      <div v-else class="w-10 h-10 flex items-center justify-center bg-gray-100 rounded flex-shrink-0">
+                        <svg class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5Z"/>
+                        </svg>
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <div class="font-medium truncate">{{ game.game_name }}</div>
+                        <div class="text-sm text-gray-500">
+                          <span v-if="game.year_published">{{ game.year_published }}</span>
+                          <span v-if="game.min_players && game.max_players"> · {{ game.min_players }}-{{ game.max_players }}p</span>
+                          <span v-if="game.playing_time"> · {{ game.playing_time }}min</span>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                  <div v-else-if="collectionsLoaded" class="mt-2 text-sm text-gray-500 text-center py-4">
+                    {{ gameSearchSource === 'my_collection'
+                      ? (myCollectionGames.length === 0 ? 'Your collection is empty — add games in My Collection' : 'No matching games')
+                      : (hostCollectionGames.length === 0 ? "Host's collection is private or empty" : 'No matching games')
+                    }}
+                  </div>
+                  <div v-else class="mt-2 text-sm text-gray-500 text-center py-4">Loading collection...</div>
+                </template>
+
+                <!-- BGG search results -->
+                <template v-else>
+                  <div v-if="searchingGames" class="mt-2 text-gray-500 text-sm">Searching...</div>
+                  <div v-else-if="gameSearchResults.length > 0" class="mt-2 border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
+                    <button
+                      v-for="result in gameSearchResults"
+                      :key="result.bggId"
+                      class="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-left border-b border-gray-100 last:border-0"
+                      :disabled="addingGame"
+                      @click="selectGameToSuggest(result)"
+                    >
+                      <img
+                        v-if="result.thumbnailUrl"
+                        :src="result.thumbnailUrl"
+                        :alt="result.name"
+                        class="w-10 h-10 object-cover rounded flex-shrink-0 bg-gray-100"
+                      />
+                      <div v-else class="w-10 h-10 flex items-center justify-center bg-gray-100 rounded flex-shrink-0">
+                        <svg class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
+                        </svg>
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <div class="font-medium truncate">{{ result.name }}</div>
+                        <div v-if="result.yearPublished" class="text-sm text-gray-500">{{ result.yearPublished }}</div>
+                      </div>
+                    </button>
+                  </div>
+                </template>
               </div>
 
               <!-- Multi-vote explanation -->
