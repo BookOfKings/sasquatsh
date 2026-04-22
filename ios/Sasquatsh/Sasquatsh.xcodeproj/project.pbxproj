@@ -15,6 +15,7 @@
 		08569316347B2F3673383D2E /* MtgDeck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DAF0682609D1F8D02A59FF6 /* MtgDeck.swift */; };
 		086DD3A4AA90147DA60B660D /* EventTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F01A98C9CA6AD5F74DF948A0 /* EventTests.swift */; };
 		08CD9F10F9E112315C94ADC8 /* RecurringGameFormSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 858AD977CB30B8696F05EDEB /* RecurringGameFormSheet.swift */; };
+		08FB97D00B0519A6045E0155 /* PickerSoundEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CF014780C006346747DB3DA /* PickerSoundEngine.swift */; };
 		093E088A0DD6801B0B464EA2 /* ChangePasswordSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFB0A4A4D8A5DBAADF8FEE5E /* ChangePasswordSheet.swift */; };
 		09B6C07D0A658B8D48A94381 /* SocialService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 530CAFF6F552CC375A21BCC4 /* SocialService.swift */; };
 		09E1FDC6B860F3B57C19E1CC /* ProfileEditSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40F32DF7BF48EE1FD1473BE8 /* ProfileEditSheet.swift */; };
@@ -298,6 +299,7 @@
 		78AF703B4E49734A05E1A262 /* SessionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsViewModel.swift; sourceTree = "<group>"; };
 		79D18F756218515C4DF714CD /* GroupCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupCard.swift; sourceTree = "<group>"; };
 		7AEF08CC4578C8DFE0840473 /* ShelfScanService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfScanService.swift; sourceTree = "<group>"; };
+		7CF014780C006346747DB3DA /* PickerSoundEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickerSoundEngine.swift; sourceTree = "<group>"; };
 		7DAF0682609D1F8D02A59FF6 /* MtgDeck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MtgDeck.swift; sourceTree = "<group>"; };
 		7E2BBD711CB929C54A883306 /* EditEventView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditEventView.swift; sourceTree = "<group>"; };
 		7E648B0520E26B86A607EB66 /* PlayerRequestListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerRequestListView.swift; sourceTree = "<group>"; };
@@ -678,6 +680,7 @@
 				B0A3D6844649EC55BA3BE2B5 /* CardDrawPickerView.swift */,
 				809835A2C6B08A1CC8F9C97F /* FirstPlayerPickersView.swift */,
 				195DF7F486DACFDB36E13C69 /* FirstPlayerPickerView.swift */,
+				7CF014780C006346747DB3DA /* PickerSoundEngine.swift */,
 				A2AE8F15CCB2E5E5643A06B9 /* RandomGamePickerView.swift */,
 				89935F48EF0538F701A40320 /* RoundCounterView.swift */,
 				90B17AE8C963BACA8FC9BDAA /* ScoreKeeperView.swift */,
@@ -1046,6 +1049,7 @@
 				6123BDE94B073880DFA18EF1 /* MtgDeckService.swift in Sources */,
 				7EA4B4F6504D67223B31553D /* MyCollectionView.swift in Sources */,
 				B33663C984BE714F025EA349 /* MyDecksView.swift in Sources */,
+				08FB97D00B0519A6045E0155 /* PickerSoundEngine.swift in Sources */,
 				F7DE20B4C5262EF0B7F3617C /* Planning.swift in Sources */,
 				74A6D015F6A6AF92010AB86C /* PlanningAddInviteesSheet.swift in Sources */,
 				64E823272E49CE61E3EDD554 /* PlanningService.swift in Sources */,

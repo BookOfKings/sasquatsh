@@ -8,6 +8,7 @@ final class GroupDetailViewModel {
     var joinRequests: [JoinRequest] = []
     var invitations: [GroupInvitation] = []
     var planningSessions: [PlanningSession] = []
+    var groupEvents: [EventSummary] = []
     var isLoading = false
     var error: String?
     var actionMessage: String?
@@ -24,10 +25,10 @@ final class GroupDetailViewModel {
         error = nil
         do {
             group = try await services.groups.getGroup(id: id)
-            async let membersResult = services.groups.getMembers(groupId: id)
-            async let planningResult = services.planning.getGroupSessions(groupId: id)
-            members = try await membersResult
-            planningSessions = try await planningResult
+            members = try await services.groups.getMembers(groupId: id)
+            // These require membership — don't let failures block the view
+            planningSessions = (try? await services.planning.getGroupSessions(groupId: id)) ?? []
+            groupEvents = (try? await services.events.getGroupEvents(groupId: id)) ?? []
         } catch {
             self.error = error.localizedDescription
         }

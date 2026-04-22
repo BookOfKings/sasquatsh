@@ -68,7 +68,7 @@ struct GroupListView: View {
                         message: "Create a group to start planning game nights together",
                         buttonTitle: "Create Group",
                         action: {
-                            let tier = authVM.user?.subscriptionTier ?? .free
+                            let tier = authVM.user?.effectiveTier ?? .free
                             if TierConfig.canCreateGroup(tier, currentCount: vm.groups.count) {
                                 showCreateGroup = true
                             } else {
@@ -98,7 +98,7 @@ struct GroupListView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    let tier = authVM.user?.subscriptionTier ?? .free
+                    let tier = authVM.user?.effectiveTier ?? .free
                     if TierConfig.canCreateGroup(tier, currentCount: vm.groups.count) {
                         showCreateGroup = true
                     } else {
@@ -116,7 +116,7 @@ struct GroupListView: View {
         .sheet(isPresented: $showUpgradePrompt) {
             UpgradePromptView(
                 limitType: .groups,
-                currentTier: authVM.user?.subscriptionTier ?? .free
+                currentTier: authVM.user?.effectiveTier ?? .free
             )
         }
         .sheet(isPresented: $showFilters) {

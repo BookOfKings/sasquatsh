@@ -78,6 +78,7 @@ class SnareDrumEngine {
 }
 
 struct FirstPlayerPickerView: View {
+    @Environment(\.dismiss) private var dismiss
     @State private var touches: [TouchPoint] = []
     @State private var phase: PickerPhase = .waiting
     @State private var winnerIndex: Int?
@@ -87,15 +88,32 @@ struct FirstPlayerPickerView: View {
     @State private var countdownTaskId = UUID()
     @State private var pulseTickTask: Task<Void, Never>?
 
-    private let drums = SnareDrumEngine.shared
+    private let sounds = PickerSoundEngine.shared
 
     private let fingerColors: [Color] = [
         .red, .blue, .green, .orange, .purple
     ]
 
     var body: some View {
+        VStack(spacing: 0) {
+        // Dark nav bar for black background
+        HStack(spacing: 8) {
+            Button { dismiss() } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.7))
+                    .frame(width: 28, height: 28)
+            }
+            Text("Finger Picker")
+                .font(.md3TitleMedium)
+                .foregroundStyle(.white.opacity(0.8))
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Color.black)
         ZStack {
-            Color.black.ignoresSafeArea()
+            Color.black
 
             // Instructions
             if phase == .waiting && touches.isEmpty {
@@ -178,30 +196,39 @@ struct FirstPlayerPickerView: View {
                     handleTouches(updatedTouches)
                 }
             }
-        }
+        } // .overlay on ZStack
+        } // VStack end
+        .background(Color.black)
         .toolbar(.hidden, for: .navigationBar)
     }
 
     // MARK: - Sound Effects
 
-    private func playTapSound() {
-        drums.playHit()
+    private func playTapSound(fingerIndex: Int = 0) {
+        sounds.playTap(fingerIndex: fingerIndex)
     }
 
     private func playCountdownTick() {
-        drums.playHit()
+        sounds.playCountdownTick()
     }
 
-    private func startPulseTicks() {
+    private func startDrumRoll() {
         pulseTickTask?.cancel()
         pulseTickTask = Task { @MainActor in
-            // Accelerating snare roll during pulsing phase
-            var interval: UInt64 = 250_000_000 // start at 250ms
-            while !Task.isCancelled && phase == .pulsing {
-                drums.playSoftHit()
+            // Accelerating countdown ticks
+            let intervals: [UInt64] = [
+                500_000_000, 400_000_000, 300_000_000, 200_000_000, 120_000_000, 80_000_000
+            ]
+            var step = 0
+            var totalTicks = 0
+            while !Task.isCancelled && (phase == .countdown || phase == .pulsing) {
+                let progress = min(Double(totalTicks) / 30.0, 1.0)
+                sounds.playCountdownTick(progress: progress)
+                let interval = intervals[min(step, intervals.count - 1)]
                 try? await Task.sleep(nanoseconds: interval)
-                if interval > 60_000_000 { // speed up to 60ms (fast roll)
-                    interval = UInt64(Double(interval) * 0.92)
+                totalTicks += 1
+                if phase == .pulsing && step < intervals.count - 1 {
+                    step += 1
                 }
             }
         }
@@ -214,16 +241,7 @@ struct FirstPlayerPickerView: View {
 
     private func playWinnerSound() {
         stopPulseTicks()
-        // Final big hit + fanfare chimes
-        drums.playHit()
-        Task {
-            try? await Task.sleep(nanoseconds: 150_000_000)
-            drums.playHit()
-            try? await Task.sleep(nanoseconds: 150_000_000)
-            AudioServicesPlaySystemSound(1025)
-            try? await Task.sleep(nanoseconds: 200_000_000)
-            AudioServicesPlaySystemSound(1016)
-        }
+        sounds.playSelectChime()
     }
 
     private func handleTouches(_ newTouches: [TouchPoint]) {
@@ -232,7 +250,7 @@ struct FirstPlayerPickerView: View {
         let previousIds = Set(touches.map(\.id))
         let newFingers = currentIds.subtracting(previousIds)
         if !newFingers.isEmpty {
-            playTapSound()
+            playTapSound(fingerIndex: newTouches.count - 1)
         }
 
         touches = newTouches
@@ -243,6 +261,7 @@ struct FirstPlayerPickerView: View {
                 touchIdsAtStart = currentIds
                 phase = .countdown
                 countdown = 3
+                sounds.playTransition()
                 startCountdown()
             }
 
@@ -271,22 +290,6 @@ struct FirstPlayerPickerView: View {
 
         case .selected:
             break
-        }
-    }
-
-    private func startDrumRoll() {
-        pulseTickTask?.cancel()
-        pulseTickTask = Task { @MainActor in
-            // Steady drum roll during countdown, accelerates into pulsing
-            var interval: UInt64 = 120_000_000 // ~8 hits/sec
-            while !Task.isCancelled && (phase == .countdown || phase == .pulsing) {
-                drums.playSoftHit()
-                try? await Task.sleep(nanoseconds: interval)
-                // Accelerate during pulsing phase
-                if phase == .pulsing && interval > 40_000_000 {
-                    interval = UInt64(Double(interval) * 0.94)
-                }
-            }
         }
     }
 

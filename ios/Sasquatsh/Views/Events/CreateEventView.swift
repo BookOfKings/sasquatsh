@@ -47,7 +47,7 @@ struct CreateEventView: View {
                 .sheet(isPresented: $showUpgradePrompt) {
                     UpgradePromptView(
                         limitType: .games,
-                        currentTier: authVM.user?.subscriptionTier ?? .free
+                        currentTier: authVM.user?.effectiveTier ?? .free
                     )
                 }
         }
@@ -162,7 +162,7 @@ struct CreateEventView: View {
                 if !vm.bggSearchResults.isEmpty {
                     ForEach(vm.bggSearchResults.prefix(8)) { result in
                         Button {
-                            let tier = authVM.user?.subscriptionTier ?? .free
+                            let tier = authVM.user?.effectiveTier ?? .free
                             if TierConfig.canAddGame(tier, currentCount: vm.selectedGames.count) {
                                 Task { await vm.addGame(from: result) }
                                 vm.clearBGGSearch()
@@ -304,7 +304,7 @@ struct CreateEventView: View {
                 }
 
                 if vm.selectedVenue != nil {
-                    let tier = authVM.user?.subscriptionTier ?? .free
+                    let tier = authVM.user?.effectiveTier ?? .free
                     if TierConfig.hasFeature(tier, feature: \.tableInfo) {
                         TextField("Hall", text: Binding(
                             get: { vm.venueHall ?? "" },

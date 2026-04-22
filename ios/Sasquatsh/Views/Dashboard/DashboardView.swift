@@ -153,6 +153,44 @@ struct DashboardView: View {
                         .buttonStyle(.plain)
                         .padding(.horizontal)
                     }
+
+                    // Upgrade banner for free tier
+                    if (authVM.user?.effectiveTier ?? .free) == .free {
+                        NavigationLink {
+                            PricingView()
+                        } label: {
+                            VStack(spacing: 10) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "sparkles")
+                                        .font(.system(size: 20))
+                                        .foregroundStyle(Color.md3Tertiary)
+                                    Text("Unlock More Features")
+                                        .font(.md3TitleMedium)
+                                        .foregroundStyle(Color.md3OnSurface)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.md3BodySmall)
+                                        .foregroundStyle(Color.md3OnSurfaceVariant)
+                                }
+
+                                Text("Get planning sessions, event chat, more groups, and no ads with Basic — starting at $4.99/mo")
+                                    .font(.md3BodySmall)
+                                    .foregroundStyle(Color.md3OnSurfaceVariant)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .padding()
+                            .background(
+                                LinearGradient(
+                                    colors: [Color.md3PrimaryContainer.opacity(0.3), Color.md3TertiaryContainer.opacity(0.3)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: MD3Shape.large))
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal)
+                    }
                 }
                 .padding(.vertical)
             }
@@ -188,9 +226,11 @@ struct DashboardView: View {
                 Text(authVM.user?.displayName ?? authVM.user?.username ?? "")
                     .font(.md3TitleMedium)
                     .foregroundStyle(Color.md3OnSurface)
-                Text(authVM.user?.email ?? "")
-                    .font(.md3BodySmall)
-                    .foregroundStyle(Color.md3OnSurfaceVariant)
+                if let username = authVM.user?.username {
+                    Text("@\(username)")
+                        .font(.md3BodySmall)
+                        .foregroundStyle(Color.md3OnSurfaceVariant)
+                }
             }
 
             Spacer()

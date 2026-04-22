@@ -8,7 +8,7 @@ struct PricingView: View {
     @State private var showError = false
 
     private var currentTier: SubscriptionTier {
-        authVM.user?.subscriptionTier ?? .free
+        authVM.user?.effectiveTier ?? .free
     }
 
     private var storeKit: StoreKitService {

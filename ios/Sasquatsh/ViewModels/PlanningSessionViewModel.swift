@@ -144,6 +144,20 @@ final class PlanningSessionViewModel {
         }
     }
 
+    func updateSettings(tableCount: Int?) async {
+        guard let services, let session else { return }
+        error = nil
+        do {
+            try await services.planning.updateSettings(sessionId: session.id, tableCount: tableCount)
+            self.session?.tableCount = tableCount
+            actionMessage = tableCount != nil && tableCount! >= 2
+                ? "Multi-table enabled with \(tableCount!) tables"
+                : "Multi-table disabled"
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
     func cancel() async {
         guard let services, let session else { return }
         error = nil

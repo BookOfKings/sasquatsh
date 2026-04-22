@@ -94,6 +94,9 @@ struct CreatePlanningSessionInput: Codable {
     var responseDeadline: String
     var inviteeUserIds: [String]
     var proposedDates: [ProposedDateInput]
+    var openToGroup: Bool?
+    var maxParticipants: Int?
+    var tableCount: Int?
 }
 
 struct ProposedDateInput: Codable {

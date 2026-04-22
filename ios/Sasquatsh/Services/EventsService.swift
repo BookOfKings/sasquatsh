@@ -4,6 +4,7 @@ protocol EventsServiceProtocol: Sendable {
     func getPublicEvents(filter: EventSearchFilter) async throws -> [EventSummary]
     func getRegisteredEvents() async throws -> [EventSummary]
     func getHostedEvents() async throws -> [EventSummary]
+    func getGroupEvents(groupId: String) async throws -> [EventSummary]
     func getEvent(id: String) async throws -> Event
     func createEvent(input: CreateEventInput) async throws -> Event
     func updateEvent(id: String, input: UpdateEventInput) async throws -> Event
@@ -36,6 +37,13 @@ final class EventsService: EventsServiceProtocol {
 
     func getHostedEvents() async throws -> [EventSummary] {
         try await api.get("events", queryItems: [.init(name: "type", value: "hosted")], authenticated: true)
+    }
+
+    func getGroupEvents(groupId: String) async throws -> [EventSummary] {
+        try await api.get("events", queryItems: [
+            .init(name: "type", value: "group"),
+            .init(name: "groupId", value: groupId),
+        ], authenticated: true)
     }
 
     func getEvent(id: String) async throws -> Event {

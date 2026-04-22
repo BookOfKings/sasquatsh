@@ -8,6 +8,9 @@ final class CreatePlanningViewModel {
     var responseDeadline = Calendar.current.date(byAdding: .day, value: 7, to: Date()) ?? Date()
     var selectedMemberIds: Set<String> = []
     var proposedDates: [Date] = []
+    var openToGroup = false
+    var maxParticipants: Int?
+    var tableCount: Int?
 
     var isLoading = false
     var error: String?
@@ -44,7 +47,10 @@ final class CreatePlanningViewModel {
             description: description.isEmpty ? nil : description,
             responseDeadline: responseDeadline.apiDateString,
             inviteeUserIds: Array(selectedMemberIds),
-            proposedDates: dates
+            proposedDates: dates,
+            openToGroup: openToGroup ? true : nil,
+            maxParticipants: maxParticipants,
+            tableCount: tableCount
         )
 
         do {

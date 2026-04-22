@@ -43,6 +43,28 @@ struct CreatePlanningView: View {
                     }
                 }
 
+                Section("Options") {
+                    Toggle("Open to entire group", isOn: $vm.openToGroup)
+
+                    HStack {
+                        Text("Max Participants")
+                        Spacer()
+                        TextField("Unlimited", value: $vm.maxParticipants, format: .number)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 80)
+                    }
+
+                    HStack {
+                        Text("Tables")
+                        Spacer()
+                        TextField("1", value: $vm.tableCount, format: .number)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 80)
+                    }
+                }
+
                 Section("Invite Members") {
                     ForEach(members) { member in
                         HStack {

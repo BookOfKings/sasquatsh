@@ -20,6 +20,11 @@ struct EventDetailView: View {
     @State private var calendarMessage: String?
     @State private var showCalendarAlert = false
 
+    /// Host's effective tier — participants inherit the host's features (matches website)
+    private var hostTier: SubscriptionTier {
+        vm.event?.host?.effectiveTier ?? .free
+    }
+
     var body: some View {
         ScrollView {
             if vm.isLoading && vm.event == nil {
@@ -132,13 +137,13 @@ struct EventDetailView: View {
         .sheet(isPresented: $showUpgradePrompt) {
             UpgradePromptView(
                 limitType: upgradePromptType,
-                currentTier: authVM.user?.subscriptionTier ?? .free
+                currentTier: authVM.user?.effectiveTier ?? .free
             )
         }
         .sheet(isPresented: $showItemsUpgradePrompt) {
             UpgradePromptView(
                 limitType: .games,
-                currentTier: authVM.user?.subscriptionTier ?? .free
+                currentTier: authVM.user?.effectiveTier ?? .free
             )
         }
         .refreshable { await vm.loadEvent(id: eventId) }
@@ -303,9 +308,8 @@ struct EventDetailView: View {
                     .foregroundStyle(Color.md3OnSurface)
                 Spacer()
                 Button {
-                    let tier = authVM.user?.subscriptionTier ?? .free
                     let currentCount = event.games?.count ?? 0
-                    if TierConfig.canAddGame(tier, currentCount: currentCount) {
+                    if TierConfig.canAddGame(hostTier, currentCount: currentCount) {
                         showBGGSearch = true
                     } else {
                         upgradePromptType = .games
@@ -375,8 +379,7 @@ struct EventDetailView: View {
                 Spacer()
                 if let userId = authVM.user?.id, vm.isHost(userId: userId) {
                     Button {
-                        let tier = authVM.user?.subscriptionTier ?? .free
-                        if TierConfig.hasFeature(tier, feature: \.items) {
+                        if TierConfig.hasFeature(hostTier, feature: \.items) {
                             showAddItem = true
                         } else {
                             showItemsUpgradePrompt = true
@@ -493,20 +496,19 @@ struct EventDetailView: View {
 
     @ViewBuilder
     private var chatSection: some View {
-        let tier = authVM.user?.subscriptionTier ?? .free
         VStack(alignment: .leading, spacing: 12) {
             Text("Chat")
                 .font(.md3TitleMedium)
                 .foregroundStyle(Color.md3OnSurface)
 
-            if TierConfig.hasFeature(tier, feature: \.chat) {
+            if TierConfig.hasFeature(hostTier, feature: \.chat) {
                 ChatPanelView(contextType: "event", contextId: eventId)
                     .frame(height: 400)
             } else {
                 HStack(spacing: 8) {
                     Image(systemName: "lock.fill")
                         .foregroundStyle(Color.md3OnSurfaceVariant)
-                    Text("Upgrade to Basic to chat")
+                    Text("Chat requires the event host to have a Basic or higher subscription")
                         .font(.md3BodyMedium)
                         .foregroundStyle(Color.md3OnSurfaceVariant)
                 }

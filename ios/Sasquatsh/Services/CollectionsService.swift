@@ -3,6 +3,7 @@ import os
 
 protocol CollectionsServiceProtocol: Sendable {
     func getMyCollection() async throws -> [CollectionGame]
+    func getUserCollection(userId: String) async throws -> [CollectionGame]
     func getTopGames() async throws -> [CollectionGame]
     func addGame(_ game: AddCollectionGameInput) async throws -> [CollectionGame]
     func removeGame(bggId: Int) async throws
@@ -102,6 +103,13 @@ struct CollectionsService: CollectionsServiceProtocol {
 
     func getMyCollection() async throws -> [CollectionGame] {
         let response: CollectionResponse = try await api.get("collections", authenticated: true)
+        return response.games ?? []
+    }
+
+    func getUserCollection(userId: String) async throws -> [CollectionGame] {
+        let response: CollectionResponse = try await api.get("collections", queryItems: [
+            .init(name: "userId", value: userId)
+        ], authenticated: false)
         return response.games ?? []
     }
 

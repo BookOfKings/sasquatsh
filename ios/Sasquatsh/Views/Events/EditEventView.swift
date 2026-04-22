@@ -90,7 +90,7 @@ struct EditEventView: View {
                         }
 
                         if vm.selectedVenue != nil {
-                            let tier = authVM.user?.subscriptionTier ?? .free
+                            let tier = authVM.user?.effectiveTier ?? .free
                             if TierConfig.hasFeature(tier, feature: \.tableInfo) {
                                 TextField("Hall", text: Binding(
                                     get: { vm.venueHall ?? "" },
