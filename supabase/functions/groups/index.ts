@@ -65,6 +65,8 @@ function toGroup(row: Record<string, unknown>) {
           avatarUrl: (row.creator as Record<string, unknown>).avatar_url as string | null,
           isFoundingMember: (row.creator as Record<string, unknown>).is_founding_member as boolean | undefined,
           isAdmin: (row.creator as Record<string, unknown>).is_admin as boolean | undefined,
+          subscriptionTier: (row.creator as Record<string, unknown>).subscription_tier as string | undefined,
+          subscriptionOverrideTier: (row.creator as Record<string, unknown>).subscription_override_tier as string | undefined,
         }
       : null,
   }
@@ -384,7 +386,7 @@ Deno.serve(async (req) => {
         .from('groups')
         .select(`
           *,
-          creator:users!created_by_user_id(id, display_name, avatar_url, is_founding_member, is_admin),
+          creator:users!created_by_user_id(id, display_name, avatar_url, is_founding_member, is_admin, subscription_tier, subscription_override_tier),
           memberships:group_memberships(id)
         `)
 
@@ -1208,7 +1210,7 @@ Deno.serve(async (req) => {
       .eq('id', groupId)
       .select(`
         *,
-        creator:users!created_by_user_id(id, display_name, avatar_url, is_founding_member, is_admin),
+        creator:users!created_by_user_id(id, display_name, avatar_url, is_founding_member, is_admin, subscription_tier, subscription_override_tier),
         memberships:group_memberships(id)
       `)
       .single()

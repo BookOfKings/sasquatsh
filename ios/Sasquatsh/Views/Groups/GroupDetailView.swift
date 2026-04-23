@@ -563,10 +563,14 @@ struct GroupDetailView: View {
 
     // MARK: - Group Chat
 
+    /// Group owner's tier — chat access is based on the owner's subscription
+    private var ownerTier: SubscriptionTier {
+        vm.group?.creator?.effectiveTier ?? .free
+    }
+
     @ViewBuilder
     private var groupChatSection: some View {
-        let tier = authVM.user?.effectiveTier ?? .free
-        if TierConfig.hasFeature(tier, feature: \.chat) {
+        if TierConfig.hasFeature(ownerTier, feature: \.chat) {
             VStack(alignment: .leading, spacing: 0) {
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
@@ -598,7 +602,7 @@ struct GroupDetailView: View {
                 Image(systemName: "lock.fill")
                     .font(.title2)
                     .foregroundStyle(Color.md3OnSurfaceVariant)
-                Text("Upgrade to Basic+ to chat")
+                Text("Chat requires the group owner to have a Basic or higher subscription")
                     .font(.md3BodyMedium)
                     .foregroundStyle(Color.md3OnSurfaceVariant)
             }
