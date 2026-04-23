@@ -5,6 +5,7 @@ import FirebaseAuth
 struct SasquatshApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
 
+    @Environment(\.scenePhase) private var scenePhase
     @State private var services = ServiceContainer()
     @State private var authVM = AuthViewModel()
     @State private var deepLinkHandler = DeepLinkHandler()
@@ -35,6 +36,14 @@ struct SasquatshApp: App {
 
                     services.storeKit.configure(api: services.api)
                     await services.storeKit.loadProducts()
+                }
+                .onChange(of: scenePhase) {
+                    if scenePhase == .active {
+                        // Safety net: re-enable idle timer when app becomes active.
+                        // Toolbox views (Turn Tracker, Round Counter) will re-disable
+                        // it in their own onAppear if they're still showing.
+                        UIApplication.shared.isIdleTimerDisabled = false
+                    }
                 }
         }
     }
