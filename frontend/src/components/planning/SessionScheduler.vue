@@ -199,10 +199,9 @@ function selectGameToPlace(suggestionId: string) {
 }
 
 function assignToSlot(tableNumber: number, slotIndex: number) {
-  if (selectedGameId.value) {
-    assignGame(tableNumber, slotIndex, selectedGameId.value)
-    selectedGameId.value = null
-  }
+  if (!selectedGameId.value) return
+  assignGame(tableNumber, slotIndex, selectedGameId.value)
+  selectedGameId.value = null
 }
 
 // Count scheduled games
@@ -315,7 +314,7 @@ watch(
                         ? 'border-dashed border-primary-300 bg-primary-50/30 cursor-pointer hover:border-primary-500 hover:bg-primary-50'
                         : 'border-dashed border-gray-200 bg-gray-50'
                   ]"
-                  @click="!getScheduledGame(tableIdx, slotIdx - 1) && selectedGameId ? assignToSlot(tableIdx, slotIdx - 1) : undefined"
+                  @click="assignToSlot(tableIdx, slotIdx - 1)"
                 >
                   <div class="text-xs text-gray-400 mb-1">Slot {{ slotIdx }}</div>
 
