@@ -509,15 +509,16 @@ async function verifyContextAccess(
       // Check if user is host and get host's subscription tier
       const { data: event } = await supabase
         .from('events')
-        .select('host_user_id, host:users!host_user_id(subscription_tier)')
+        .select('host_user_id, host:users!host_user_id(subscription_tier, subscription_override_tier)')
         .eq('id', contextId)
         .single()
 
       if (!event) return false
 
-      // Chat requires host to have Basic+ subscription
-      const hostTier = (event.host as { subscription_tier: string } | null)?.subscription_tier
-      const hasChatAccess = hostTier && ['basic', 'pro', 'premium'].includes(hostTier)
+      // Chat requires host to have Basic+ subscription (override takes precedence)
+      const hostData = event.host as { subscription_tier: string; subscription_override_tier: string | null } | null
+      const hostTier = hostData?.subscription_override_tier || hostData?.subscription_tier || 'free'
+      const hasChatAccess = ['basic', 'pro', 'premium'].includes(hostTier)
       if (!hasChatAccess) return false
 
       // Host always has access if they have Basic+
