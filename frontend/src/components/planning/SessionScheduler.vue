@@ -191,98 +191,18 @@ function handleSave() {
   emit('save', schedule, preferences)
 }
 
-// Drag and drop handlers (desktop)
-let draggedGameId: string | null = null
+// Click-to-assign: select a game, then click a slot to place it
+const selectedGameId = ref<string | null>(null)
 
-function onDragStart(e: DragEvent, suggestionId: string) {
-  draggedGameId = suggestionId
-  if (e.dataTransfer) {
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', suggestionId)
-  }
+function selectGameToPlace(suggestionId: string) {
+  selectedGameId.value = selectedGameId.value === suggestionId ? null : suggestionId
 }
 
-function onDrop(e: DragEvent, tableNumber: number, slotIndex: number) {
-  e.preventDefault()
-  if (draggedGameId) {
-    assignGame(tableNumber, slotIndex, draggedGameId)
-    draggedGameId = null
+function assignToSlot(tableNumber: number, slotIndex: number) {
+  if (selectedGameId.value) {
+    assignGame(tableNumber, slotIndex, selectedGameId.value)
+    selectedGameId.value = null
   }
-}
-
-// Touch drag and drop handlers (mobile)
-let touchDragId: string | null = null
-let touchGhost: HTMLElement | null = null
-let touchHighlight: Element | null = null
-
-function onTouchStart(e: TouchEvent, suggestionId: string) {
-  const touch = e.touches[0]
-  if (!touch) return
-  touchDragId = suggestionId
-  // Create a floating ghost element
-  const target = e.currentTarget as HTMLElement
-  touchGhost = target.cloneNode(true) as HTMLElement
-  touchGhost.style.position = 'fixed'
-  touchGhost.style.zIndex = '9999'
-  touchGhost.style.opacity = '0.85'
-  touchGhost.style.pointerEvents = 'none'
-  touchGhost.style.width = `${target.offsetWidth}px`
-  touchGhost.style.transform = 'rotate(2deg) scale(1.05)'
-  touchGhost.style.left = `${touch.clientX - target.offsetWidth / 2}px`
-  touchGhost.style.top = `${touch.clientY - 20}px`
-  document.body.appendChild(touchGhost)
-}
-
-function onTouchMove(e: TouchEvent) {
-  if (!touchDragId) return
-  e.preventDefault()
-  const touch = e.touches[0]
-  if (!touch || !touchGhost) return
-  touchGhost.style.left = `${touch.clientX - touchGhost.offsetWidth / 2}px`
-  touchGhost.style.top = `${touch.clientY - 20}px`
-  // Highlight the drop zone under the finger
-  const dropZone = findDropZone(touch.clientX, touch.clientY)
-  if (touchHighlight !== dropZone) {
-    if (touchHighlight) touchHighlight.classList.remove('touch-drag-over')
-    touchHighlight = dropZone
-    if (touchHighlight) touchHighlight.classList.add('touch-drag-over')
-  }
-}
-
-function onTouchEnd(e: TouchEvent) {
-  if (!touchDragId) return
-  const touch = e.changedTouches[0]
-  if (touch) {
-    const dropZone = findDropZone(touch.clientX, touch.clientY)
-    if (dropZone) {
-      const tableNumber = Number(dropZone.getAttribute('data-table'))
-      const slotIndex = Number(dropZone.getAttribute('data-slot'))
-      if (!isNaN(tableNumber) && !isNaN(slotIndex)) {
-        assignGame(tableNumber, slotIndex, touchDragId)
-      }
-    }
-  }
-  // Cleanup
-  if (touchGhost) {
-    touchGhost.remove()
-    touchGhost = null
-  }
-  if (touchHighlight) {
-    touchHighlight.classList.remove('touch-drag-over')
-    touchHighlight = null
-  }
-  touchDragId = null
-}
-
-function findDropZone(x: number, y: number): Element | null {
-  const zones = document.querySelectorAll('[data-drop-zone]')
-  for (const zone of zones) {
-    const rect = zone.getBoundingClientRect()
-    if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
-      return zone
-    }
-  }
-  return null
 }
 
 // Count scheduled games
@@ -305,50 +225,54 @@ watch(
     </div>
 
     <p class="text-sm text-gray-600">
-      Drag games from the sidebar into table slots. Click the star to mark sessions you want to play.
+      Select a game below, then tap a table slot to place it. Click the star to mark sessions you want to play.
     </p>
 
-    <div class="flex gap-6">
-      <!-- Unscheduled Games Sidebar -->
-      <div class="w-64 flex-shrink-0">
-        <h4 class="font-medium mb-3 text-gray-700">Available Games</h4>
-        <div class="space-y-2 max-h-96 overflow-y-auto">
-          <div
-            v-for="game in unscheduledGames"
-            :key="game.id"
-            class="flex items-center gap-2 p-2 bg-white border border-gray-200 rounded-lg cursor-grab hover:border-primary-300 hover:shadow-sm transition-all select-none"
-            draggable="true"
-            @dragstart="onDragStart($event, game.id)"
-            @touchstart="onTouchStart($event, game.id)"
-            @touchmove="onTouchMove"
-            @touchend="onTouchEnd"
-          >
-            <img
-              v-if="game.thumbnailUrl"
-              :src="game.thumbnailUrl"
-              :alt="game.gameName"
-              class="w-10 h-10 object-cover rounded flex-shrink-0"
-            />
-            <div v-else class="w-10 h-10 bg-gray-100 rounded flex items-center justify-center flex-shrink-0">
-              <svg class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5Z"/>
-              </svg>
-            </div>
-            <div class="flex-1 min-w-0">
-              <div class="font-medium text-sm truncate">{{ game.gameName }}</div>
-              <div class="text-xs text-gray-500">
-                {{ game.playingTime || '?' }}min · {{ game.voteCount }} votes
-              </div>
-            </div>
+    <!-- Selected game indicator -->
+    <div v-if="selectedGameId" class="bg-primary-50 border border-primary-200 rounded-lg px-3 py-2 flex items-center justify-between">
+      <span class="text-sm text-primary-700 font-medium">
+        Now tap a table slot to place: <strong>{{ getGame(selectedGameId)?.gameName }}</strong>
+      </span>
+      <button class="text-primary-500 hover:text-primary-700 text-sm" @click="selectedGameId = null">Cancel</button>
+    </div>
+
+    <!-- Available Games -->
+    <div v-if="unscheduledGames.length > 0">
+      <h4 class="font-medium mb-2 text-gray-700">Available Games</h4>
+      <div class="flex flex-wrap gap-2 mb-4">
+        <button
+          v-for="game in unscheduledGames"
+          :key="game.id"
+          class="flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all text-left"
+          :class="selectedGameId === game.id
+            ? 'border-primary-500 bg-primary-50 shadow-sm'
+            : 'border-gray-200 bg-white hover:border-primary-300'"
+          @click="selectGameToPlace(game.id)"
+        >
+          <img
+            v-if="game.thumbnailUrl"
+            :src="game.thumbnailUrl"
+            :alt="game.gameName"
+            class="w-8 h-8 object-cover rounded flex-shrink-0"
+          />
+          <div v-else class="w-8 h-8 bg-gray-100 rounded flex items-center justify-center flex-shrink-0">
+            <svg class="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5Z"/>
+            </svg>
           </div>
-          <div v-if="unscheduledGames.length === 0" class="text-sm text-gray-500 text-center py-4">
-            All games scheduled
+          <div class="min-w-0">
+            <div class="font-medium text-sm truncate">{{ game.gameName }}</div>
+            <div class="text-xs text-gray-500">{{ game.playingTime || '?' }}min · {{ game.voteCount }} votes</div>
           </div>
-        </div>
+        </button>
       </div>
+    </div>
+    <div v-else class="text-sm text-gray-500 text-center py-2 mb-4">All games scheduled</div>
+
+    <div class="flex gap-6">
 
       <!-- Schedule Grid -->
-      <div class="flex-1 overflow-x-auto">
+      <div class="overflow-x-auto">
         <div class="inline-flex gap-4 min-w-max">
           <div v-for="tableIdx in tableCount" :key="tableIdx" class="w-56">
             <div class="flex items-center justify-between mb-2">
@@ -383,18 +307,15 @@ watch(
               >
                 <!-- Drop zone -->
                 <div
-                  class="border-2 border-dashed rounded-lg p-2 min-h-[100px] transition-colors"
+                  class="border-2 rounded-lg p-2 min-h-[80px] transition-all"
                   :class="[
                     getScheduledGame(tableIdx, slotIdx - 1)
                       ? 'border-primary-200 bg-primary-50'
-                      : 'border-gray-200 bg-gray-50 hover:border-gray-300'
+                      : selectedGameId
+                        ? 'border-dashed border-primary-300 bg-primary-50/30 cursor-pointer hover:border-primary-500 hover:bg-primary-50'
+                        : 'border-dashed border-gray-200 bg-gray-50'
                   ]"
-                  data-drop-zone
-                  :data-table="tableIdx"
-                  :data-slot="slotIdx - 1"
-                  @dragover.prevent
-                  @dragenter.prevent
-                  @drop.prevent="onDrop($event, tableIdx, slotIdx - 1)"
+                  @click="!getScheduledGame(tableIdx, slotIdx - 1) && selectedGameId ? assignToSlot(tableIdx, slotIdx - 1) : undefined"
                 >
                   <div class="text-xs text-gray-400 mb-1">Slot {{ slotIdx }}</div>
 
@@ -456,7 +377,9 @@ watch(
 
                   <!-- Empty state -->
                   <div v-else class="text-center py-4">
-                    <div class="text-xs text-gray-400">Drop game here</div>
+                    <div class="text-xs" :class="selectedGameId ? 'text-primary-500 font-medium' : 'text-gray-400'">
+                      {{ selectedGameId ? 'Tap to place here' : 'Select a game above' }}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -495,10 +418,3 @@ watch(
   </div>
 </template>
 
-<style scoped>
-.touch-drag-over {
-  border-color: var(--color-primary-400, #5fa36b) !important;
-  background-color: var(--color-primary-100, #dcedde) !important;
-  border-style: solid !important;
-}
-</style>
