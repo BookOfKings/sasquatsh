@@ -3530,9 +3530,9 @@ function getLocationTypeLabel(location: EventLocation): string {
             class="card p-4"
           >
             <div class="flex items-start justify-between gap-4">
-              <div class="flex-1">
-                <div class="flex items-center gap-2 mb-2">
-                  <h3 class="font-semibold text-gray-900">{{ bug.title }}</h3>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-2 flex-wrap">
+                  <h3 class="font-semibold text-gray-900 break-words">{{ bug.title }}</h3>
                   <span
                     class="text-xs px-2 py-0.5 rounded-full"
                     :class="getPriorityColor(bug.priority)"
@@ -3546,7 +3546,7 @@ function getLocationTypeLabel(location: EventLocation): string {
                     {{ bug.status.replace('_', ' ') }}
                   </span>
                 </div>
-                <p v-if="bug.description" class="text-gray-600 mb-2">{{ bug.description }}</p>
+                <p v-if="bug.description" class="text-gray-600 mb-2 break-words overflow-hidden">{{ bug.description }}</p>
                 <div v-if="bug.stepsToReproduce" class="text-sm text-gray-500 bg-gray-50 rounded p-2 mb-2">
                   <strong>Steps to reproduce:</strong>
                   <p class="whitespace-pre-wrap">{{ bug.stepsToReproduce }}</p>
