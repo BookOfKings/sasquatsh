@@ -191,18 +191,7 @@ function handleSave() {
   emit('save', schedule, preferences)
 }
 
-// Click-to-assign: select a game, then click a slot to place it
-const selectedGameId = ref<string | null>(null)
-
-function selectGameToPlace(suggestionId: string) {
-  selectedGameId.value = selectedGameId.value === suggestionId ? null : suggestionId
-}
-
-function assignToSlot(tableNumber: number, slotIndex: number) {
-  if (!selectedGameId.value) return
-  assignGame(tableNumber, slotIndex, selectedGameId.value)
-  selectedGameId.value = null
-}
+// Game assignment is handled via dropdown selects in each slot
 
 // Count scheduled games
 const scheduledCount = computed(() => scheduleMap.value.size)
@@ -224,51 +213,10 @@ watch(
     </div>
 
     <p class="text-sm text-gray-600">
-      Select a game below, then tap a table slot to place it. Click the star to mark sessions you want to play.
+      Use the dropdown in each table slot to assign games. Click the star to mark sessions you want to play.
     </p>
 
-    <!-- Selected game indicator -->
-    <div v-if="selectedGameId" class="bg-primary-50 border border-primary-200 rounded-lg px-3 py-2 flex items-center justify-between">
-      <span class="text-sm text-primary-700 font-medium">
-        Now tap a table slot to place: <strong>{{ getGame(selectedGameId)?.gameName }}</strong>
-      </span>
-      <button class="text-primary-500 hover:text-primary-700 text-sm" @click="selectedGameId = null">Cancel</button>
-    </div>
-
-    <!-- Available Games -->
-    <div v-if="unscheduledGames.length > 0">
-      <h4 class="font-medium mb-2 text-gray-700">Available Games</h4>
-      <div class="flex flex-wrap gap-2 mb-4">
-        <button
-          v-for="game in unscheduledGames"
-          :key="game.id"
-          class="flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all text-left"
-          :class="selectedGameId === game.id
-            ? 'border-primary-500 bg-primary-50 shadow-sm'
-            : 'border-gray-200 bg-white hover:border-primary-300'"
-          @click="selectGameToPlace(game.id)"
-        >
-          <img
-            v-if="game.thumbnailUrl"
-            :src="game.thumbnailUrl"
-            :alt="game.gameName"
-            class="w-8 h-8 object-cover rounded flex-shrink-0"
-          />
-          <div v-else class="w-8 h-8 bg-gray-100 rounded flex items-center justify-center flex-shrink-0">
-            <svg class="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5Z"/>
-            </svg>
-          </div>
-          <div class="min-w-0">
-            <div class="font-medium text-sm truncate">{{ game.gameName }}</div>
-            <div class="text-xs text-gray-500">{{ game.playingTime || '?' }}min · {{ game.voteCount }} votes</div>
-          </div>
-        </button>
-      </div>
-    </div>
-    <div v-else class="text-sm text-gray-500 text-center py-2 mb-4">All games scheduled</div>
-
-    <div class="flex gap-6">
+    <div class="flex flex-col sm:flex-row gap-6">
 
       <!-- Schedule Grid -->
       <div class="overflow-x-auto">
@@ -306,15 +254,12 @@ watch(
               >
                 <!-- Drop zone -->
                 <div
-                  class="border-2 rounded-lg p-2 min-h-[80px] transition-all"
+                  class="border-2 rounded-lg p-2 min-h-[70px] transition-all"
                   :class="[
                     getScheduledGame(tableIdx, slotIdx - 1)
                       ? 'border-primary-200 bg-primary-50'
-                      : selectedGameId
-                        ? 'border-dashed border-primary-300 bg-primary-50/30 cursor-pointer hover:border-primary-500 hover:bg-primary-50'
-                        : 'border-dashed border-gray-200 bg-gray-50'
+                      : 'border-dashed border-gray-200 bg-gray-50'
                   ]"
-                  @click="assignToSlot(tableIdx, slotIdx - 1)"
                 >
                   <div class="text-xs text-gray-400 mb-1">Slot {{ slotIdx }}</div>
 
@@ -374,11 +319,21 @@ watch(
                     </div>
                   </div>
 
-                  <!-- Empty state -->
-                  <div v-else class="text-center py-4">
-                    <div class="text-xs" :class="selectedGameId ? 'text-primary-500 font-medium' : 'text-gray-400'">
-                      {{ selectedGameId ? 'Tap to place here' : 'Select a game above' }}
-                    </div>
+                  <!-- Empty state — dropdown to assign -->
+                  <div v-else class="py-1">
+                    <select
+                      class="w-full text-sm border border-gray-300 rounded px-2 py-2 bg-white"
+                      @change="(e) => { const val = (e.target as HTMLSelectElement).value; if (val) { assignGame(tableIdx, slotIdx - 1, val); (e.target as HTMLSelectElement).value = ''; } }"
+                    >
+                      <option value="">Choose a game...</option>
+                      <option
+                        v-for="game in unscheduledGames"
+                        :key="game.id"
+                        :value="game.id"
+                      >
+                        {{ game.gameName }} ({{ game.playingTime || '?' }}min)
+                      </option>
+                    </select>
                   </div>
                 </div>
               </div>
