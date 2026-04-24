@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import HotLocationsBar from '@/components/venues/HotLocationsBar.vue'
+import StateSelect from '@/components/common/StateSelect.vue'
 import VenueSelector from '@/components/venues/VenueSelector.vue'
 import VenueDetailsFields from '@/components/venues/VenueDetailsFields.vue'
 import { hasFeature, TIER_NAMES } from '@/config/subscriptionLimits'
@@ -196,13 +197,10 @@ function clearVenueSelection() {
         </div>
         <div class="col-span-4">
           <label for="state" class="label">State</label>
-          <input
-            id="state"
-            :value="state"
-            type="text"
-            class="input"
+          <StateSelect
+            :model-value="state"
             :disabled="disabled"
-            @input="$emit('update:state', ($event.target as HTMLInputElement).value)"
+            @update:model-value="$emit('update:state', $event)"
           />
         </div>
         <div class="col-span-3">

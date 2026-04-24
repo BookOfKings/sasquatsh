@@ -19,6 +19,7 @@ import UserAvatar from '@/components/common/UserAvatar.vue'
 import HotLocationsBar from '@/components/venues/HotLocationsBar.vue'
 import VenueDetailsFields from '@/components/venues/VenueDetailsFields.vue'
 import SubmitVenueModal from '@/components/venues/SubmitVenueModal.vue'
+import StateSelect from '@/components/common/StateSelect.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -462,13 +463,9 @@ function getStatusBadge(status: string) {
           placeholder="City"
           @keyup.enter="applyLocationFilter"
         />
-        <input
+        <StateSelect
           v-model="locationFilter.state"
-          type="text"
-          class="input text-sm py-1.5 w-20"
           placeholder="State"
-          maxlength="2"
-          @keyup.enter="applyLocationFilter"
         />
         <button
           class="btn-primary text-sm py-1.5"

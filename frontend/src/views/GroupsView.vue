@@ -5,6 +5,7 @@ import { useGroupStore } from '@/stores/useGroupStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import GroupCard from '@/components/groups/GroupCard.vue'
 import AdBanner from '@/components/ads/AdBanner.vue'
+import StateSelect from '@/components/common/StateSelect.vue'
 import type { GroupSummary, GroupSearchFilter, MemberRole } from '@/types/groups'
 
 const router = useRouter()
@@ -145,13 +146,10 @@ function goToCreateGroup() {
 
         <!-- State -->
         <div class="md:col-span-2">
-          <input
+          <StateSelect
             v-model="state"
-            type="text"
-            class="input"
             placeholder="State"
-            @blur="applyFilters"
-            @keyup.enter="applyFilters"
+            @change="applyFilters"
           />
         </div>
 

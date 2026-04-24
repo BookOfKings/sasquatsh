@@ -14,6 +14,7 @@ import HotLocationsBar from '@/components/venues/HotLocationsBar.vue'
 import VenueSelector from '@/components/venues/VenueSelector.vue'
 import VenueDetailsFields from '@/components/venues/VenueDetailsFields.vue'
 import SubmitVenueModal from '@/components/venues/SubmitVenueModal.vue'
+import StateSelect from '@/components/common/StateSelect.vue'
 import type { BggGame } from '@/types/bgg'
 import { TIER_NAMES, type SubscriptionTier } from '@/config/subscriptionLimits'
 import { getEffectiveTier } from '@/types/user'
@@ -907,12 +908,7 @@ function goToGroup(slug: string) {
               </div>
               <div class="col-span-4">
                 <label class="label">State</label>
-                <input
-                  v-model="form.homeState"
-                  type="text"
-                  class="input"
-                  placeholder="State"
-                />
+                <StateSelect v-model="form.homeState" />
               </div>
               <div class="col-span-3">
                 <label class="label">Zip</label>
@@ -984,12 +980,7 @@ function goToGroup(slug: string) {
                 </div>
                 <div class="col-span-4">
                   <label class="label">State</label>
-                  <input
-                    v-model="form.activeState"
-                    type="text"
-                    class="input"
-                    placeholder="State"
-                  />
+                  <StateSelect v-model="form.activeState" />
                 </div>
                 <div class="col-span-3">
                   <label class="label">Until</label>

@@ -64,6 +64,7 @@ import GameSearch from '@/components/common/GameSearch.vue'
 import type { BggGame } from '@/types/bgg'
 import D20Spinner from '@/components/common/D20Spinner.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
+import StateSelect from '@/components/common/StateSelect.vue'
 
 const auth = useAuthStore()
 
@@ -5245,12 +5246,7 @@ function getLocationTypeLabel(location: EventLocation): string {
             </div>
             <div>
               <label class="label">State *</label>
-              <input
-                v-model="form.state"
-                type="text"
-                class="input"
-                placeholder="State"
-              />
+              <StateSelect v-model="form.state" />
             </div>
           </div>
 

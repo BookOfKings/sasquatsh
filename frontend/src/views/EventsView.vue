@@ -9,6 +9,7 @@ import EventList from '@/components/events/EventList.vue'
 import AdBanner from '@/components/ads/AdBanner.vue'
 import SubmitVenueModal from '@/components/venues/SubmitVenueModal.vue'
 import HotLocationsBar from '@/components/venues/HotLocationsBar.vue'
+import StateSelect from '@/components/common/StateSelect.vue'
 import type { EventSummary, EventSearchFilter } from '@/types/events'
 import type { EventLocation } from '@/types/social'
 
@@ -351,13 +352,10 @@ function goToCreateGame() {
 
         <!-- State (hide when nearby is enabled) -->
         <div v-if="!nearbyEnabled" class="md:col-span-2">
-          <input
+          <StateSelect
             v-model="state"
-            type="text"
-            class="input"
             placeholder="State"
-            @blur="applyFilters"
-            @keyup.enter="applyFilters"
+            @change="applyFilters"
           />
         </div>
 

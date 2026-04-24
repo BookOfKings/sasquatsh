@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { submitVenue } from '@/services/venuesApi'
+import StateSelect from '@/components/common/StateSelect.vue'
 import type { EventLocation } from '@/types/social'
 
 const props = defineProps<{
@@ -131,13 +132,6 @@ function close() {
   emit('close')
 }
 
-const usStates = [
-  'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
-  'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
-  'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
-  'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
-  'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
-]
 </script>
 
 <template>
@@ -270,12 +264,7 @@ const usStates = [
           </div>
           <div>
             <label class="label">State *</label>
-            <select v-model="form.state" class="input" required>
-              <option value="">Select</option>
-              <option v-for="state in usStates" :key="state" :value="state">
-                {{ state }}
-              </option>
-            </select>
+            <StateSelect v-model="form.state" required />
           </div>
           <div>
             <label class="label">Zip</label>
