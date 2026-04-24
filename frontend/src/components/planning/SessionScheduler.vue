@@ -188,15 +188,7 @@ function handleSave() {
   emit('save', schedule, preferences)
 }
 
-// Game assignment via dropdown selects
-function handleSlotSelect(event: Event, tableNumber: number, slotIndex: number) {
-  const select = event.target as HTMLSelectElement
-  const val = select.value
-  if (val) {
-    assignGame(tableNumber, slotIndex, val)
-    select.value = ''
-  }
-}
+// Game assignment handled by direct button clicks in template
 
 // Count scheduled games
 const scheduledCount = computed(() => Object.keys(scheduleMap.value).length)
@@ -324,21 +316,23 @@ watch(
                     </div>
                   </div>
 
-                  <!-- Empty state — dropdown to assign -->
-                  <div v-else class="py-1">
-                    <select
-                      class="w-full text-sm border border-gray-300 rounded px-2 py-2 bg-white"
-                      @change="handleSlotSelect($event, tableIdx, slotIdx - 1)"
+                  <!-- Empty state — buttons to assign -->
+                  <div v-else class="space-y-1">
+                    <button
+                      v-for="game in unscheduledGames"
+                      :key="game.id"
+                      class="w-full flex items-center gap-2 px-2 py-1.5 text-left text-sm rounded border border-gray-200 hover:border-primary-400 hover:bg-primary-50 transition-colors"
+                      @click="assignGame(tableIdx, slotIdx - 1, game.id)"
                     >
-                      <option value="">Choose a game...</option>
-                      <option
-                        v-for="game in unscheduledGames"
-                        :key="game.id"
-                        :value="game.id"
-                      >
-                        {{ game.gameName }} ({{ game.playingTime || '?' }}min)
-                      </option>
-                    </select>
+                      <img
+                        v-if="game.thumbnailUrl"
+                        :src="game.thumbnailUrl"
+                        :alt="game.gameName"
+                        class="w-6 h-6 rounded object-cover flex-shrink-0"
+                      />
+                      <span class="truncate">{{ game.gameName }}</span>
+                    </button>
+                    <div v-if="unscheduledGames.length === 0" class="text-xs text-gray-400 text-center py-2">All games assigned</div>
                   </div>
                 </div>
               </div>
