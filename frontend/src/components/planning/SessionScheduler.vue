@@ -116,19 +116,22 @@ function toggleHostPreference(tableNumber: number, slotIndex: number) {
   const key = `${tableNumber}-${slotIndex}`
   if (!scheduleMap.value[key]) return
 
+  const updated = { ...hostPreferenceSet.value }
+
   // Check for conflicts (same slot index on different table)
-  for (const prefKey of Object.keys(hostPreferenceSet.value)) {
+  for (const prefKey of Object.keys(updated)) {
     const [, existingSlot] = prefKey.split('-').map(Number)
     if (existingSlot === slotIndex && prefKey !== key) {
-      delete hostPreferenceSet.value[prefKey]
+      delete updated[prefKey]
     }
   }
 
-  if (hostPreferenceSet.value[key]) {
-    delete hostPreferenceSet.value[key]
+  if (updated[key]) {
+    delete updated[key]
   } else {
-    hostPreferenceSet.value[key] = true
+    updated[key] = true
   }
+  hostPreferenceSet.value = updated
 }
 
 // Add a slot to a table
@@ -153,11 +156,13 @@ function removeSlot(tableIndex: number) {
 // Set duration override
 function setDuration(tableNumber: number, slotIndex: number, minutes: number) {
   const key = `${tableNumber}-${slotIndex}`
+  const updated = { ...durationOverrides.value }
   if (minutes > 0) {
-    durationOverrides.value[key] = minutes
+    updated[key] = minutes
   } else {
-    delete durationOverrides.value[key]
+    delete updated[key]
   }
+  durationOverrides.value = updated
 }
 
 // Get duration for a cell (override or game default)
