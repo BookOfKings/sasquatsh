@@ -261,7 +261,7 @@ watch(
                   <div class="text-xs text-gray-400 mb-1">Slot {{ slotIdx }}</div>
 
                   <!-- Scheduled game -->
-                  <div v-if="getScheduledGame(tableIdx, slotIdx - 1)" class="space-y-2">
+                  <div v-if="scheduleMap[`${tableIdx}-${slotIdx - 1}`]" class="space-y-2">
                     <div class="flex items-start gap-2">
                       <img
                         v-if="getScheduledGame(tableIdx, slotIdx - 1)?.thumbnailUrl"
