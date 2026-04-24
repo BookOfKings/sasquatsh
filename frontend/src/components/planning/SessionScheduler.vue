@@ -17,11 +17,11 @@ const emit = defineEmits<{
 }>()
 
 // Schedule grid state: key = "tableNumber-slotIndex", value = suggestionId
-const scheduleMap = ref<Map<string, string>>(new Map())
-// Host preferences: set of "tableNumber-slotIndex" keys
-const hostPreferenceSet = ref<Set<string>>(new Set())
+const scheduleMap = ref<Record<string, string>>({})
+// Host preferences: key = "tableNumber-slotIndex", value = true
+const hostPreferenceSet = ref<Record<string, boolean>>({})
 // Duration overrides: key = "tableNumber-slotIndex", value = minutes
-const durationOverrides = ref<Map<string, number>>(new Map())
+const durationOverrides = ref<Record<string, number>>({})
 
 // Track slot count per table for UI
 const slotCounts = ref<number[]>([])
@@ -31,20 +31,19 @@ watch(
   () => [props.initialSchedule, props.initialPreferences, props.tableCount],
   () => {
     // Reset
-    scheduleMap.value = new Map()
-    hostPreferenceSet.value = new Set()
-    durationOverrides.value = new Map()
+    scheduleMap.value = {}
+    hostPreferenceSet.value = {}
+    durationOverrides.value = {}
     slotCounts.value = Array(props.tableCount).fill(1)
 
     // Load initial schedule
     if (props.initialSchedule) {
       for (const entry of props.initialSchedule) {
         const key = `${entry.tableNumber}-${entry.slotIndex}`
-        scheduleMap.value.set(key, entry.suggestionId)
+        scheduleMap.value[key] = entry.suggestionId
         if (entry.durationOverride) {
-          durationOverrides.value.set(key, entry.durationOverride)
+          durationOverrides.value[key] = entry.durationOverride
         }
-        // Update slot count
         const tableIdx = entry.tableNumber - 1
         if (tableIdx >= 0 && tableIdx < slotCounts.value.length) {
           if (entry.slotIndex >= (slotCounts.value[tableIdx] ?? 0)) {
@@ -57,7 +56,7 @@ watch(
     // Load initial preferences
     if (props.initialPreferences) {
       for (const pref of props.initialPreferences) {
-        hostPreferenceSet.value.add(`${pref.tableNumber}-${pref.slotIndex}`)
+        hostPreferenceSet.value[`${pref.tableNumber}-${pref.slotIndex}`] = true
       }
     }
   },
@@ -72,56 +71,54 @@ function getGame(suggestionId: string): GameSuggestion | undefined {
 // Get scheduled game for a cell
 function getScheduledGame(tableNumber: number, slotIndex: number): GameSuggestion | undefined {
   const key = `${tableNumber}-${slotIndex}`
-  const suggestionId = scheduleMap.value.get(key)
+  const suggestionId = scheduleMap.value[key]
   if (!suggestionId) return undefined
   return getGame(suggestionId)
 }
 
 // Get games not yet scheduled
 const unscheduledGames = computed(() => {
-  const scheduledIds = new Set(scheduleMap.value.values())
+  const scheduledIds = new Set(Object.values(scheduleMap.value))
   return props.gameSuggestions.filter(g => !scheduledIds.has(g.id))
 })
 
 // Assign a game to a cell
 function assignGame(tableNumber: number, slotIndex: number, suggestionId: string) {
   const key = `${tableNumber}-${slotIndex}`
+  const updated = { ...scheduleMap.value }
   // Remove from any other cell first
-  for (const [k, v] of scheduleMap.value.entries()) {
-    if (v === suggestionId) {
-      scheduleMap.value.delete(k)
-    }
+  for (const [k, v] of Object.entries(updated)) {
+    if (v === suggestionId) delete updated[k]
   }
-  scheduleMap.value.set(key, suggestionId)
+  updated[key] = suggestionId
+  scheduleMap.value = updated
 }
 
 // Clear a cell
 function clearCell(tableNumber: number, slotIndex: number) {
   const key = `${tableNumber}-${slotIndex}`
-  scheduleMap.value.delete(key)
-  hostPreferenceSet.value.delete(key)
-  durationOverrides.value.delete(key)
+  const m = { ...scheduleMap.value }; delete m[key]; scheduleMap.value = m
+  const p = { ...hostPreferenceSet.value }; delete p[key]; hostPreferenceSet.value = p
+  const d = { ...durationOverrides.value }; delete d[key]; durationOverrides.value = d
 }
 
 // Toggle host preference for a cell
 function toggleHostPreference(tableNumber: number, slotIndex: number) {
   const key = `${tableNumber}-${slotIndex}`
-  // Can only prefer cells with games
-  if (!scheduleMap.value.has(key)) return
+  if (!scheduleMap.value[key]) return
 
   // Check for conflicts (same slot index on different table)
-  for (const prefKey of hostPreferenceSet.value) {
+  for (const prefKey of Object.keys(hostPreferenceSet.value)) {
     const [, existingSlot] = prefKey.split('-').map(Number)
     if (existingSlot === slotIndex && prefKey !== key) {
-      // Remove the conflicting preference
-      hostPreferenceSet.value.delete(prefKey)
+      delete hostPreferenceSet.value[prefKey]
     }
   }
 
-  if (hostPreferenceSet.value.has(key)) {
-    hostPreferenceSet.value.delete(key)
+  if (hostPreferenceSet.value[key]) {
+    delete hostPreferenceSet.value[key]
   } else {
-    hostPreferenceSet.value.add(key)
+    hostPreferenceSet.value[key] = true
   }
 }
 
@@ -148,16 +145,16 @@ function removeSlot(tableIndex: number) {
 function setDuration(tableNumber: number, slotIndex: number, minutes: number) {
   const key = `${tableNumber}-${slotIndex}`
   if (minutes > 0) {
-    durationOverrides.value.set(key, minutes)
+    durationOverrides.value[key] = minutes
   } else {
-    durationOverrides.value.delete(key)
+    delete durationOverrides.value[key]
   }
 }
 
 // Get duration for a cell (override or game default)
 function getDuration(tableNumber: number, slotIndex: number): number {
   const key = `${tableNumber}-${slotIndex}`
-  const override = durationOverrides.value.get(key)
+  const override = durationOverrides.value[key]
   if (override) return override
 
   const game = getScheduledGame(tableNumber, slotIndex)
@@ -167,11 +164,11 @@ function getDuration(tableNumber: number, slotIndex: number): number {
 // Save handler
 function handleSave() {
   const schedule: ScheduleEntry[] = []
-  for (const [key, suggestionId] of scheduleMap.value.entries()) {
+  for (const [key, suggestionId] of Object.entries(scheduleMap.value)) {
     const parts = key.split('-').map(Number)
     const tableNumber = parts[0] ?? 0
     const slotIndex = parts[1] ?? 0
-    const override = durationOverrides.value.get(key)
+    const override = durationOverrides.value[key]
     schedule.push({
       suggestionId,
       tableNumber,
@@ -181,7 +178,7 @@ function handleSave() {
   }
 
   const preferences: HostPreference[] = []
-  for (const key of hostPreferenceSet.value) {
+  for (const key of Object.keys(hostPreferenceSet.value)) {
     const parts = key.split('-').map(Number)
     const tableNumber = parts[0] ?? 0
     const slotIndex = parts[1] ?? 0
@@ -191,10 +188,18 @@ function handleSave() {
   emit('save', schedule, preferences)
 }
 
-// Game assignment is handled via dropdown selects in each slot
+// Game assignment via dropdown selects
+function handleSlotSelect(event: Event, tableNumber: number, slotIndex: number) {
+  const select = event.target as HTMLSelectElement
+  const val = select.value
+  if (val) {
+    assignGame(tableNumber, slotIndex, val)
+    select.value = ''
+  }
+}
 
 // Count scheduled games
-const scheduledCount = computed(() => scheduleMap.value.size)
+const scheduledCount = computed(() => Object.keys(scheduleMap.value).length)
 
 // Emit schedule count changes for parent validation
 watch(
@@ -296,7 +301,7 @@ watch(
                       <button
                         class="p-1 rounded transition-colors"
                         :class="[
-                          hostPreferenceSet.has(`${tableIdx}-${slotIdx - 1}`)
+                          hostPreferenceSet[`${tableIdx}-${slotIdx - 1}`]
                             ? 'text-yellow-500 hover:text-yellow-600'
                             : 'text-gray-300 hover:text-yellow-500'
                         ]"
@@ -323,7 +328,7 @@ watch(
                   <div v-else class="py-1">
                     <select
                       class="w-full text-sm border border-gray-300 rounded px-2 py-2 bg-white"
-                      @change="(e) => { const val = (e.target as HTMLSelectElement).value; if (val) { assignGame(tableIdx, slotIdx - 1, val); (e.target as HTMLSelectElement).value = ''; } }"
+                      @change="handleSlotSelect($event, tableIdx, slotIdx - 1)"
                     >
                       <option value="">Choose a game...</option>
                       <option
@@ -353,7 +358,7 @@ watch(
           </div>
           <div>
             <span class="text-gray-500">Host playing:</span>
-            <span class="font-medium ml-1">{{ hostPreferenceSet.size }} session{{ hostPreferenceSet.size === 1 ? '' : 's' }}</span>
+            <span class="font-medium ml-1">{{ Object.keys(hostPreferenceSet).length }} session{{ Object.keys(hostPreferenceSet).length === 1 ? '' : 's' }}</span>
           </div>
         </div>
         <button
