@@ -26,41 +26,50 @@ const durationOverrides = ref<Record<string, number>>({})
 // Track slot count per table for UI
 const slotCounts = ref<number[]>([])
 
-// Initialize from props
+// Initialize from props — only on mount, not on every prop change
+let initialized = false
+
+function initFromProps() {
+  scheduleMap.value = {}
+  hostPreferenceSet.value = {}
+  durationOverrides.value = {}
+  slotCounts.value = Array(props.tableCount).fill(1)
+
+  if (props.initialSchedule) {
+    for (const entry of props.initialSchedule) {
+      const key = `${entry.tableNumber}-${entry.slotIndex}`
+      scheduleMap.value[key] = entry.suggestionId
+      if (entry.durationOverride) {
+        durationOverrides.value[key] = entry.durationOverride
+      }
+      const tableIdx = entry.tableNumber - 1
+      if (tableIdx >= 0 && tableIdx < slotCounts.value.length) {
+        if (entry.slotIndex >= (slotCounts.value[tableIdx] ?? 0)) {
+          slotCounts.value[tableIdx] = entry.slotIndex + 1
+        }
+      }
+    }
+  }
+
+  if (props.initialPreferences) {
+    for (const pref of props.initialPreferences) {
+      hostPreferenceSet.value[`${pref.tableNumber}-${pref.slotIndex}`] = true
+    }
+  }
+  initialized = true
+}
+
+// Initialize immediately
+initFromProps()
+
+// Only re-initialize if tableCount actually changes (user picks different number of tables)
 watch(
-  () => [props.initialSchedule, props.initialPreferences, props.tableCount],
-  () => {
-    // Reset
-    scheduleMap.value = {}
-    hostPreferenceSet.value = {}
-    durationOverrides.value = {}
-    slotCounts.value = Array(props.tableCount).fill(1)
-
-    // Load initial schedule
-    if (props.initialSchedule) {
-      for (const entry of props.initialSchedule) {
-        const key = `${entry.tableNumber}-${entry.slotIndex}`
-        scheduleMap.value[key] = entry.suggestionId
-        if (entry.durationOverride) {
-          durationOverrides.value[key] = entry.durationOverride
-        }
-        const tableIdx = entry.tableNumber - 1
-        if (tableIdx >= 0 && tableIdx < slotCounts.value.length) {
-          if (entry.slotIndex >= (slotCounts.value[tableIdx] ?? 0)) {
-            slotCounts.value[tableIdx] = entry.slotIndex + 1
-          }
-        }
-      }
+  () => props.tableCount,
+  (newCount, oldCount) => {
+    if (initialized && newCount !== oldCount) {
+      slotCounts.value = Array(newCount).fill(1)
     }
-
-    // Load initial preferences
-    if (props.initialPreferences) {
-      for (const pref of props.initialPreferences) {
-        hostPreferenceSet.value[`${pref.tableNumber}-${pref.slotIndex}`] = true
-      }
-    }
-  },
-  { immediate: true }
+  }
 )
 
 // Get game by suggestion ID
