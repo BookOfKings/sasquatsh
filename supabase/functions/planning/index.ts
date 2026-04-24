@@ -1461,7 +1461,7 @@ Deno.serve(async (req) => {
 
       // Check if this is a multi-table session
       // Allow mode override: if user selects 'single' mode, create single event even if tables were set up
-      const isMultiTable = body.mode !== 'single' && (session.table_count ?? 0) >= 2 && session.scheduled_sessions
+      const isMultiTable = body.mode !== 'single' && (session.table_count ?? 0) >= 2 && !!session.scheduled_sessions
 
       // Determine max players for the event
       // Use session's maxParticipants if set, otherwise use a reasonable default based on invitees
