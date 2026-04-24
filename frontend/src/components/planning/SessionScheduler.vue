@@ -219,7 +219,7 @@ watch(
     </div>
 
     <p class="text-sm text-gray-600">
-      Use the dropdown in each table slot to assign games. Click the star to mark sessions you want to play.
+      Tap a game to assign it to a table slot. Click the star to mark sessions you want to play.
     </p>
 
     <div class="flex flex-col sm:flex-row gap-6">
