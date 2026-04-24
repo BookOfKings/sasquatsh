@@ -88,7 +88,9 @@ function getScheduledGame(tableNumber: number, slotIndex: number): GameSuggestio
 // Get games not yet scheduled
 const unscheduledGames = computed(() => {
   const scheduledIds = new Set(Object.values(scheduleMap.value))
-  return props.gameSuggestions.filter(g => !scheduledIds.has(g.id))
+  return props.gameSuggestions
+    .filter(g => !scheduledIds.has(g.id))
+    .sort((a, b) => b.voteCount - a.voteCount)
 })
 
 // Assign a game to a cell
@@ -344,7 +346,8 @@ watch(
                         :alt="game.gameName"
                         class="w-6 h-6 rounded object-cover flex-shrink-0"
                       />
-                      <span class="truncate">{{ game.gameName }}</span>
+                      <span class="truncate flex-1">{{ game.gameName }}</span>
+                      <span class="text-xs text-gray-400 flex-shrink-0">{{ game.voteCount }} vote{{ game.voteCount === 1 ? '' : 's' }}</span>
                     </button>
                     <div v-if="unscheduledGames.length === 0" class="text-xs text-gray-400 text-center py-2">All games assigned</div>
                   </div>
