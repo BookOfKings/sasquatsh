@@ -11,6 +11,7 @@ import D20Spinner from '@/components/common/D20Spinner.vue'
 import AdBanner from '@/components/ads/AdBanner.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 import RaffleCard from '@/components/raffle/RaffleCard.vue'
+import { computeMyBadges } from '@/services/badgesApi'
 
 const auth = useAuthStore()
 const eventStore = useEventStore()
@@ -95,6 +96,16 @@ onMounted(async () => {
     console.error('Failed to load planning invitations:', err)
   } finally {
     loadingPlanningInvitations.value = false
+  }
+
+  // Silently compute badges in the background (no UI blocking)
+  try {
+    const token = await auth.getIdToken()
+    if (token) {
+      computeMyBadges(token).catch(() => {}) // fire and forget
+    }
+  } catch {
+    // Silent — badge computation is non-critical
   }
 })
 
