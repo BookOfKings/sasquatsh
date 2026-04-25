@@ -5,12 +5,13 @@ import SwiftUI
 final class DashboardViewModel {
     var registeredEvents: [EventSummary] = []
     var hostedEvents: [EventSummary] = []
+    var planningSessions: [PlanningSession] = []
     var myGroups: [GroupSummary] = []
     var pendingInvitations: [PendingGroupInvitation] = []
     var isLoading = false
     var error: String?
 
-    private var services: ServiceContainer?
+    private(set) var services: ServiceContainer?
 
     func configure(services: ServiceContainer) {
         self.services = services
@@ -24,12 +25,14 @@ final class DashboardViewModel {
         do {
             async let registered = services.events.getRegisteredEvents()
             async let hosted = services.events.getHostedEvents()
+            async let planning = services.planning.getMySessions()
             async let groups = services.groups.getMyGroups()
             async let invitations = services.groups.getMyPendingInvitations()
 
             let startOfToday = Calendar.current.startOfDay(for: Date())
             registeredEvents = try await registered.filter { $0.eventDate.toDate ?? .distantPast >= startOfToday }
             hostedEvents = try await hosted.filter { $0.eventDate.toDate ?? .distantPast >= startOfToday }
+            planningSessions = (try? await planning.filter { $0.status == .open }) ?? []
             myGroups = try await groups
             pendingInvitations = (try? await invitations) ?? []
         } catch {

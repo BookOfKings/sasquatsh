@@ -6,7 +6,7 @@ final class CreateEditEventViewModel {
     var title = ""
     var description = ""
     var gameSystem: GameSystem = .boardGame
-    var gameTitle = ""
+    private var gameTitle = "" // only used internally for API, derived from selectedGames
     var gameCategory: GameCategory?
     var eventDate = Date()
     var startTime = Date()
@@ -21,7 +21,7 @@ final class CreateEditEventViewModel {
     var venueHall: String?
     var venueRoom: String?
     var venueTable: String?
-    var timezone: AppTimezone = .eastern
+    var timezone: AppTimezone = AppTimezone(rawValue: TimeZone.current.identifier) ?? .eastern
     var hostIsPlaying: Bool = true
     var selectedVenue: EventLocation?
     var useVenueMode: Bool = true
@@ -99,9 +99,8 @@ final class CreateEditEventViewModel {
         do {
             let game = try await services.bgg.getGameDetails(bggId: searchResult.bggId)
             selectedGames.append(game)
-            if selectedGames.count == 1 {
-                gameTitle = game.name
-            }
+            syncGameTitle()
+            bggSearchResults = []
         } catch {
             self.error = "Failed to load game details"
         }
@@ -111,18 +110,23 @@ final class CreateEditEventViewModel {
     func removeGame(at index: Int) {
         guard selectedGames.indices.contains(index) else { return }
         selectedGames.remove(at: index)
-        if selectedGames.isEmpty {
-            gameTitle = ""
-        } else {
-            gameTitle = selectedGames[0].name
-        }
+        syncGameTitle()
     }
 
     func setPrimaryGame(at index: Int) {
         guard selectedGames.indices.contains(index), index != 0 else { return }
         let game = selectedGames.remove(at: index)
         selectedGames.insert(game, at: 0)
-        gameTitle = game.name
+        syncGameTitle()
+    }
+
+    private func syncGameTitle() {
+        gameTitle = selectedGames.first?.name ?? ""
+    }
+
+    /// Derived game title from primary selected game — used when submitting to API
+    var derivedGameTitle: String? {
+        selectedGames.first?.name
     }
 
     func loadForEdit(event: Event) {
@@ -187,7 +191,7 @@ final class CreateEditEventViewModel {
                 let input = UpdateEventInput(
                     title: title,
                     description: description.isEmpty ? nil : description,
-                    gameTitle: gameTitle.isEmpty ? nil : gameTitle,
+                    gameTitle: derivedGameTitle,
                     gameCategory: gameCategory?.rawValue,
                     gameSystem: gameSystem.rawValue,
                     eventDate: eventDate.apiDateString,
@@ -223,7 +227,7 @@ final class CreateEditEventViewModel {
                 let input = CreateEventInput(
                     title: title,
                     description: description.isEmpty ? nil : description,
-                    gameTitle: gameTitle.isEmpty ? nil : gameTitle,
+                    gameTitle: derivedGameTitle,
                     gameCategory: gameCategory?.rawValue,
                     gameSystem: gameSystem.rawValue,
                     eventDate: eventDate.apiDateString,
@@ -339,7 +343,18 @@ final class CreateEditEventViewModel {
     }
 
     var isValid: Bool {
-        !title.trimmingCharacters(in: .whitespaces).isEmpty
+        validationIssues.isEmpty
+    }
+
+    var validationIssues: [String] {
+        var issues: [String] = []
+        if title.trimmingCharacters(in: .whitespaces).isEmpty {
+            issues.append("Title is required")
+        }
+        if isBoardGame && selectedGames.isEmpty && !isEditing {
+            issues.append("Select at least one game")
+        }
+        return issues
     }
 
     private func parseTimeString(_ time: String) -> Date? {

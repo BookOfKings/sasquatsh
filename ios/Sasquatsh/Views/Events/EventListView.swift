@@ -174,7 +174,7 @@ struct EventListView: View {
                     ))
                     .disabled(vm.nearbyEnabled)
 
-                    TextField("State", text: Binding(
+                    USStatePicker(selection: Binding(
                         get: { vm.filterState ?? "" },
                         set: { vm.filterState = $0.isEmpty ? nil : $0 }
                     ))

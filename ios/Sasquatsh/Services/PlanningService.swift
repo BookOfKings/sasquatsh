@@ -19,11 +19,18 @@ protocol PlanningServiceProtocol: Sendable {
     func removeItem(sessionId: String, itemId: String) async throws
     func addInvitees(sessionId: String, userIds: [String]) async throws
     func updateSettings(sessionId: String, tableCount: Int?) async throws
+    func scheduleSessions(sessionId: String, schedule: [ScheduleEntry]) async throws
 }
 
 struct FinalizeResponse: Codable {
     let eventId: String
     let message: String
+}
+
+struct ScheduleEntry: Codable {
+    let suggestionId: String
+    let tableNumber: Int
+    let slotIndex: Int
 }
 
 final class PlanningService: PlanningServiceProtocol {
@@ -154,9 +161,21 @@ final class PlanningService: PlanningServiceProtocol {
             .init(name: "action", value: "update-settings")
         ])
     }
+
+    func scheduleSessions(sessionId: String, schedule: [ScheduleEntry]) async throws {
+        struct Body: Encodable { let schedule: [ScheduleEntry] }
+        let _: ScheduleResponse = try await api.post("planning", body: Body(schedule: schedule), queryItems: [
+            .init(name: "id", value: sessionId),
+            .init(name: "action", value: "schedule-sessions")
+        ])
+    }
 }
 
 private struct UpdateSettingsResponse: Decodable {
     let message: String
     let tableCount: Int?
+}
+
+private struct ScheduleResponse: Decodable {
+    let message: String
 }

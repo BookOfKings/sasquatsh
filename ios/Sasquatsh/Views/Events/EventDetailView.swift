@@ -105,20 +105,30 @@ struct EventDetailView: View {
         .alert(calendarMessage ?? "", isPresented: $showCalendarAlert) {
             Button("OK") {}
         }
-        .sheet(isPresented: $showEditEvent) {
+        .sheet(isPresented: $showEditEvent, onDismiss: {
+            Task { await vm.loadEvent(id: eventId) }
+        }) {
             if let event = vm.event {
                 EditEventView(event: event)
             }
         }
-        .sheet(isPresented: $showBGGSearch) {
-            BGGGameSearchSheet { result in
+        .sheet(isPresented: $showBGGSearch, onDismiss: {
+            Task { await vm.loadEvent(id: eventId) }
+        }) {
+            GameSuggestSheet(
+                hostUserId: vm.event?.host?.id,
+                hostName: vm.event?.host?.displayName ?? vm.event?.host?.username
+            ) { results in
                 Task {
-                    let input = AddEventGameInput(
-                        eventId: eventId,
-                        bggId: result.bggId,
-                        gameName: result.name
-                    )
-                    await vm.addGame(input)
+                    for result in results {
+                        let input = AddEventGameInput(
+                            eventId: eventId,
+                            bggId: result.bggId,
+                            gameName: result.name,
+                            thumbnailUrl: result.thumbnailUrl
+                        )
+                        await vm.addGame(input)
+                    }
                 }
             }
         }

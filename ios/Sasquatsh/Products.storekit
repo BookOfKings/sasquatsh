@@ -1,0 +1,178 @@
+{
+  "identifier" : "com.sasquatsh.ios.products",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_applicationInternalID" : "1",
+    "_developerTeamID" : "6QFGMUQY98",
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Load Products"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Purchase"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Verification"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Store Sync"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Subscription Status"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Transaction"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Manage Subscriptions Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Refund Request Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Offer Code Redeem Sheet"
+      }
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "sasquatsh_pro",
+      "localizations" : [
+
+      ],
+      "name" : "Sasquatsh Pro",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "4.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "basic_monthly",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Up to 5 games per event, 5 groups, chat, planning, and more",
+              "displayName" : "Basic Monthly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.sasquatsh.basic.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Basic Monthly",
+          "subscriptionGroupID" : "sasquatsh_pro",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "49.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "basic_annual",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Up to 5 games per event, 5 groups, chat, planning, and more",
+              "displayName" : "Basic Annual",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.sasquatsh.basic.annual",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Basic Annual",
+          "subscriptionGroupID" : "sasquatsh_pro",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "7.99",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "pro_monthly",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Up to 10 games per event, 10 groups, items tracking, and everything in Basic",
+              "displayName" : "Pro Monthly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.sasquatsh.pro.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Pro Monthly",
+          "subscriptionGroupID" : "sasquatsh_pro",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "79.99",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "pro_annual",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Up to 10 games per event, 10 groups, items tracking, and everything in Basic",
+              "displayName" : "Pro Annual",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.sasquatsh.pro.annual",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Pro Annual",
+          "subscriptionGroupID" : "sasquatsh_pro",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

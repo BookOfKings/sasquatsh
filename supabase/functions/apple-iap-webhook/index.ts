@@ -69,8 +69,28 @@ Deno.serve(async (req) => {
 
     // Verify transaction with Apple
     try {
+      console.log(`[IAP] Verifying transaction ${transactionId}, product ${productId}, env ${environment}`)
+
+      if (!APPLE_ISSUER_ID || !APPLE_KEY_ID || !APPLE_PRIVATE_KEY_BASE64) {
+        console.error('[IAP] Missing Apple credentials:', {
+          hasIssuerId: !!APPLE_ISSUER_ID,
+          hasKeyId: !!APPLE_KEY_ID,
+          hasPrivateKey: !!APPLE_PRIVATE_KEY_BASE64,
+        })
+        return errorResponse('Apple API credentials not configured', 500)
+      }
+
       const appleBaseUrl = environment === 'Sandbox' ? APPLE_API_SANDBOX : APPLE_API_PRODUCTION
-      const appleJwt = await generateAppleJwt()
+      console.log(`[IAP] Using Apple API: ${appleBaseUrl}`)
+
+      let appleJwt: string
+      try {
+        appleJwt = await generateAppleJwt()
+        console.log('[IAP] JWT generated successfully')
+      } catch (jwtErr) {
+        console.error('[IAP] JWT generation failed:', jwtErr)
+        return errorResponse(`JWT generation failed: ${jwtErr.message}`, 500)
+      }
 
       const appleResponse = await fetch(
         `${appleBaseUrl}/inApps/v1/transactions/${transactionId}`,
@@ -81,8 +101,8 @@ Deno.serve(async (req) => {
 
       if (!appleResponse.ok) {
         const errText = await appleResponse.text()
-        console.error('Apple API error:', appleResponse.status, errText)
-        return errorResponse('Failed to verify transaction with Apple', 502)
+        console.error(`[IAP] Apple API error ${appleResponse.status}:`, errText)
+        return errorResponse(`Apple verification failed (${appleResponse.status}): ${errText}`, 502)
       }
 
       const appleData = await appleResponse.json()
@@ -317,13 +337,12 @@ async function generateAppleJwt(): Promise<string> {
   const privateKeyPem = atob(APPLE_PRIVATE_KEY_BASE64)
   const privateKey = await jose.importPKCS8(privateKeyPem, 'ES256')
 
-  const jwt = await new jose.SignJWT({})
+  const jwt = await new jose.SignJWT({ bid: APPLE_BUNDLE_ID })
     .setProtectedHeader({ alg: 'ES256', kid: APPLE_KEY_ID, typ: 'JWT' })
     .setIssuer(APPLE_ISSUER_ID)
     .setIssuedAt()
     .setExpirationTime('20m')
     .setAudience('appstoreconnect-v1')
-    .setSubject(APPLE_BUNDLE_ID)
     .sign(privateKey)
 
   return jwt

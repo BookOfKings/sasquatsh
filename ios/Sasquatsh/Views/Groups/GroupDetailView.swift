@@ -154,7 +154,9 @@ struct GroupDetailView: View {
         } message: {
             Text("Transfer ownership to \(transferTargetName)? You will be demoted to admin.")
         }
-        .sheet(isPresented: $showInviteSearch) {
+        .sheet(isPresented: $showInviteSearch, onDismiss: {
+            Task { await vm.loadGroup(id: groupId) }
+        }) {
             UserSearchInviteSheet(groupId: groupId)
         }
         .sheet(isPresented: $showShareLink) {
@@ -681,7 +683,9 @@ struct GroupDetailView: View {
                     .padding(.horizontal)
             }
         }
-        .sheet(isPresented: $recurringGamesVM.showForm) {
+        .sheet(isPresented: $recurringGamesVM.showForm, onDismiss: {
+            Task { await recurringGamesVM.loadGames() }
+        }) {
             RecurringGameFormSheet(
                 groupId: groupId,
                 game: recurringGamesVM.editingGame

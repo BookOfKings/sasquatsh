@@ -25,7 +25,7 @@ struct EditGroupView: View {
 
                 Section("Location") {
                     TextField("City", text: $vm.locationCity)
-                    TextField("State", text: $vm.locationState)
+                    USStatePicker(selection: $vm.locationState)
                 }
 
                 Section("Join Policy") {

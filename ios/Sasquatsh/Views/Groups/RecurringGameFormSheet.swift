@@ -127,7 +127,7 @@ struct RecurringGameFormSheet: View {
                 Section("Location") {
                     TextField("Address", text: $addressLine1)
                     TextField("City", text: $city)
-                    TextField("State", text: $state)
+                    USStatePicker(selection: $state)
                 }
             }
             .navigationTitle(isEditing ? "Edit Recurring Game" : "New Recurring Game")

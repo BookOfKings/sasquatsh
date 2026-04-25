@@ -92,7 +92,7 @@ final class StoreKitService {
         switch result {
         case .success(let verification):
             let transaction = try checkVerified(verification)
-            try await syncTransactionWithServer(transaction)
+            await syncTransactionWithServer(transaction)
             await transaction.finish()
             await updatePurchasedProducts()
             logger.info("Purchase complete: \(iapProduct.product.id)")
@@ -115,7 +115,7 @@ final class StoreKitService {
         await updatePurchasedProducts()
         // Sync any active subscription with server
         if let transaction = await currentSubscription() {
-            try? await syncTransactionWithServer(transaction)
+            await syncTransactionWithServer(transaction)
         }
         logger.info("Purchases restored")
     }
@@ -127,7 +127,7 @@ final class StoreKitService {
             for await result in Transaction.updates {
                 guard let self else { break }
                 if let transaction = try? await self.checkVerified(result) {
-                    try? await self.syncTransactionWithServer(transaction)
+                    await self.syncTransactionWithServer(transaction)
                     await transaction.finish()
                     await self.updatePurchasedProducts()
                 }
@@ -158,8 +158,11 @@ final class StoreKitService {
         }
     }
 
-    private func syncTransactionWithServer(_ transaction: Transaction) async throws {
-        guard let api else { throw StoreKitError.serverSyncFailed("API not configured") }
+    private func syncTransactionWithServer(_ transaction: Transaction) async {
+        guard let api else {
+            logger.error("syncTransaction: API not configured")
+            return
+        }
 
         struct SyncRequest: Encodable {
             let transactionId: UInt64
@@ -180,6 +183,8 @@ final class StoreKitService {
             env = "Production"
         }
 
+        logger.info("syncTransaction: id=\(transaction.id) product=\(transaction.productID) env=\(env)")
+
         let request = SyncRequest(
             transactionId: transaction.id,
             originalTransactionId: transaction.originalID,
@@ -187,11 +192,18 @@ final class StoreKitService {
             environment: env
         )
 
-        let _: SyncResponse = try await api.post(
-            "apple-iap-webhook",
-            body: request,
-            queryItems: [.init(name: "action", value: "verify")]
-        )
+        do {
+            let response: SyncResponse = try await api.post(
+                "apple-iap-webhook",
+                body: request,
+                queryItems: [.init(name: "action", value: "verify")]
+            )
+            logger.info("syncTransaction: success=\(response.success) tier=\(response.tier ?? "nil")")
+        } catch {
+            logger.error("syncTransaction failed: \(error.localizedDescription)")
+            // Don't throw — the Apple purchase succeeded, tier will sync on next app launch
+            // via the transaction listener or restore purchases
+        }
     }
 
     func product(for tier: SubscriptionTier, period: SubscriptionPeriod) -> IAPProduct? {

@@ -3,9 +3,14 @@ import SwiftUI
 struct BillingView: View {
     @Environment(\.services) private var services
     @Environment(\.openURL) private var openURL
+    @Environment(AuthViewModel.self) private var authVM
     @State private var vm = BillingViewModel()
     @State private var showCancelConfirm = false
     @State private var selectedInvoice: Invoice?
+
+    private var storeKit: StoreKitService {
+        services.storeKit
+    }
 
     var body: some View {
         ScrollView {
@@ -44,8 +49,11 @@ struct BillingView: View {
                         .cardStyle()
                     }
 
-                    paymentMethodCard
-                    invoiceHistoryCard
+                    // Only show Stripe payment/invoice sections for Stripe subscriptions
+                    if vm.isStripeSubscription || (!vm.isAppleSubscription && !storeKit.hasActiveSubscription) {
+                        paymentMethodCard
+                        invoiceHistoryCard
+                    }
                 }
                 .padding()
             }
@@ -53,7 +61,10 @@ struct BillingView: View {
         .background(Color.md3SurfaceContainer)
         .navigationTitle("Billing")
         .navigationBarTitleDisplayMode(.inline)
-        .refreshable { await vm.loadBillingInfo() }
+        .refreshable {
+            await vm.loadBillingInfo()
+            await storeKit.updatePurchasedProducts()
+        }
         .confirmationDialog("Cancel Subscription", isPresented: $showCancelConfirm) {
             Button("Cancel Subscription", role: .destructive) {
                 Task { await vm.cancelSubscription() }
@@ -67,10 +78,20 @@ struct BillingView: View {
         .task {
             vm.configure(services: services)
             await vm.loadBillingInfo()
+            await storeKit.updatePurchasedProducts()
         }
     }
 
     // MARK: - Current Plan Card
+
+    private var effectiveTier: SubscriptionTier {
+        // Check StoreKit entitlements first, then server tier
+        storeKit.currentTier ?? authVM.user?.effectiveTier ?? vm.currentTier
+    }
+
+    private var isApple: Bool {
+        storeKit.hasActiveSubscription || vm.isAppleSubscription
+    }
 
     private var currentPlanCard: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -79,12 +100,39 @@ struct BillingView: View {
                     .font(.md3TitleMedium)
                     .foregroundStyle(Color.md3OnSurface)
                 Spacer()
-                SubscriptionBadgeView(tier: vm.currentTier)
+                SubscriptionBadgeView(tier: effectiveTier)
             }
 
-            Text(vm.currentTier.priceLabel)
-                .font(.md3HeadlineSmall)
-                .foregroundStyle(Color.md3Primary)
+            // Price
+            if isApple, let productId = storeKit.purchasedProductIDs.first,
+               let product = storeKit.products.first(where: { $0.product.id == productId }) {
+                Text("\(product.product.displayPrice)/\(product.period == .annual ? "year" : "mo")")
+                    .font(.md3HeadlineSmall)
+                    .foregroundStyle(Color.md3Primary)
+            } else {
+                Text(effectiveTier.priceLabel)
+                    .font(.md3HeadlineSmall)
+                    .foregroundStyle(Color.md3Primary)
+            }
+
+            // Subscription source
+            if isApple {
+                HStack(spacing: 6) {
+                    Image(systemName: "apple.logo")
+                        .font(.md3BodySmall)
+                    Text("Managed by Apple")
+                        .font(.md3BodySmall)
+                }
+                .foregroundStyle(Color.md3OnSurfaceVariant)
+            } else if vm.isStripeSubscription {
+                HStack(spacing: 6) {
+                    Image(systemName: "creditcard.fill")
+                        .font(.md3BodySmall)
+                    Text("Managed by Stripe")
+                        .font(.md3BodySmall)
+                }
+                .foregroundStyle(Color.md3OnSurfaceVariant)
+            }
 
             if vm.hasOverride {
                 HStack(spacing: 4) {
@@ -99,7 +147,7 @@ struct BillingView: View {
 
             // Features checklist
             VStack(alignment: .leading, spacing: 6) {
-                ForEach(TierConfig.tierFeatureDescriptions(for: vm.currentTier), id: \.self) { feature in
+                ForEach(TierConfig.tierFeatureDescriptions(for: effectiveTier), id: \.self) { feature in
                     HStack(spacing: 6) {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.md3BodySmall)
@@ -114,9 +162,33 @@ struct BillingView: View {
             Divider()
 
             // Action buttons
-            if vm.currentTier == .free || (!vm.hasActiveSubscription && !vm.hasOverride) {
+            if isApple {
+                // Apple subscription management
                 Button {
-                    openURL(AppConfig.pricingURL)
+                    openURL(vm.manageAppleSubscriptionURL)
+                } label: {
+                    HStack {
+                        Image(systemName: "apple.logo")
+                        Text("Manage in App Store")
+                    }
+                    .outlinedButtonStyle()
+                }
+
+                Button {
+                    Task {
+                        try? await storeKit.restorePurchases()
+                        await authVM.refreshUser()
+                    }
+                } label: {
+                    Text("Restore Purchases")
+                        .font(.md3LabelLarge)
+                        .foregroundStyle(Color.md3Primary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 36)
+                }
+            } else if effectiveTier == .free && !vm.hasOverride {
+                NavigationLink {
+                    PricingView()
                 } label: {
                     Text("Upgrade Plan")
                         .primaryButtonStyle()
@@ -135,10 +207,10 @@ struct BillingView: View {
                         .font(.md3BodySmall)
                         .foregroundStyle(Color.md3OnSurfaceVariant)
                 }
-            } else if vm.hasActiveSubscription {
+            } else if vm.hasActiveSubscription && vm.isStripeSubscription {
                 HStack(spacing: 12) {
-                    Button {
-                        openURL(AppConfig.pricingURL)
+                    NavigationLink {
+                        PricingView()
                     } label: {
                         Text("Change Plan")
                             .outlinedButtonStyle()
@@ -171,7 +243,7 @@ struct BillingView: View {
         .cardStyle()
     }
 
-    // MARK: - Payment Method Card
+    // MARK: - Payment Method Card (Stripe only)
 
     private var paymentMethodCard: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -209,7 +281,7 @@ struct BillingView: View {
         .cardStyle()
     }
 
-    // MARK: - Invoice History Card
+    // MARK: - Invoice History Card (Stripe only)
 
     private var invoiceHistoryCard: some View {
         VStack(alignment: .leading, spacing: 12) {

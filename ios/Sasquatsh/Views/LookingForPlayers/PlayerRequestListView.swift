@@ -67,7 +67,9 @@ struct PlayerRequestListView: View {
                 }
             }
         }
-        .sheet(isPresented: $showCreateRequest) {
+        .sheet(isPresented: $showCreateRequest, onDismiss: {
+            Task { await vm.loadRequests(filters: currentFilters) }
+        }) {
             CreatePlayerRequestView(vm: vm)
         }
         .refreshable {
@@ -118,9 +120,8 @@ struct PlayerRequestListView: View {
                 HStack(spacing: 8) {
                     TextField("City", text: $filterCity)
                         .textFieldStyle(.roundedBorder)
-                    TextField("State", text: $filterState)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 80)
+                    USStatePicker(selection: $filterState)
+                        .frame(width: 140)
                 }
                 HStack(spacing: 8) {
                     Button {

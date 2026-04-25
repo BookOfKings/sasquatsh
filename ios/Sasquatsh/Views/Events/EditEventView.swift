@@ -24,8 +24,6 @@ struct EditEventView: View {
                         .lineLimit(3...6)
 
                     if vm.isBoardGame {
-                        TextField("Game Title", text: $vm.gameTitle)
-
                         Picker("Category", selection: $vm.gameCategory) {
                             Text("None").tag(GameCategory?.none)
                             ForEach(GameCategory.allCases) { cat in
@@ -119,7 +117,7 @@ struct EditEventView: View {
                     } else {
                         TextField("Address", text: $vm.addressLine1)
                         TextField("City", text: $vm.city)
-                        TextField("State", text: $vm.state)
+                        USStatePicker(selection: $vm.state)
                         TextField("Postal Code", text: $vm.postalCode)
                         TextField("Location Details", text: $vm.locationDetails)
                     }

@@ -47,7 +47,7 @@ struct ProfileEditSheet: View {
 
                 Section("Location") {
                     TextField("City", text: $homeCity)
-                    TextField("State", text: $homeState)
+                    USStatePicker(selection: $homeState)
                     TextField("Postal Code", text: $homePostalCode)
                     TextField("Max Travel (miles)", text: $maxTravelMiles)
                         .keyboardType(.numberPad)
@@ -95,7 +95,7 @@ struct ProfileEditSheet: View {
                         }
 
                         TextField("City", text: $activeCity)
-                        TextField("State", text: $activeState)
+                        USStatePicker(selection: $activeState)
 
                         TextField("Hall", text: $activeLocationHall)
                         TextField("Room", text: $activeLocationRoom)

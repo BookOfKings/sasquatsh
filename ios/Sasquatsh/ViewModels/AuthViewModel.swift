@@ -116,6 +116,10 @@ final class AuthViewModel {
         }
     }
 
+    func refreshUser() async {
+        await syncUser()
+    }
+
     private func syncUser() async {
         guard let services else { return }
         do {

@@ -65,8 +65,20 @@ final class CreatePlanningViewModel {
     }
 
     var isValid: Bool {
-        !title.trimmingCharacters(in: .whitespaces).isEmpty &&
-        !selectedMemberIds.isEmpty &&
-        !proposedDates.isEmpty
+        validationIssues.isEmpty
+    }
+
+    var validationIssues: [String] {
+        var issues: [String] = []
+        if title.trimmingCharacters(in: .whitespaces).isEmpty {
+            issues.append("Title is required")
+        }
+        if proposedDates.isEmpty {
+            issues.append("Add at least one proposed date")
+        }
+        if !openToGroup && selectedMemberIds.isEmpty {
+            issues.append("Invite at least one member (or enable Open to Group)")
+        }
+        return issues
     }
 }

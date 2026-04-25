@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct DashboardView: View {
+    var switchTab: ((Int) -> Void)?
+
     @Environment(\.services) private var services
     @Environment(AuthViewModel.self) private var authVM
     @State private var vm = DashboardViewModel()
@@ -82,7 +84,7 @@ struct DashboardView: View {
                         items: vm.registeredEvents,
                         emptyMessage: "You haven't signed up for any games yet.",
                         emptyButtonTitle: "Browse Games",
-                        emptyButtonTab: 0
+                        emptyButtonTab: 1
                     ) { event in
                         NavigationLink {
                             EventDetailView(eventId: event.id)
@@ -109,6 +111,39 @@ struct DashboardView: View {
                         .buttonStyle(.plain)
                     }
 
+                    // Games Being Planned
+                    dashboardSection(
+                        title: "Games Being Planned",
+                        icon: "calendar.badge.plus",
+                        items: vm.planningSessions,
+                        emptyMessage: "No active planning sessions.",
+                        emptyButtonTitle: "View Groups",
+                        emptyButtonTab: 2
+                    ) { session in
+                        NavigationLink {
+                            PlanningSessionDetailView(sessionId: session.id)
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(session.title)
+                                        .font(.md3BodyMedium)
+                                        .fontWeight(.medium)
+                                        .lineLimit(1)
+                                    Text(session.responseDeadline.toDate?.displayDateTime ?? session.responseDeadline)
+                                        .font(.md3BodySmall)
+                                        .foregroundStyle(Color.md3OnSurfaceVariant)
+                                }
+                                Spacer()
+                                BadgeView(text: "Open", color: .md3TertiaryContainer)
+                                Image(systemName: "chevron.right")
+                                    .font(.md3BodySmall)
+                                    .foregroundStyle(Color.md3OnSurfaceVariant)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
                     // Groups I Manage
                     dashboardSection(
                         title: "Groups I Manage",
@@ -116,7 +151,7 @@ struct DashboardView: View {
                         items: vm.managedGroups,
                         emptyMessage: "You're not managing any groups yet.",
                         emptyButtonTitle: "Create Group",
-                        emptyButtonTab: 1
+                        emptyButtonTab: 2
                     ) { group in
                         NavigationLink {
                             GroupDetailView(groupId: group.id)
@@ -133,7 +168,7 @@ struct DashboardView: View {
                         items: vm.memberGroups,
                         emptyMessage: "You haven't joined any groups yet.",
                         emptyButtonTitle: "Browse Groups",
-                        emptyButtonTab: 1
+                        emptyButtonTab: 2
                     ) { group in
                         NavigationLink {
                             GroupDetailView(groupId: group.id)
@@ -197,7 +232,9 @@ struct DashboardView: View {
         }
         .background(Color.md3SurfaceContainer)
         .toolbar(.hidden, for: .navigationBar)
-        .sheet(isPresented: $showCreateEvent) {
+        .sheet(isPresented: $showCreateEvent, onDismiss: {
+            Task { await vm.loadDashboard() }
+        }) {
             CreateEventView()
         }
         .refreshable {
@@ -209,6 +246,12 @@ struct DashboardView: View {
             raffleVM.configure(services: services)
             await vm.loadDashboard()
             await raffleVM.loadActiveRaffle()
+        }
+        .onAppear {
+            // Reload when returning from navigation (task only runs once on first appear)
+            if vm.services != nil && !vm.isLoading {
+                Task { await vm.loadDashboard() }
+            }
         }
     }
 
@@ -222,14 +265,21 @@ struct DashboardView: View {
                 size: 48
             )
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(authVM.user?.displayName ?? authVM.user?.username ?? "")
                     .font(.md3TitleMedium)
                     .foregroundStyle(Color.md3OnSurface)
-                if let username = authVM.user?.username {
-                    Text("@\(username)")
-                        .font(.md3BodySmall)
-                        .foregroundStyle(Color.md3OnSurfaceVariant)
+                HStack(spacing: 6) {
+                    if let username = authVM.user?.username {
+                        Text("@\(username)")
+                            .font(.md3BodySmall)
+                            .foregroundStyle(Color.md3OnSurfaceVariant)
+                    }
+                    NavigationLink {
+                        PricingView()
+                    } label: {
+                        SubscriptionBadgeView(tier: authVM.user?.effectiveTier ?? .free)
+                    }
                 }
             }
 
@@ -286,9 +336,9 @@ struct DashboardView: View {
                     Button {
                         if let action = emptyAction {
                             action()
+                        } else if let tab = emptyButtonTab {
+                            switchTab?(tab)
                         }
-                        // Tab switching would require a binding passed from MainTabView
-                        // For now the button text serves as guidance
                     } label: {
                         Text(emptyButtonTitle)
                             .font(.md3LabelLarge)

@@ -45,8 +45,17 @@ extension Date {
 }
 
 extension String {
+    private static let localDateTimeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
+
     var toDate: Date? {
-        Date.apiDateTimeFormatter.date(from: self) ?? Date.apiDateFormatter.date(from: self)
+        Date.apiDateTimeFormatter.date(from: self)
+            ?? Self.localDateTimeFormatter.date(from: self)
+            ?? Date.apiDateFormatter.date(from: self)
     }
 
     /// Converts "HH:mm:ss" or "HH:mm" to "h:mm a" (e.g. "10:00 AM")

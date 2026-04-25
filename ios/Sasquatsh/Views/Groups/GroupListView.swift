@@ -110,7 +110,9 @@ struct GroupListView: View {
                 }
             }
         }
-        .sheet(isPresented: $showCreateGroup) {
+        .sheet(isPresented: $showCreateGroup, onDismiss: {
+            Task { await vm.loadGroups() }
+        }) {
             CreateGroupView()
         }
         .sheet(isPresented: $showUpgradePrompt) {

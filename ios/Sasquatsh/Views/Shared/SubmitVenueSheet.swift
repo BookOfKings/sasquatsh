@@ -38,7 +38,7 @@ struct SubmitVenueSheet: View {
                 Section("Venue Details") {
                     TextField("Name", text: $name)
                     TextField("City", text: $city)
-                    TextField("State", text: $state)
+                    USStatePicker(selection: $state)
                     TextField("Venue / Building (optional)", text: $venue)
                 }
 

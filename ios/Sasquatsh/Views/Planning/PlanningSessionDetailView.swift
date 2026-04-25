@@ -21,6 +21,7 @@ struct PlanningSessionDetailView: View {
     @State private var selectedDateId: String?
     @State private var selectedGameId: String?
     @State private var navigateToEventId: String?
+    @State private var tableGameAssignments: [Int: String] = [:] // table number -> game suggestion ID
 
     /// Creator's effective tier — participants inherit the creator's features
     private var creatorTier: SubscriptionTier {
@@ -70,7 +71,9 @@ struct PlanningSessionDetailView: View {
         .background(Color.md3SurfaceContainer)
         .navigationTitle("Planning Session")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showSuggestGame) {
+        .sheet(isPresented: $showSuggestGame, onDismiss: {
+            Task { await vm.loadSession(id: sessionId) }
+        }) {
             GameSuggestSheet(
                 hostUserId: vm.session?.createdByUserId,
                 hostName: vm.session?.createdBy?.displayName ?? vm.session?.createdBy?.username,
@@ -1114,72 +1117,25 @@ struct PlanningSessionDetailView: View {
                     }
                 }
 
-                // Game selection
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Select Game")
-                        .font(.md3LabelLarge)
-                        .foregroundStyle(Color.md3OnSurface)
-
-                    if let games = session.gameSuggestions, !games.isEmpty {
-                        ForEach(games.sorted { $0.voteCount > $1.voteCount }) { game in
-                            Button {
-                                selectedGameId = game.id
-                            } label: {
-                                HStack {
-                                    Image(systemName: selectedGameId == game.id ? "largecircle.fill.circle" : "circle")
-                                        .foregroundStyle(selectedGameId == game.id ? Color.md3Primary : Color.md3OnSurfaceVariant)
-                                    if let url = game.thumbnailUrl, let imageURL = URL(string: url) {
-                                        AsyncImage(url: imageURL) { image in
-                                            image.resizable().aspectRatio(contentMode: .fill)
-                                        } placeholder: {
-                                            Color.md3SurfaceVariant
-                                        }
-                                        .frame(width: 32, height: 32)
-                                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                                    }
-                                    Text(game.gameName)
-                                        .font(.md3BodyMedium)
-                                        .foregroundStyle(Color.md3OnSurface)
-                                    Spacer()
-                                    HStack(spacing: 2) {
-                                        Image(systemName: "hand.thumbsup.fill")
-                                            .font(.system(size: 10))
-                                        Text("\(game.voteCount)")
-                                    }
-                                    .font(.md3LabelSmall)
-                                    .foregroundStyle(Color.md3OnSurfaceVariant)
-                                }
-                                .padding(10)
-                                .background(selectedGameId == game.id ? Color.md3Primary.opacity(0.08) : Color.md3SurfaceContainerHigh)
-                                .clipShape(RoundedRectangle(cornerRadius: MD3Shape.small))
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    } else {
-                        Text("No games suggested")
-                            .font(.md3BodySmall)
-                            .foregroundStyle(Color.md3OnSurfaceVariant)
-                    }
+                // Game selection — different UI for single vs multi-table
+                if isMultiTable {
+                    multiTableGameAssignment(session)
+                } else {
+                    singleGameSelection(session)
                 }
 
                 // Validation
-                if selectedDateId == nil {
-                    HStack(spacing: 6) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
-                        Text("Select a date above to finalize")
-                            .font(.md3BodySmall)
-                            .foregroundStyle(.orange)
-                    }
-                    .padding(10)
-                    .background(Color.orange.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: MD3Shape.small))
-                }
+                finalizeValidation(session)
 
                 // Finalize button
                 Button {
                     Task {
-                        if let eventId = await vm.finalize(selectedDateId: selectedDateId, selectedGameId: selectedGameId) {
+                        if isMultiTable && !tableGameAssignments.isEmpty {
+                            // Save table assignments first, then finalize
+                            let saved = await vm.scheduleSessions(assignments: tableGameAssignments)
+                            guard saved else { return }
+                        }
+                        if let eventId = await vm.finalize(selectedDateId: selectedDateId, selectedGameId: isMultiTable ? nil : selectedGameId) {
                             navigateToEventId = eventId
                         }
                     }
@@ -1187,7 +1143,7 @@ struct PlanningSessionDetailView: View {
                     Text("Create Game Event")
                         .primaryButtonStyle()
                 }
-                .disabled(selectedDateId == nil)
+                .disabled(!canFinalize(session))
             }
             .padding()
             .cardStyle()
@@ -1195,6 +1151,198 @@ struct PlanningSessionDetailView: View {
 
             stepNav(back: 3, forward: nil)
         }
+    }
+
+    // MARK: - Single Game Selection (single-table mode)
+
+    private func singleGameSelection(_ session: PlanningSession) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Select Game")
+                .font(.md3LabelLarge)
+                .foregroundStyle(Color.md3OnSurface)
+
+            if let games = session.gameSuggestions, !games.isEmpty {
+                ForEach(games.sorted { $0.voteCount > $1.voteCount }) { game in
+                    Button {
+                        selectedGameId = game.id
+                    } label: {
+                        HStack {
+                            Image(systemName: selectedGameId == game.id ? "largecircle.fill.circle" : "circle")
+                                .foregroundStyle(selectedGameId == game.id ? Color.md3Primary : Color.md3OnSurfaceVariant)
+                            gameThumb(game)
+                            Text(game.gameName)
+                                .font(.md3BodyMedium)
+                                .foregroundStyle(Color.md3OnSurface)
+                            Spacer()
+                            voteCount(game)
+                        }
+                        .padding(10)
+                        .background(selectedGameId == game.id ? Color.md3Primary.opacity(0.08) : Color.md3SurfaceContainerHigh)
+                        .clipShape(RoundedRectangle(cornerRadius: MD3Shape.small))
+                    }
+                    .buttonStyle(.plain)
+                }
+            } else {
+                Text("No games suggested")
+                    .font(.md3BodySmall)
+                    .foregroundStyle(Color.md3OnSurfaceVariant)
+            }
+        }
+    }
+
+    // MARK: - Multi-Table Game Assignment
+
+    private func multiTableGameAssignment(_ session: PlanningSession) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Assign Games to Tables")
+                    .font(.md3LabelLarge)
+                    .foregroundStyle(Color.md3OnSurface)
+                Spacer()
+                BadgeView(text: "\(session.tableCount ?? 2) tables", color: .purple.opacity(0.15))
+            }
+
+            let tables = Array(1...(session.tableCount ?? 2))
+            let games = session.gameSuggestions?.sorted { $0.voteCount > $1.voteCount } ?? []
+
+            if games.isEmpty {
+                Text("No games suggested — add games in the Games step first")
+                    .font(.md3BodySmall)
+                    .foregroundStyle(Color.md3OnSurfaceVariant)
+            } else {
+                ForEach(tables, id: \.self) { tableNum in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "tablecells")
+                                .font(.system(size: 13))
+                                .foregroundStyle(.purple)
+                            Text("Table \(tableNum)")
+                                .font(.md3BodyMedium)
+                                .fontWeight(.medium)
+                        }
+
+                        let assignedGameId = tableGameAssignments[tableNum]
+                        let alreadyAssignedIds = Set(tableGameAssignments.filter { $0.key != tableNum }.values)
+                        Menu {
+                            Button("None") {
+                                tableGameAssignments.removeValue(forKey: tableNum)
+                            }
+                            ForEach(games) { game in
+                                if !alreadyAssignedIds.contains(game.id) {
+                                    Button {
+                                        tableGameAssignments[tableNum] = game.id
+                                    } label: {
+                                        HStack {
+                                            Text(game.gameName)
+                                            if tableGameAssignments[tableNum] == game.id {
+                                                Image(systemName: "checkmark")
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } label: {
+                            HStack {
+                                if let gameId = assignedGameId,
+                                   let game = games.first(where: { $0.id == gameId }) {
+                                    gameThumb(game)
+                                    Text(game.gameName)
+                                        .font(.md3BodyMedium)
+                                        .foregroundStyle(Color.md3OnSurface)
+                                    Spacer()
+                                    voteCount(game)
+                                } else {
+                                    Image(systemName: "plus.circle.dashed")
+                                        .foregroundStyle(Color.md3OnSurfaceVariant)
+                                    Text("Assign a game...")
+                                        .font(.md3BodyMedium)
+                                        .foregroundStyle(Color.md3OnSurfaceVariant)
+                                    Spacer()
+                                }
+                                Image(systemName: "chevron.up.chevron.down")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(Color.md3OnSurfaceVariant)
+                            }
+                            .padding(10)
+                            .background(assignedGameId != nil ? Color.purple.opacity(0.06) : Color.md3SurfaceContainerHigh)
+                            .clipShape(RoundedRectangle(cornerRadius: MD3Shape.small))
+                        }
+                    }
+                }
+
+                let assigned = tableGameAssignments.count
+                let total = session.tableCount ?? 2
+                Text("\(assigned) of \(total) tables assigned")
+                    .font(.md3LabelSmall)
+                    .foregroundStyle(assigned == total ? .green : Color.md3OnSurfaceVariant)
+            }
+        }
+    }
+
+    // MARK: - Finalize Helpers
+
+    @ViewBuilder
+    private func finalizeValidation(_ session: PlanningSession) -> some View {
+        let issues = finalizeIssues(session)
+        if !issues.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(issues, id: \.self) { issue in
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                        Text(issue)
+                            .font(.md3BodySmall)
+                            .foregroundStyle(.orange)
+                    }
+                }
+            }
+            .padding(10)
+            .background(Color.orange.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: MD3Shape.small))
+        }
+    }
+
+    private func finalizeIssues(_ session: PlanningSession) -> [String] {
+        var issues: [String] = []
+        if selectedDateId == nil {
+            issues.append("Select a date above")
+        }
+        if isMultiTable {
+            if tableGameAssignments.isEmpty {
+                issues.append("Assign at least one game to a table")
+            }
+        }
+        return issues
+    }
+
+    private func canFinalize(_ session: PlanningSession) -> Bool {
+        if selectedDateId == nil { return false }
+        if isMultiTable && tableGameAssignments.isEmpty { return false }
+        return true
+    }
+
+    private func gameThumb(_ game: GameSuggestion) -> some View {
+        Group {
+            if let url = game.thumbnailUrl, let imageURL = URL(string: url) {
+                AsyncImage(url: imageURL) { image in
+                    image.resizable().aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    Color.md3SurfaceVariant
+                }
+                .frame(width: 32, height: 32)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+        }
+    }
+
+    private func voteCount(_ game: GameSuggestion) -> some View {
+        HStack(spacing: 2) {
+            Image(systemName: "hand.thumbsup.fill")
+                .font(.system(size: 10))
+            Text("\(game.voteCount)")
+        }
+        .font(.md3LabelSmall)
+        .foregroundStyle(Color.md3OnSurfaceVariant)
     }
 
     private func eventModeButton(icon: String, title: String, subtitle: String, isActive: Bool, color: Color, action: @escaping () -> Void) -> some View {

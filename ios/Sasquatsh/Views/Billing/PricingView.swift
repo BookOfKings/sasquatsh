@@ -4,8 +4,11 @@ struct PricingView: View {
     @Environment(\.services) private var services
     @Environment(AuthViewModel.self) private var authVM
     @State private var billingPeriod: SubscriptionPeriod = .monthly
+    @Environment(\.dismiss) private var dismiss
     @State private var purchaseError: String?
     @State private var showError = false
+    @State private var showSuccess = false
+    @State private var purchasedTierName = ""
 
     private var currentTier: SubscriptionTier {
         authVM.user?.effectiveTier ?? .free
@@ -172,6 +175,13 @@ struct PricingView: View {
         } message: {
             Text(purchaseError ?? "An error occurred")
         }
+        .alert("Welcome to \(purchasedTierName)!", isPresented: $showSuccess) {
+            Button("Let's Go") {
+                dismiss()
+            }
+        } message: {
+            Text("Your subscription is now active. Enjoy your upgraded features!")
+        }
         .overlay {
             if storeKit.purchaseInProgress {
                 Color.black.opacity(0.3).ignoresSafeArea()
@@ -198,7 +208,10 @@ struct PricingView: View {
 
         do {
             try await storeKit.purchase(product)
-            // Purchase succeeded — billing info will update on next load
+            purchasedTierName = tier.displayName
+            showSuccess = true
+            // Refresh user data to pick up new tier
+            await authVM.refreshUser()
         } catch StoreKitError.userCancelled {
             // Silently ignore
         } catch {

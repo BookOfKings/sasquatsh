@@ -332,12 +332,14 @@ struct CollectionPickerView: View {
     let source: CollectionSource
     @Binding var selected: [Int: BggSearchResult]
     var disabledBggIds: Set<Int> = []
+    var onTap: ((BggSearchResult) -> Void)?
 
     @Environment(\.services) private var services
     @State private var games: [CollectionGame] = []
     @State private var isLoading = false
     @State private var error: String?
     @State private var searchText = ""
+    @State private var addedBggIds: Set<Int> = [] // tracks tapped games in onTap mode
 
     private var filteredGames: [CollectionGame] {
         if searchText.isEmpty { return games }
@@ -393,9 +395,21 @@ struct CollectionPickerView: View {
     private func collectionRow(_ game: CollectionGame) -> some View {
         let bggId = game.bggId ?? 0
         let isSelected = selected[bggId] != nil
-        let isDisabled = disabledBggIds.contains(bggId)
+        let isDisabled = onTap == nil && disabledBggIds.contains(bggId)
+        let wasAdded = addedBggIds.contains(bggId)
         return Button {
             guard !isDisabled else { return }
+            let result = BggSearchResult(
+                bggId: bggId,
+                name: game.gameName,
+                yearPublished: game.yearPublished,
+                thumbnailUrl: game.thumbnailUrl
+            )
+            if let onTap {
+                onTap(result)
+                withAnimation { addedBggIds.insert(bggId) }
+                return
+            }
             if isSelected {
                 selected.removeValue(forKey: bggId)
             } else {
@@ -408,7 +422,17 @@ struct CollectionPickerView: View {
             }
         } label: {
             HStack(spacing: 12) {
-                if isDisabled {
+                if onTap != nil {
+                    if wasAdded {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundStyle(.green)
+                    } else {
+                        Image(systemName: "plus.circle")
+                            .font(.system(size: 22))
+                            .foregroundStyle(Color.md3Primary)
+                    }
+                } else if isDisabled {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 22))
                         .foregroundStyle(Color.md3OnSurfaceVariant.opacity(0.3))
@@ -431,7 +455,11 @@ struct CollectionPickerView: View {
                     Text(game.gameName)
                         .font(.md3BodyMedium)
                         .foregroundStyle(isDisabled ? Color.md3OnSurfaceVariant.opacity(0.5) : Color.md3OnSurface)
-                    if isDisabled {
+                    if onTap != nil && wasAdded {
+                        Text("Added")
+                            .font(.md3LabelSmall)
+                            .foregroundStyle(.green)
+                    } else if isDisabled {
                         Text("Already suggested")
                             .font(.md3LabelSmall)
                             .foregroundStyle(Color.md3OnSurfaceVariant.opacity(0.5))
@@ -460,7 +488,11 @@ struct CollectionPickerView: View {
             .opacity(isDisabled ? 0.6 : 1.0)
         }
         .disabled(isDisabled)
-        .listRowBackground(isSelected ? Color.md3Primary.opacity(0.06) : Color.clear)
+        .listRowBackground(
+            wasAdded ? Color.green.opacity(0.06) :
+            isSelected ? Color.md3Primary.opacity(0.06) :
+            Color.clear
+        )
     }
 
     private func loadCollection() async {

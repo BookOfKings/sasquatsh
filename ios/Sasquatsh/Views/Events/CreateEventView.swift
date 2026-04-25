@@ -7,6 +7,8 @@ struct CreateEventView: View {
     @State private var vm = CreateEditEventViewModel()
     @State private var showVenueSelector = false
     @State private var showUpgradePrompt = false
+    @State private var showCollectionPicker = false
+    @State private var bggSearchText = ""
 
     var groupId: String?
 
@@ -50,6 +52,33 @@ struct CreateEventView: View {
                         currentTier: authVM.user?.effectiveTier ?? .free
                     )
                 }
+                .sheet(isPresented: $showCollectionPicker) {
+                    NavigationStack {
+                        CollectionPickerView(
+                            source: .mine,
+                            selected: .constant([:]),
+                            onTap: { result in
+                                let tier = authVM.user?.effectiveTier ?? .free
+                                if TierConfig.canAddGame(tier, currentCount: vm.selectedGames.count) {
+                                    Task {
+                                        await vm.addGame(from: result)
+                                        vm.clearBGGSearch()
+                                    }
+                                } else {
+                                    showCollectionPicker = false
+                                    showUpgradePrompt = true
+                                }
+                            }
+                        )
+                        .navigationTitle("My Collection")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Done") { showCollectionPicker = false }
+                            }
+                        }
+                    }
+                }
         }
     }
 
@@ -61,6 +90,20 @@ struct CreateEventView: View {
             dateTimeSection
             locationSection
             gameSettingsSection
+
+            if !vm.validationIssues.isEmpty {
+                Section("Required") {
+                    ForEach(vm.validationIssues, id: \.self) { issue in
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .foregroundStyle(.orange)
+                            Text(issue)
+                                .font(.md3BodySmall)
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                }
+            }
 
             if let error = vm.error {
                 Section {
@@ -133,23 +176,34 @@ struct CreateEventView: View {
     @ViewBuilder
     private var gameSearchSection: some View {
         if vm.isBoardGame {
-            Section("Game") {
+            Section {
+                // BGG logo
+                HStack {
+                    Spacer()
+                    Image("bgg-logo")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(height: 24)
+                    Spacer()
+                }
+                .listRowBackground(Color.clear)
+
                 // Inline search field
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(Color.md3OnSurfaceVariant)
-                    TextField("Search BoardGameGeek...", text: $vm.gameTitle)
-                        .onChange(of: vm.gameTitle) { _, newValue in
+                    TextField("Search BoardGameGeek...", text: $bggSearchText)
+                        .onChange(of: bggSearchText) { _, newValue in
                             vm.searchBGG(query: newValue)
                         }
                     if vm.isSearchingBGG {
-                    D20ProgressView(size: 32)
+                        D20ProgressView(size: 32)
                             .controlSize(.small)
                             .tint(Color.md3Primary)
                     }
-                    if !vm.gameTitle.isEmpty {
+                    if !bggSearchText.isEmpty {
                         Button {
-                            vm.gameTitle = ""
+                            bggSearchText = ""
                             vm.clearBGGSearch()
                         } label: {
                             Image(systemName: "xmark.circle.fill")
@@ -165,6 +219,7 @@ struct CreateEventView: View {
                             let tier = authVM.user?.effectiveTier ?? .free
                             if TierConfig.canAddGame(tier, currentCount: vm.selectedGames.count) {
                                 Task { await vm.addGame(from: result) }
+                                bggSearchText = ""
                                 vm.clearBGGSearch()
                             } else {
                                 showUpgradePrompt = true
@@ -208,6 +263,21 @@ struct CreateEventView: View {
                                     .foregroundStyle(Color.md3Primary)
                             }
                         }
+                    }
+                }
+
+                // Browse collection
+                Button { showCollectionPicker = true } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "books.vertical.fill")
+                            .foregroundStyle(Color.md3Primary)
+                        Text("Browse My Collection")
+                            .font(.md3BodyMedium)
+                            .foregroundStyle(Color.md3Primary)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Color.md3OnSurfaceVariant)
                     }
                 }
 
@@ -333,7 +403,7 @@ struct CreateEventView: View {
             } else {
                 TextField("Address", text: $vm.addressLine1)
                 TextField("City", text: $vm.city)
-                TextField("State", text: $vm.state)
+                USStatePicker(selection: $vm.state)
                 TextField("Postal Code", text: $vm.postalCode)
                 TextField("Location Details", text: $vm.locationDetails)
             }
@@ -370,11 +440,6 @@ struct CreateEventView: View {
                 }
             }
 
-            Picker("Status", selection: $vm.status) {
-                ForEach(EventStatus.allCases) { status in
-                    Text(status.displayName).tag(status)
-                }
-            }
 
             Toggle("Public Game", isOn: $vm.isPublic)
             Toggle("Charity Game", isOn: $vm.isCharityEvent)

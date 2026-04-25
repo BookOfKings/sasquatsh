@@ -96,6 +96,20 @@ struct CreatePlanningView: View {
                     .font(.md3LabelSmall)
                 }
 
+                if !vm.validationIssues.isEmpty {
+                    Section("Required") {
+                        ForEach(vm.validationIssues, id: \.self) { issue in
+                            HStack(spacing: 6) {
+                                Image(systemName: "exclamationmark.circle.fill")
+                                    .foregroundStyle(.orange)
+                                Text(issue)
+                                    .font(.md3BodySmall)
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+                    }
+                }
+
                 if let error = vm.error {
                     Section {
                         Text(error).foregroundStyle(Color.md3Error)

@@ -144,6 +144,22 @@ final class PlanningSessionViewModel {
         }
     }
 
+    func scheduleSessions(assignments: [Int: String]) async -> Bool {
+        guard let services, let session else { return false }
+        error = nil
+        do {
+            let schedule = assignments.map { tableNum, gameId in
+                ScheduleEntry(suggestionId: gameId, tableNumber: tableNum, slotIndex: 0)
+            }
+            try await services.planning.scheduleSessions(sessionId: session.id, schedule: schedule)
+            await loadSession(id: session.id)
+            return true
+        } catch {
+            self.error = error.localizedDescription
+            return false
+        }
+    }
+
     func updateSettings(tableCount: Int?) async {
         guard let services, let session else { return }
         error = nil

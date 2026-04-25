@@ -355,7 +355,9 @@ struct ProfileView: View {
         .background(Color.md3SurfaceContainer)
         .toolbar(.hidden, for: .navigationBar)
         .refreshable { await vm.loadProfile() }
-        .sheet(isPresented: $showEditSheet) {
+        .sheet(isPresented: $showEditSheet, onDismiss: {
+            Task { await vm.loadProfile() }
+        }) {
             if let profile = vm.profile {
                 ProfileEditSheet(profile: profile, vm: vm)
             }

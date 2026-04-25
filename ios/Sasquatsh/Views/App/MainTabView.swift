@@ -37,7 +37,7 @@ struct MainTabView: View {
             Group {
                 switch selectedTab {
                 case 0:
-                    NavigationStack { DashboardView() }
+                    NavigationStack { DashboardView(switchTab: { selectedTab = $0 }) }
                 case 1:
                     NavigationStack { EventListView() }
                 case 2:
