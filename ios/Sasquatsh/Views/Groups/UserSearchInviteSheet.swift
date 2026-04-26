@@ -120,8 +120,8 @@ struct UserSearchInviteSheet: View {
 
     private func inviteUser(_ user: UserSearchResult) async {
         do {
-            // Create an invitation for this specific user
-            let _ = try await services.groups.createInvitation(groupId: groupId, input: nil)
+            let input = CreateInvitationInput(userId: user.id, maxUses: 1, expiresInDays: 7)
+            let _ = try await services.groups.createInvitation(groupId: groupId, input: input)
             invitedIds.insert(user.id)
         } catch {
             self.error = error.localizedDescription

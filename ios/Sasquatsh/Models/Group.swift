@@ -103,6 +103,7 @@ struct GroupSearchFilter {
 }
 
 struct CreateInvitationInput: Codable {
+    var userId: String?
     var email: String?
     var phone: String?
     var maxUses: Int?

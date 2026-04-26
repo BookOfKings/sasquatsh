@@ -3,10 +3,16 @@ import SwiftUI
 struct Ad: Decodable {
     let id: String
     let title: String
-    let description: String?
+    let adDescription: String?
     let imageUrl: String?
     let linkUrl: String?
     let adType: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, title
+        case adDescription = "description"
+        case imageUrl, linkUrl, adType
+    }
 }
 
 struct AdBannerView: View {
@@ -23,23 +29,24 @@ struct AdBannerView: View {
     }
 
     var body: some View {
-        if shouldShow {
-            Group {
-                if let ad {
-                    adContent(ad)
-                } else if isLoading {
-                    EmptyView()
-                }
+        VStack(spacing: 0) {
+            if shouldShow, let ad {
+                adContent(ad)
             }
-            .task { await loadAd() }
+        }
+        .onAppear {
+            Task { await loadAd() }
         }
     }
 
     private func adContent(_ ad: Ad) -> some View {
         Button {
             trackClick(ad)
-            if let urlStr = ad.linkUrl, let url = URL(string: urlStr) {
-                openURL(url)
+            if let urlStr = ad.linkUrl {
+                let fullUrl = urlStr.hasPrefix("http") ? urlStr : "https://\(AppConfig.webDomain)\(urlStr)"
+                if let url = URL(string: fullUrl) {
+                    openURL(url)
+                }
             }
         } label: {
             VStack(alignment: .leading, spacing: 0) {
@@ -72,7 +79,7 @@ struct AdBannerView: View {
                         .foregroundStyle(Color.md3OnSurface)
                         .lineLimit(1)
 
-                    if let desc = ad.description, !desc.isEmpty {
+                    if let desc = ad.adDescription, !desc.isEmpty {
                         Text(desc)
                             .font(.md3BodySmall)
                             .foregroundStyle(Color.md3OnSurfaceVariant)
@@ -97,11 +104,11 @@ struct AdBannerView: View {
         do {
             let response: Ad = try await services.api.get("ads", queryItems: [
                 .init(name: "placement", value: placement)
-            ], authenticated: false)
+            ])
             ad = response
             trackImpression(response)
         } catch {
-            // No ad available — silently fail
+            // No ad available for this placement
         }
         isLoading = false
     }

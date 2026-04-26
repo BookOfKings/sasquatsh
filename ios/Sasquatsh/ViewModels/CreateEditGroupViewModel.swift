@@ -12,8 +12,10 @@ final class CreateEditGroupViewModel {
     var joinPolicy: JoinPolicy = .open
 
     var isLoading = false
+    var isUploadingLogo = false
     var error: String?
     var isEditing = false
+    var currentLogoUrl: String?
 
     private var groupId: String?
     private var services: ServiceContainer?
@@ -32,6 +34,7 @@ final class CreateEditGroupViewModel {
         locationState = group.locationState ?? ""
         locationRadiusMiles = group.locationRadiusMiles
         joinPolicy = group.joinPolicy
+        currentLogoUrl = group.logoUrl
     }
 
     func save() async -> GameGroup? {
@@ -71,6 +74,47 @@ final class CreateEditGroupViewModel {
             self.error = error.localizedDescription
             isLoading = false
             return nil
+        }
+    }
+
+    func uploadLogo(imageData: Data) async {
+        guard let services else {
+            error = "Services not configured"
+            return
+        }
+        guard let groupId else {
+            error = "Group ID not set"
+            return
+        }
+        guard !imageData.isEmpty else {
+            error = "No image data"
+            return
+        }
+        isUploadingLogo = true
+        error = nil
+        do {
+            let url = try await services.groups.uploadLogo(
+                groupId: groupId,
+                imageData: imageData,
+                fileName: "logo.jpg",
+                mimeType: "image/jpeg"
+            )
+            currentLogoUrl = url
+        } catch {
+            self.error = "Upload failed: \(error.localizedDescription)"
+        }
+        isUploadingLogo = false
+    }
+
+    func removeLogo() async {
+        guard let services, let groupId else { return }
+        error = nil
+        do {
+            let input = UpdateGroupInput(logoUrl: "")
+            _ = try await services.groups.updateGroup(id: groupId, input: input)
+            currentLogoUrl = nil
+        } catch {
+            self.error = error.localizedDescription
         }
     }
 

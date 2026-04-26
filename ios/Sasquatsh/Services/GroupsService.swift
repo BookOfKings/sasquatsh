@@ -25,6 +25,7 @@ protocol GroupsServiceProtocol: Sendable {
     func respondToInvitation(invitationId: String, accept: Bool) async throws
     func previewInvite(code: String) async throws -> InvitationPreview
     func acceptInvite(code: String) async throws -> AcceptInviteResponse
+    func uploadLogo(groupId: String, imageData: Data, fileName: String, mimeType: String) async throws -> String
 }
 
 struct AcceptInviteResponse: Codable {
@@ -193,5 +194,21 @@ final class GroupsService: GroupsServiceProtocol {
             .init(name: "action", value: "accept-invite"),
             .init(name: "code", value: code)
         ])
+    }
+
+    func uploadLogo(groupId: String, imageData: Data, fileName: String, mimeType: String) async throws -> String {
+        struct LogoResponse: Decodable { let logoUrl: String }
+        let response: LogoResponse = try await api.postMultipart(
+            "groups",
+            fileData: imageData,
+            fileName: fileName,
+            mimeType: mimeType,
+            fieldName: "logo",
+            queryItems: [
+                .init(name: "id", value: groupId),
+                .init(name: "action", value: "upload-logo")
+            ]
+        )
+        return response.logoUrl
     }
 }

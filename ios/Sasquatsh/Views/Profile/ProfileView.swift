@@ -356,7 +356,10 @@ struct ProfileView: View {
         .toolbar(.hidden, for: .navigationBar)
         .refreshable { await vm.loadProfile() }
         .sheet(isPresented: $showEditSheet, onDismiss: {
-            Task { await vm.loadProfile() }
+            Task {
+                await vm.loadProfile()
+                await authVM.refreshUser()
+            }
         }) {
             if let profile = vm.profile {
                 ProfileEditSheet(profile: profile, vm: vm)

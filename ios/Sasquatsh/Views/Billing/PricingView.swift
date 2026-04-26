@@ -123,38 +123,6 @@ struct PricingView: View {
                 }
                 .padding(.top, 4)
 
-                // Enterprise section
-                VStack(spacing: 12) {
-                    Image(systemName: "building.2.fill")
-                        .font(.system(size: 32))
-                        .foregroundStyle(Color.md3Primary)
-
-                    Text("Need More?")
-                        .font(.md3TitleLarge)
-                        .foregroundStyle(Color.md3OnSurface)
-
-                    Text("Contact us for custom plans with unlimited everything, custom branding, and API access.")
-                        .font(.md3BodyMedium)
-                        .foregroundStyle(Color.md3OnSurfaceVariant)
-                        .multilineTextAlignment(.center)
-
-                    Link(destination: URL(string: "https://sasquatsh.com/contact")!) {
-                        Text("Contact Us")
-                            .outlinedButtonStyle()
-                    }
-                }
-                .padding(24)
-                .frame(maxWidth: .infinity)
-                .background(
-                    LinearGradient(
-                        colors: [Color.md3PrimaryContainer.opacity(0.3), Color.md3TertiaryContainer.opacity(0.3)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .clipShape(RoundedRectangle(cornerRadius: MD3Shape.large))
-                .padding(.horizontal)
-
                 // Legal links (Apple requirement)
                 VStack(spacing: 8) {
                     Link("Terms of Service", destination: URL(string: "https://sasquatsh.com/terms")!)

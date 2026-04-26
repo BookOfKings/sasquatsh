@@ -1097,6 +1097,52 @@ Deno.serve(async (req) => {
       return jsonResponse(toGroup(data), 201)
     }
 
+    // Upload group logo image
+    if (action === 'upload-logo' && groupId) {
+      const membership = await getUserMembership(groupId)
+      if (!membership || !['owner', 'admin'].includes(membership.role)) {
+        return errorResponse('Only admins can update the group logo', 403)
+      }
+
+      const formData = await req.formData()
+      const file = formData.get('logo')
+      if (!file || !(file instanceof File)) {
+        return errorResponse('No logo file provided', 400)
+      }
+
+      const allowedTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
+      if (!allowedTypes.includes(file.type)) {
+        return errorResponse('Invalid file type. Allowed: PNG, JPEG, WebP, GIF', 400)
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        return errorResponse('File too large. Maximum 5MB', 400)
+      }
+
+      const ext = file.name.split('.').pop() || 'png'
+      const path = `${groupId}/logo.${ext}`
+
+      // Delete old logo if exists
+      await supabase.storage.from('group-logos').remove([`${groupId}/logo.png`, `${groupId}/logo.jpg`, `${groupId}/logo.jpeg`, `${groupId}/logo.webp`, `${groupId}/logo.gif`])
+
+      const { error: uploadError } = await supabase.storage
+        .from('group-logos')
+        .upload(path, file, { contentType: file.type, upsert: true })
+
+      if (uploadError) {
+        console.error('Logo upload error:', uploadError)
+        return errorResponse('Failed to upload logo', 500)
+      }
+
+      const { data: urlData } = supabase.storage.from('group-logos').getPublicUrl(path)
+      const logoUrl = `${urlData.publicUrl}?t=${Date.now()}`
+
+      // Update group with new logo URL
+      await supabase.from('groups').update({ logo_url: logoUrl }).eq('id', groupId)
+
+      return jsonResponse({ logoUrl })
+    }
+
     return errorResponse('Invalid action', 400)
   }
 

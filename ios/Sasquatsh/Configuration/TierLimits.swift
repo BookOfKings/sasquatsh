@@ -64,6 +64,11 @@ enum TierConfig {
         return currentCount < max
     }
 
+    static func canHostEvent(_ tier: SubscriptionTier, currentCount: Int) -> Bool {
+        let limits: [SubscriptionTier: Int] = [.free: 1, .basic: 5, .pro: 10, .premium: 999]
+        return currentCount < (limits[tier] ?? 1)
+    }
+
     static func canCreateRecurringGame(_ tier: SubscriptionTier, currentCount: Int) -> Bool {
         guard let max = getLimits(for: tier).maxRecurringGamesPerGroup else { return true }
         return currentCount < max

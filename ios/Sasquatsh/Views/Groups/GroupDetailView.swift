@@ -22,6 +22,8 @@ struct GroupDetailView: View {
     @State private var showCreateInvite = false
     @State private var inviteMaxUses: Int? = nil
     @State private var inviteExpiresIn: Int? = 7
+    @State private var inviteEmail = ""
+    @State private var invitePhone = ""
 
     var body: some View {
         ScrollView {
@@ -937,15 +939,13 @@ struct GroupDetailView: View {
             .sheet(isPresented: $showCreateInvite) {
                 NavigationStack {
                     Form {
-                        Section("Max Uses") {
+                        Section("Link Settings") {
                             Picker("Max Uses", selection: $inviteMaxUses) {
                                 Text("Unlimited").tag(Int?.none)
                                 Text("1 use").tag(Int?.some(1))
                                 Text("5 uses").tag(Int?.some(5))
                                 Text("10 uses").tag(Int?.some(10))
                             }
-                        }
-                        Section("Expires In") {
                             Picker("Expires In", selection: $inviteExpiresIn) {
                                 Text("Never").tag(Int?.none)
                                 Text("1 day").tag(Int?.some(1))
@@ -953,23 +953,29 @@ struct GroupDetailView: View {
                                 Text("30 days").tag(Int?.some(30))
                             }
                         }
+
+                        Section(header: Text("Send Via (optional)"), footer: Text("Opens your default email or SMS app with the invite pre-filled")) {
+                            TextField("Email", text: $inviteEmail)
+                                .keyboardType(.emailAddress)
+                                .textContentType(.emailAddress)
+                                .autocapitalization(.none)
+                            TextField("Phone", text: $invitePhone)
+                                .keyboardType(.phonePad)
+                                .textContentType(.telephoneNumber)
+                        }
                     }
                     .navigationTitle("Create Invitation")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
-                            Button("Cancel") { showCreateInvite = false }
+                            Button("Cancel") {
+                                resetInviteForm()
+                                showCreateInvite = false
+                            }
                         }
                         ToolbarItem(placement: .confirmationAction) {
-                            Button("Create & Copy") {
-                                Task {
-                                    if let invitation = await vm.createInvitation(maxUses: inviteMaxUses, expiresInDays: inviteExpiresIn) {
-                                        let url = "https://\(AppConfig.webDomain)/groups/invite/\(invitation.inviteCode)"
-                                        UIPasteboard.general.string = url
-                                        vm.actionMessage = "Invite link copied!"
-                                    }
-                                    showCreateInvite = false
-                                }
+                            Button("Create") {
+                                Task { await createAndSendInvite() }
                             }
                         }
                     }
@@ -1000,17 +1006,22 @@ struct GroupDetailView: View {
                         }
                         Spacer()
                         Button {
+                            shareInviteLink(invitation)
+                        } label: {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.system(size: 14))
+                                .foregroundStyle(Color.md3Primary)
+                                .frame(width: 28, height: 28)
+                        }
+                        Button {
                             let url = "https://\(AppConfig.webDomain)/groups/invite/\(invitation.inviteCode)"
                             UIPasteboard.general.string = url
                             vm.actionMessage = "Link copied!"
                         } label: {
-                            Text("Copy")
-                                .font(.md3LabelMedium)
+                            Image(systemName: "doc.on.doc")
+                                .font(.system(size: 14))
                                 .foregroundStyle(Color.md3OnSecondaryContainer)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(Color.md3SecondaryContainer)
-                                .clipShape(Capsule())
+                                .frame(width: 28, height: 28)
                         }
                         Button {
                             Task { await vm.revokeInvitation(invitation.id) }
@@ -1040,6 +1051,60 @@ struct GroupDetailView: View {
             }
         }
         .padding()
+    }
+
+    // MARK: - Invite Helpers
+
+    private func createAndSendInvite() async {
+        guard let invitation = await vm.createInvitation(maxUses: inviteMaxUses, expiresInDays: inviteExpiresIn) else {
+            showCreateInvite = false
+            return
+        }
+
+        let link = "https://\(AppConfig.webDomain)/groups/invite/\(invitation.inviteCode)"
+        let groupName = vm.group?.name ?? "our group"
+
+        if !inviteEmail.trimmingCharacters(in: .whitespaces).isEmpty {
+            let subject = "You're invited to join a group on Sasquatsh".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+            let body = "Hi!\n\nYou've been invited to join \(groupName) on Sasquatsh, a platform for organizing board game nights.\n\nClick here to join:\n\(link)\n\nSee you at game night!".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+            if let url = URL(string: "mailto:\(inviteEmail.trimmingCharacters(in: .whitespaces))?subject=\(subject)&body=\(body)") {
+                await UIApplication.shared.open(url)
+            }
+            vm.actionMessage = "Opening email..."
+        } else if !invitePhone.trimmingCharacters(in: .whitespaces).isEmpty {
+            let message = "You're invited to join \(groupName) on Sasquatsh! \(link)".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+            let phone = invitePhone.replacingOccurrences(of: "[^0-9+]", with: "", options: .regularExpression)
+            if let url = URL(string: "sms:\(phone)&body=\(message)") {
+                await UIApplication.shared.open(url)
+            }
+            vm.actionMessage = "Opening SMS..."
+        } else {
+            UIPasteboard.general.string = link
+            vm.actionMessage = "Invite link copied!"
+        }
+
+        resetInviteForm()
+        showCreateInvite = false
+    }
+
+    private func resetInviteForm() {
+        inviteEmail = ""
+        invitePhone = ""
+        inviteMaxUses = nil
+        inviteExpiresIn = 7
+    }
+
+    private func shareInviteLink(_ invitation: GroupInvitation) {
+        let link = "https://\(AppConfig.webDomain)/groups/invite/\(invitation.inviteCode)"
+        let groupName = vm.group?.name ?? "a group"
+        let activityVC = UIActivityViewController(
+            activityItems: ["Join \(groupName) on Sasquatsh!", URL(string: link)!],
+            applicationActivities: nil
+        )
+        if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let root = scene.windows.first?.rootViewController {
+            root.present(activityVC, animated: true)
+        }
     }
 
     // MARK: - Helpers

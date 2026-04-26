@@ -8,6 +8,8 @@ struct DashboardView: View {
     @State private var vm = DashboardViewModel()
     @State private var raffleVM = RaffleViewModel()
     @State private var showCreateEvent = false
+    @State private var showCreateGroup = false
+    @State private var showEventUpgrade = false
 
     var body: some View {
         ScrollView {
@@ -17,6 +19,9 @@ struct DashboardView: View {
                 VStack(spacing: 16) {
                     // User header
                     userHeader
+
+                    // Ad banner (top of dashboard for visibility)
+                    AdBannerView(placement: "dashboard")
 
                     if let error = vm.error {
                         ErrorBannerView(message: error) { vm.error = nil }
@@ -151,7 +156,7 @@ struct DashboardView: View {
                         items: vm.managedGroups,
                         emptyMessage: "You're not managing any groups yet.",
                         emptyButtonTitle: "Create Group",
-                        emptyButtonTab: 2
+                        emptyAction: { showCreateGroup = true }
                     ) { group in
                         NavigationLink {
                             GroupDetailView(groupId: group.id)
@@ -188,9 +193,6 @@ struct DashboardView: View {
                         .buttonStyle(.plain)
                         .padding(.horizontal)
                     }
-
-                    // Ad banner
-                    AdBannerView(placement: "dashboard")
 
                     // Upgrade banner for free tier
                     if (authVM.user?.effectiveTier ?? .free) == .free {
@@ -239,6 +241,14 @@ struct DashboardView: View {
             Task { await vm.loadDashboard() }
         }) {
             CreateEventView()
+        }
+        .sheet(isPresented: $showEventUpgrade) {
+            UpgradePromptView(limitType: .games, currentTier: authVM.user?.effectiveTier ?? .free)
+        }
+        .sheet(isPresented: $showCreateGroup, onDismiss: {
+            Task { await vm.loadDashboard() }
+        }) {
+            CreateGroupView()
         }
         .refreshable {
             await vm.loadDashboard()
@@ -289,7 +299,12 @@ struct DashboardView: View {
             Spacer()
 
             Button {
-                showCreateEvent = true
+                let tier = authVM.user?.effectiveTier ?? .free
+                if TierConfig.canHostEvent(tier, currentCount: vm.hostedEvents.count) {
+                    showCreateEvent = true
+                } else {
+                    showEventUpgrade = true
+                }
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "plus")
@@ -396,7 +411,19 @@ struct DashboardView: View {
     }
 
     private func compactGroupRow(_ group: GroupSummary) -> some View {
-        HStack {
+        HStack(spacing: 10) {
+            if let logoUrl = group.logoUrl, let url = URL(string: logoUrl) {
+                AsyncImage(url: url) { image in
+                    image.resizable().aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    groupRowPlaceholder
+                }
+                .frame(width: 36, height: 36)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else {
+                groupRowPlaceholder
+            }
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(group.name)
                     .font(.md3BodyMedium)
@@ -415,5 +442,16 @@ struct DashboardView: View {
                 .foregroundStyle(Color.md3OnSurfaceVariant)
         }
         .padding(.vertical, 4)
+    }
+
+    private var groupRowPlaceholder: some View {
+        RoundedRectangle(cornerRadius: 8)
+            .fill(Color.md3PrimaryContainer)
+            .frame(width: 36, height: 36)
+            .overlay {
+                Image(systemName: "person.3.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color.md3OnPrimaryContainer)
+            }
     }
 }

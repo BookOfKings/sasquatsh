@@ -35,6 +35,17 @@ struct PlayerRequestListView: View {
                     .clipShape(RoundedRectangle(cornerRadius: MD3Shape.medium))
                     .padding(.horizontal)
 
+                    Button { showCreateRequest = true } label: {
+                        Label("Need Players", systemImage: "plus")
+                            .font(.md3LabelMedium)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(Color.md3Primary)
+                            .foregroundStyle(Color.md3OnPrimary)
+                            .clipShape(RoundedRectangle(cornerRadius: MD3Shape.small))
+                    }
+                    .padding(.horizontal)
+
                     if let error = vm.error {
                         ErrorBannerView(message: error) { vm.error = nil }
                     }

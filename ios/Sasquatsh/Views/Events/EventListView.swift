@@ -2,9 +2,12 @@ import SwiftUI
 
 struct EventListView: View {
     @Environment(\.services) private var services
+    @Environment(AuthViewModel.self) private var authVM
     @State private var vm = EventListViewModel()
     @State private var showCreateEvent = false
     @State private var showFilters = false
+    @State private var showUpgradePrompt = false
+    @State private var hostedEventCount = 0
 
     var body: some View {
         ScrollView {
@@ -19,6 +22,23 @@ struct EventListView: View {
                 // Filter chips
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
+                        Button {
+                            let tier = authVM.user?.effectiveTier ?? .free
+                            if TierConfig.canHostEvent(tier, currentCount: hostedEventCount) {
+                                showCreateEvent = true
+                            } else {
+                                showUpgradePrompt = true
+                            }
+                        } label: {
+                            Label("Host a Game", systemImage: "plus")
+                                .font(.md3LabelMedium)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.md3Primary)
+                                .foregroundStyle(Color.md3OnPrimary)
+                                .clipShape(RoundedRectangle(cornerRadius: MD3Shape.small))
+                        }
+
                         filterButton
 
                         if let system = vm.selectedGameSystem {
@@ -62,6 +82,8 @@ struct EventListView: View {
                     ErrorBannerView(message: error) { vm.error = nil }
                 }
 
+                AdBannerView(placement: "events")
+
                 if vm.isLoading && vm.events.isEmpty {
                     LoadingView()
                 } else if vm.events.isEmpty {
@@ -74,8 +96,6 @@ struct EventListView: View {
                     )
                 } else {
                     LazyVStack(spacing: 12) {
-                        AdBannerView(placement: "events")
-
                         ForEach(vm.events) { event in
                             NavigationLink(value: event.id) {
                                 EventCard(event: event)
@@ -104,9 +124,15 @@ struct EventListView: View {
             }
         }
         .sheet(isPresented: $showCreateEvent, onDismiss: {
-            Task { await vm.loadEvents() }
+            Task {
+                await vm.loadEvents()
+                await loadHostedCount()
+            }
         }) {
             CreateEventView()
+        }
+        .sheet(isPresented: $showUpgradePrompt) {
+            UpgradePromptView(limitType: .games, currentTier: authVM.user?.effectiveTier ?? .free)
         }
         .sheet(isPresented: $showFilters) {
             eventFilterSheet
@@ -116,7 +142,14 @@ struct EventListView: View {
             vm.configure(services: services)
             await vm.loadUserPostalCode()
             await vm.loadEvents()
+            await loadHostedCount()
         }
+    }
+
+    private func loadHostedCount() async {
+        let hosted = (try? await services.events.getHostedEvents()) ?? []
+        let startOfToday = Calendar.current.startOfDay(for: Date())
+        hostedEventCount = hosted.filter { $0.eventDate.toDate ?? .distantPast >= startOfToday }.count
     }
 
     private var filterButton: some View {

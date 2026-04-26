@@ -93,9 +93,8 @@ struct UpgradePromptView: View {
 
                 // Buttons
                 VStack(spacing: 12) {
-                    Button {
-                        openURL(AppConfig.pricingURL)
-                        dismiss()
+                    NavigationLink {
+                        PricingView()
                     } label: {
                         Text("View Plans")
                             .primaryButtonStyle()

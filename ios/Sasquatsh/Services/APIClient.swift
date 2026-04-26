@@ -106,6 +106,7 @@ actor APIClient {
         authenticated: Bool = true
     ) async throws -> T {
         var request = try await buildRequest(endpoint: endpoint, method: "POST", queryItems: queryItems, authenticated: authenticated)
+        request.timeoutInterval = 60
 
         let boundary = UUID().uuidString
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")

@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 final class GroupListViewModel {
     var groups: [GroupSummary] = []
+    var myGroupCount = 0
     var isLoading = false
     var error: String?
     var searchText = ""
@@ -35,7 +36,10 @@ final class GroupListViewModel {
         isLoading = true
         error = nil
         do {
-            groups = try await services.groups.getPublicGroups(filter: filter)
+            async let publicGroups = services.groups.getPublicGroups(filter: filter)
+            async let myGroups = services.groups.getMyGroups()
+            groups = try await publicGroups
+            myGroupCount = (try? await myGroups.count) ?? 0
         } catch {
             self.error = error.localizedDescription
         }

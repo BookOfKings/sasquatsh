@@ -20,6 +20,23 @@ struct GroupListView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         Button {
+                            let tier = authVM.user?.effectiveTier ?? .free
+                            if TierConfig.canCreateGroup(tier, currentCount: vm.myGroupCount) {
+                                showCreateGroup = true
+                            } else {
+                                showUpgradePrompt = true
+                            }
+                        } label: {
+                            Label("Create Group", systemImage: "plus")
+                                .font(.md3LabelMedium)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.md3Primary)
+                                .foregroundStyle(Color.md3OnPrimary)
+                                .clipShape(RoundedRectangle(cornerRadius: MD3Shape.small))
+                        }
+
+                        Button {
                             showFilters = true
                         } label: {
                             Label("Filters", systemImage: "line.3.horizontal.decrease.circle")
@@ -59,6 +76,8 @@ struct GroupListView: View {
                     ErrorBannerView(message: error) { vm.error = nil }
                 }
 
+                AdBannerView(placement: "groups")
+
                 if vm.isLoading && vm.groups.isEmpty {
                     LoadingView()
                 } else if vm.groups.isEmpty {
@@ -69,7 +88,7 @@ struct GroupListView: View {
                         buttonTitle: "Create Group",
                         action: {
                             let tier = authVM.user?.effectiveTier ?? .free
-                            if TierConfig.canCreateGroup(tier, currentCount: vm.groups.count) {
+                            if TierConfig.canCreateGroup(tier, currentCount: vm.myGroupCount) {
                                 showCreateGroup = true
                             } else {
                                 showUpgradePrompt = true
@@ -78,8 +97,6 @@ struct GroupListView: View {
                     )
                 } else {
                     LazyVStack(spacing: 12) {
-                        AdBannerView(placement: "groups")
-
                         ForEach(vm.groups) { group in
                             NavigationLink(value: group.id) {
                                 GroupCard(group: group)
@@ -101,7 +118,7 @@ struct GroupListView: View {
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     let tier = authVM.user?.effectiveTier ?? .free
-                    if TierConfig.canCreateGroup(tier, currentCount: vm.groups.count) {
+                    if TierConfig.canCreateGroup(tier, currentCount: vm.myGroupCount) {
                         showCreateGroup = true
                     } else {
                         showUpgradePrompt = true
