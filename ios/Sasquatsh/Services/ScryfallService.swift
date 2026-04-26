@@ -6,6 +6,10 @@ protocol ScryfallServiceProtocol {
     func getCard(id: String) async throws -> ScryfallCard
 }
 
+private struct ScryfallSearchResponse: Decodable {
+    let cards: [ScryfallCard]
+}
+
 final class ScryfallService: ScryfallServiceProtocol {
     private let api: APIClient
 
@@ -15,7 +19,8 @@ final class ScryfallService: ScryfallServiceProtocol {
 
     func searchCards(query: String) async throws -> [ScryfallCard] {
         let queryItems = [URLQueryItem(name: "search", value: query)]
-        return try await api.get("scryfall", queryItems: queryItems, authenticated: true)
+        let response: ScryfallSearchResponse = try await api.get("scryfall", queryItems: queryItems, authenticated: true)
+        return response.cards
     }
 
     func autocomplete(query: String) async throws -> [String] {

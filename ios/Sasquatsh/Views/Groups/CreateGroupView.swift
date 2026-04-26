@@ -25,6 +25,14 @@ struct CreateGroupView: View {
                 Section("Location") {
                     TextField("City", text: $vm.locationCity)
                     USStatePicker(selection: $vm.locationState)
+                    HStack {
+                        Text("Radius (miles)")
+                        Spacer()
+                        TextField("25", value: $vm.locationRadiusMiles, format: .number)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 80)
+                    }
                 }
 
                 Section("Join Policy") {

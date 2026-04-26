@@ -8,6 +8,8 @@ final class GroupListViewModel {
     var error: String?
     var searchText = ""
     var selectedType: GroupType?
+    var filterCity = ""
+    var filterState = ""
 
     private var services: ServiceContainer?
 
@@ -18,8 +20,14 @@ final class GroupListViewModel {
     var filter: GroupSearchFilter {
         GroupSearchFilter(
             search: searchText.isEmpty ? nil : searchText,
-            groupType: selectedType
+            groupType: selectedType,
+            city: filterCity.isEmpty ? nil : filterCity,
+            state: filterState.isEmpty ? nil : filterState
         )
+    }
+
+    var hasActiveFilters: Bool {
+        selectedType != nil || !filterCity.isEmpty || !filterState.isEmpty
     }
 
     func loadGroups() async {
@@ -37,5 +45,7 @@ final class GroupListViewModel {
     func clearFilters() {
         searchText = ""
         selectedType = nil
+        filterCity = ""
+        filterState = ""
     }
 }

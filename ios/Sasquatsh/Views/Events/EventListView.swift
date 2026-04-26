@@ -74,6 +74,8 @@ struct EventListView: View {
                     )
                 } else {
                     LazyVStack(spacing: 12) {
+                        AdBannerView(placement: "events")
+
                         ForEach(vm.events) { event in
                             NavigationLink(value: event.id) {
                                 EventCard(event: event)

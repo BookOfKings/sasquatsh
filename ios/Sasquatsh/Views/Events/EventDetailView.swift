@@ -31,6 +31,7 @@ struct EventDetailView: View {
                 LoadingView()
             } else if let event = vm.event {
                 VStack(alignment: .leading, spacing: 20) {
+                    // 1. Header (title, host, date/time, location, players)
                     headerSection(event)
 
                     if let error = vm.error {
@@ -44,12 +45,16 @@ struct EventDetailView: View {
                             .padding(.horizontal)
                     }
 
-                    detailsSection(event)
-                    gameSystemConfigSection(event)
+                    // 2. Action buttons (register, calendar)
+                    actionButtons(event)
 
+                    // 3. Details (difficulty, tags)
+                    detailsSection(event)
+
+                    // 4. Description
                     if let desc = event.description, !desc.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Description")
+                            Text("About This Game")
                                 .font(.md3TitleMedium)
                                 .foregroundStyle(Color.md3OnSurface)
                             Text(desc)
@@ -62,12 +67,21 @@ struct EventDetailView: View {
                         .padding(.horizontal)
                     }
 
-                    actionButtons(event)
+                    // 5. Game system config (MTG summary at top)
+                    gameSystemConfigSection(event)
+
+                    // 6. Games list
                     gamesSection(event)
+
+                    // 7. Multi-table schedule
                     if event.isMultiTable == true {
                         SessionScheduleView(eventId: eventId)
                     }
+
+                    // 8. Players and items
                     playersAndItemsSection(event)
+
+                    // 9. Chat
                     chatSection
                 }
                 .padding(.vertical)
@@ -536,33 +550,29 @@ struct EventDetailView: View {
     @ViewBuilder
     private func gameSystemConfigSection(_ event: Event) -> some View {
         if let config = event.mtgConfig {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("MTG Details")
-                    .font(.md3TitleMedium)
-                    .foregroundStyle(Color.md3OnSurface)
-                detailRow(icon: "rectangle.stack", text: "Format: \(config.formatDisplayName)")
-                if !config.eventTypeDisplayName.isEmpty {
-                    detailRow(icon: "flag", text: "Event Type: \(config.eventTypeDisplayName)")
+            VStack(spacing: 16) {
+                // 1. Game Summary — purple themed header card
+                mtgGameSummary(config)
+
+                // 2. Limited Format Details (draft/sealed/cube only)
+                if ["draft", "sealed", "cube"].contains(config.formatId) {
+                    mtgDraftSummary(config)
                 }
-                if let powerLevel = config.powerLevelDisplayName {
-                    detailRow(icon: "gauge.medium", text: "Power Level: \(powerLevel)")
+
+                // 3. Event Structure
+                mtgStructureSummary(config)
+
+                // 4. Deck Rules
+                mtgDeckRulesSummary(config)
+
+                // 5. Entry & Prizes
+                if config.hasPrizes == true || (config.entryFee ?? 0) > 0 {
+                    mtgEntryPrizesSummary(config)
                 }
-                if let matchStyle = config.matchStyle {
-                    detailRow(icon: "sportscourt", text: matchStyle == "bo3" ? "Best of 3" : "Best of 1")
-                }
-                if config.allowProxies == true {
-                    detailRow(icon: "doc.on.doc", text: "Proxies Allowed\(config.proxyLimit.map { " (limit: \($0))" } ?? "")")
-                }
-                if let fee = config.entryFee, fee > 0 {
-                    detailRow(icon: "dollarsign.circle", text: "Entry Fee: $\(String(format: "%.2f", fee))")
-                }
-                if config.hasPrizes == true {
-                    detailRow(icon: "trophy", text: config.prizeStructure ?? "Prizes Available")
-                }
+
+                // 6. What to Bring
+                mtgWhatToBring(config)
             }
-            .padding()
-            .cardStyle()
-            .padding(.horizontal)
         } else if let config = event.pokemonConfig {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Pokémon TCG Details")
@@ -657,6 +667,456 @@ struct EventDetailView: View {
             .padding()
             .cardStyle()
             .padding(.horizontal)
+        }
+    }
+
+    // MARK: - MTG Display Components
+
+    private func mtgGameSummary(_ config: MtgEventConfig) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Logo + Format
+            HStack(spacing: 10) {
+                Image("mtg-logo")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(height: 32)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(config.formatDisplayName)
+                        .font(.md3TitleLarge)
+                        .foregroundStyle(Color.md3OnSurface)
+                    if let desc = mtgFormatDescription(config.formatId) {
+                        Text(desc)
+                            .font(.md3BodySmall)
+                            .foregroundStyle(Color.md3OnSurfaceVariant)
+                    }
+                }
+            }
+
+            // Event type + structure pills
+            FlowLayout(spacing: 6) {
+                if !config.eventTypeDisplayName.isEmpty {
+                    mtgPill(config.eventTypeDisplayName)
+                }
+                if config.eventType == "pods", let podSize = config.podsSize {
+                    mtgPill("\(podSize)-player pods")
+                }
+                if let matchStyle = config.matchStyle {
+                    mtgPill(matchStyle == "bo3" ? "Best of 3" : "Best of 1")
+                }
+                if let rounds = config.roundsCount, rounds > 0 {
+                    mtgPill("\(rounds) Rounds")
+                }
+                if config.roundTimeMinutes ?? 0 > 0 {
+                    mtgPill("\(config.roundTimeMinutes!) min rounds")
+                }
+            }
+
+            // Power level badge
+            if let powerLevel = config.powerLevelDisplayName {
+                let plColor = mtgPowerLevelColor(config.powerLevelRange)
+                HStack(spacing: 6) {
+                    Image(systemName: "gauge.medium")
+                        .font(.system(size: 14))
+                    Text(powerLevel)
+                        .font(.md3LabelMedium)
+                        .fontWeight(.medium)
+                }
+                .foregroundStyle(plColor)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(plColor.opacity(0.1))
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(plColor.opacity(0.3), lineWidth: 1))
+            }
+        }
+        .padding()
+        .background(
+            LinearGradient(
+                colors: [Color.purple.opacity(0.08), Color.indigo.opacity(0.05)],
+                startPoint: .topLeading, endPoint: .bottomTrailing
+            )
+        )
+        .overlay(RoundedRectangle(cornerRadius: MD3Shape.medium).stroke(Color.purple.opacity(0.2), lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: MD3Shape.medium))
+        .padding(.horizontal)
+    }
+
+    private func mtgDraftSummary(_ config: MtgEventConfig) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "shippingbox.fill")
+                    .foregroundStyle(.purple)
+                Text("Limited Format Details")
+                    .font(.md3TitleSmall)
+            }
+
+            if let packs = config.packsPerPlayer, packs > 0 {
+                HStack(spacing: 10) {
+                    Image(systemName: "number.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(.purple.opacity(0.7))
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("\(packs) Packs Per Player")
+                            .font(.md3BodyMedium)
+                            .fontWeight(.medium)
+                        Text(packs == 3 ? "Standard draft pool" : packs == 6 ? "Standard sealed pool" : "\(packs) packs")
+                            .font(.md3BodySmall)
+                            .foregroundStyle(Color.md3OnSurfaceVariant)
+                    }
+                }
+            }
+
+            if let style = config.draftStyle, !style.isEmpty, config.formatId == "draft" {
+                HStack(spacing: 10) {
+                    Image(systemName: "arrow.triangle.swap")
+                        .font(.system(size: 20))
+                        .foregroundStyle(.indigo.opacity(0.7))
+                    Text("\(style.capitalized) Draft")
+                        .font(.md3BodyMedium)
+                        .fontWeight(.medium)
+                }
+            }
+
+            if config.formatId == "cube", let cube = config.cubeId, !cube.isEmpty {
+                HStack(spacing: 10) {
+                    Image(systemName: "cube.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(.teal.opacity(0.7))
+                    Text("Cube: \(cube)")
+                        .font(.md3BodyMedium)
+                }
+            }
+        }
+        .padding()
+        .cardStyle()
+        .padding(.horizontal)
+    }
+
+    private func mtgStructureSummary(_ config: MtgEventConfig) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "list.bullet.rectangle")
+                    .foregroundStyle(.purple)
+                Text("Event Structure")
+                    .font(.md3TitleSmall)
+            }
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: 10) {
+                mtgDetailItem("Event Type", config.eventTypeDisplayName)
+
+                if let playMode = config.playMode {
+                    let label = playMode == "assigned_pods" ? "Assigned Pods" :
+                                playMode == "tournament_pairings" ? "Tournament Pairings" : "Open Play"
+                    mtgDetailItem("Seating", label)
+                }
+
+                if config.eventType == "pods", let podSize = config.podsSize {
+                    mtgDetailItem("Pod Size", "\(podSize) players")
+                }
+
+                if let matchStyle = config.matchStyle {
+                    mtgDetailItem("Match Style", matchStyle == "bo3" ? "Best of 3" : "Best of 1")
+                }
+
+                if let rounds = config.roundsCount, rounds > 0 {
+                    mtgDetailItem("Rounds", "\(rounds)")
+                }
+
+                if config.roundTimeMinutes ?? 0 > 0 {
+                    mtgDetailItem("Round Time", "\(config.roundTimeMinutes!) min")
+                }
+
+                if let topCut = config.topCut, topCut > 0 {
+                    mtgDetailItem("Top Cut", "Top \(topCut)")
+                }
+
+                mtgDetailItem("Spectators", config.allowSpectators == true ? "Welcome" : "Not allowed")
+            }
+        }
+        .padding()
+        .cardStyle()
+        .padding(.horizontal)
+    }
+
+    private func mtgDeckRulesSummary(_ config: MtgEventConfig) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "doc.text.fill")
+                    .foregroundStyle(.purple)
+                Text("Deck Rules")
+                    .font(.md3TitleSmall)
+            }
+
+            // Format rules
+            if let rules = mtgFormatRules(config.formatId) {
+                Text(rules)
+                    .font(.md3BodySmall)
+                    .foregroundStyle(Color.md3OnSurfaceVariant)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.purple.opacity(0.05))
+                    .clipShape(RoundedRectangle(cornerRadius: MD3Shape.small))
+                    .overlay(RoundedRectangle(cornerRadius: MD3Shape.small).stroke(Color.purple.opacity(0.15), lineWidth: 1))
+            }
+
+            // Deck registration
+            if config.requireDeckRegistration == true {
+                HStack(spacing: 8) {
+                    Image(systemName: "info.circle.fill")
+                        .foregroundStyle(.blue)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Deck Registration Required")
+                            .font(.md3BodySmall)
+                            .fontWeight(.medium)
+                        if let deadline = config.deckSubmissionDeadline {
+                            Text("Submit by: \(deadline.toDate?.displayDateTime ?? deadline)")
+                                .font(.md3LabelSmall)
+                                .foregroundStyle(Color.md3OnSurfaceVariant)
+                        }
+                    }
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.blue.opacity(0.05))
+                .clipShape(RoundedRectangle(cornerRadius: MD3Shape.small))
+            }
+
+            // Proxy policy
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(config.allowProxies == true ? .green : Color.md3Error)
+                    .frame(width: 8, height: 8)
+                if config.allowProxies == true {
+                    Text("Proxies Allowed\(config.proxyLimit.map { " (limit: \($0))" } ?? "")")
+                        .font(.md3BodySmall)
+                } else {
+                    Text("No Proxies")
+                        .font(.md3BodySmall)
+                }
+            }
+
+            // Banned cards
+            if let banned = config.bannedCards, !banned.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Banned Cards (beyond format banlist)")
+                        .font(.md3LabelSmall)
+                        .foregroundStyle(Color.md3OnSurfaceVariant)
+                    FlowLayout(spacing: 6) {
+                        ForEach(banned, id: \.self) { card in
+                            Text(card)
+                                .font(.md3LabelSmall)
+                                .foregroundStyle(Color.md3Error)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(Color.md3Error.opacity(0.08))
+                                .clipShape(Capsule())
+                        }
+                    }
+                }
+            }
+
+            // House rules
+            if let house = config.houseRulesNotes, !house.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("House Rules")
+                        .font(.md3LabelSmall)
+                        .foregroundStyle(Color.md3OnSurfaceVariant)
+                    Text(house)
+                        .font(.md3BodySmall)
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.md3SurfaceContainerHigh)
+                        .clipShape(RoundedRectangle(cornerRadius: MD3Shape.small))
+                }
+            }
+        }
+        .padding()
+        .cardStyle()
+        .padding(.horizontal)
+    }
+
+    private func mtgEntryPrizesSummary(_ config: MtgEventConfig) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "trophy.fill")
+                    .foregroundStyle(.purple)
+                Text("Entry & Prizes")
+                    .font(.md3TitleSmall)
+            }
+
+            HStack(spacing: 16) {
+                if let fee = config.entryFee, fee > 0 {
+                    HStack(spacing: 6) {
+                        Image(systemName: "dollarsign.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundStyle(.green)
+                        VStack(alignment: .leading) {
+                            Text("Entry Fee")
+                                .font(.md3LabelSmall)
+                                .foregroundStyle(Color.md3OnSurfaceVariant)
+                            Text("\(config.entryFeeCurrency ?? "USD") \(String(format: "%.2f", fee))")
+                                .font(.md3BodyMedium)
+                                .fontWeight(.bold)
+                        }
+                    }
+                }
+                if config.hasPrizes == true {
+                    HStack(spacing: 6) {
+                        Image(systemName: "trophy.fill")
+                            .font(.system(size: 22))
+                            .foregroundStyle(.orange)
+                        VStack(alignment: .leading) {
+                            Text("Prize Support")
+                                .font(.md3LabelSmall)
+                                .foregroundStyle(Color.md3OnSurfaceVariant)
+                            Text("Available")
+                                .font(.md3BodyMedium)
+                                .fontWeight(.medium)
+                        }
+                    }
+                }
+            }
+
+            if config.hasPrizes == true, let structure = config.prizeStructure, !structure.isEmpty {
+                Text(structure)
+                    .font(.md3BodySmall)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.orange.opacity(0.05))
+                    .clipShape(RoundedRectangle(cornerRadius: MD3Shape.small))
+                    .overlay(RoundedRectangle(cornerRadius: MD3Shape.small).stroke(Color.orange.opacity(0.15), lineWidth: 1))
+            }
+        }
+        .padding()
+        .cardStyle()
+        .padding(.horizontal)
+    }
+
+    private func mtgWhatToBring(_ config: MtgEventConfig) -> some View {
+        let isLimited = ["draft", "sealed", "cube"].contains(config.formatId)
+        let isCommander = ["commander", "oathbreaker", "brawl"].contains(config.formatId)
+        let isBo3 = config.matchStyle == "bo3"
+
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "checklist")
+                    .foregroundStyle(.purple)
+                Text("What to Bring")
+                    .font(.md3TitleSmall)
+            }
+
+            // Deck requirement
+            if isLimited {
+                mtgBringItem(icon: "checkmark.circle.fill", color: .green, title: "No deck required", subtitle: "Cards will be provided")
+                mtgBringItem(icon: "rectangle.stack", color: .purple, title: "Basic lands", subtitle: "Bring your own or use store lands")
+            } else if isCommander {
+                mtgBringItem(icon: "rectangle.portrait.on.rectangle.portrait", color: .purple, title: "Commander deck", subtitle: "100-card singleton deck with commander")
+                mtgBringItem(icon: "dice", color: .blue, title: "Dice & counters", subtitle: "For tracking life, counters, and tokens")
+            } else {
+                mtgBringItem(icon: "rectangle.portrait.on.rectangle.portrait", color: .purple, title: "Constructed deck", subtitle: "60-card minimum main deck")
+                if isBo3 {
+                    mtgBringItem(icon: "rectangle.stack", color: .indigo, title: "15-card sideboard", subtitle: "Required for Best of 3 matches")
+                }
+            }
+
+            // Life tracking
+            if !isLimited {
+                mtgBringItem(icon: "heart.text.square", color: .red, title: "Life tracking", subtitle: "Pen & paper, app, or spindown die")
+            }
+
+            // Entry fee
+            if let fee = config.entryFee, fee > 0 {
+                mtgBringItem(icon: "dollarsign.circle", color: .green, title: "Entry fee: \(config.entryFeeCurrency ?? "USD") \(String(format: "%.2f", fee))", subtitle: "Check with host for payment methods")
+            }
+        }
+        .padding()
+        .cardStyle()
+        .padding(.horizontal)
+    }
+
+    // MARK: - MTG Helpers
+
+    private func mtgPill(_ text: String) -> some View {
+        Text(text)
+            .font(.md3LabelSmall)
+            .foregroundStyle(.purple)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Color.white.opacity(0.8))
+            .clipShape(Capsule())
+            .overlay(Capsule().stroke(Color.purple.opacity(0.3), lineWidth: 1))
+    }
+
+    private func mtgDetailItem(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.md3LabelSmall)
+                .foregroundStyle(Color.md3OnSurfaceVariant)
+            Text(value)
+                .font(.md3BodyMedium)
+                .fontWeight(.medium)
+        }
+    }
+
+    private func mtgBringItem(icon: String, color: Color, title: String, subtitle: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 16))
+                .foregroundStyle(color)
+                .frame(width: 28, height: 28)
+                .background(color.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.md3BodySmall)
+                    .fontWeight(.medium)
+                Text(subtitle)
+                    .font(.md3LabelSmall)
+                    .foregroundStyle(Color.md3OnSurfaceVariant)
+            }
+        }
+    }
+
+    private func mtgPowerLevelColor(_ range: String?) -> Color {
+        switch range {
+        case "casual": return .green
+        case "mid": return .blue
+        case "high": return .orange
+        case "cedh": return .red
+        default: return .purple
+        }
+    }
+
+    private func mtgFormatDescription(_ formatId: String?) -> String? {
+        switch formatId {
+        case "commander": return "100-card singleton, legendary commander"
+        case "standard": return "Rotating format, recent sets"
+        case "modern": return "Non-rotating, 8th Edition forward"
+        case "pioneer": return "Non-rotating, Return to Ravnica forward"
+        case "legacy": return "Eternal format, all cards with banlist"
+        case "vintage": return "Eternal format, most powerful cards"
+        case "pauper": return "Commons only"
+        case "draft": return "Build a deck from opened packs"
+        case "sealed": return "Build from 6 sealed packs"
+        case "cube": return "Draft from a curated card collection"
+        case "oathbreaker": return "60-card, Planeswalker commander"
+        case "brawl": return "60-card singleton, Standard-legal commander"
+        default: return nil
+        }
+    }
+
+    private func mtgFormatRules(_ formatId: String?) -> String? {
+        switch formatId {
+        case "commander": return "100-card deck • 1 copy per card (except basics) • Legendary commander • 40 life • Commander damage at 21"
+        case "standard", "pioneer", "modern", "legacy", "vintage":
+            return "60-card minimum • Up to 4 copies per card • 15-card sideboard • 20 life"
+        case "pauper": return "60-card minimum • Commons only • Up to 4 copies • 20 life"
+        case "oathbreaker": return "60-card deck • 1 copy per card • Planeswalker as Oathbreaker + Signature Spell • 20 life"
+        case "brawl": return "60-card singleton • Standard-legal • Legendary creature or Planeswalker commander • 25 life"
+        case "draft": return "40-card minimum deck from drafted cards • Any number of basic lands"
+        case "sealed": return "40-card minimum from 6 sealed packs • Any number of basic lands"
+        default: return nil
         }
     }
 

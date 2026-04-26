@@ -189,6 +189,9 @@ struct DashboardView: View {
                         .padding(.horizontal)
                     }
 
+                    // Ad banner
+                    AdBannerView(placement: "dashboard")
+
                     // Upgrade banner for free tier
                     if (authVM.user?.effectiveTier ?? .free) == .free {
                         NavigationLink {

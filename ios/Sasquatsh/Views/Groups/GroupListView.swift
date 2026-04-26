@@ -34,7 +34,7 @@ struct GroupListView: View {
                                 )
                         }
 
-                        if vm.selectedType != nil {
+                        if vm.hasActiveFilters {
                             Button {
                                 vm.clearFilters()
                                 Task { await vm.loadGroups() }
@@ -78,6 +78,8 @@ struct GroupListView: View {
                     )
                 } else {
                     LazyVStack(spacing: 12) {
+                        AdBannerView(placement: "groups")
+
                         ForEach(vm.groups) { group in
                             NavigationLink(value: group.id) {
                                 GroupCard(group: group)
@@ -131,6 +133,11 @@ struct GroupListView: View {
                                 Text(type.displayName).tag(GroupType?.some(type))
                             }
                         }
+                    }
+
+                    Section("Location") {
+                        TextField("City", text: $vm.filterCity)
+                        USStatePicker(selection: $vm.filterState)
                     }
                 }
                 .navigationTitle("Filters")

@@ -14,7 +14,6 @@ struct MyCollectionView: View {
     @State private var pendingAdds: Set<Int> = []
     @State private var pendingRemoves: Set<Int> = []
     @State private var showBarcodeScanner = false
-    @State private var showShelfScanner = false
 
     private var ownedBggIds: Set<Int> {
         Set(myGames.compactMap(\.bggId))
@@ -35,17 +34,6 @@ struct MyCollectionView: View {
                     Text("Search").tag(2)
                 }
                 .pickerStyle(.segmented)
-
-                Button {
-                    showShelfScanner = true
-                } label: {
-                    Image(systemName: "books.vertical")
-                        .font(.system(size: 16))
-                        .frame(width: 36, height: 36)
-                        .background(Color.md3Tertiary)
-                        .foregroundStyle(Color.md3OnTertiary)
-                        .clipShape(RoundedRectangle(cornerRadius: MD3Shape.small))
-                }
 
                 Button {
                     showBarcodeScanner = true
@@ -75,19 +63,6 @@ struct MyCollectionView: View {
         .background(Color.md3SurfaceContainer)
         .navigationTitle("My Collection")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showShelfScanner) {
-            ShelfScannerSheet(ownedBggIds: ownedBggIds) { inputs in
-                Task {
-                    for input in inputs {
-                        do {
-                            let added = try await services.collections.addGame(input)
-                            myGames.append(contentsOf: added)
-                        } catch {}
-                    }
-                    myGames.sort { $0.gameName < $1.gameName }
-                }
-            }
-        }
         .sheet(isPresented: $showBarcodeScanner) {
             BarcodeScannerSheet(initialOwnedBggIds: ownedBggIds) { input in
                 Task {

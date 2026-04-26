@@ -85,10 +85,10 @@ struct CreateEventView: View {
     private var eventForm: some View {
         Form {
             basicInfoSection
-            gameSearchSection
-            gameSystemConfigSections
             dateTimeSection
             locationSection
+            gameSearchSection
+            gameSystemConfigSections
             gameSettingsSection
 
             if !vm.validationIssues.isEmpty {

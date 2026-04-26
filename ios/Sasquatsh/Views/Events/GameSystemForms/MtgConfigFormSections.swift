@@ -2,6 +2,12 @@ import SwiftUI
 
 struct MtgConfigFormSections: View {
     @Binding var config: MtgConfigState
+    @Environment(\.services) private var services
+    @State private var bannedCardSearch = ""
+    @State private var bannedCardResults: [ScryfallCard] = []
+    @State private var isSearchingBanned = false
+    @State private var bannedSearchTask: Task<Void, Never>?
+    @State private var bannedCardImages: [String: String] = [:] // card name -> image URL
 
     var body: some View {
         mtgFormatSection
@@ -156,6 +162,116 @@ struct MtgConfigFormSections: View {
                 }
             }
 
+            // Banned Cards
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Banned Cards")
+                    .font(.md3LabelLarge)
+
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(Color.md3OnSurfaceVariant)
+                    TextField("Search cards to ban...", text: $bannedCardSearch)
+                        .autocorrectionDisabled()
+                        .onChange(of: bannedCardSearch) { _, newValue in
+                            bannedSearchTask?.cancel()
+                            guard newValue.count >= 2 else {
+                                bannedCardResults = []
+                                return
+                            }
+                            bannedSearchTask = Task {
+                                try? await Task.sleep(for: .milliseconds(300))
+                                guard !Task.isCancelled else { return }
+                                await searchBannedCards(query: newValue)
+                            }
+                        }
+                    if isSearchingBanned {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                    if !bannedCardSearch.isEmpty {
+                        Button {
+                            bannedCardSearch = ""
+                            bannedCardResults = []
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(Color.md3OnSurfaceVariant)
+                        }
+                    }
+                }
+
+                // Search results
+                ForEach(bannedCardResults.prefix(8)) { card in
+                    HStack(spacing: 8) {
+                        if let url = card.smallImageUrl, let imageURL = URL(string: url) {
+                            AsyncImage(url: imageURL) { image in
+                                image.resizable().aspectRatio(contentMode: .fill)
+                            } placeholder: {
+                                Color.md3SurfaceVariant
+                            }
+                            .frame(width: 28, height: 40)
+                            .clipShape(RoundedRectangle(cornerRadius: 3))
+                        }
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(card.name)
+                                .font(.md3BodySmall)
+                                .foregroundStyle(Color.md3OnSurface)
+                            if let type = card.typeLine {
+                                Text(type)
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(Color.md3OnSurfaceVariant)
+                            }
+                        }
+                        Spacer()
+                        Image(systemName: "plus.circle")
+                            .foregroundStyle(Color.md3Error)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        let name = card.name
+                        if !config.bannedCards.contains(name) {
+                            config.bannedCards.append(name)
+                            if let url = card.smallImageUrl {
+                                bannedCardImages[name] = url
+                            }
+                        }
+                        bannedCardSearch = ""
+                        bannedCardResults = []
+                    }
+                }
+
+                // Banned list
+                ForEach(Array(config.bannedCards.enumerated()), id: \.offset) { index, card in
+                    HStack(spacing: 8) {
+                        if let url = bannedCardImages[card], let imageURL = URL(string: url) {
+                            AsyncImage(url: imageURL) { image in
+                                image.resizable().aspectRatio(contentMode: .fill)
+                            } placeholder: {
+                                Color.md3SurfaceVariant
+                            }
+                            .frame(width: 22, height: 30)
+                            .clipShape(RoundedRectangle(cornerRadius: 2))
+                        } else {
+                            Image(systemName: "nosign")
+                                .font(.system(size: 10))
+                                .foregroundStyle(Color.md3Error)
+                                .frame(width: 22)
+                        }
+                        Text(card)
+                            .font(.md3BodySmall)
+                            .foregroundStyle(Color.md3OnSurface)
+                        Spacer()
+                        Button {
+                            config.bannedCards.remove(at: index)
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 16))
+                                .foregroundStyle(Color.md3Error.opacity(0.6))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
             Toggle("Require Deck Registration", isOn: $config.requireDeckRegistration)
 
             if config.requireDeckRegistration {
@@ -171,6 +287,16 @@ struct MtgConfigFormSections: View {
             TextField("House Rules", text: $config.houseRulesNotes, axis: .vertical)
                 .lineLimit(2...4)
         }
+    }
+
+    private func searchBannedCards(query: String) async {
+        isSearchingBanned = true
+        do {
+            bannedCardResults = try await services.scryfall.searchCards(query: query)
+        } catch {
+            bannedCardResults = []
+        }
+        isSearchingBanned = false
     }
 
     // MARK: - Draft / Sealed

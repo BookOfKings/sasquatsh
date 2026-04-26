@@ -53,6 +53,7 @@ struct MtgConfigState {
     var powerLevelMax: Int? = nil
     var allowProxies: Bool = false
     var proxyLimit: Int? = nil
+    var bannedCards: [String] = []
     var requireDeckRegistration: Bool = false
     var deckSubmissionDeadline: Date? = nil
     var houseRulesNotes: String = ""
@@ -119,7 +120,7 @@ struct MtgConfigState {
             powerLevelMin: powerLevelRange == "custom" ? powerLevelMin : nil,
             powerLevelMax: powerLevelRange == "custom" ? powerLevelMax : nil,
             powerLevelRange: showPowerLevel ? powerLevelRange : nil,
-            bannedCards: nil,
+            bannedCards: bannedCards.isEmpty ? nil : bannedCards,
             packsPerPlayer: isLimitedFormat ? packsPerPlayer : nil,
             draftStyle: isLimitedFormat ? draftStyle : nil,
             cubeId: formatId == "cube" && !cubeId.isEmpty ? cubeId : nil,
@@ -155,6 +156,7 @@ struct MtgConfigState {
         powerLevelMax = config.powerLevelMax
         allowProxies = config.allowProxies ?? false
         proxyLimit = config.proxyLimit
+        bannedCards = config.bannedCards ?? []
         requireDeckRegistration = config.requireDeckRegistration ?? false
         houseRulesNotes = config.houseRulesNotes ?? ""
         packsPerPlayer = config.packsPerPlayer ?? 3

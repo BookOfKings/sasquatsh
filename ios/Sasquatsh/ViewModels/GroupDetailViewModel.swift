@@ -133,10 +133,13 @@ final class GroupDetailViewModel {
         }
     }
 
-    func createInvitation() async -> GroupInvitation? {
+    func createInvitation(maxUses: Int? = nil, expiresInDays: Int? = nil) async -> GroupInvitation? {
         guard let services, let group else { return nil }
         do {
-            let invitation = try await services.groups.createInvitation(groupId: group.id, input: nil)
+            let input = (maxUses != nil || expiresInDays != nil)
+                ? CreateInvitationInput(maxUses: maxUses, expiresInDays: expiresInDays)
+                : nil
+            let invitation = try await services.groups.createInvitation(groupId: group.id, input: input)
             invitations.insert(invitation, at: 0)
             return invitation
         } catch {

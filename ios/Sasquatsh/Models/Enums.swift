@@ -207,7 +207,7 @@ enum GameSystem: String, Codable, CaseIterable, Identifiable {
     var iconName: String {
         switch self {
         case .boardGame: return "dice"
-        case .mtg: return "suit.spade.fill"
+        case .mtg: return "rectangle.portrait.on.rectangle.portrait.fill"
         case .pokemonTcg: return "bolt.circle.fill"
         case .yugioh: return "star.circle.fill"
         case .warhammer40k: return "shield.fill"

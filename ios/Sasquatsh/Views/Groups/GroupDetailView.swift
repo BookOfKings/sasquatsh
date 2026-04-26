@@ -19,6 +19,9 @@ struct GroupDetailView: View {
     @State private var showShareLink = false
     @State private var showChat = false
     @State private var adminTab = 0 // 0=members, 1=requests, 2=invites
+    @State private var showCreateInvite = false
+    @State private var inviteMaxUses: Int? = nil
+    @State private var inviteExpiresIn: Int? = 7
 
     var body: some View {
         ScrollView {
@@ -924,20 +927,54 @@ struct GroupDetailView: View {
     private var adminInvitationsTab: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Create invitation button
-            Button {
-                Task {
-                    if let invitation = await vm.createInvitation() {
-                        let url = "https://\(AppConfig.webDomain)/groups/invite/\(invitation.inviteCode)"
-                        UIPasteboard.general.string = url
-                        vm.actionMessage = "Invite link copied!"
-                    }
-                }
-            } label: {
+            Button { showCreateInvite = true } label: {
                 HStack {
                     Image(systemName: "plus")
                     Text("Create Invitation Link")
                 }
                 .primaryButtonStyle()
+            }
+            .sheet(isPresented: $showCreateInvite) {
+                NavigationStack {
+                    Form {
+                        Section("Max Uses") {
+                            Picker("Max Uses", selection: $inviteMaxUses) {
+                                Text("Unlimited").tag(Int?.none)
+                                Text("1 use").tag(Int?.some(1))
+                                Text("5 uses").tag(Int?.some(5))
+                                Text("10 uses").tag(Int?.some(10))
+                            }
+                        }
+                        Section("Expires In") {
+                            Picker("Expires In", selection: $inviteExpiresIn) {
+                                Text("Never").tag(Int?.none)
+                                Text("1 day").tag(Int?.some(1))
+                                Text("7 days").tag(Int?.some(7))
+                                Text("30 days").tag(Int?.some(30))
+                            }
+                        }
+                    }
+                    .navigationTitle("Create Invitation")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancel") { showCreateInvite = false }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Create & Copy") {
+                                Task {
+                                    if let invitation = await vm.createInvitation(maxUses: inviteMaxUses, expiresInDays: inviteExpiresIn) {
+                                        let url = "https://\(AppConfig.webDomain)/groups/invite/\(invitation.inviteCode)"
+                                        UIPasteboard.general.string = url
+                                        vm.actionMessage = "Invite link copied!"
+                                    }
+                                    showCreateInvite = false
+                                }
+                            }
+                        }
+                    }
+                }
+                .presentationDetents([.medium])
             }
 
             if vm.invitations.isEmpty {

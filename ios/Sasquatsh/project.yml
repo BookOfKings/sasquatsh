@@ -29,6 +29,7 @@ targets:
     platform: iOS
     sources:
       - path: .
+        createIntermediateGroups: true
         excludes:
           - project.yml
           - "*.xcodeproj"
@@ -40,7 +41,7 @@ targets:
       properties:
         keychain-access-groups:
           - $(AppIdentifierPrefix)com.sasquatsh.ios
-        aps-environment: development
+        aps-environment: production
         com.apple.developer.applesignin:
           - Default
     settings:
@@ -72,7 +73,9 @@ targets:
               - com.googleusercontent.apps.313358569933-dimgosjcmgo7fimhi56trekhu0jdm6sf
         UILaunchScreen: {}
         NSCameraUsageDescription: "Sasquatsh uses the camera to scan board game barcodes and add them to your collection."
+        NSPhotoLibraryUsageDescription: "Sasquatsh uses your photo library to scan board game shelves and add games to your collection."
         NSCalendarsWriteOnlyAccessUsageDescription: "Sasquatsh would like to add game events to your calendar."
+        NSUserNotificationsUsageDescription: "Sasquatsh sends notifications for game event updates, chat messages, and planning session activity."
         UIApplicationSupportsIndirectInputEvents: true
         ITSAppUsesNonExemptEncryption: false
         UIAppFonts:
