@@ -59,6 +59,12 @@ async function initializeAuth(): Promise<void> {
           isLoading.value = false
           isInitialized.value = true
           console.log('[Auth] User synced successfully from redirect')
+          // Check for saved redirect from login page (OAuth redirect loses query params)
+          const loginRedirect = localStorage.getItem('loginRedirect')
+          if (loginRedirect) {
+            localStorage.removeItem('loginRedirect')
+            window.location.href = loginRedirect
+          }
           return // User is synced, we're done
         } catch (syncErr: any) {
           console.error('[Auth] Failed to sync Google user with backend:', syncErr)
@@ -95,6 +101,11 @@ async function initializeAuth(): Promise<void> {
             firebaseUser.value = result.user
             isLoading.value = false
             isInitialized.value = true
+            const loginRedirect = localStorage.getItem('loginRedirect')
+            if (loginRedirect) {
+              localStorage.removeItem('loginRedirect')
+              window.location.href = loginRedirect
+            }
             return // User is synced, we're done
           } catch (syncErr: any) {
             console.error('Failed to sync Google user with backend:', syncErr)
