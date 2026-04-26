@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
 import StateSelect from '@/components/common/StateSelect.vue'
+import { getMyAds, type AdvertiserAd } from '@/services/advertiserApi'
 
 const router = useRouter()
 const route = useRoute()
@@ -13,6 +14,18 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 const step = ref<'tiers' | 'create' | 'success'>( route.query.checkout === 'success' ? 'success' : 'tiers')
 const selectedTier = ref<string | null>(null)
+const myAds = ref<AdvertiserAd[]>([])
+
+onMounted(async () => {
+  if (auth.isAuthenticated.value) {
+    try {
+      const token = await auth.getIdToken()
+      if (token) {
+        myAds.value = await getMyAds(token)
+      }
+    } catch { /* silent */ }
+  }
+})
 const loading = ref(false)
 const error = ref('')
 
@@ -115,8 +128,46 @@ async function handleSubmit() {
         <button @click="router.push('/dashboard')" class="btn-primary px-8 py-3">Go to Dashboard</button>
       </div>
 
+      <!-- My Ads Dashboard -->
+      <div v-if="myAds.length > 0 && step === 'tiers'" class="card p-6 mb-8">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">My Ads</h2>
+        <div class="space-y-3">
+          <div
+            v-for="ad in myAds"
+            :key="ad.id"
+            class="flex items-start gap-4 p-4 bg-gray-50 rounded-lg"
+          >
+            <img v-if="ad.image_url" :src="ad.image_url" class="w-16 h-16 rounded object-cover flex-shrink-0" />
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-1">
+                <h3 class="font-semibold text-sm truncate">{{ ad.title }}</h3>
+                <span
+                  class="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                  :class="{
+                    'bg-yellow-100 text-yellow-700': ad.status === 'pending_payment',
+                    'bg-blue-100 text-blue-700': ad.status === 'pending_review',
+                    'bg-green-100 text-green-700': ad.status === 'active',
+                    'bg-gray-100 text-gray-600': ad.status === 'paused' || ad.status === 'expired',
+                    'bg-red-100 text-red-700': ad.status === 'rejected',
+                  }"
+                >{{ ad.status.replace('_', ' ') }}</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-primary-50 text-primary-700">{{ ad.ad_tier }}</span>
+              </div>
+              <p class="text-xs text-gray-600 truncate">{{ ad.description }}</p>
+              <div class="flex items-center gap-4 mt-2 text-xs text-gray-400">
+                <span>{{ ad.impression_count }} impressions</span>
+                <span>{{ ad.click_count }} clicks</span>
+                <span v-if="ad.target_city || ad.target_state">
+                  {{ [ad.target_city, ad.target_state].filter(Boolean).join(', ') }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Step 1: Choose Tier -->
-      <template v-else-if="step === 'tiers'">
+      <template v-if="step === 'tiers'">
         <div class="text-center mb-12">
           <h1 class="text-4xl font-bold text-gray-900 mb-4">Advertise on Sasquatsh</h1>
           <p class="text-xl text-gray-600 max-w-2xl mx-auto">
