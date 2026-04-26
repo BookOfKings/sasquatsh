@@ -27,6 +27,7 @@ const loadingGroups = ref(true)
 const loadingInvitations = ref(true)
 const loadingPlanningInvitations = ref(true)
 const respondingTo = ref<string | null>(null)
+const newBadgeCount = ref(0)
 const decliningPlanningSession = ref<string | null>(null)
 const acceptingPlanningSession = ref<string | null>(null)
 
@@ -102,7 +103,11 @@ onMounted(async () => {
   try {
     const token = await auth.getIdToken()
     if (token) {
-      computeMyBadges(token).catch(() => {}) // fire and forget
+      computeMyBadges(token).then(result => {
+        if (result.newlyEarned > 0) {
+          newBadgeCount.value = result.newlyEarned
+        }
+      }).catch(() => {})
     }
   } catch {
     // Silent — badge computation is non-critical
@@ -206,6 +211,28 @@ async function handleAcceptPlanningSession(sessionId: string) {
   </div>
 
   <div v-else class="container-wide py-8">
+    <!-- New Badge Notification -->
+    <div
+      v-if="newBadgeCount > 0"
+      class="mb-4 bg-primary-50 border border-primary-200 rounded-lg p-4 flex items-center justify-between"
+    >
+      <div class="flex items-center gap-3">
+        <svg class="w-6 h-6 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z"/>
+        </svg>
+        <span class="text-primary-800 font-medium">
+          You earned {{ newBadgeCount }} new badge{{ newBadgeCount === 1 ? '' : 's' }}!
+        </span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button @click="$router.push('/badges')" class="btn-primary text-sm px-3 py-1.5">View Badges</button>
+        <button @click="newBadgeCount = 0" class="text-primary-400 hover:text-primary-600 p-1">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
     <div class="card p-6">
       <!-- Header -->
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
