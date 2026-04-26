@@ -30,8 +30,8 @@ watch(() => auth.error.value, (newError) => {
 // Watch for successful authentication and redirect
 watch(() => auth.isAuthenticated.value, (isAuthenticated) => {
   if (isAuthenticated) {
-    const redirect = route.query.redirect as string || sessionStorage.getItem('loginRedirect')
-    sessionStorage.removeItem('loginRedirect')
+    const redirect = route.query.redirect as string || localStorage.getItem('loginRedirect')
+    localStorage.removeItem('loginRedirect')
     const defaultRoute = auth.user.value?.isAdmin ? '/admin' : '/dashboard'
     router.push(redirect || defaultRoute)
   }
@@ -66,13 +66,13 @@ async function handleGoogleLogin() {
 
   // Save redirect before OAuth (page may reload during redirect flow)
   const redirect = route.query.redirect as string
-  if (redirect) sessionStorage.setItem('loginRedirect', redirect)
+  if (redirect) localStorage.setItem('loginRedirect', redirect)
 
   const result = await auth.loginWithGoogle()
 
   if (result.ok) {
-    const savedRedirect = sessionStorage.getItem('loginRedirect') || redirect
-    sessionStorage.removeItem('loginRedirect')
+    const savedRedirect = localStorage.getItem('loginRedirect') || redirect
+    localStorage.removeItem('loginRedirect')
     const defaultRoute = auth.user.value?.isAdmin ? '/admin' : '/dashboard'
     router.push(savedRedirect || defaultRoute)
   } else {
@@ -88,13 +88,13 @@ async function handleAppleLogin() {
 
   // Save redirect before OAuth (page may reload during redirect flow)
   const redirect = route.query.redirect as string
-  if (redirect) sessionStorage.setItem('loginRedirect', redirect)
+  if (redirect) localStorage.setItem('loginRedirect', redirect)
 
   const result = await auth.loginWithApple()
 
   if (result.ok) {
-    const savedRedirect = sessionStorage.getItem('loginRedirect') || redirect
-    sessionStorage.removeItem('loginRedirect')
+    const savedRedirect = localStorage.getItem('loginRedirect') || redirect
+    localStorage.removeItem('loginRedirect')
     const defaultRoute = auth.user.value?.isAdmin ? '/admin' : '/dashboard'
     router.push(savedRedirect || defaultRoute)
   } else {
