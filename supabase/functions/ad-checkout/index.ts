@@ -28,6 +28,29 @@ Deno.serve(async (req) => {
   const url = new URL(req.url)
   const action = url.searchParams.get('action')
 
+  // GET /ad-checkout?action=pending — Get all pending ads (admin only)
+  if (req.method === 'GET' && action === 'pending') {
+    const token = getFirebaseToken(req)
+    if (!token) return errorResponse('Authentication required', 401)
+    const decoded = await verifyFirebaseToken(token)
+    if (!decoded) return errorResponse('Invalid token', 401)
+
+    const { data: adminUser } = await supabase
+      .from('users')
+      .select('id, is_admin')
+      .eq('firebase_uid', decoded.uid)
+      .single()
+    if (!adminUser?.is_admin) return errorResponse('Admin required', 403)
+
+    const { data } = await supabase
+      .from('advertiser_ads')
+      .select('*')
+      .eq('status', 'pending_review')
+      .order('created_at', { ascending: true })
+
+    return jsonResponse({ ads: data || [] })
+  }
+
   // GET /ad-checkout?action=my-ads — Get current user's ads
   if (req.method === 'GET' && action === 'my-ads') {
     const token = getFirebaseToken(req)
@@ -147,6 +170,70 @@ Deno.serve(async (req) => {
     })
 
     return jsonResponse({ sessionId: session.id, url: session.url, adId: ad.id })
+  }
+
+  // POST /ad-checkout?action=approve — Approve an advertiser ad (admin only)
+  if (req.method === 'POST' && action === 'approve') {
+    const token = getFirebaseToken(req)
+    if (!token) return errorResponse('Authentication required', 401)
+    const decoded = await verifyFirebaseToken(token)
+    if (!decoded) return errorResponse('Invalid token', 401)
+
+    const { data: adminUser } = await supabase.from('users').select('id, is_admin').eq('firebase_uid', decoded.uid).single()
+    if (!adminUser?.is_admin) return errorResponse('Admin required', 403)
+
+    const body = await req.json()
+    if (!body.adId) return errorResponse('adId required', 400)
+
+    const { data: ad } = await supabase.from('advertiser_ads').select('*').eq('id', body.adId).single()
+    if (!ad) return errorResponse('Ad not found', 404)
+
+    // Update advertiser ad status
+    await supabase.from('advertiser_ads').update({
+      status: 'active',
+      started_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).eq('id', ad.id)
+
+    // Create entry in the main ads table so it gets served
+    await supabase.from('ads').insert({
+      name: `advertiser_${ad.id}`,
+      advertiser_name: ad.title,
+      ad_type: 'banner',
+      placement: ad.ad_tier === 'featured' ? 'dashboard' : 'general',
+      image_url: ad.image_url,
+      title: ad.title,
+      description: ad.description,
+      link_url: ad.link_url,
+      target_city: ad.target_city,
+      target_state: ad.target_state,
+      is_active: true,
+      is_house_ad: false,
+      priority: ad.ad_tier === 'featured' ? 20 : ad.ad_tier === 'premium' ? 15 : 10,
+    })
+
+    return jsonResponse({ approved: true })
+  }
+
+  // POST /ad-checkout?action=reject — Reject an advertiser ad (admin only)
+  if (req.method === 'POST' && action === 'reject') {
+    const token = getFirebaseToken(req)
+    if (!token) return errorResponse('Authentication required', 401)
+    const decoded = await verifyFirebaseToken(token)
+    if (!decoded) return errorResponse('Invalid token', 401)
+
+    const { data: adminUser } = await supabase.from('users').select('id, is_admin').eq('firebase_uid', decoded.uid).single()
+    if (!adminUser?.is_admin) return errorResponse('Admin required', 403)
+
+    const body = await req.json()
+    if (!body.adId) return errorResponse('adId required', 400)
+
+    await supabase.from('advertiser_ads').update({
+      status: 'rejected',
+      updated_at: new Date().toISOString(),
+    }).eq('id', body.adId)
+
+    return jsonResponse({ rejected: true })
   }
 
   // POST /ad-checkout?action=webhook — Stripe webhook for ad subscriptions

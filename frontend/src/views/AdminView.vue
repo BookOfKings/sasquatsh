@@ -52,6 +52,7 @@ import type { EventLocation } from '@/types/social'
 import type { BggCacheStats, BggCacheEntry, AdminStats, ServiceHealth, AdminUser, AdminGroup, AdminGroupMember, AdminNote, AdminBug, MtgCacheStats, MtgCacheWarmResult, AdminEvent } from '@/services/adminApi'
 import { listBggCache, refreshBggGame, updateBggCacheEntry } from '@/services/adminApi'
 import { getAllAds, getAdStats, createAd, updateAd, deleteAd, toggleAdActive } from '@/services/adsApi'
+import type { AdvertiserAd } from '@/services/advertiserApi'
 import { getAllBadges, getUserBadges, adminAwardBadge, adminRevokeBadge, type Badge } from '@/services/badgesApi'
 import type { Ad, AdStats, CreateAdInput } from '@/services/adsApi'
 import { getChatReports, reviewChatReport, issueModerationAction, getChatModerationHistory } from '@/services/chatApi'
@@ -250,6 +251,8 @@ const moderationHistoryLoading = ref(false)
 const ads = ref<Ad[]>([])
 const adStats = ref<AdStats[]>([])
 const adsLoading = ref(false)
+const pendingAdvertiserAds = ref<AdvertiserAd[]>([])
+const approvingAdId = ref<string | null>(null)
 const showAdDialog = ref(false)
 const editingAd = ref<Ad | null>(null)
 const adForm = reactive({
@@ -1678,12 +1681,18 @@ async function loadAds() {
   try {
     const token = await auth.getIdToken()
     if (!token) return
-    const [adsResult, statsResult] = await Promise.all([
+    const FUNCTIONS_URL = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL
+    const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
+    const [adsResult, statsResult, pendingResult] = await Promise.all([
       getAllAds(token),
       getAdStats(token),
+      fetch(`${FUNCTIONS_URL}/ad-checkout?action=pending`, {
+        headers: { 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`, 'X-Firebase-Token': token },
+      }).then(r => r.json()).then(d => d.ads || []).catch(() => []),
     ])
     ads.value = adsResult
     adStats.value = statsResult
+    pendingAdvertiserAds.value = pendingResult
   } catch (err) {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to load ads'
   } finally {
@@ -1816,6 +1825,49 @@ async function handleToggleAdActive(ad: Ad) {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to toggle ad status'
   } finally {
     togglingAdId.value = null
+  }
+}
+
+async function approveAdvertiserAd(ad: AdvertiserAd) {
+  approvingAdId.value = ad.id
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    const FUNCTIONS_URL = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL
+    const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
+    const resp = await fetch(`${FUNCTIONS_URL}/ad-checkout?action=approve`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`, 'X-Firebase-Token': token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ adId: ad.id }),
+    })
+    if (!resp.ok) throw new Error('Failed to approve')
+    successMessage.value = `Approved "${ad.title}"`
+    await loadAds()
+    setTimeout(() => successMessage.value = '', 3000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to approve ad'
+  } finally {
+    approvingAdId.value = null
+  }
+}
+
+async function rejectAdvertiserAd(ad: AdvertiserAd) {
+  if (!confirm(`Reject "${ad.title}"?`)) return
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    const FUNCTIONS_URL = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL
+    const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
+    await fetch(`${FUNCTIONS_URL}/ad-checkout?action=reject`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`, 'X-Firebase-Token': token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ adId: ad.id }),
+    })
+    successMessage.value = `Rejected "${ad.title}"`
+    await loadAds()
+    setTimeout(() => successMessage.value = '', 3000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to reject ad'
   }
 }
 
@@ -3786,6 +3838,43 @@ function getLocationTypeLabel(location: EventLocation): string {
 
     <!-- Ads Tab -->
     <div v-if="activeTab === 'ads'">
+      <!-- Pending Advertiser Ads -->
+      <div v-if="pendingAdvertiserAds.length > 0" class="mb-8">
+        <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          Pending Review
+          <span class="bg-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded-full">{{ pendingAdvertiserAds.length }}</span>
+        </h3>
+        <div class="space-y-3">
+          <div v-for="ad in pendingAdvertiserAds" :key="ad.id" class="card p-4">
+            <div class="flex items-start gap-4">
+              <img v-if="ad.image_url" :src="ad.image_url" class="w-24 h-16 rounded object-cover flex-shrink-0 bg-gray-100" />
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1">
+                  <h4 class="font-semibold text-sm">{{ ad.title }}</h4>
+                  <span class="text-[10px] px-2 py-0.5 rounded-full bg-primary-50 text-primary-700">{{ ad.ad_tier }}</span>
+                </div>
+                <p class="text-sm text-gray-600 line-clamp-2">{{ ad.description }}</p>
+                <div class="flex items-center gap-3 mt-1 text-xs text-gray-400">
+                  <a :href="ad.link_url" target="_blank" class="text-primary-500 hover:underline truncate">{{ ad.link_url }}</a>
+                  <span v-if="ad.target_city || ad.target_state">{{ [ad.target_city, ad.target_state].filter(Boolean).join(', ') }}</span>
+                </div>
+              </div>
+              <div class="flex gap-2 flex-shrink-0">
+                <button
+                  class="btn-primary text-sm py-1.5 px-3"
+                  :disabled="approvingAdId === ad.id"
+                  @click="approveAdvertiserAd(ad)"
+                >Approve</button>
+                <button
+                  class="btn-outline text-red-600 text-sm py-1.5 px-3"
+                  @click="rejectAdvertiserAd(ad)"
+                >Reject</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="flex items-center justify-between mb-6">
         <div class="flex gap-4 items-center">
           <label class="flex items-center gap-2 text-sm text-gray-600">

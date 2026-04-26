@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 200">
+  <defs>
+    <linearGradient id="bg1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2D5A3D;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1d3726;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="600" height="200" rx="12" fill="url(#bg1)"/>
+  <!-- Dice icon -->
+  <rect x="30" y="50" width="80" height="80" rx="12" fill="rgba(255,255,255,0.15)" transform="rotate(15 70 90)"/>
+  <circle cx="55" cy="75" r="5" fill="rgba(255,255,255,0.6)"/>
+  <circle cx="85" cy="75" r="5" fill="rgba(255,255,255,0.6)"/>
+  <circle cx="70" cy="90" r="5" fill="rgba(255,255,255,0.6)"/>
+  <circle cx="55" cy="105" r="5" fill="rgba(255,255,255,0.6)"/>
+  <circle cx="85" cy="105" r="5" fill="rgba(255,255,255,0.6)"/>
+  <!-- Map pin -->
+  <path d="M520,40 C533,40 544,51 544,64 C544,82 520,110 520,110 C520,110 496,82 496,64 C496,51 507,40 520,40Z" fill="rgba(255,255,255,0.15)"/>
+  <circle cx="520" cy="64" r="8" fill="rgba(255,255,255,0.4)"/>
+  <!-- Text -->
+  <text x="300" y="75" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="32" font-weight="bold" fill="white">Got a Game Store?</text>
+  <text x="300" y="110" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="16" fill="rgba(255,255,255,0.85)">Reach tabletop gamers in your area.</text>
+  <text x="300" y="135" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="16" fill="rgba(255,255,255,0.85)">Advertise on Sasquatsh.</text>
+  <!-- CTA -->
+  <rect x="225" y="150" width="150" height="32" rx="16" fill="white"/>
+  <text x="300" y="171" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="bold" fill="#2D5A3D">Learn More</text>
+</svg>
