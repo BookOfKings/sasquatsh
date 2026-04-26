@@ -129,6 +129,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/PlanningSessionView.vue'),
     meta: { requiresAuth: true },
   },
+  // Advertise
+  {
+    path: '/advertise',
+    name: 'advertise',
+    component: () => import('@/views/AdvertiseView.vue'),
+  },
   // Looking for Players
   {
     path: '/looking-for-players',
