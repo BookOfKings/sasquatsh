@@ -61,9 +61,12 @@ async function initializeAuth(): Promise<void> {
           console.log('[Auth] User synced successfully from redirect')
           // Check for saved redirect from login page (OAuth redirect loses query params)
           const loginRedirect = localStorage.getItem('loginRedirect')
+          console.log('[Auth] loginRedirect from localStorage:', loginRedirect)
           if (loginRedirect) {
             localStorage.removeItem('loginRedirect')
-            window.location.href = loginRedirect
+            console.log('[Auth] Redirecting to:', loginRedirect)
+            window.location.replace(loginRedirect)
+            return
           }
           return // User is synced, we're done
         } catch (syncErr: any) {
@@ -154,6 +157,13 @@ async function initializeAuth(): Promise<void> {
           const idToken = await fbUser.getIdToken()
           user.value = await getCurrentUser(idToken)
           console.log('[Auth] User synced successfully')
+          // Check for saved redirect from login page
+          const loginRedirect = localStorage.getItem('loginRedirect')
+          if (loginRedirect) {
+            localStorage.removeItem('loginRedirect')
+            console.log('[Auth] Redirecting to saved loginRedirect:', loginRedirect)
+            window.location.replace(loginRedirect)
+          }
         } catch (err: any) {
           console.error('[Auth] Failed to sync user with backend:', err)
           // Show error to user instead of silently failing

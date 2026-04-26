@@ -16,6 +16,12 @@ const showPassword = ref(false)
 const loading = ref(false)
 const errorMessage = ref('')
 
+// Save redirect URL immediately on mount so it survives OAuth redirect
+const redirectParam = route.query.redirect as string
+if (redirectParam) {
+  localStorage.setItem('loginRedirect', redirectParam)
+}
+
 // Show loading while auth is initializing (e.g., processing redirect)
 const isProcessingAuth = computed(() => auth.isLoading.value && !auth.isInitialized.value)
 
