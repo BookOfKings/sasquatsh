@@ -63,26 +63,6 @@ async function handleSubmit() {
         </p>
       </div>
 
-      <!-- Stats -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
-        <div class="card p-4 text-center">
-          <div class="text-3xl font-bold text-primary-600">60+</div>
-          <div class="text-sm text-gray-500">Active Users</div>
-        </div>
-        <div class="card p-4 text-center">
-          <div class="text-3xl font-bold text-primary-600">20+</div>
-          <div class="text-sm text-gray-500">Game Nights Hosted</div>
-        </div>
-        <div class="card p-4 text-center">
-          <div class="text-3xl font-bold text-primary-600">5</div>
-          <div class="text-sm text-gray-500">Game Systems</div>
-        </div>
-        <div class="card p-4 text-center">
-          <div class="text-3xl font-bold text-primary-600">100%</div>
-          <div class="text-sm text-gray-500">Tabletop Gamers</div>
-        </div>
-      </div>
-
       <!-- Who Should Advertise -->
       <div class="card p-8 mb-8">
         <h2 class="text-2xl font-bold text-gray-900 mb-6">Who Should Advertise?</h2>
