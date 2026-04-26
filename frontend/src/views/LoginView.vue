@@ -30,7 +30,8 @@ watch(() => auth.error.value, (newError) => {
 // Watch for successful authentication and redirect
 watch(() => auth.isAuthenticated.value, (isAuthenticated) => {
   if (isAuthenticated) {
-    const redirect = route.query.redirect as string
+    const redirect = route.query.redirect as string || sessionStorage.getItem('loginRedirect')
+    sessionStorage.removeItem('loginRedirect')
     const defaultRoute = auth.user.value?.isAdmin ? '/admin' : '/dashboard'
     router.push(redirect || defaultRoute)
   }
@@ -63,12 +64,17 @@ async function handleGoogleLogin() {
   loading.value = true
   errorMessage.value = ''
 
+  // Save redirect before OAuth (page may reload during redirect flow)
+  const redirect = route.query.redirect as string
+  if (redirect) sessionStorage.setItem('loginRedirect', redirect)
+
   const result = await auth.loginWithGoogle()
 
   if (result.ok) {
-    const redirect = route.query.redirect as string
+    const savedRedirect = sessionStorage.getItem('loginRedirect') || redirect
+    sessionStorage.removeItem('loginRedirect')
     const defaultRoute = auth.user.value?.isAdmin ? '/admin' : '/dashboard'
-    router.push(redirect || defaultRoute)
+    router.push(savedRedirect || defaultRoute)
   } else {
     errorMessage.value = result.message
   }
@@ -80,12 +86,17 @@ async function handleAppleLogin() {
   loading.value = true
   errorMessage.value = ''
 
+  // Save redirect before OAuth (page may reload during redirect flow)
+  const redirect = route.query.redirect as string
+  if (redirect) sessionStorage.setItem('loginRedirect', redirect)
+
   const result = await auth.loginWithApple()
 
   if (result.ok) {
-    const redirect = route.query.redirect as string
+    const savedRedirect = sessionStorage.getItem('loginRedirect') || redirect
+    sessionStorage.removeItem('loginRedirect')
     const defaultRoute = auth.user.value?.isAdmin ? '/admin' : '/dashboard'
-    router.push(redirect || defaultRoute)
+    router.push(savedRedirect || defaultRoute)
   } else {
     errorMessage.value = result.message
   }
