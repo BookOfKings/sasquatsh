@@ -7,6 +7,8 @@ struct GroupListView: View {
     @State private var showCreateGroup = false
     @State private var showFilters = false
     @State private var showUpgradePrompt = false
+    @State private var newBadges: [UserBadge] = []
+    @State private var showBadgePopup = false
 
     var body: some View {
         ScrollView {
@@ -130,9 +132,16 @@ struct GroupListView: View {
             }
         }
         .sheet(isPresented: $showCreateGroup, onDismiss: {
-            Task { await vm.loadGroups() }
+            Task {
+                await vm.loadGroups()
+                await computeBadges()
+            }
         }) {
             CreateGroupView()
+        }
+        .sheet(isPresented: $showBadgePopup) {
+            BadgeEarnedPopup(badges: newBadges)
+                .presentationDetents([.medium])
         }
         .sheet(isPresented: $showUpgradePrompt) {
             UpgradePromptView(
@@ -178,5 +187,15 @@ struct GroupListView: View {
             vm.configure(services: services)
             await vm.loadGroups()
         }
+    }
+
+    private func computeBadges() async {
+        do {
+            let response = try await services.badges.computeBadges()
+            if let earned = response.newlyEarned, earned > 0 {
+                newBadges = Array(response.badges.prefix(earned))
+                showBadgePopup = true
+            }
+        } catch {}
     }
 }

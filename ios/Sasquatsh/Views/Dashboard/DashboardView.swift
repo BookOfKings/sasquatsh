@@ -10,6 +10,9 @@ struct DashboardView: View {
     @State private var showCreateEvent = false
     @State private var showCreateGroup = false
     @State private var showEventUpgrade = false
+    @State private var newBadges: [UserBadge] = []
+    @State private var showBadgePopup = false
+    @State private var lastBadgeCompute: Date?
 
     var body: some View {
         ScrollView {
@@ -238,7 +241,10 @@ struct DashboardView: View {
         .background(Color.md3SurfaceContainer)
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showCreateEvent, onDismiss: {
-            Task { await vm.loadDashboard() }
+            Task {
+                await vm.loadDashboard()
+                await computeBadges(force: true)
+            }
         }) {
             CreateEventView()
         }
@@ -246,7 +252,10 @@ struct DashboardView: View {
             UpgradePromptView(limitType: .games, currentTier: authVM.user?.effectiveTier ?? .free)
         }
         .sheet(isPresented: $showCreateGroup, onDismiss: {
-            Task { await vm.loadDashboard() }
+            Task {
+                await vm.loadDashboard()
+                await computeBadges(force: true)
+            }
         }) {
             CreateGroupView()
         }
@@ -259,12 +268,34 @@ struct DashboardView: View {
             raffleVM.configure(services: services)
             await vm.loadDashboard()
             await raffleVM.loadActiveRaffle()
+            // Compute badges on first load
+            await computeBadges()
         }
         .onAppear {
-            // Reload when returning from navigation (task only runs once on first appear)
             if vm.services != nil && !vm.isLoading {
                 Task { await vm.loadDashboard() }
             }
+        }
+        .sheet(isPresented: $showBadgePopup) {
+            BadgeEarnedPopup(badges: newBadges)
+                .presentationDetents([.medium])
+        }
+    }
+
+    private func computeBadges(force: Bool = false) async {
+        // Throttle: skip if computed within last 60 seconds (unless forced)
+        if !force, let last = lastBadgeCompute, Date().timeIntervalSince(last) < 60 { return }
+        lastBadgeCompute = Date()
+        do {
+            print("[Badges] Computing badges...")
+            let response = try await services.badges.computeBadges()
+            print("[Badges] Result: \(response.newlyEarned ?? 0) newly earned, \(response.badges.count) total")
+            if let earned = response.newlyEarned, earned > 0 {
+                newBadges = Array(response.badges.prefix(earned))
+                showBadgePopup = true
+            }
+        } catch {
+            print("[Badges] Error: \(error)")
         }
     }
 

@@ -23,6 +23,7 @@
 		1082C66C5D27F768C1FA8ED0 /* UserProfileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34E821CE321F5DF1605D03D3 /* UserProfileSheet.swift */; };
 		11A50521EA57788B6034BE5C /* MyCollectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4598E1FBC95F3C39B1ABABD /* MyCollectionView.swift */; };
 		12A8AEC5E8C1947C6F15167E /* BadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98186A1B9CE246AB73A1ECE3 /* BadgeView.swift */; };
+		131900C7DC08CB9D48002006 /* SasquatshApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = "TEMP_D5B3A581-F768-45FF-9EE8-D00CB531B376" /* SasquatshApp.swift */; };
 		17C8522237CAFCAAF248508C /* FirstPlayerPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F75B3A23EB0F8D29905121 /* FirstPlayerPickerView.swift */; };
 		18DFB60E43ACB55EE13DF98A /* PricingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 685884E8EC437F0A432B6597 /* PricingView.swift */; };
 		1A756EC94A7ED07EB798804E /* EventsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18097C4A0778B9F4B6A417A6 /* EventsService.swift */; };
@@ -39,7 +40,6 @@
 		2A9845C4E2599EFE425A9E0F /* CollectionsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58B6B3519D3FD88D177C70AF /* CollectionsService.swift */; };
 		2B521CE24F7F1820D60ECCB3 /* FirstPlayerPickersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 753F3A1935DF7598558F8868 /* FirstPlayerPickersView.swift */; };
 		2B7BB65467CF33A28F69FEA8 /* UserAvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60EC3FEFDA359C4D4A7B1F35 /* UserAvatarView.swift */; };
-		2CBDB1F7DC08714BF44BAAFA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = "TEMP_BFE4FBFE-F34D-4B53-A2FB-AC11CA569A22" /* Assets.xcassets */; };
 		2CEA925F5E5FFFBF20604CCF /* EventListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36D95DDBE30550390941D99B /* EventListView.swift */; };
 		2D253C5341577E6908C08F7D /* ErrorBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D434F6120DCF65F6BF60E51 /* ErrorBannerView.swift */; };
 		2DBBB7BEB5B919FC3AFFF089 /* GroupInviteAcceptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD6E8C190330DD103E293869 /* GroupInviteAcceptView.swift */; };
@@ -85,9 +85,9 @@
 		5F5673E968571C6B352FDC90 /* RaffleDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F80DDFB07D838DE30E1296A /* RaffleDetailView.swift */; };
 		60766B8D5517298A1F50C9F3 /* DeckImportSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29864BA9709046F81384255E /* DeckImportSheet.swift */; };
 		60BB79D7C7843F7C03468182 /* CardDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 404B16A932DFF8DE29F43720 /* CardDetailSheet.swift */; };
-		6194213BB19175ECE9FCE66A /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = "TEMP_A1BFF7D5-7E04-4984-83A9-8E6B7DF9D845" /* AppDelegate.swift */; };
 		630D5BE907EC1576FB534C22 /* Warhammer40kConfigFormSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 328C0840A8051C38EEB76E06 /* Warhammer40kConfigFormSections.swift */; };
 		63684CB1121B5A2104A4A3A0 /* PlanningSessionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 786F2E6D103FCC0150505F5D /* PlanningSessionViewModel.swift */; };
+		66C3E497AFE116205B130B07 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = "TEMP_24B4957C-470A-4483-8449-2A34F6983518" /* AppDelegate.swift */; };
 		66F7C16C19046A9C9C024B0D /* FirstPlayerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 843C85E2D50D6606540F4D88 /* FirstPlayerService.swift */; };
 		683557B1600C2DEF317B9544 /* ProfileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11A89123D89C3932F2ECCD3 /* ProfileService.swift */; };
 		6D3DFA6FF4405B04E102DE91 /* GameSystemConfigInputs.swift in Sources */ = {isa = PBXBuildFile; fileRef = F185E11C835ADD461B0D1E38 /* GameSystemConfigInputs.swift */; };
@@ -98,7 +98,6 @@
 		718FB44F8F866766910F5B5D /* RoundCounterPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59DD300C7A260D2745B5325C /* RoundCounterPersistence.swift */; };
 		71A4E6D8BFDCDC19F7941713 /* DeckListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E337E90361243A86205E35CE /* DeckListViewModel.swift */; };
 		72FFEAE4B778B46F37B09A99 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 6848446160A0BCF8D5D6FE72 /* FirebaseMessaging */; };
-		74055EAC9EC98B69EE90A392 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = "TEMP_F7896790-4BCA-4FC4-8527-EF42F88F1D1B" /* PrivacyInfo.xcprivacy */; };
 		76BF4F8301C50B9104D3FB27 /* BlockedUsersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBFB2824515FD092DB5300E9 /* BlockedUsersView.swift */; };
 		7AFB341F99E50D786D333521 /* D20SpinnerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CD959BD8C3C734DF185F898 /* D20SpinnerView.swift */; };
 		7B614282510D36ACFD75D888 /* GameSystemConfigs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00016DBE6ACAA099B8B5D8A8 /* GameSystemConfigs.swift */; };
@@ -120,7 +119,6 @@
 		8BEF7B0479AA72356B7FA4F7 /* TestHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6D064A5E3E7AD1AFC2123CC /* TestHelper.swift */; };
 		8EF5D5B37DC338561E648521 /* VenueSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C8F4C5639D5534E86855E36 /* VenueSelector.swift */; };
 		91A0365FFAB2BF91BC3300FC /* D20ProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAE1070C82DCC4F03C1756F4 /* D20ProgressView.swift */; };
-		91B9C752B138CE22C86DB93F /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = "TEMP_1C96C0B2-25A3-43B2-BF4D-560946448C0B" /* GoogleService-Info.plist */; };
 		934DCAB89EC6CAFA977E3A4A /* RecurringGamesService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08A44CB66B73BF5A3FA864C5 /* RecurringGamesService.swift */; };
 		94ED30EB786C437D5CDAA413 /* Color+Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EDE65FF81BEADD8F9B0ABD7 /* Color+Theme.swift */; };
 		95C16AE118AB540E7B7729EE /* ScryfallService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC7EEA1DF3C040E5ADDB5AAF /* ScryfallService.swift */; };
@@ -131,8 +129,10 @@
 		9AEA714B484D9D4C7823E16A /* CreateGroupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6495A499BA0535CA5FB72D1 /* CreateGroupView.swift */; };
 		9E3F71574AC70B3A1C03C4EC /* BillingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4332041010D94F1D4DB35063 /* BillingService.swift */; };
 		9ED99524842528A884114779 /* Billing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 346C79A5DD4B34E3954D3396 /* Billing.swift */; };
+		A1489E09008DA8DA840E783F /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = "TEMP_0FA1CF96-2A5E-4DBB-86C2-952CDD1799A1" /* GoogleService-Info.plist */; };
 		A21C6A2F62332BCA91450340 /* Enums.swift in Sources */ = {isa = PBXBuildFile; fileRef = 248E8BBCBD13EB9E934CF9A0 /* Enums.swift */; };
 		A2CDA50E7F7F08BF5684F53A /* CreatePlanningViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2845E86B67054029A1555BF /* CreatePlanningViewModel.swift */; };
+		A71CA4E7E7B654908ECEE569 /* BadgeEarnedPopup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CB216C03AED2BA40A9A607F /* BadgeEarnedPopup.swift */; };
 		A86BB4C36AD55E20590EDDAA /* GroupCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2EDC4963A425F1538EB93EF /* GroupCard.swift */; };
 		A8C5976333A47A0C05BDFA59 /* PlayerRequestListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9D2C47832E22CEF4354B29C /* PlayerRequestListView.swift */; };
 		AA6913F2DF5301A871E91C50 /* Inter-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 4EAAFF83E27A708FD9D1247A /* Inter-Bold.ttf */; };
@@ -142,7 +142,6 @@
 		B0D96E4BB5B98E2AD6AC50DD /* BillingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BA4FE54900AF0F134F4A565 /* BillingView.swift */; };
 		B134159C959F6110D6035631 /* LegalLinksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D5B2DE1D6028C64E4A744A2 /* LegalLinksView.swift */; };
 		B1A3F4D69B905E499475ADB8 /* TierLimits.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87E0EC72A4CB07754D73955A /* TierLimits.swift */; };
-		B2090D598A6F6CC0EB952228 /* SasquatshApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = "TEMP_1A1A8D23-2B9D-4E12-9EC0-FFC0F4D960ED" /* SasquatshApp.swift */; };
 		B38C870F9A46DF8EF36026B1 /* HotLocationsBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8762AB509955B12EB05C50E6 /* HotLocationsBar.swift */; };
 		B55E2339BB4C07AF95F85A65 /* EventCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15B37973D33120F2F892BEDB /* EventCard.swift */; };
 		B71AAA3520B9436DF367A7AF /* View+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EB95B3405950F1C03F7BF72 /* View+Helpers.swift */; };
@@ -157,6 +156,7 @@
 		C14A20D1EB445A3DF018C68A /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3674D7F80ED9282324618C0C /* ProfileView.swift */; };
 		C303D8342C2C1098C39C65A2 /* RaffleService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87FF2F0FCA893AC21EB6F202 /* RaffleService.swift */; };
 		C461568C0DE5ACABB1264436 /* ChatBubbleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2EB15FDDF1E6CECBB22D2A7 /* ChatBubbleView.swift */; };
+		C5092018628F68DE1AC90CDD /* Products.storekit in Resources */ = {isa = PBXBuildFile; fileRef = "TEMP_DD3891BA-F093-453E-986D-39800A599508" /* Products.storekit */; };
 		C5436D19F1A00F1DCCA4B676 /* InvitationViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8011402FCC82188A5B13F87C /* InvitationViewModel.swift */; };
 		C757766A012DD20C93144434 /* StatementPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D471D8DF1E35C37081E0E1E /* StatementPickerView.swift */; };
 		C777AC995AA26FE7697E9576 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 66642DC44F0E86693C3861D5 /* GoogleSignInSwift */; };
@@ -164,7 +164,6 @@
 		D19F066BC2983381C62986E4 /* ProfileEditSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E66EF71B2F4A5F383F607002 /* ProfileEditSheet.swift */; };
 		D4FCB40E44AD86E4D8197539 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40BA22CECBB52F0A00AB3311 /* LoginView.swift */; };
 		D5D4BDB5D282ED5A0130AFFE /* RaffleEntryBreakdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D4282781D66F943F5571C9B /* RaffleEntryBreakdownView.swift */; };
-		D717251ACE695F8DBFE0F814 /* Products.storekit in Resources */ = {isa = PBXBuildFile; fileRef = "TEMP_3A3EB475-9260-46DC-8DFF-BE9E0F2F9E96" /* Products.storekit */; };
 		D9F117B0A5D7F748519EEC23 /* DeckBuilderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9748DA673047F516659537C1 /* DeckBuilderView.swift */; };
 		DA0B076184199EE2702F1518 /* YugiohConfigFormSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C88D2B4FFE877AEAA7A7B1C /* YugiohConfigFormSections.swift */; };
 		DC099F7509A1D71E7010BAAE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA4CEF424FBFD947860B6033 /* ContentView.swift */; };
@@ -176,9 +175,11 @@
 		E1E23D8EB7428FE0916DCBAF /* ShelfScanService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5DABD71E8740F4CD0233A47 /* ShelfScanService.swift */; };
 		E1E9F7E29D816A079DB2CEAC /* ShareLinksService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED7D6CAAE8F8096E0C711981 /* ShareLinksService.swift */; };
 		E37D64BDF38278997D7C07C4 /* CreatePlanningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD9D21AB2F9DF1ABED79A8A4 /* CreatePlanningView.swift */; };
+		E4A31B709BCE67DFCA4A6080 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = "TEMP_A8FF29FA-C8DA-40F8-9F95-E5D0F3681590" /* PrivacyInfo.xcprivacy */; };
 		E620A19D65CC40591D8CA58A /* RecurringGamesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20659859722891C3189F0601 /* RecurringGamesViewModel.swift */; };
 		E6C1C5A8CAF14CC16D7E5A0C /* GroupDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EDFD0B0A1F5F96C2FE15CC5 /* GroupDetailView.swift */; };
 		E91FEC3677E7CDA30F7473AF /* SessionsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13760DB956CAE50A348C7147 /* SessionsService.swift */; };
+		EAFD862041657BB9987DD224 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = "TEMP_7306B56C-D338-47F3-B227-A004F996098F" /* Assets.xcassets */; };
 		EB7F6A4F5E4AE61AF072C195 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D4D2C4A8E81F7C2397A8A8F /* DashboardView.swift */; };
 		ED5607C9247538DD2966DEBB /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C56F26FBDB95BE7CC4D7932B /* APIClient.swift */; };
 		ED72EC34E1724FE7EB08DED7 /* User.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5ACC89A4BA8DE1E27D335678 /* User.swift */; };
@@ -288,6 +289,7 @@
 		68497073E49C0FFB6DAF6C92 /* BGGGame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BGGGame.swift; sourceTree = "<group>"; };
 		685884E8EC437F0A432B6597 /* PricingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PricingView.swift; sourceTree = "<group>"; };
 		6C1C380BAD45500745040855 /* ToolboxView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolboxView.swift; sourceTree = "<group>"; };
+		6CB216C03AED2BA40A9A607F /* BadgeEarnedPopup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BadgeEarnedPopup.swift; sourceTree = "<group>"; };
 		6CDD46567076B8089989A300 /* AdBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdBannerView.swift; sourceTree = "<group>"; };
 		6D9B821DBF6A98782DBD63DA /* RoundCounter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundCounter.swift; sourceTree = "<group>"; };
 		6FFF5556A92AD5CCD4D60C1F /* ScoreKeeperView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreKeeperView.swift; sourceTree = "<group>"; };
@@ -385,14 +387,14 @@
 		F7F75B3A23EB0F8D29905121 /* FirstPlayerPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstPlayerPickerView.swift; sourceTree = "<group>"; };
 		FD9D21AB2F9DF1ABED79A8A4 /* CreatePlanningView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatePlanningView.swift; sourceTree = "<group>"; };
 		FE239750AF4B2B2622EBA475 /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
-		"TEMP_0CD8B167-6E85-430E-BD1B-F35994191836" /* Sasquatsh.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Sasquatsh.entitlements; sourceTree = "<group>"; };
-		"TEMP_1A0A717F-3BF1-49E1-BC56-1392ABB7536C" /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		"TEMP_1A1A8D23-2B9D-4E12-9EC0-FFC0F4D960ED" /* SasquatshApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SasquatshApp.swift; sourceTree = "<group>"; };
-		"TEMP_1C96C0B2-25A3-43B2-BF4D-560946448C0B" /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
-		"TEMP_3A3EB475-9260-46DC-8DFF-BE9E0F2F9E96" /* Products.storekit */ = {isa = PBXFileReference; path = Products.storekit; sourceTree = "<group>"; };
-		"TEMP_A1BFF7D5-7E04-4984-83A9-8E6B7DF9D845" /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		"TEMP_BFE4FBFE-F34D-4B53-A2FB-AC11CA569A22" /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		"TEMP_F7896790-4BCA-4FC4-8527-EF42F88F1D1B" /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		"TEMP_0FA1CF96-2A5E-4DBB-86C2-952CDD1799A1" /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		"TEMP_24B4957C-470A-4483-8449-2A34F6983518" /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		"TEMP_7306B56C-D338-47F3-B227-A004F996098F" /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		"TEMP_A8FF29FA-C8DA-40F8-9F95-E5D0F3681590" /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		"TEMP_D5B3A581-F768-45FF-9EE8-D00CB531B376" /* SasquatshApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SasquatshApp.swift; sourceTree = "<group>"; };
+		"TEMP_DD3891BA-F093-453E-986D-39800A599508" /* Products.storekit */ = {isa = PBXFileReference; path = Products.storekit; sourceTree = "<group>"; };
+		"TEMP_E58A03E0-8C06-4EAE-91D0-544E8C8485DD" /* Sasquatsh.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Sasquatsh.entitlements; sourceTree = "<group>"; };
+		"TEMP_FE494A5B-2FCA-491F-BC8D-6F0979856C8E" /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -603,6 +605,7 @@
 			isa = PBXGroup;
 			children = (
 				6CDD46567076B8089989A300 /* AdBannerView.swift */,
+				6CB216C03AED2BA40A9A607F /* BadgeEarnedPopup.swift */,
 				98186A1B9CE246AB73A1ECE3 /* BadgeView.swift */,
 				5E464211253F893C614A8E7C /* BGGGameSearchSheet.swift */,
 				BFE8E7023E071161B8A78111 /* CompactNavBar.swift */,
@@ -819,17 +822,17 @@
 			path = Planning;
 			sourceTree = "<group>";
 		};
-		"TEMP_096A1A1F-9922-45B9-9950-3CD5FCAF8C89" /* . */ = {
+		"TEMP_62F4F48F-ECE0-443D-9DB0-3CD84E23AC23" /* . */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_0CD8B167-6E85-430E-BD1B-F35994191836" /* Sasquatsh.entitlements */,
-				"TEMP_1A1A8D23-2B9D-4E12-9EC0-FFC0F4D960ED" /* SasquatshApp.swift */,
-				"TEMP_3A3EB475-9260-46DC-8DFF-BE9E0F2F9E96" /* Products.storekit */,
-				"TEMP_BFE4FBFE-F34D-4B53-A2FB-AC11CA569A22" /* Assets.xcassets */,
-				"TEMP_1C96C0B2-25A3-43B2-BF4D-560946448C0B" /* GoogleService-Info.plist */,
-				"TEMP_F7896790-4BCA-4FC4-8527-EF42F88F1D1B" /* PrivacyInfo.xcprivacy */,
-				"TEMP_A1BFF7D5-7E04-4984-83A9-8E6B7DF9D845" /* AppDelegate.swift */,
-				"TEMP_1A0A717F-3BF1-49E1-BC56-1392ABB7536C" /* Info.plist */,
+				"TEMP_E58A03E0-8C06-4EAE-91D0-544E8C8485DD" /* Sasquatsh.entitlements */,
+				"TEMP_D5B3A581-F768-45FF-9EE8-D00CB531B376" /* SasquatshApp.swift */,
+				"TEMP_DD3891BA-F093-453E-986D-39800A599508" /* Products.storekit */,
+				"TEMP_7306B56C-D338-47F3-B227-A004F996098F" /* Assets.xcassets */,
+				"TEMP_0FA1CF96-2A5E-4DBB-86C2-952CDD1799A1" /* GoogleService-Info.plist */,
+				"TEMP_A8FF29FA-C8DA-40F8-9F95-E5D0F3681590" /* PrivacyInfo.xcprivacy */,
+				"TEMP_24B4957C-470A-4483-8449-2A34F6983518" /* AppDelegate.swift */,
+				"TEMP_FE494A5B-2FCA-491F-BC8D-6F0979856C8E" /* Info.plist */,
 				0E47DDD698BB8027A999C556 /* ViewModels */,
 				CD4FCDAF47DCA1DC7200911F /* Configuration */,
 				729C07E40652BFE91EB9E475 /* Models */,
@@ -934,14 +937,14 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				2CBDB1F7DC08714BF44BAAFA /* Assets.xcassets in Resources */,
-				91B9C752B138CE22C86DB93F /* GoogleService-Info.plist in Resources */,
+				EAFD862041657BB9987DD224 /* Assets.xcassets in Resources */,
+				A1489E09008DA8DA840E783F /* GoogleService-Info.plist in Resources */,
 				AA6913F2DF5301A871E91C50 /* Inter-Bold.ttf in Resources */,
 				44DA5E155E1FD270D43662C3 /* Inter-Medium.ttf in Resources */,
 				8044C8A1BAF5763502BD8E48 /* Inter-Regular.ttf in Resources */,
 				6DAB9B1DB903F457C6F3E516 /* Inter-SemiBold.ttf in Resources */,
-				74055EAC9EC98B69EE90A392 /* PrivacyInfo.xcprivacy in Resources */,
-				D717251ACE695F8DBFE0F814 /* Products.storekit in Resources */,
+				E4A31B709BCE67DFCA4A6080 /* PrivacyInfo.xcprivacy in Resources */,
+				C5092018628F68DE1AC90CDD /* Products.storekit in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -972,13 +975,14 @@
 				DE072E20799A71CD5EE64155 /* AdBannerView.swift in Sources */,
 				5A2D590AA9921A4F91258359 /* AnyCodable.swift in Sources */,
 				52E7BC2F17ED3C6C7BB1D4FA /* AppConfig.swift in Sources */,
-				6194213BB19175ECE9FCE66A /* AppDelegate.swift in Sources */,
+				66C3E497AFE116205B130B07 /* AppDelegate.swift in Sources */,
 				3242E62A37BD8B6C3EF0ECD0 /* AppearanceManager.swift in Sources */,
 				9AD6A90219513F7305D33CDE /* AuthService.swift in Sources */,
 				6E24A1BD33E99F3890511198 /* AuthViewModel.swift in Sources */,
 				4D82458956A58528A0BDB0A6 /* BGGGame.swift in Sources */,
 				F24197F7BCE594980DAD3E03 /* BGGGameSearchSheet.swift in Sources */,
 				802EC505017784BD70951D86 /* BGGService.swift in Sources */,
+				A71CA4E7E7B654908ECEE569 /* BadgeEarnedPopup.swift in Sources */,
 				12A8AEC5E8C1947C6F15167E /* BadgeView.swift in Sources */,
 				7DD339BB081BA6BC28A91B59 /* BadgesService.swift in Sources */,
 				268331487626C5D993DB4077 /* BadgesView.swift in Sources */,
@@ -1095,7 +1099,7 @@
 				718FB44F8F866766910F5B5D /* RoundCounterPersistence.swift in Sources */,
 				54E0DD302ACBC70C6D05933D /* RoundCounterView.swift in Sources */,
 				3A279BDADE9CD511140245C8 /* RoundCounterViewModel.swift in Sources */,
-				B2090D598A6F6CC0EB952228 /* SasquatshApp.swift in Sources */,
+				131900C7DC08CB9D48002006 /* SasquatshApp.swift in Sources */,
 				0150F4BCE09D3D9B9EDBBCA0 /* ScoreKeeperView.swift in Sources */,
 				95C16AE118AB540E7B7729EE /* ScryfallService.swift in Sources */,
 				5A570B3AD22B78828BE04C0F /* SearchBarView.swift in Sources */,
@@ -1194,7 +1198,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -1215,7 +1219,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Sasquatsh;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.board-games";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.1;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -1318,7 +1322,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -1333,7 +1337,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Sasquatsh;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.board-games";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.1;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";

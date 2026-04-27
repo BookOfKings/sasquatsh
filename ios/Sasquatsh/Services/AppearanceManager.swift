@@ -16,10 +16,18 @@ enum AppearanceMode: String, CaseIterable {
 final class AppearanceManager {
     static let shared = AppearanceManager()
 
-    @ObservationIgnored
-    @AppStorage("appearanceMode") var mode: AppearanceMode = .system
+    var mode: AppearanceMode {
+        didSet {
+            UserDefaults.standard.set(mode.rawValue, forKey: "appearanceMode")
+        }
+    }
 
     var colorScheme: ColorScheme? {
         mode.colorScheme
+    }
+
+    private init() {
+        let saved = UserDefaults.standard.string(forKey: "appearanceMode") ?? "system"
+        mode = AppearanceMode(rawValue: saved) ?? .system
     }
 }

@@ -22,6 +22,7 @@ struct AdBannerView: View {
     @Environment(\.openURL) private var openURL
     @State private var ad: Ad?
     @State private var isLoading = false
+    @State private var refreshTimer: Timer?
 
     private var shouldShow: Bool {
         let tier = authVM.user?.effectiveTier ?? .free
@@ -30,14 +31,25 @@ struct AdBannerView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if shouldShow, let ad {
-                adContent(ad)
+            if shouldShow {
+                if let ad {
+                    adContent(ad)
+                } else if !isLoading {
+                    // Offline / no ad fallback
+                    offlineFallback
+                }
             }
         }
         .onAppear {
             Task { await loadAd() }
+            startRefreshTimer()
+        }
+        .onDisappear {
+            stopRefreshTimer()
         }
     }
+
+    // MARK: - Ad Content
 
     private func adContent(_ ad: Ad) -> some View {
         Button {
@@ -50,20 +62,21 @@ struct AdBannerView: View {
             }
         } label: {
             VStack(alignment: .leading, spacing: 0) {
-                // Ad image
-                if let imageUrlStr = ad.imageUrl, let imageURL = URL(string: imageUrlStr) {
-                    AsyncImage(url: imageURL) { image in
-                        image.resizable().aspectRatio(contentMode: .fill)
-                    } placeholder: {
-                        Color.md3SurfaceContainerHigh
-                            .frame(height: 100)
+                if let imageUrlStr = ad.imageUrl, let imageURL = URL(string: imageUrlStr),
+                   !imageUrlStr.hasSuffix(".svg") {
+                    AsyncImage(url: imageURL) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image.resizable().aspectRatio(contentMode: .fill)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 140)
+                                .clipped()
+                        default:
+                            EmptyView()
+                        }
                     }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 100)
-                    .clipped()
                 }
 
-                // Ad content
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text("Sponsored")
@@ -99,6 +112,44 @@ struct AdBannerView: View {
         .padding(.horizontal)
     }
 
+    // MARK: - Offline Fallback
+
+    private var offlineFallback: some View {
+        NavigationLink {
+            PricingView()
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 18))
+                    .foregroundStyle(Color.md3Tertiary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Upgrade Your Experience")
+                        .font(.md3BodyMedium)
+                        .fontWeight(.medium)
+                        .foregroundStyle(Color.md3OnSurface)
+                    Text("Get chat, planning, more groups, and no ads")
+                        .font(.md3BodySmall)
+                        .foregroundStyle(Color.md3OnSurfaceVariant)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.md3OnSurfaceVariant)
+            }
+            .padding(10)
+            .background(Color.md3SurfaceContainerHigh)
+            .clipShape(RoundedRectangle(cornerRadius: MD3Shape.medium))
+            .overlay(
+                RoundedRectangle(cornerRadius: MD3Shape.medium)
+                    .stroke(Color.md3OutlineVariant.opacity(0.5), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal)
+    }
+
+    // MARK: - Loading & Tracking
+
     private func loadAd() async {
         isLoading = true
         do {
@@ -108,28 +159,44 @@ struct AdBannerView: View {
             ad = response
             trackImpression(response)
         } catch {
-            // No ad available for this placement
+            // No connection or no ad — fallback will show
         }
         isLoading = false
     }
 
     private func trackImpression(_ ad: Ad) {
         Task {
-            try? await services.api.postVoid("ads", body: ["adId": ad.id] as [String: String], queryItems: [
+            try? await services.api.postVoid("ads", queryItems: [
                 .init(name: "action", value: "impression"),
-                .init(name: "adId", value: ad.id),
-                .init(name: "pageUrl", value: "ios://\(placement)")
+                .init(name: "id", value: ad.id),
+                .init(name: "page", value: "ios://\(placement)")
             ])
         }
     }
 
     private func trackClick(_ ad: Ad) {
         Task {
-            try? await services.api.postVoid("ads", body: ["adId": ad.id] as [String: String], queryItems: [
+            try? await services.api.postVoid("ads", queryItems: [
                 .init(name: "action", value: "click"),
-                .init(name: "adId", value: ad.id),
-                .init(name: "pageUrl", value: "ios://\(placement)")
+                .init(name: "id", value: ad.id),
+                .init(name: "page", value: "ios://\(placement)")
             ])
         }
+    }
+
+    // MARK: - Refresh Timer
+
+    private func startRefreshTimer() {
+        stopRefreshTimer()
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { _ in
+            Task { @MainActor in
+                await loadAd()
+            }
+        }
+    }
+
+    private func stopRefreshTimer() {
+        refreshTimer?.invalidate()
+        refreshTimer = nil
     }
 }

@@ -8,6 +8,8 @@ struct EventListView: View {
     @State private var showFilters = false
     @State private var showUpgradePrompt = false
     @State private var hostedEventCount = 0
+    @State private var newBadges: [UserBadge] = []
+    @State private var showBadgePopup = false
 
     var body: some View {
         ScrollView {
@@ -127,9 +129,14 @@ struct EventListView: View {
             Task {
                 await vm.loadEvents()
                 await loadHostedCount()
+                await computeBadges()
             }
         }) {
             CreateEventView()
+        }
+        .sheet(isPresented: $showBadgePopup) {
+            BadgeEarnedPopup(badges: newBadges)
+                .presentationDetents([.medium])
         }
         .sheet(isPresented: $showUpgradePrompt) {
             UpgradePromptView(limitType: .games, currentTier: authVM.user?.effectiveTier ?? .free)
@@ -144,6 +151,16 @@ struct EventListView: View {
             await vm.loadEvents()
             await loadHostedCount()
         }
+    }
+
+    private func computeBadges() async {
+        do {
+            let response = try await services.badges.computeBadges()
+            if let earned = response.newlyEarned, earned > 0 {
+                newBadges = Array(response.badges.prefix(earned))
+                showBadgePopup = true
+            }
+        } catch {}
     }
 
     private func loadHostedCount() async {

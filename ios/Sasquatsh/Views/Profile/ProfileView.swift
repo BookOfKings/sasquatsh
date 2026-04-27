@@ -14,6 +14,7 @@ struct ProfileView: View {
     @State private var deleteConfirmText = ""
     @State private var isDeleting = false
     @State private var accountError: String?
+    @State private var earnedBadgeCount = 0
 
     var body: some View {
         ScrollView {
@@ -119,7 +120,7 @@ struct ProfileView: View {
                                 .font(.md3TitleSmall)
                                 .foregroundStyle(Color.md3OnSurface)
                             Spacer()
-                            Text("\(0)") // TODO: show earned count
+                            Text("\(earnedBadgeCount)")
                                 .font(.md3LabelLarge)
                                 .foregroundStyle(Color.md3Primary)
                             Image(systemName: "chevron.right")
@@ -279,7 +280,10 @@ struct ProfileView: View {
                             Spacer()
                         }
 
-                        Picker("", selection: AppearanceManager.shared.$mode) {
+                        Picker("", selection: Binding(
+                            get: { AppearanceManager.shared.mode },
+                            set: { AppearanceManager.shared.mode = $0 }
+                        )) {
                             Text("System").tag(AppearanceMode.system)
                             Text("Light").tag(AppearanceMode.light)
                             Text("Dark").tag(AppearanceMode.dark)
@@ -387,6 +391,9 @@ struct ProfileView: View {
         .task {
             vm.configure(services: services)
             await vm.loadProfile()
+            if let response = try? await services.badges.getMyBadges() {
+                earnedBadgeCount = response.badges.count
+            }
         }
         .sheet(isPresented: $showChangePassword) {
             ChangePasswordSheet(services: services)
