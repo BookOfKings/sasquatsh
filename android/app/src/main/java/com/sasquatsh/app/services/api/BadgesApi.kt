@@ -9,6 +9,13 @@ interface BadgesApi {
     @GET("badges")
     suspend fun getAllBadges(): Response<Any>
 
+    // GET badges?action=user&userId=...
+    @GET("badges")
+    suspend fun getUserBadges(
+        @Query("action") action: String = "user",
+        @Query("userId") userId: String
+    ): Response<Any>
+
     // GET badges?action=my-badges
     @GET("badges")
     suspend fun getMyBadges(

@@ -31,6 +31,14 @@ class ProfileService @Inject constructor(
             ?: throw Exception("Failed to parse profile")
     }
 
+    suspend fun getPublicProfile(userId: String): PublicProfile {
+        val response = profileApi.getPublicProfile(userId)
+        if (!response.isSuccessful) throw Exception("Failed to load public profile")
+        val json = moshi.adapter(Any::class.java).toJson(response.body())
+        return moshi.adapter(PublicProfile::class.java).fromJson(json)
+            ?: throw Exception("Failed to parse public profile")
+    }
+
     suspend fun blockUser(userId: String): BlockActionResponse {
         val response = profileApi.blockUser(userId = userId)
         if (!response.isSuccessful) throw Exception("Failed to block user")
@@ -80,5 +88,13 @@ class ProfileService @Inject constructor(
     suspend fun deleteAccount() {
         val response = profileApi.deleteAccount()
         if (!response.isSuccessful) throw Exception("Failed to delete account")
+    }
+
+    suspend fun searchUsers(query: String): List<UserSearchResult> {
+        val response = profileApi.searchUsers(query = query)
+        if (!response.isSuccessful) throw Exception("Failed to search users")
+        val json = moshi.adapter(Any::class.java).toJson(response.body())
+        val listType = com.squareup.moshi.Types.newParameterizedType(List::class.java, UserSearchResult::class.java)
+        return moshi.adapter<List<UserSearchResult>>(listType).fromJson(json) ?: emptyList()
     }
 }

@@ -2,6 +2,7 @@ package com.sasquatsh.app.services
 
 import com.sasquatsh.app.models.Badge
 import com.sasquatsh.app.models.BadgesResponse
+import com.sasquatsh.app.models.UserBadge
 import com.sasquatsh.app.models.PinResponse
 import com.sasquatsh.app.services.api.BadgesApi
 import com.squareup.moshi.Moshi
@@ -21,6 +22,15 @@ class BadgesService @Inject constructor(
         if (!response.isSuccessful) throw Exception("Failed to load badges")
         val json = moshi.adapter(Any::class.java).toJson(response.body())
         return moshi.adapter<List<Badge>>(badgeListType).fromJson(json) ?: emptyList()
+    }
+
+    suspend fun getUserBadges(userId: String): List<UserBadge> {
+        val response = badgesApi.getUserBadges(userId = userId)
+        if (!response.isSuccessful) throw Exception("Failed to load user badges")
+        val json = moshi.adapter(Any::class.java).toJson(response.body())
+        val badgesResponse = moshi.adapter(BadgesResponse::class.java).fromJson(json)
+            ?: BadgesResponse(badges = emptyList())
+        return badgesResponse.badges
     }
 
     suspend fun getMyBadges(): BadgesResponse {

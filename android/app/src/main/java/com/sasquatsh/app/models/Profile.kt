@@ -151,3 +151,11 @@ data class BlockActionResponse(
     @Json(name = "message") val message: String,
     @Json(name = "blockedUserIds") val blockedUserIds: List<String> = emptyList()
 )
+
+@JsonClass(generateAdapter = true)
+data class UserSearchResult(
+    @Json(name = "id") val id: String,
+    @Json(name = "username") val username: String,
+    @Json(name = "displayName") val displayName: String? = null,
+    @Json(name = "avatarUrl") val avatarUrl: String? = null
+)

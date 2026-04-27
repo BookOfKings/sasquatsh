@@ -126,6 +126,12 @@ class PlanningService @Inject constructor(
         if (!response.isSuccessful) throw Exception("Failed to schedule sessions")
     }
 
+    suspend fun addInvitees(sessionId: String, userIds: List<String>) {
+        val body = mapOf("userIds" to userIds)
+        val response = planningApi.addInvitees(sessionId = sessionId, body = body)
+        if (!response.isSuccessful) throw Exception("Failed to add invitees")
+    }
+
     suspend fun updateSettings(sessionId: String, tableCount: Int?) {
         val body = mutableMapOf<String, Any?>()
         body["tableCount"] = tableCount

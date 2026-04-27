@@ -22,6 +22,13 @@ class CollectionsService @Inject constructor(
         return moshi.adapter<List<CollectionGame>>(gameListType).fromJson(json) ?: emptyList()
     }
 
+    suspend fun getUserCollection(userId: String): List<CollectionGame> {
+        val response = collectionsApi.getUserCollection(userId)
+        if (!response.isSuccessful) throw Exception("Failed to load user collection")
+        val json = moshi.adapter(Any::class.java).toJson(response.body())
+        return moshi.adapter<List<CollectionGame>>(gameListType).fromJson(json) ?: emptyList()
+    }
+
     suspend fun getTopGames(): List<CollectionGame> {
         val response = collectionsApi.getTopGames()
         if (!response.isSuccessful) throw Exception("Failed to load top games")
