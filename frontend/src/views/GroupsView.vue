@@ -83,6 +83,31 @@ onMounted(() => {
   }
 })
 
+// Sort groups: user's groups first (owner > admin > member), then others
+const sortedGroups = computed(() => {
+  const groups = [...groupStore.publicGroups.value]
+  const roleOrder: Record<string, number> = { owner: 0, admin: 1, member: 2 }
+
+  return groups.sort((a, b) => {
+    const roleA = getUserRole(a.id)
+    const roleB = getUserRole(b.id)
+    const isMemberA = roleA !== undefined
+    const isMemberB = roleB !== undefined
+
+    // Members first
+    if (isMemberA && !isMemberB) return -1
+    if (!isMemberA && isMemberB) return 1
+
+    // Among members, sort by role
+    if (isMemberA && isMemberB) {
+      return (roleOrder[roleA!] ?? 3) - (roleOrder[roleB!] ?? 3)
+    }
+
+    // Non-members keep original order
+    return 0
+  })
+})
+
 function handleSelectGroup(group: GroupSummary) {
   router.push(`/groups/${group.slug}`)
 }
@@ -211,7 +236,7 @@ function goToCreateGroup() {
     <!-- Results Summary -->
     <div class="flex flex-wrap items-center gap-2 mb-4">
       <span class="text-sm text-gray-500">
-        {{ groupStore.publicGroups.value.length }} group{{ groupStore.publicGroups.value.length !== 1 ? 's' : '' }} found
+        {{ sortedGroups.length }} group{{ sortedGroups.length !== 1 ? 's' : '' }} found
       </span>
     </div>
 
@@ -231,9 +256,9 @@ function goToCreateGroup() {
     </div>
 
     <!-- Groups Grid -->
-    <div v-if="groupStore.publicGroups.value.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div v-if="sortedGroups.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       <GroupCard
-        v-for="group in groupStore.publicGroups.value"
+        v-for="group in sortedGroups"
         :key="group.id"
         :group="group"
         :user-role="getUserRole(group.id)"
