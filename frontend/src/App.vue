@@ -478,6 +478,9 @@ async function handleLogout() {
             <router-link to="/contact" class="text-gray-600 hover:text-primary-500 transition-colors">
               Contact Us
             </router-link>
+            <router-link to="/support" class="text-gray-400 hover:text-gray-600 transition-colors">
+              Support
+            </router-link>
           </nav>
         </div>
       </div>
