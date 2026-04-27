@@ -1,48 +1,35 @@
 package com.sasquatsh.app.views.toolbox
 
-import androidx.compose.animation.animateColorAsState
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import android.view.MotionEvent
+import android.view.View
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Casino
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PersonAdd
-import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -53,273 +40,306 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Fill
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.delay
 
 private val fingerColors = listOf(
-    Color.Red, Color.Blue, Color.Green, Color(0xFFFFA500), Color(0xFF800080),
-    Color.Cyan, Color(0xFFFF69B4), Color.Yellow
+    Color.Red, Color.Blue, Color.Green, Color(0xFFFFA500), Color(0xFF800080)
 )
 
-private enum class PickerPhase { WAITING, PICKING, SELECTED }
+private enum class PickerPhase { WAITING, COUNTDOWN, PULSING, SELECTED }
 
-@OptIn(ExperimentalMaterial3Api::class)
+private data class TouchPoint(val id: Int, val x: Float, val y: Float)
+
 @Composable
-fun FirstPlayerPickerView() {
-    val players = remember { mutableStateListOf<String>() }
-    var newPlayerName by remember { mutableStateOf("") }
+fun FirstPlayerPickerView(
+    onBack: (() -> Unit)? = null
+) {
+    val touches = remember { mutableStateListOf<TouchPoint>() }
     var phase by remember { mutableStateOf(PickerPhase.WAITING) }
     var winnerIndex by remember { mutableIntStateOf(-1) }
     var countdown by remember { mutableIntStateOf(3) }
+    var touchIdsAtStart by remember { mutableStateOf(setOf<Int>()) }
+    val context = LocalContext.current
 
-    // Animation
+    // Pulse animation
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val pulseScale by infiniteTransition.animateFloat(
         initialValue = 1f,
-        targetValue = 1.2f,
+        targetValue = 1.25f,
         animationSpec = infiniteRepeatable(tween(400), RepeatMode.Reverse),
         label = "pulseScale"
     )
 
-    // Picking animation
+    // Countdown + selection logic
     LaunchedEffect(phase) {
-        if (phase == PickerPhase.PICKING) {
+        if (phase == PickerPhase.COUNTDOWN) {
             countdown = 3
             for (i in 3 downTo 1) {
                 countdown = i
-                delay(800)
+                val progress = (3 - i).toDouble() / 2.0 // 0.0, 0.5, 1.0
+                PickerSoundEngine.playCountdownTick(progress)
+                delay(1000)
+                if (phase != PickerPhase.COUNTDOWN) return@LaunchedEffect
             }
-            // Select winner
-            if (players.isNotEmpty()) {
-                winnerIndex = (0 until players.size).random()
+            phase = PickerPhase.PULSING
+            delay(2000)
+            if (phase == PickerPhase.PULSING && touches.isNotEmpty()) {
+                winnerIndex = (0 until touches.size).random()
                 phase = PickerPhase.SELECTED
-            } else {
-                phase = PickerPhase.WAITING
+                PickerSoundEngine.playSelectChime()
+                // Haptic feedback
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        val vm = context.getSystemService(VibratorManager::class.java)
+                        vm?.defaultVibrator?.vibrate(VibrationEffect.createOneShot(200, VibrationEffect.DEFAULT_AMPLITUDE))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        val v = context.getSystemService(Vibrator::class.java)
+                        v?.vibrate(VibrationEffect.createOneShot(200, VibrationEffect.DEFAULT_AMPLITUDE))
+                    }
+                } catch (_: Exception) {}
             }
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(title = { Text("First Player Picker") })
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+    ) {
+        // Multi-touch capture via AndroidView
+        AndroidView(
+            factory = { ctx ->
+                object : View(ctx) {
+                    private val activeTouches = mutableMapOf<Int, TouchPoint>()
+
+                    init {
+                        isClickable = true
+                        isFocusable = true
+                    }
+
+                    override fun onTouchEvent(event: MotionEvent): Boolean {
+                        when (event.actionMasked) {
+                            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+                                val idx = event.actionIndex
+                                val id = event.getPointerId(idx)
+                                activeTouches[id] = TouchPoint(id, event.getX(idx), event.getY(idx))
+                                PickerSoundEngine.playTap(activeTouches.size - 1)
+                                updateTouches()
+                            }
+                            MotionEvent.ACTION_MOVE -> {
+                                for (i in 0 until event.pointerCount) {
+                                    val id = event.getPointerId(i)
+                                    activeTouches[id] = TouchPoint(id, event.getX(i), event.getY(i))
+                                }
+                                updateTouches()
+                            }
+                            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
+                                val idx = event.actionIndex
+                                val id = event.getPointerId(idx)
+                                activeTouches.remove(id)
+                                updateTouches()
+                            }
+                            MotionEvent.ACTION_CANCEL -> {
+                                activeTouches.clear()
+                                updateTouches()
+                            }
+                        }
+                        return true
+                    }
+
+                    private fun updateTouches() {
+                        val sorted = activeTouches.values.sortedBy { it.id }
+                        touches.clear()
+                        touches.addAll(sorted)
+
+                        val currentIds = sorted.map { it.id }.toSet()
+
+                        when (phase) {
+                            PickerPhase.WAITING -> {
+                                if (sorted.size >= 2) {
+                                    touchIdsAtStart = currentIds
+                                    PickerSoundEngine.playTransition()
+                                    phase = PickerPhase.COUNTDOWN
+                                }
+                            }
+                            PickerPhase.COUNTDOWN, PickerPhase.PULSING -> {
+                                if (currentIds != touchIdsAtStart) {
+                                    if (sorted.size < 2) {
+                                        phase = PickerPhase.WAITING
+                                    } else {
+                                        touchIdsAtStart = currentIds
+                                        PickerSoundEngine.playTransition()
+                                        phase = PickerPhase.COUNTDOWN
+                                    }
+                                }
+                            }
+                            PickerPhase.SELECTED -> {
+                                // Tap to reset
+                                if (event?.actionMasked == MotionEvent.ACTION_DOWN) {
+                                    phase = PickerPhase.WAITING
+                                    winnerIndex = -1
+                                    activeTouches.clear()
+                                    touches.clear()
+                                }
+                            }
+                        }
+                    }
+
+                    // Need access to event in updateTouches for SELECTED tap detection
+                    private var event: MotionEvent? = null
+
+                    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+                        event = ev
+                        val result = super.dispatchTouchEvent(ev)
+                        event = null
+                        return result
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxSize()
+        )
+
+        // Draw circles on canvas overlay
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            touches.forEachIndexed { index, touch ->
+                val color = fingerColors[index % fingerColors.size]
+                val isWinner = phase == PickerPhase.SELECTED && index == winnerIndex
+                val baseRadius = if (isWinner) 180f else 110f
+                val radius = if (phase == PickerPhase.PULSING) baseRadius * pulseScale else baseRadius
+                val alpha = when {
+                    isWinner -> 1f
+                    phase == PickerPhase.SELECTED -> 0.2f
+                    else -> 0.6f
+                }
+
+                // Glow for winner
+                if (isWinner) {
+                    drawCircle(
+                        color = color.copy(alpha = 0.3f),
+                        radius = radius + 40f,
+                        center = Offset(touch.x, touch.y)
+                    )
+                }
+
+                drawCircle(
+                    color = color.copy(alpha = alpha),
+                    radius = radius,
+                    center = Offset(touch.x, touch.y)
+                )
+
+                // Crown + FIRST! text for winner
+                if (isWinner) {
+                    drawContext.canvas.nativeCanvas.apply {
+                        val paint = android.graphics.Paint().apply {
+                            this.color = android.graphics.Color.WHITE
+                            textAlign = android.graphics.Paint.Align.CENTER
+                            textSize = 60f
+                            isFakeBoldText = true
+                        }
+                        drawText("👑", touch.x, touch.y - 20f, paint)
+                        paint.textSize = 36f
+                        drawText("FIRST!", touch.x, touch.y + 40f, paint)
+                    }
+                }
+            }
         }
-    ) { padding ->
-        Column(
+
+        // Header bar
+        Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            if (onBack != null) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = Color.White.copy(alpha = 0.7f)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                "Finger Picker",
+                color = Color.White.copy(alpha = 0.8f),
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 16.sp
+            )
+        }
+
+        // Instructions / Countdown overlay
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
         ) {
             when (phase) {
                 PickerPhase.WAITING -> {
-                    // Add players
-                    LazyColumn(
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        item {
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Icon(
-                                    Icons.Default.Shuffle,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(60.dp),
-                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    "Add players, then pick!",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-
-                        item {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                OutlinedTextField(
-                                    value = newPlayerName,
-                                    onValueChange = { newPlayerName = it },
-                                    placeholder = { Text("Player name") },
-                                    modifier = Modifier.weight(1f),
-                                    singleLine = true
-                                )
-                                IconButton(
-                                    onClick = {
-                                        if (newPlayerName.trim().isNotEmpty()) {
-                                            players.add(newPlayerName.trim())
-                                            newPlayerName = ""
-                                        }
-                                    },
-                                    enabled = newPlayerName.trim().isNotEmpty()
-                                ) {
-                                    Icon(
-                                        Icons.Default.PersonAdd,
-                                        contentDescription = "Add",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            }
-                        }
-
-                        itemsIndexed(players.toList()) { index, player ->
-                            Card(
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surface
-                                )
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(32.dp)
-                                            .clip(CircleShape)
-                                            .background(fingerColors[index % fingerColors.size]),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Person,
-                                            contentDescription = null,
-                                            tint = Color.White,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Text(
-                                        player,
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    IconButton(onClick = { players.removeAt(index) }) {
-                                        Icon(
-                                            Icons.Default.Close,
-                                            contentDescription = "Remove",
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Button(
-                        onClick = { phase = PickerPhase.PICKING },
-                        enabled = players.size >= 2,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 12.dp)
-                    ) {
-                        Icon(Icons.Default.Casino, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Pick First Player!")
-                    }
-                }
-
-                PickerPhase.PICKING -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    if (touches.isEmpty()) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            // Show all player circles pulsing
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                players.forEachIndexed { index, _ ->
-                                    Box(
-                                        modifier = Modifier
-                                            .size(60.dp)
-                                            .scale(pulseScale)
-                                            .clip(CircleShape)
-                                            .background(fingerColors[index % fingerColors.size].copy(alpha = 0.6f))
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(40.dp))
                             Text(
-                                "$countdown",
-                                fontSize = 80.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                                "🖐️",
+                                fontSize = 60.sp
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                "Everyone place a finger\non the screen",
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Medium,
+                                lineHeight = 30.sp,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "Supports up to 5 players",
+                                color = Color.White.copy(alpha = 0.3f),
+                                fontSize = 14.sp
                             )
                         }
                     }
                 }
-
+                PickerPhase.COUNTDOWN -> {
+                    Text(
+                        "$countdown",
+                        fontSize = 80.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White.copy(alpha = 0.3f)
+                    )
+                }
+                PickerPhase.PULSING -> {
+                    // No text during pulsing — just the circles animate
+                }
                 PickerPhase.SELECTED -> {
                     Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 60.dp)
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            val winnerColor = if (winnerIndex >= 0)
-                                fingerColors[winnerIndex % fingerColors.size]
-                            else MaterialTheme.colorScheme.primary
-
-                            // Winner circle
-                            Box(
-                                modifier = Modifier
-                                    .size(140.dp)
-                                    .clip(CircleShape)
-                                    .background(winnerColor),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(
-                                        Icons.Default.EmojiEvents,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(28.dp)
-                                    )
-                                    Text(
-                                        "FIRST!",
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(24.dp))
-
-                            if (winnerIndex >= 0 && winnerIndex < players.size) {
-                                Text(
-                                    players[winnerIndex],
-                                    fontSize = 28.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
+                        Text(
+                            "Tap anywhere to reset",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier
+                                .background(
+                                    Color.White.copy(alpha = 0.2f),
+                                    RoundedCornerShape(24.dp)
                                 )
-                                Text(
-                                    "goes first!",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(40.dp))
-
-                            Button(onClick = {
-                                winnerIndex = -1
-                                phase = PickerPhase.WAITING
-                            }) {
-                                Text("Pick Again")
-                            }
-                        }
+                                .padding(horizontal = 24.dp, vertical = 12.dp)
+                        )
                     }
                 }
             }

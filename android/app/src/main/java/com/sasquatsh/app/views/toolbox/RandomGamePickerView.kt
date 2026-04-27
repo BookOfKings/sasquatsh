@@ -40,6 +40,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -86,6 +87,7 @@ private enum class GamePickerMode(val label: String) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RandomGamePickerView(
+    onBack: () -> Unit = {},
     viewModel: CollectionViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -101,7 +103,16 @@ fun RandomGamePickerView(
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Random Game Picker") }) }
+        topBar = {
+            TopAppBar(
+                title = { Text("Random Game Picker") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
     ) { padding ->
         Column(
             modifier = Modifier

@@ -51,7 +51,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -62,38 +61,75 @@ import com.sasquatsh.app.viewmodels.AuthViewModel
 import com.sasquatsh.app.views.auth.ForgotPasswordView
 import com.sasquatsh.app.views.auth.LoginView
 import com.sasquatsh.app.views.auth.SignupView
+import com.sasquatsh.app.views.badges.BadgesView
+import com.sasquatsh.app.views.billing.BillingView
+import com.sasquatsh.app.views.billing.PricingView
+import com.sasquatsh.app.views.collections.MyCollectionView
 import com.sasquatsh.app.views.dashboard.DashboardView
+import com.sasquatsh.app.views.events.CreateEventView
+import com.sasquatsh.app.views.events.EventDetailView
+import com.sasquatsh.app.views.events.EventListView
+import com.sasquatsh.app.views.groups.CreateGroupView
+import com.sasquatsh.app.views.groups.GroupDetailView
+import com.sasquatsh.app.views.groups.GroupListView
+import com.sasquatsh.app.views.lfp.PlayerRequestListView
+import com.sasquatsh.app.views.mtg.MyDecksView
+import com.sasquatsh.app.views.planning.PlanningSessionDetailView
+import com.sasquatsh.app.views.profile.BlockedUsersView
+import com.sasquatsh.app.views.profile.ProfileView
+import com.sasquatsh.app.views.raffle.RaffleDetailView
+import com.sasquatsh.app.views.toolbox.CardDrawPickerView
+import com.sasquatsh.app.views.toolbox.FirstPlayerPickerView
+import com.sasquatsh.app.views.toolbox.FirstPlayerPickersView
+import com.sasquatsh.app.views.toolbox.RandomGamePickerView
+import com.sasquatsh.app.views.toolbox.RoundCounterView
+import com.sasquatsh.app.views.toolbox.ScoreKeeperView
+import com.sasquatsh.app.views.toolbox.SpinWheelPickerView
+import com.sasquatsh.app.views.toolbox.StatementPickerView
+import com.sasquatsh.app.views.toolbox.ToolboxView
+import com.sasquatsh.app.views.toolbox.TurnTrackerView
 import kotlinx.coroutines.delay
 
 // Route constants
 object Routes {
-    // Auth
     const val LOGIN = "login"
     const val SIGNUP = "signup"
     const val FORGOT_PASSWORD = "forgot_password"
 
-    // Main tabs
     const val DASHBOARD = "dashboard"
     const val GAMES = "games"
     const val GROUPS = "groups"
     const val NEED_PLAYERS = "need_players"
     const val PROFILE = "profile"
 
-    // Detail screens
     const val EVENT_DETAIL = "event/{eventId}"
+    const val EDIT_EVENT = "edit_event/{eventId}"
     const val GROUP_DETAIL = "group/{groupId}"
     const val PLANNING_DETAIL = "planning/{sessionId}"
     const val CREATE_EVENT = "create_event"
     const val CREATE_GROUP = "create_group"
     const val PRICING = "pricing"
+    const val BILLING = "billing"
     const val RAFFLE_DETAIL = "raffle_detail"
-    const val PLAYER_REQUEST_DETAIL = "player_request/{requestId}"
     const val TOOLBOX = "toolbox"
+    const val BLOCKED_USERS = "blocked_users"
+    const val BADGES = "badges"
+    const val COLLECTION = "collection"
+    const val MTG_DECKS = "mtg_decks"
+    const val FIRST_PLAYER = "first_player"
+    const val FINGER_PICKER = "finger_picker"
+    const val SPIN_WHEEL = "spin_wheel"
+    const val CARD_DRAW = "card_draw"
+    const val STATEMENT_PICKER = "statement_picker"
+    const val TURN_TRACKER = "turn_tracker"
+    const val ROUND_COUNTER = "round_counter"
+    const val SCORE_KEEPER = "score_keeper"
+    const val RANDOM_GAME = "random_game"
 
     fun eventDetail(eventId: String) = "event/$eventId"
+    fun editEvent(eventId: String) = "edit_event/$eventId"
     fun groupDetail(groupId: String) = "group/$groupId"
     fun planningDetail(sessionId: String) = "planning/$sessionId"
-    fun playerRequestDetail(requestId: String) = "player_request/$requestId"
 }
 
 data class BottomNavItem(
@@ -124,15 +160,9 @@ fun AppNavigation(
 
     Box(modifier = Modifier.fillMaxSize()) {
         when {
-            showSplash || !authState.isInitialized -> {
-                SplashScreen()
-            }
-            authState.isAuthenticated -> {
-                MainScaffold(authViewModel = authViewModel)
-            }
-            else -> {
-                AuthNavigation(authViewModel = authViewModel)
-            }
+            showSplash || !authState.isInitialized -> SplashScreen()
+            authState.isAuthenticated -> MainScaffold(authViewModel = authViewModel)
+            else -> AuthNavigation(authViewModel = authViewModel)
         }
     }
 }
@@ -140,47 +170,27 @@ fun AppNavigation(
 @Composable
 private fun SplashScreen() {
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.primary),
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.primary),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Image(
                 painter = painterResource(id = R.drawable.logo_white),
                 contentDescription = "Sasquatsh logo",
                 modifier = Modifier.size(120.dp)
             )
             Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "Sasquatsh",
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimary
-            )
+            Text("Sasquatsh", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
             Spacer(modifier = Modifier.height(24.dp))
-            CircularProgressIndicator(
-                modifier = Modifier.size(48.dp),
-                color = MaterialTheme.colorScheme.onPrimary,
-                strokeWidth = 3.dp
-            )
+            CircularProgressIndicator(modifier = Modifier.size(48.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 3.dp)
         }
     }
 }
 
 @Composable
-private fun AuthNavigation(
-    authViewModel: AuthViewModel
-) {
+private fun AuthNavigation(authViewModel: AuthViewModel) {
     val navController = rememberNavController()
-
-    NavHost(
-        navController = navController,
-        startDestination = Routes.LOGIN
-    ) {
+    NavHost(navController = navController, startDestination = Routes.LOGIN) {
         composable(Routes.LOGIN) {
             LoginView(
                 authViewModel = authViewModel,
@@ -189,40 +199,28 @@ private fun AuthNavigation(
             )
         }
         composable(Routes.SIGNUP) {
-            SignupView(
-                authViewModel = authViewModel,
-                onNavigateBack = { navController.popBackStack() }
-            )
+            SignupView(authViewModel = authViewModel, onNavigateBack = { navController.popBackStack() })
         }
         composable(Routes.FORGOT_PASSWORD) {
-            ForgotPasswordView(
-                onNavigateBack = { navController.popBackStack() }
-            )
+            ForgotPasswordView(onNavigateBack = { navController.popBackStack() })
         }
     }
 }
 
 @Composable
-private fun MainScaffold(
-    authViewModel: AuthViewModel
-) {
+private fun MainScaffold(authViewModel: AuthViewModel) {
     val navController = rememberNavController()
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
     Scaffold(
-        topBar = {
-            MainTopBar()
-        },
+        // No top bar — toolbox link is inside DashboardView
         bottomBar = {
             MainBottomBar(
                 selectedTab = selectedTab,
                 onTabSelected = { index ->
                     selectedTab = index
-                    val route = bottomNavItems[index].route
-                    navController.navigate(route) {
-                        popUpTo(navController.graph.startDestinationId) {
-                            saveState = true
-                        }
+                    navController.navigate(bottomNavItems[index].route) {
+                        popUpTo(navController.graph.startDestinationId) { saveState = true }
                         launchSingleTop = true
                         restoreState = true
                     }
@@ -235,165 +233,233 @@ private fun MainScaffold(
             startDestination = Routes.DASHBOARD,
             modifier = Modifier.padding(innerPadding)
         ) {
-            // Tab destinations
+            // ===== TAB DESTINATIONS =====
             composable(Routes.DASHBOARD) {
                 DashboardView(
                     authViewModel = authViewModel,
                     navController = navController,
                     onSwitchTab = { tabIndex ->
                         selectedTab = tabIndex
-                        val route = bottomNavItems[tabIndex].route
-                        navController.navigate(route) {
-                            popUpTo(navController.graph.startDestinationId) {
-                                saveState = true
-                            }
+                        navController.navigate(bottomNavItems[tabIndex].route) {
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
                             launchSingleTop = true
                             restoreState = true
                         }
                     }
                 )
             }
+
             composable(Routes.GAMES) {
-                // TODO: EventListView
-                PlaceholderScreen("Games")
-            }
-            composable(Routes.GROUPS) {
-                // TODO: GroupListView
-                PlaceholderScreen("Groups")
-            }
-            composable(Routes.NEED_PLAYERS) {
-                // TODO: PlayerRequestListView
-                PlaceholderScreen("Need Players")
-            }
-            composable(Routes.PROFILE) {
-                // TODO: ProfileView
-                PlaceholderScreen("Profile")
+                EventListView(
+                    onNavigateToDetail = { eventId -> navController.navigate(Routes.eventDetail(eventId)) },
+                    onNavigateToCreate = { navController.navigate(Routes.CREATE_EVENT) }
+                )
             }
 
-            // Detail destinations
+            composable(Routes.GROUPS) {
+                GroupListView(
+                    onNavigateToDetail = { groupId -> navController.navigate(Routes.groupDetail(groupId)) },
+                    onNavigateToCreate = { navController.navigate(Routes.CREATE_GROUP) }
+                )
+            }
+
+            composable(Routes.NEED_PLAYERS) {
+                PlayerRequestListView(
+                    onNavigateToEventDetail = { eventId -> navController.navigate(Routes.eventDetail(eventId)) }
+                )
+            }
+
+            composable(Routes.PROFILE) {
+                ProfileView(
+                    authViewModel = authViewModel,
+                    onNavigateToBilling = { navController.navigate(Routes.BILLING) },
+                    onNavigateToBlockedUsers = { navController.navigate(Routes.BLOCKED_USERS) }
+                )
+            }
+
+            // ===== EVENT ROUTES =====
             composable(
                 route = Routes.EVENT_DETAIL,
                 arguments = listOf(navArgument("eventId") { type = NavType.StringType })
             ) { backStackEntry ->
                 val eventId = backStackEntry.arguments?.getString("eventId") ?: return@composable
-                // TODO: EventDetailView(eventId)
-                PlaceholderScreen("Event: $eventId")
+                EventDetailView(
+                    eventId = eventId,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToEdit = { id -> navController.navigate(Routes.editEvent(id)) }
+                )
             }
+
+            composable(Routes.CREATE_EVENT) {
+                CreateEventView(onDismiss = { navController.popBackStack() })
+            }
+
+            composable(
+                route = Routes.EDIT_EVENT,
+                arguments = listOf(navArgument("eventId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val eventId = backStackEntry.arguments?.getString("eventId") ?: return@composable
+                // EditEventView needs the eventId to load — use placeholder for now
+                // since EditEventView expects a pre-loaded event
+                PlaceholderScreen("Edit Event: $eventId")
+            }
+
+            // ===== GROUP ROUTES =====
             composable(
                 route = Routes.GROUP_DETAIL,
                 arguments = listOf(navArgument("groupId") { type = NavType.StringType })
             ) { backStackEntry ->
                 val groupId = backStackEntry.arguments?.getString("groupId") ?: return@composable
-                // TODO: GroupDetailView(groupId)
-                PlaceholderScreen("Group: $groupId")
+                GroupDetailView(
+                    groupId = groupId,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToEvent = { eventId -> navController.navigate(Routes.eventDetail(eventId)) },
+                    onNavigateToPlanning = { sessionId -> navController.navigate(Routes.planningDetail(sessionId)) },
+                    onNavigateToCreatePlanning = { /* TODO: CreatePlanningView needs members list */ },
+                    onNavigateToEditGroup = { /* TODO: EditGroupView needs group object */ }
+                )
             }
+
+            composable(Routes.CREATE_GROUP) {
+                CreateGroupView(onDismiss = { navController.popBackStack() })
+            }
+
+            // ===== PLANNING ROUTES =====
             composable(
                 route = Routes.PLANNING_DETAIL,
                 arguments = listOf(navArgument("sessionId") { type = NavType.StringType })
             ) { backStackEntry ->
                 val sessionId = backStackEntry.arguments?.getString("sessionId") ?: return@composable
-                // TODO: PlanningSessionDetailView(sessionId)
-                PlaceholderScreen("Planning: $sessionId")
+                PlanningSessionDetailView(
+                    sessionId = sessionId,
+                    onNavigateToEvent = { eventId -> navController.navigate(Routes.eventDetail(eventId)) },
+                    onNavigateBack = { navController.popBackStack() }
+                )
             }
-            composable(Routes.CREATE_EVENT) {
-                // TODO: CreateEventView
-                PlaceholderScreen("Create Event")
+
+            // ===== BILLING / PRICING =====
+            composable(Routes.BILLING) {
+                BillingView(
+                    authViewModel = authViewModel,
+                    onNavigateToPricing = { navController.navigate(Routes.PRICING) },
+                    onBack = { navController.popBackStack() }
+                )
             }
-            composable(Routes.CREATE_GROUP) {
-                // TODO: CreateGroupView
-                PlaceholderScreen("Create Group")
-            }
+
             composable(Routes.PRICING) {
-                // TODO: PricingView
-                PlaceholderScreen("Pricing")
+                PricingView(
+                    authViewModel = authViewModel,
+                    onBack = { navController.popBackStack() }
+                )
             }
+
+            // ===== PROFILE SUB-SCREENS =====
+            composable(Routes.BLOCKED_USERS) {
+                BlockedUsersView(onBack = { navController.popBackStack() })
+            }
+
+            composable(Routes.BADGES) {
+                BadgesView()
+            }
+
+            composable(Routes.COLLECTION) {
+                MyCollectionView()
+            }
+
+            composable(Routes.MTG_DECKS) {
+                MyDecksView(
+                    onNavigateToDeck = { /* TODO: DeckBuilderView navigation */ }
+                )
+            }
+
+            // ===== RAFFLE =====
             composable(Routes.RAFFLE_DETAIL) {
-                // TODO: RaffleDetailView
-                PlaceholderScreen("Raffle")
+                RaffleDetailView()
             }
+
+            // ===== TOOLBOX =====
             composable(Routes.TOOLBOX) {
-                // TODO: ToolboxView
-                PlaceholderScreen("Gamer Toolbox")
+                ToolboxView(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToFirstPlayer = { navController.navigate(Routes.FIRST_PLAYER) },
+                    onNavigateToRoundCounter = { navController.navigate(Routes.ROUND_COUNTER) },
+                    onNavigateToTurnTracker = { navController.navigate(Routes.TURN_TRACKER) },
+                    onNavigateToScoreKeeper = { navController.navigate(Routes.SCORE_KEEPER) },
+                    onNavigateToRandomGame = { navController.navigate(Routes.RANDOM_GAME) }
+                )
             }
-            composable(
-                route = Routes.PLAYER_REQUEST_DETAIL,
-                arguments = listOf(navArgument("requestId") { type = NavType.StringType })
-            ) { backStackEntry ->
-                val requestId = backStackEntry.arguments?.getString("requestId") ?: return@composable
-                // TODO: PlayerRequestDetailView(requestId)
-                PlaceholderScreen("Player Request: $requestId")
+
+            composable(Routes.FIRST_PLAYER) {
+                FirstPlayerPickersView(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToFingerPicker = { navController.navigate(Routes.FINGER_PICKER) },
+                    onNavigateToSpinWheel = { navController.navigate(Routes.SPIN_WHEEL) },
+                    onNavigateToCardDraw = { navController.navigate(Routes.CARD_DRAW) },
+                    onNavigateToStatement = { navController.navigate(Routes.STATEMENT_PICKER) }
+                )
+            }
+
+            composable(Routes.FINGER_PICKER) {
+                FirstPlayerPickerView(onBack = { navController.popBackStack() })
+            }
+
+            composable(Routes.SPIN_WHEEL) {
+                SpinWheelPickerView(onBack = { navController.popBackStack() })
+            }
+
+            composable(Routes.CARD_DRAW) {
+                CardDrawPickerView(onBack = { navController.popBackStack() })
+            }
+
+            composable(Routes.STATEMENT_PICKER) {
+                StatementPickerView(onBack = { navController.popBackStack() })
+            }
+
+            composable(Routes.TURN_TRACKER) {
+                TurnTrackerView(onBack = { navController.popBackStack() })
+            }
+
+            composable(Routes.ROUND_COUNTER) {
+                RoundCounterView(onBack = { navController.popBackStack() })
+            }
+
+            composable(Routes.SCORE_KEEPER) {
+                ScoreKeeperView(onBack = { navController.popBackStack() })
+            }
+
+            composable(Routes.RANDOM_GAME) {
+                RandomGamePickerView(onBack = { navController.popBackStack() })
             }
         }
     }
 }
 
 @Composable
-private fun MainTopBar() {
+private fun MainTopBar(onToolboxClick: () -> Unit = {}) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(horizontal = 12.dp, vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(horizontal = 12.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.logo),
-            contentDescription = "Sasquatsh logo",
-            modifier = Modifier
-                .size(22.dp)
-                .clip(RoundedCornerShape(4.dp))
-        )
+        Image(painter = painterResource(id = R.drawable.logo), contentDescription = "Sasquatsh logo", modifier = Modifier.size(22.dp).clip(RoundedCornerShape(4.dp)))
         Spacer(modifier = Modifier.width(8.dp))
-        Row(
-            modifier = Modifier.clickable { /* TODO: Navigate to toolbox */ },
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Gamer Toolbox",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary
-            )
+        Row(modifier = Modifier.clickable { onToolboxClick() }, verticalAlignment = Alignment.CenterVertically) {
+            Text("Gamer Toolbox", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
             Spacer(modifier = Modifier.width(4.dp))
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = null,
-                modifier = Modifier.size(14.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
+            Icon(imageVector = Icons.Default.ChevronRight, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
         }
         Spacer(modifier = Modifier.weight(1f))
     }
 }
 
 @Composable
-private fun MainBottomBar(
-    selectedTab: Int,
-    onTabSelected: (Int) -> Unit
-) {
-    NavigationBar(
-        containerColor = MaterialTheme.colorScheme.surfaceContainer
-    ) {
+private fun MainBottomBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
+    NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
         bottomNavItems.forEachIndexed { index, item ->
             NavigationBarItem(
                 selected = selectedTab == index,
                 onClick = { onTabSelected(index) },
-                icon = {
-                    Icon(
-                        imageVector = item.icon,
-                        contentDescription = item.label,
-                        modifier = Modifier.size(24.dp)
-                    )
-                },
-                label = {
-                    Text(
-                        text = item.label,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = if (selectedTab == index) FontWeight.SemiBold else FontWeight.Medium,
-                        maxLines = 1,
-                        fontSize = 11.sp
-                    )
-                },
+                icon = { Icon(imageVector = item.icon, contentDescription = item.label, modifier = Modifier.size(24.dp)) },
+                label = { Text(text = item.label, style = MaterialTheme.typography.labelSmall, fontWeight = if (selectedTab == index) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1, fontSize = 11.sp) },
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = MaterialTheme.colorScheme.primary,
                     selectedTextColor = MaterialTheme.colorScheme.primary,
@@ -408,16 +474,7 @@ private fun MainBottomBar(
 
 @Composable
 private fun PlaceholderScreen(title: String) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surfaceContainerLow),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerLow), contentAlignment = Alignment.Center) {
+        Text(text = title, style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

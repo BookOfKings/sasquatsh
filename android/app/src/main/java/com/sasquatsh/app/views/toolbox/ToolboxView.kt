@@ -1,6 +1,8 @@
 package com.sasquatsh.app.views.toolbox
 
 import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.IconButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -42,14 +44,23 @@ import androidx.compose.ui.unit.sp
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ToolboxView(
+    onBack: () -> Unit = {},
     onNavigateToFirstPlayer: () -> Unit,
     onNavigateToRoundCounter: () -> Unit,
+    onNavigateToTurnTracker: () -> Unit,
     onNavigateToScoreKeeper: () -> Unit,
     onNavigateToRandomGame: () -> Unit
 ) {
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Gamer Toolbox") })
+            TopAppBar(
+                title = { Text("Gamer Toolbox") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
         }
     ) { padding ->
         LazyColumn(
@@ -139,6 +150,17 @@ fun ToolboxView(
                     description = "Track game rounds with a tap. Autosaves between sessions.",
                     color = MaterialTheme.colorScheme.secondary,
                     onClick = onNavigateToRoundCounter
+                )
+            }
+
+            // Turn Tracker
+            item {
+                ToolCard(
+                    icon = Icons.Default.Sync,
+                    title = "Turn Tracker",
+                    description = "Keep track of whose turn it is. Never lose your place!",
+                    color = MaterialTheme.colorScheme.primary,
+                    onClick = onNavigateToTurnTracker
                 )
             }
 
