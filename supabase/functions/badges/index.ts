@@ -371,16 +371,15 @@ async function computeActivityCounts(
   const { count: groupsCreatedCount } = await supabase
     .from('groups')
     .select('id', { count: 'exact', head: true })
-    .eq('created_by', userId)
+    .eq('created_by_user_id', userId)
 
   counts.groups_created = groupsCreatedCount ?? 0
 
   // Groups joined
   const { count: groupsJoinedCount } = await supabase
-    .from('group_members')
+    .from('group_memberships')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', userId)
-    .eq('status', 'active')
 
   counts.groups_joined = groupsJoinedCount ?? 0
 
@@ -400,60 +399,24 @@ async function computeActivityCounts(
 
   counts.bugs_submitted = bugsCount ?? 0
 
-  // Game system events (hosted + attended)
-  // Board games
-  const { count: bgHosted } = await supabase
-    .from('events')
-    .select('id', { count: 'exact', head: true })
-    .eq('host_user_id', userId)
-    .eq('game_type', 'board_game')
+  // Game system events (hosted per system)
+  const gameSystems: Record<string, string> = {
+    board_game_events: 'board_game',
+    mtg_events: 'mtg',
+    pokemon_events: 'pokemon_tcg',
+    yugioh_events: 'yugioh',
+    warhammer_events: 'warhammer40k',
+  }
 
-  const { count: bgAttended } = await supabase
-    .from('event_registrations')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .eq('status', 'confirmed')
-    .in('event_id',
-      supabase.from('events').select('id').eq('game_type', 'board_game')
-    )
+  for (const [countKey, systemValue] of Object.entries(gameSystems)) {
+    const { count: hosted } = await supabase
+      .from('events')
+      .select('id', { count: 'exact', head: true })
+      .eq('host_user_id', userId)
+      .eq('game_system', systemValue)
 
-  counts.board_game_events = (bgHosted ?? 0) + (bgAttended ?? 0)
-
-  // MTG
-  const { count: mtgHosted } = await supabase
-    .from('events')
-    .select('id', { count: 'exact', head: true })
-    .eq('host_user_id', userId)
-    .eq('game_type', 'mtg')
-
-  counts.mtg_events = (mtgHosted ?? 0)
-
-  // Pokemon
-  const { count: pokemonHosted } = await supabase
-    .from('events')
-    .select('id', { count: 'exact', head: true })
-    .eq('host_user_id', userId)
-    .eq('game_type', 'pokemon')
-
-  counts.pokemon_events = (pokemonHosted ?? 0)
-
-  // Yu-Gi-Oh
-  const { count: yugiohHosted } = await supabase
-    .from('events')
-    .select('id', { count: 'exact', head: true })
-    .eq('host_user_id', userId)
-    .eq('game_type', 'yugioh')
-
-  counts.yugioh_events = (yugiohHosted ?? 0)
-
-  // Warhammer
-  const { count: warhammerHosted } = await supabase
-    .from('events')
-    .select('id', { count: 'exact', head: true })
-    .eq('host_user_id', userId)
-    .eq('game_type', 'warhammer40k')
-
-  counts.warhammer_events = (warhammerHosted ?? 0)
+    counts[countKey] = hosted ?? 0
+  }
 
   // TODO: host_streak_weeks, attend_streak_weeks, plan_votes_cast,
   // invites_sent, new_players_invited, events_with_items,
