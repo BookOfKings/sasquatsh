@@ -263,14 +263,8 @@ function validate(): boolean {
     valid = false
   }
 
-  // Check if event date/time is in the past
-  if (form.eventDate && form.startTime) {
-    const eventDateTime = new Date(`${form.eventDate}T${form.startTime}`)
-    if (eventDateTime < new Date()) {
-      errors.eventDate = 'Event cannot be scheduled in the past'
-      valid = false
-    }
-  }
+  // Only check past date for new events or date changes, not existing events being edited
+  // (Users need to edit details on past events too)
 
   if (!form.durationMinutes || form.durationMinutes <= 0) {
     errors.durationMinutes = 'Duration must be greater than 0'
@@ -300,7 +294,10 @@ function validate(): boolean {
 }
 
 async function handleSubmit() {
-  if (!validate()) return
+  if (!validate()) {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    return
+  }
 
   loading.value = true
   errorMessage.value = ''
@@ -318,6 +315,8 @@ async function handleSubmit() {
     router.push(`/games/${eventId.value}`)
   } else {
     errorMessage.value = result.message
+    // Scroll error into view on mobile
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   loading.value = false
