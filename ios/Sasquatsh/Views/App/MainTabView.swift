@@ -72,7 +72,7 @@ private struct MD3TabBar: View {
         (MDCIcon.uiImage(MDCIcon.Dice(), evenOdd: true), "Games"),
         (MDCIcon.uiImage(MDCIcon.AccountMultiple()), "Groups"),
         (MDCIcon.uiImage(MDCIcon.AccountSearch()), "Need Players"),
-        (MDCIcon.uiImage(MDCIcon.Account()), "Profile"),
+        (MDCIcon.uiImage(MDCIcon.Meeple()), "Profile"),
     ]
 
     var body: some View {

@@ -37,9 +37,37 @@ final class GroupListViewModel {
         error = nil
         do {
             async let publicGroups = services.groups.getPublicGroups(filter: filter)
-            async let myGroups = services.groups.getMyGroups()
-            groups = try await publicGroups
-            myGroupCount = (try? await myGroups.count) ?? 0
+            async let myGroupsList = services.groups.getMyGroups()
+
+            var allGroups = try await publicGroups
+            let myGroups = (try? await myGroupsList) ?? []
+            myGroupCount = myGroups.count
+
+            // Build a map of group ID → user role from my groups
+            let roleMap = Dictionary(uniqueKeysWithValues: myGroups.compactMap { g -> (String, MemberRole)? in
+                guard let role = g.userRole else { return nil }
+                return (g.id, role)
+            })
+
+            // Annotate public groups with user's role
+            for i in allGroups.indices {
+                if let role = roleMap[allGroups[i].id] {
+                    allGroups[i].userRole = role
+                }
+            }
+
+            // Sort: user's groups first (by role: owner > admin > member), then others
+            groups = allGroups.sorted { a, b in
+                let aRole = a.userRole
+                let bRole = b.userRole
+                if aRole != nil && bRole == nil { return true }
+                if aRole == nil && bRole != nil { return false }
+                if let ar = aRole, let br = bRole {
+                    let order: [MemberRole: Int] = [.owner: 0, .admin: 1, .member: 2]
+                    return (order[ar] ?? 3) < (order[br] ?? 3)
+                }
+                return a.name < b.name
+            }
         } catch {
             self.error = error.localizedDescription
         }

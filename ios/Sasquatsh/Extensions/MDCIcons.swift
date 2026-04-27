@@ -136,6 +136,42 @@ enum MDCIcon {
         }
     }
 
+    /// Meeple — classic board game meeple silhouette (Profile tab)
+    struct Meeple: Shape {
+        func path(in rect: CGRect) -> Path {
+            var path = Path()
+            let s = min(rect.width, rect.height) / 24
+            let ox = rect.minX + (rect.width - 24 * s) / 2
+            let oy = rect.minY + (rect.height - 24 * s) / 2
+            func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: ox + x * s, y: oy + y * s) }
+
+            // Head
+            path.addEllipse(in: CGRect(x: ox + 9 * s, y: oy + 2 * s, width: 6 * s, height: 6 * s))
+
+            // Body: arms spread, legs apart
+            path.move(to: pt(12, 8.5))
+            // Left arm
+            path.addQuadCurve(to: pt(2, 13), control: pt(7, 9))
+            path.addLine(to: pt(2, 15))
+            path.addQuadCurve(to: pt(8, 14), control: pt(5, 15))
+            // Left leg
+            path.addLine(to: pt(7, 22))
+            path.addLine(to: pt(10, 22))
+            path.addLine(to: pt(12, 16))
+            // Right leg
+            path.addLine(to: pt(14, 22))
+            path.addLine(to: pt(17, 22))
+            path.addLine(to: pt(16, 14))
+            // Right arm
+            path.addQuadCurve(to: pt(22, 15), control: pt(19, 15))
+            path.addLine(to: pt(22, 13))
+            path.addQuadCurve(to: pt(12, 8.5), control: pt(17, 9))
+            path.closeSubpath()
+
+            return path
+        }
+    }
+
     // MARK: - Helpers
 
     private static func scaledPath(in rect: CGRect, draw: (inout Path) -> Void) -> Path {
