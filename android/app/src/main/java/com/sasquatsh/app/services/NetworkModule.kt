@@ -147,4 +147,9 @@ object NetworkModule {
     @Singleton
     fun provideGameUpcApi(retrofit: Retrofit): GameUpcApi =
         retrofit.create(GameUpcApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideShelfScanApi(retrofit: Retrofit): ShelfScanApi =
+        retrofit.create(ShelfScanApi::class.java)
 }
