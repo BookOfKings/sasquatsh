@@ -144,7 +144,7 @@ private val bottomNavItems = listOf(
     BottomNavItem(Routes.DASHBOARD, "Dashboard", Icons.Default.Dashboard),
     BottomNavItem(Routes.GAMES, "Games", Icons.Default.Casino),
     BottomNavItem(Routes.GROUPS, "Groups", Icons.Default.Groups),
-    BottomNavItem(Routes.NEED_PLAYERS, "Need Players", Icons.Default.PersonSearch),
+    BottomNavItem(Routes.NEED_PLAYERS, "Need", Icons.Default.PersonSearch),
     BottomNavItem(Routes.PROFILE, "Profile", Icons.Default.Person)
 )
 
@@ -483,7 +483,7 @@ private fun MainBottomBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
                     selectedTextColor = MaterialTheme.colorScheme.primary,
                     unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    indicatorColor = MaterialTheme.colorScheme.secondaryContainer
+                    indicatorColor = MaterialTheme.colorScheme.primaryContainer
                 )
             )
         }
