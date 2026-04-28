@@ -1060,7 +1060,8 @@ private fun MembersSection(
                 title = "Members (${members.size})"
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            members.forEach { member ->
+            members.forEachIndexed { index, member ->
+                if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                 MemberRow(member = member, isAdmin = false, isOwner = false, currentUserId = currentUserId)
             }
         }
@@ -1128,7 +1129,8 @@ private fun AdminPanelSection(
             when (selectedTab) {
                 0 -> {
                     // Members tab
-                    members.forEach { member ->
+                    members.forEachIndexed { index, member ->
+                        if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                         MemberRow(
                             member = member,
                             isAdmin = true,
@@ -1225,7 +1227,7 @@ private fun MemberRow(
                     Icon(
                         Icons.Filled.MoreVert, null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(14.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
                 DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
@@ -1275,18 +1277,19 @@ private fun MemberRow(
 @Composable
 private fun RoleBadge(role: MemberRole) {
     val (bgColor, fgColor) = when (role) {
-        MemberRole.OWNER -> Color(0xFF9C27B0).copy(alpha = 0.12f) to Color(0xFF9C27B0)
-        MemberRole.ADMIN -> Color(0xFF2196F3).copy(alpha = 0.12f) to Color(0xFF2196F3)
-        MemberRole.MEMBER -> MaterialTheme.colorScheme.surfaceContainerHigh to MaterialTheme.colorScheme.onSurfaceVariant
+        MemberRole.OWNER -> Color(0xFF9C27B0).copy(alpha = 0.20f) to Color(0xFFCE93D8)
+        MemberRole.ADMIN -> Color(0xFF2196F3).copy(alpha = 0.20f) to Color(0xFF64B5F6)
+        MemberRole.MEMBER -> Color(0xFF4CAF50).copy(alpha = 0.20f) to Color(0xFF81C784)
     }
 
     Text(
         text = role.displayName,
         style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.SemiBold,
         color = fgColor,
         modifier = Modifier
             .background(bgColor, RoundedCornerShape(50))
-            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .padding(horizontal = 10.dp, vertical = 4.dp)
     )
 }
 
