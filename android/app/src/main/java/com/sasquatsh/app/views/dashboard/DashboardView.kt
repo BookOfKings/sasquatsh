@@ -72,6 +72,7 @@ import com.sasquatsh.app.viewmodels.AuthViewModel
 import com.sasquatsh.app.viewmodels.DashboardViewModel
 import com.sasquatsh.app.viewmodels.RaffleViewModel
 import com.sasquatsh.app.views.app.Routes
+import com.sasquatsh.app.views.shared.BadgeEarnedPopup
 import com.sasquatsh.app.views.shared.ErrorBannerView
 import com.sasquatsh.app.views.shared.SubscriptionBadgeView
 import com.sasquatsh.app.views.shared.UserAvatarView
@@ -88,6 +89,8 @@ fun DashboardView(
     val authState by authViewModel.uiState.collectAsState()
     val dashState by dashboardViewModel.uiState.collectAsState()
     val raffleState by raffleViewModel.uiState.collectAsState()
+    val newBadges by dashboardViewModel.newBadges.collectAsState()
+    val showBadgePopup by dashboardViewModel.showBadgePopup.collectAsState()
     var userPulled by remember { mutableStateOf(false) }
     val isRefreshing = userPulled && dashState.isLoading
 
@@ -99,6 +102,28 @@ fun DashboardView(
     LaunchedEffect(Unit) {
         dashboardViewModel.loadDashboard()
         raffleViewModel.loadActiveRaffle()
+        // Compute badges on first load (throttled to 60s)
+        dashboardViewModel.computeBadges()
+    }
+
+    // Badge earned popup dialog
+    if (showBadgePopup && newBadges.isNotEmpty()) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { dashboardViewModel.dismissBadgePopup() },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.92f)
+                    .height(480.dp)
+                    .clip(RoundedCornerShape(24.dp))
+            ) {
+                BadgeEarnedPopup(
+                    badges = newBadges,
+                    onDismiss = { dashboardViewModel.dismissBadgePopup() }
+                )
+            }
+        }
     }
 
     PullToRefreshBox(
@@ -107,6 +132,7 @@ fun DashboardView(
             userPulled = true
             dashboardViewModel.loadDashboard()
             raffleViewModel.loadActiveRaffle()
+            dashboardViewModel.computeBadges(force = true)
         },
         modifier = Modifier
             .fillMaxSize()

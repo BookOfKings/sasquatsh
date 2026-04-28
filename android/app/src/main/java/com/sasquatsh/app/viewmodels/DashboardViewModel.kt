@@ -8,6 +8,8 @@ import com.sasquatsh.app.models.MemberRole
 import com.sasquatsh.app.models.PendingGroupInvitation
 import com.sasquatsh.app.models.PlanningSession
 import com.sasquatsh.app.models.PlanningStatus
+import com.sasquatsh.app.models.UserBadge
+import com.sasquatsh.app.services.BadgesService
 import com.sasquatsh.app.services.EventsService
 import com.sasquatsh.app.services.GroupsService
 import com.sasquatsh.app.services.PlanningService
@@ -41,11 +43,23 @@ data class DashboardUiState(
 class DashboardViewModel @Inject constructor(
     private val eventsService: EventsService,
     private val groupsService: GroupsService,
-    private val planningService: PlanningService
+    private val planningService: PlanningService,
+    private val badgesService: BadgesService
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
+
+    /** Newly earned badges to show in the popup */
+    private val _newBadges = MutableStateFlow<List<UserBadge>>(emptyList())
+    val newBadges: StateFlow<List<UserBadge>> = _newBadges.asStateFlow()
+
+    /** Whether the badge-earned popup should be shown */
+    private val _showBadgePopup = MutableStateFlow(false)
+    val showBadgePopup: StateFlow<Boolean> = _showBadgePopup.asStateFlow()
+
+    /** Timestamp of last badge computation for 60-second throttle */
+    private var lastBadgeComputeMillis: Long = 0L
 
     fun loadDashboard() {
         viewModelScope.launch {
@@ -109,5 +123,36 @@ class DashboardViewModel @Inject constructor(
                 _uiState.update { it.copy(error = e.localizedMessage) }
             }
         }
+    }
+
+    /**
+     * Compute badges on the server and show a popup if any new badges were earned.
+     * Throttled to at most once every 60 seconds unless [force] is true.
+     */
+    fun computeBadges(force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        if (!force && (now - lastBadgeComputeMillis) < 60_000L) return
+        lastBadgeComputeMillis = now
+
+        viewModelScope.launch {
+            try {
+                android.util.Log.d("Badges", "Computing badges...")
+                val response = badgesService.computeBadges()
+                val earned = response.newlyEarned ?: 0
+                android.util.Log.d("Badges", "Result: $earned newly earned, ${response.badges.size} total")
+                if (earned > 0) {
+                    _newBadges.value = response.badges.take(earned)
+                    _showBadgePopup.value = true
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("Badges", "Error computing badges", e)
+            }
+        }
+    }
+
+    /** Dismiss the badge-earned popup */
+    fun dismissBadgePopup() {
+        _showBadgePopup.value = false
+        _newBadges.value = emptyList()
     }
 }

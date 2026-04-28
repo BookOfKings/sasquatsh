@@ -30,6 +30,7 @@ fun ChatPanelView(
     contextType: String,
     contextId: String,
     authViewModel: AuthViewModel,
+    modifier: Modifier = Modifier,
     chatViewModel: ChatViewModel = hiltViewModel()
 ) {
     val uiState by chatViewModel.uiState.collectAsState()
@@ -66,6 +67,7 @@ fun ChatPanelView(
     }
 
     Card(
+        modifier = modifier,
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainer

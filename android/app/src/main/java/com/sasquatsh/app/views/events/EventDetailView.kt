@@ -3,7 +3,6 @@ package com.sasquatsh.app.views.events
 import android.content.Intent
 import android.net.Uri
 import android.provider.CalendarContract
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,8 +24,6 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
@@ -72,7 +69,9 @@ import com.sasquatsh.app.models.EventGameSummary
 import com.sasquatsh.app.models.EventItem
 import com.sasquatsh.app.models.EventRegistration
 import com.sasquatsh.app.models.GameSystem
+import com.sasquatsh.app.viewmodels.AuthViewModel
 import com.sasquatsh.app.viewmodels.EventDetailViewModel
+import com.sasquatsh.app.views.chat.ChatPanelView
 import androidx.compose.material3.CircularProgressIndicator
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -81,15 +80,14 @@ fun EventDetailView(
     eventId: String,
     onNavigateBack: () -> Unit,
     onNavigateToEdit: (String) -> Unit,
-    viewModel: EventDetailViewModel = hiltViewModel()
+    viewModel: EventDetailViewModel = hiltViewModel(),
+    authViewModel: AuthViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
     var showAddItemDialog by remember { mutableStateOf(false) }
-    var chatExpanded by remember { mutableStateOf(false) }
-
     val currentUserId = viewModel.getCurrentUserId()
     val event = uiState.event
     val isHost = currentUserId != null && event != null && viewModel.isHost(currentUserId)
@@ -292,40 +290,17 @@ fun EventDetailView(
                         Spacer(modifier = Modifier.height(16.dp))
                     }
 
-                    // Chat Section (collapsible)
-                    item {
-                        SectionCard(modifier = Modifier.padding(horizontal = 16.dp)) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { chatExpanded = !chatExpanded },
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Chat",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Icon(
-                                    imageVector = if (chatExpanded)
-                                        Icons.Default.KeyboardArrowUp
-                                    else
-                                        Icons.Default.KeyboardArrowDown,
-                                    contentDescription = if (chatExpanded) "Collapse" else "Expand"
-                                )
-                            }
-                            AnimatedVisibility(visible = chatExpanded) {
-                                Column(modifier = Modifier.padding(top = 8.dp)) {
-                                    Text(
-                                        text = "Chat is available for registered players",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
+                    // Chat Section (collapsible) — only for registered players or host
+                    if (isRegistered || isHost) {
+                        item {
+                            ChatPanelView(
+                                contextType = "event",
+                                contextId = eventId,
+                                authViewModel = authViewModel,
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
                         }
-                        Spacer(modifier = Modifier.height(16.dp))
                     }
                 }
             }

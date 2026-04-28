@@ -85,6 +85,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -251,8 +252,8 @@ fun GroupDetailView(
                         },
                         onApproveRequest = { userId -> viewModel.approveRequest(userId) },
                         onRejectRequest = { userId -> viewModel.rejectRequest(userId) },
-                        onCreateInvitation = { maxUses, expiresInDays ->
-                            viewModel.createInvitation(maxUses, expiresInDays) {}
+                        onCreateInvitation = { maxUses, expiresInDays, onSuccess ->
+                            viewModel.createInvitation(maxUses, expiresInDays, onSuccess)
                         },
                         onRevokeInvitation = { id -> viewModel.revokeInvitation(id) },
                         onLoadRequests = { viewModel.loadJoinRequests() },
@@ -1080,7 +1081,7 @@ private fun AdminPanelSection(
     onTransferOwnership: (String, String) -> Unit,
     onApproveRequest: (String) -> Unit,
     onRejectRequest: (String) -> Unit,
-    onCreateInvitation: (Int?, Int?) -> Unit,
+    onCreateInvitation: (Int?, Int?, (GroupInvitation) -> Unit) -> Unit,
     onRevokeInvitation: (String) -> Unit,
     onLoadRequests: () -> Unit,
     onLoadInvitations: () -> Unit
@@ -1353,24 +1354,255 @@ private fun JoinRequestRow(
 @Composable
 private fun InvitationsTab(
     invitations: List<GroupInvitation>,
-    onCreateInvitation: (Int?, Int?) -> Unit,
+    onCreateInvitation: (Int?, Int?, (GroupInvitation) -> Unit) -> Unit,
     onRevokeInvitation: (String) -> Unit
 ) {
     val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
+
+    var showCreateForm by remember { mutableStateOf(false) }
+    var selectedMaxUses by remember { mutableIntStateOf(-1) } // -1 = unlimited
+    var selectedExpiration by remember { mutableIntStateOf(7) } // days, -1 = never
+    var showMaxUsesMenu by remember { mutableStateOf(false) }
+    var showExpirationMenu by remember { mutableStateOf(false) }
+    var isCreating by remember { mutableStateOf(false) }
+    var createdLinkUrl by remember { mutableStateOf<String?>(null) }
+    var linkCopiedMessage by remember { mutableStateOf<String?>(null) }
+
+    // Clear copied message after delay
+    LaunchedEffect(linkCopiedMessage) {
+        if (linkCopiedMessage != null) {
+            kotlinx.coroutines.delay(2000)
+            linkCopiedMessage = null
+        }
+    }
 
     Column(
         modifier = Modifier.padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Button(
-            onClick = { onCreateInvitation(null, 7) },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(Icons.Filled.Add, null, modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Create Invitation Link")
+        // Create Invite Link button
+        if (!showCreateForm && createdLinkUrl == null) {
+            Button(
+                onClick = { showCreateForm = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Filled.Add, null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Create Invitation Link")
+            }
         }
 
+        // Creation form
+        AnimatedVisibility(visible = showCreateForm) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Create Invitation",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    // Max Uses picker
+                    Text(
+                        text = "Max Uses",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Box {
+                        OutlinedButton(
+                            onClick = { showMaxUsesMenu = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = if (selectedMaxUses == -1) "Unlimited" else "$selectedMaxUses use${if (selectedMaxUses != 1) "s" else ""}",
+                                modifier = Modifier.weight(1f)
+                            )
+                            Icon(Icons.Filled.ExpandMore, contentDescription = null, modifier = Modifier.size(18.dp))
+                        }
+                        DropdownMenu(
+                            expanded = showMaxUsesMenu,
+                            onDismissRequest = { showMaxUsesMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Unlimited") },
+                                onClick = { selectedMaxUses = -1; showMaxUsesMenu = false }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("1 use") },
+                                onClick = { selectedMaxUses = 1; showMaxUsesMenu = false }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("5 uses") },
+                                onClick = { selectedMaxUses = 5; showMaxUsesMenu = false }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("10 uses") },
+                                onClick = { selectedMaxUses = 10; showMaxUsesMenu = false }
+                            )
+                        }
+                    }
+
+                    // Expiration picker
+                    Text(
+                        text = "Expires In",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Box {
+                        OutlinedButton(
+                            onClick = { showExpirationMenu = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = when (selectedExpiration) {
+                                    -1 -> "Never"
+                                    1 -> "1 day"
+                                    else -> "$selectedExpiration days"
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                            Icon(Icons.Filled.ExpandMore, contentDescription = null, modifier = Modifier.size(18.dp))
+                        }
+                        DropdownMenu(
+                            expanded = showExpirationMenu,
+                            onDismissRequest = { showExpirationMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Never") },
+                                onClick = { selectedExpiration = -1; showExpirationMenu = false }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("1 day") },
+                                onClick = { selectedExpiration = 1; showExpirationMenu = false }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("7 days") },
+                                onClick = { selectedExpiration = 7; showExpirationMenu = false }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("30 days") },
+                                onClick = { selectedExpiration = 30; showExpirationMenu = false }
+                            )
+                        }
+                    }
+
+                    // Action buttons
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                showCreateForm = false
+                                selectedMaxUses = -1
+                                selectedExpiration = 7
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Cancel")
+                        }
+                        Button(
+                            onClick = {
+                                isCreating = true
+                                val maxUses = if (selectedMaxUses == -1) null else selectedMaxUses
+                                val expiresInDays = if (selectedExpiration == -1) null else selectedExpiration
+                                onCreateInvitation(maxUses, expiresInDays) { invitation ->
+                                    isCreating = false
+                                    showCreateForm = false
+                                    selectedMaxUses = -1
+                                    selectedExpiration = 7
+                                    createdLinkUrl = "https://sasquatsh.com/groups/invite/${invitation.inviteCode}"
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            enabled = !isCreating
+                        ) {
+                            if (isCreating) {
+                                Text("Creating...")
+                            } else {
+                                Icon(Icons.Filled.Add, null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Create Link")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Created link banner
+        AnimatedVisibility(visible = createdLinkUrl != null) {
+            createdLinkUrl?.let { url ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "Invite link created!",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            text = url,
+                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    clipboardManager.setText(AnnotatedString(url))
+                                    linkCopiedMessage = "Link copied!"
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Filled.ContentCopy, null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(if (linkCopiedMessage != null) "Copied!" else "Copy")
+                            }
+                            Button(
+                                onClick = {
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(android.content.Intent.EXTRA_TEXT, "Join our group on Sasquatsh!\n$url")
+                                    }
+                                    context.startActivity(android.content.Intent.createChooser(intent, "Share Invite Link"))
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Filled.Share, null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Share")
+                            }
+                        }
+                        TextButton(
+                            onClick = { createdLinkUrl = null }
+                        ) {
+                            Text("Dismiss")
+                        }
+                    }
+                }
+            }
+        }
+
+        // Existing invitations list
         if (invitations.isEmpty()) {
             Text(
                 text = "No active invitations",
@@ -1411,9 +1643,27 @@ private fun InvitationsTab(
                         }
                     }
 
+                    // Share button
+                    IconButton(onClick = {
+                        val url = "https://sasquatsh.com/groups/invite/${invitation.inviteCode}"
+                        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(android.content.Intent.EXTRA_TEXT, "Join our group on Sasquatsh!\n$url")
+                        }
+                        context.startActivity(android.content.Intent.createChooser(intent, "Share Invite Link"))
+                    }) {
+                        Icon(
+                            Icons.Filled.Share, null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+
+                    // Copy button
                     IconButton(onClick = {
                         val url = "https://sasquatsh.com/groups/invite/${invitation.inviteCode}"
                         clipboardManager.setText(AnnotatedString(url))
+                        linkCopiedMessage = "Link copied!"
                     }) {
                         Icon(
                             Icons.Filled.ContentCopy, null,
@@ -1422,6 +1672,7 @@ private fun InvitationsTab(
                         )
                     }
 
+                    // Revoke button
                     IconButton(onClick = { onRevokeInvitation(invitation.id) }) {
                         Icon(
                             Icons.Filled.Delete, null,
@@ -1431,6 +1682,16 @@ private fun InvitationsTab(
                     }
                 }
             }
+        }
+
+        // Copied feedback
+        AnimatedVisibility(visible = linkCopiedMessage != null) {
+            Text(
+                text = linkCopiedMessage ?: "",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
