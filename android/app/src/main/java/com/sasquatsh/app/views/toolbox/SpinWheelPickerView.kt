@@ -7,7 +7,6 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -37,7 +36,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -64,14 +62,18 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
-import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.sin
+
+// Dark theme colors matching iOS
+private val darkBackground = Color(0xFF1C1C1E)
+private val darkSurface = Color(0xFF2C2C2E)
+private val darkOnSurface = Color.White
+private val darkOnSurfaceVariant = Color.White.copy(alpha = 0.6f)
 
 // Player colors matching iOS version (up to 20)
 private val playerColors = listOf(
@@ -141,7 +143,7 @@ fun SpinWheelPickerView(onBack: () -> Unit = {}) {
         }
     }
 
-    fun triggerHaptic() {
+    val triggerHaptic: () -> Unit = {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 val vm = context.getSystemService(VibratorManager::class.java)
@@ -156,11 +158,10 @@ fun SpinWheelPickerView(onBack: () -> Unit = {}) {
         } catch (_: Exception) {}
     }
 
-    fun spinWheel() {
+    val spinWheel: () -> Unit = {
         phase = WheelPhase.SPINNING
         lastTickSegment = -1
         scope.launch {
-            // Spin 5-10 full rotations plus a random offset
             val extraRotations = (5..10).random() * 360f
             val randomOffset = (0 until 360).random().toFloat()
             val totalSpin = extraRotations + randomOffset
@@ -171,7 +172,6 @@ fun SpinWheelPickerView(onBack: () -> Unit = {}) {
                 animationSpec = tween(
                     durationMillis = 7000,
                     easing = { t ->
-                        // Dramatic deceleration: cubic ease-out with extra slowdown at end
                         val p = 1f - t
                         1f - (p * p * p * p)
                     }
@@ -180,13 +180,8 @@ fun SpinWheelPickerView(onBack: () -> Unit = {}) {
                 currentRotation = this.value
             }
 
-            // Determine winner from final angle
             val finalAngle = rotationAngle.value % 360f
-            // The pointer is at top (270 degrees in standard math, but we rotate clockwise)
-            // Normalize: segment 0 starts at top-center going clockwise
             val segmentAngle = 360f / playerCount
-            // The pointer is at top. Wheel rotates clockwise.
-            // At angle 0, segment 0 is at right (3 o'clock), so pointer (top/12 o'clock) points to segment at 90 degrees offset
             val pointerAngle = (90f - finalAngle % 360f + 360f) % 360f
             val winner = (floor(pointerAngle / segmentAngle).toInt()) % playerCount
 
@@ -199,33 +194,24 @@ fun SpinWheelPickerView(onBack: () -> Unit = {}) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Spin the Wheel") },
+                title = { Text("Spin the Wheel", color = darkOnSurface) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    if (phase == WheelPhase.RESULT) {
-                        IconButton(onClick = {
-                            phase = WheelPhase.SETUP
-                            winnerIndex = -1
-                        }) {
-                            Icon(Icons.Default.Settings, contentDescription = "Settings")
-                        }
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = darkOnSurface)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+                    containerColor = darkBackground
                 )
             )
-        }
+        },
+        containerColor = darkBackground
     ) { padding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(MaterialTheme.colorScheme.surface)
+                .background(darkBackground)
         ) {
             when (phase) {
                 WheelPhase.SETUP -> SetupScreen(
@@ -268,24 +254,25 @@ private fun SetupScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Wheel icon
+        // Spinner icon placeholder
         Text(
             "\uD83C\uDFB0",
-            fontSize = 72.sp
-        )
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Text(
-            "How many players?",
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.SemiBold
+            fontSize = 60.sp,
+            color = darkOnSurfaceVariant
         )
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Player count controls: - [count] +
+        Text(
+            "How many players?",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Medium,
+            color = darkOnSurface
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Player count controls
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
@@ -296,28 +283,27 @@ private fun SetupScreen(
                 modifier = Modifier
                     .size(48.dp)
                     .background(
-                        MaterialTheme.colorScheme.surfaceContainerHighest,
+                        if (playerCount > 2) Color(0xFF34C759) else darkSurface,
                         CircleShape
                     )
             ) {
                 Icon(
                     Icons.Default.Remove,
                     contentDescription = "Decrease",
-                    tint = if (playerCount > 2) MaterialTheme.colorScheme.onSurface
-                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                    tint = if (playerCount > 2) Color.White else darkOnSurfaceVariant
                 )
             }
 
-            Spacer(modifier = Modifier.width(32.dp))
+            Spacer(modifier = Modifier.width(24.dp))
 
             Text(
                 "$playerCount",
-                fontSize = 56.sp,
+                fontSize = 48.sp,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
+                color = darkOnSurface
             )
 
-            Spacer(modifier = Modifier.width(32.dp))
+            Spacer(modifier = Modifier.width(24.dp))
 
             IconButton(
                 onClick = { if (playerCount < 20) onPlayerCountChange(playerCount + 1) },
@@ -325,74 +311,66 @@ private fun SetupScreen(
                 modifier = Modifier
                     .size(48.dp)
                     .background(
-                        MaterialTheme.colorScheme.surfaceContainerHighest,
+                        if (playerCount < 20) Color(0xFF34C759) else darkSurface,
                         CircleShape
                     )
             ) {
                 Icon(
                     Icons.Default.Add,
                     contentDescription = "Increase",
-                    tint = if (playerCount < 20) MaterialTheme.colorScheme.onSurface
-                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                    tint = if (playerCount < 20) Color.White else darkOnSurfaceVariant
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         // Colored dots with labels
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Center,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             for (i in 0 until playerCount) {
-                PlayerDot(index = i)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .background(playerColors[i % playerColors.size], CircleShape)
+                    )
+                    Text(
+                        "P${i + 1}",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = darkOnSurfaceVariant
+                    )
+                }
             }
         }
 
-        Spacer(modifier = Modifier.height(40.dp))
+        Spacer(modifier = Modifier.weight(1f))
 
         // Spin button
         Button(
             onClick = onSpin,
             modifier = Modifier
-                .fillMaxWidth(0.7f)
-                .height(56.dp),
-            shape = RoundedCornerShape(28.dp),
+                .fillMaxWidth()
+                .height(50.dp),
+            shape = RoundedCornerShape(25.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color(0xFF34C759)
             )
         ) {
             Text(
-                "Spin the Wheel!",
-                fontSize = 18.sp,
+                "\u21BB  Spin the Wheel!",
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White
             )
         }
-    }
-}
-
-@Composable
-private fun PlayerDot(index: Int) {
-    val color = playerColors[index % playerColors.size]
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(14.dp)
-                .background(color, CircleShape)
-        )
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(
-            "P${index + 1}",
-            fontSize = 12.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.Medium
-        )
     }
 }
 
@@ -410,7 +388,7 @@ private fun SpinningScreen(
             rotationAngle = rotationAngle,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp)
+                .padding(horizontal = 30.dp)
                 .aspectRatio(1f)
         )
     }
@@ -428,15 +406,15 @@ private fun ResultScreen(
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        // Wheel (slightly smaller to fit result below)
+        // Wheel
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .padding(horizontal = 24.dp)
+                .padding(horizontal = 30.dp)
         ) {
             WheelCanvas(
                 playerCount = playerCount,
@@ -448,57 +426,76 @@ private fun ResultScreen(
         }
 
         // Winner announcement
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(24.dp)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(vertical = 8.dp)
         ) {
-            // Colored badge
             val winnerColor = playerColors[winnerIndex % playerColors.size]
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(64.dp)
+                    .size(32.dp)
                     .background(winnerColor, CircleShape)
             ) {
                 Text(
-                    "P${winnerIndex + 1}",
+                    "${winnerIndex + 1}",
                     color = Color.White,
-                    fontSize = 22.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
+            Spacer(modifier = Modifier.width(10.dp))
             Text(
                 "Player ${winnerIndex + 1} goes first!",
-                style = MaterialTheme.typography.headlineSmall,
+                fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
+                color = darkOnSurface
             )
+        }
 
-            Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-            // Spin Again button
+        // Spin Again + Settings buttons
+        Row(
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
+        ) {
             Button(
                 onClick = onSpinAgain,
                 modifier = Modifier
-                    .fillMaxWidth(0.6f)
-                    .height(50.dp),
-                shape = RoundedCornerShape(25.dp),
+                    .weight(1f)
+                    .height(44.dp),
+                shape = RoundedCornerShape(22.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
+                    containerColor = Color(0xFF34C759)
                 )
             ) {
                 Text(
-                    "Spin Again",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold
+                    "\u21BB  Spin Again",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.width(12.dp))
+
+            IconButton(
+                onClick = onSetup,
+                modifier = Modifier
+                    .size(44.dp)
+                    .background(darkSurface, RoundedCornerShape(22.dp))
+            ) {
+                Icon(
+                    Icons.Default.Settings,
+                    contentDescription = "Settings",
+                    tint = darkOnSurface
+                )
+            }
         }
+
+        Spacer(modifier = Modifier.height(8.dp))
     }
 }
 
@@ -513,16 +510,14 @@ private fun WheelCanvas(
         val centerY = size.height / 2f
         val radius = minOf(centerX, centerY) * 0.88f
         val segmentAngle = 360f / playerCount
-        val pegRadius = radius + 12f
-        val pegCount = playerCount * 2 // Two pegs per segment for more ticks
+        val pegCount = playerCount * 2
 
-        // Draw the wheel (rotated)
+        // Draw the wheel (rotated) - segments, dividers, pegs
         rotate(degrees = rotationAngle, pivot = Offset(centerX, centerY)) {
             // Draw segments
             for (i in 0 until playerCount) {
-                val startAngle = i * segmentAngle - 90f // Start from top
+                val startAngle = i * segmentAngle - 90f
                 val color = playerColors[i % playerColors.size]
-
                 drawArc(
                     color = color,
                     startAngle = startAngle,
@@ -533,7 +528,7 @@ private fun WheelCanvas(
                 )
             }
 
-            // Draw white divider lines between segments
+            // Divider lines
             for (i in 0 until playerCount) {
                 val angle = Math.toRadians((i * segmentAngle - 90f).toDouble())
                 val endX = centerX + radius * cos(angle).toFloat()
@@ -546,22 +541,14 @@ private fun WheelCanvas(
                 )
             }
 
-            // Draw player labels inside segments
-            drawPlayerLabels(
-                centerX = centerX,
-                centerY = centerY,
-                radius = radius,
-                playerCount = playerCount,
-                segmentAngle = segmentAngle
-            )
-
-            // Draw pegs around the edge
+            // Pegs around the inner edge
+            val pegRadius = radius - 8f
             for (i in 0 until pegCount) {
                 val angle = Math.toRadians((i * (360f / pegCount) - 90f).toDouble())
                 val pegX = centerX + pegRadius * cos(angle).toFloat()
                 val pegY = centerY + pegRadius * sin(angle).toFloat()
                 drawCircle(
-                    color = Color.White,
+                    color = Color.White.copy(alpha = 0.6f),
                     radius = 4f,
                     center = Offset(pegX, pegY)
                 )
@@ -576,31 +563,41 @@ private fun WheelCanvas(
             )
         }
 
+        // Player labels - drawn OUTSIDE rotate block so they stay upright
+        drawPlayerLabels(
+            centerX = centerX,
+            centerY = centerY,
+            radius = radius,
+            playerCount = playerCount,
+            segmentAngle = segmentAngle,
+            wheelRotation = rotationAngle
+        )
+
         // Center dot (not rotated)
         drawCircle(
-            color = Color(0xFF1C1C1E),
-            radius = 18f,
+            color = darkBackground,
+            radius = 20f,
             center = Offset(centerX, centerY)
         )
         drawCircle(
-            color = Color.White.copy(alpha = 0.5f),
-            radius = 18f,
+            color = Color.White.copy(alpha = 0.3f),
+            radius = 20f,
             center = Offset(centerX, centerY),
             style = Stroke(width = 2f)
         )
 
-        // Triangle pointer at top (not rotated)
+        // Triangle pointer at top (not rotated) - bigger and more visible
         val pointerPath = Path().apply {
-            val pointerTop = centerY - radius - 28f
-            val pointerBottom = centerY - radius + 16f
-            val pointerHalfWidth = 14f
-            moveTo(centerX, pointerBottom)
-            lineTo(centerX - pointerHalfWidth, pointerTop)
-            lineTo(centerX + pointerHalfWidth, pointerTop)
+            val pointerTip = centerY - radius + 12f  // Points INTO the wheel
+            val pointerBase = centerY - radius - 14f
+            val pointerHalfWidth = 13f
+            moveTo(centerX, pointerTip)
+            lineTo(centerX - pointerHalfWidth, pointerBase)
+            lineTo(centerX + pointerHalfWidth, pointerBase)
             close()
         }
         drawPath(pointerPath, color = Color(0xFFFF3B30))
-        drawPath(pointerPath, color = Color.Black.copy(alpha = 0.2f), style = Stroke(width = 1.5f))
+        drawPath(pointerPath, color = Color.Black.copy(alpha = 0.3f), style = Stroke(width = 1.5f))
     }
 }
 
@@ -609,18 +606,18 @@ private fun DrawScope.drawPlayerLabels(
     centerY: Float,
     radius: Float,
     playerCount: Int,
-    segmentAngle: Float
+    segmentAngle: Float,
+    wheelRotation: Float
 ) {
-    val labelRadius = radius * 0.62f
+    val labelRadius = radius * 0.65f
     val paint = android.graphics.Paint().apply {
         color = android.graphics.Color.WHITE
         textAlign = android.graphics.Paint.Align.CENTER
         isFakeBoldText = true
         isAntiAlias = true
-        setShadowLayer(3f, 0f, 0f, android.graphics.Color.argb(100, 0, 0, 0))
+        setShadowLayer(3f, 0f, 0f, android.graphics.Color.argb(128, 0, 0, 0))
     }
 
-    // Scale text size based on player count
     paint.textSize = when {
         playerCount <= 4 -> 42f
         playerCount <= 6 -> 36f
@@ -630,14 +627,17 @@ private fun DrawScope.drawPlayerLabels(
     }
 
     for (i in 0 until playerCount) {
-        val midAngle = Math.toRadians(((i * segmentAngle) + (segmentAngle / 2f) - 90f).toDouble())
+        // Calculate label position accounting for wheel rotation
+        val midAngleDeg = (i * segmentAngle) + (segmentAngle / 2f) - 90f + wheelRotation
+        val midAngle = Math.toRadians(midAngleDeg.toDouble())
         val labelX = centerX + labelRadius * cos(midAngle).toFloat()
         val labelY = centerY + labelRadius * sin(midAngle).toFloat()
 
+        // Draw text upright (no rotation applied to text)
         drawContext.canvas.nativeCanvas.drawText(
             "P${i + 1}",
             labelX,
-            labelY + paint.textSize / 3f, // Vertical centering adjustment
+            labelY + paint.textSize / 3f,
             paint
         )
     }

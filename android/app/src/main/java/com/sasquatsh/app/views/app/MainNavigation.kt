@@ -54,6 +54,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.sasquatsh.app.R
@@ -212,20 +213,28 @@ private fun MainScaffold(authViewModel: AuthViewModel) {
     val navController = rememberNavController()
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
+    // Hide bottom bar on toolbox and detail routes
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+    val mainTabRoutes = setOf(Routes.DASHBOARD, Routes.GAMES, Routes.GROUPS, Routes.NEED_PLAYERS, Routes.PROFILE)
+    val showBottomBar = currentRoute in mainTabRoutes
+
     Scaffold(
         // No top bar — toolbox link is inside DashboardView
         bottomBar = {
-            MainBottomBar(
-                selectedTab = selectedTab,
-                onTabSelected = { index ->
-                    selectedTab = index
-                    navController.navigate(bottomNavItems[index].route) {
-                        popUpTo(navController.graph.startDestinationId) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
+            if (showBottomBar) {
+                MainBottomBar(
+                    selectedTab = selectedTab,
+                    onTabSelected = { index ->
+                        selectedTab = index
+                        navController.navigate(bottomNavItems[index].route) {
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
                     }
-                }
-            )
+                )
+            }
         }
     ) { innerPadding ->
         NavHost(
