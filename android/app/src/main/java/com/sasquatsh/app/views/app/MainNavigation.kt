@@ -187,8 +187,8 @@ private fun SplashScreen() {
             com.sasquatsh.app.views.shared.D20SpinnerView(
                 size = 48.dp,
                 modifier = Modifier.size(48.dp),
-                color = Color.White,
-                numberColor = MaterialTheme.colorScheme.primary
+                color = Color(0xFF6366F1),
+                numberColor = Color.White
             )
         }
     }
