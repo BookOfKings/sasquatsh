@@ -24,7 +24,6 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Mail
 import androidx.compose.material.icons.filled.People
-import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
@@ -271,7 +270,7 @@ fun DashboardView(
                 item {
                     DashboardSection(
                         title = "Games Being Planned",
-                        icon = Icons.Default.PersonAdd,
+                        icon = Icons.Default.CalendarMonth,
                         isEmpty = dashState.planningSessions.isEmpty(),
                         emptyMessage = "No active planning sessions.",
                         emptyButtonTitle = "View Groups",

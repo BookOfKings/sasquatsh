@@ -72,6 +72,7 @@ import com.sasquatsh.app.models.GameSystem
 import com.sasquatsh.app.viewmodels.AuthViewModel
 import com.sasquatsh.app.viewmodels.EventDetailViewModel
 import com.sasquatsh.app.views.chat.ChatPanelView
+import android.widget.Toast
 import androidx.compose.material3.CircularProgressIndicator
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -468,7 +469,9 @@ private fun DetailsSection(event: Event, context: android.content.Context) {
             )
             DetailRow(
                 icon = Icons.Default.DateRange,
-                text = formatStartTime(event.startTime)
+                text = formatStartTime(event.startTime),
+                modifier = Modifier
+                    .clickable { addToCalendar(context, event) }
             )
         }
 
@@ -950,15 +953,20 @@ fun SectionCard(
 private fun addToCalendar(context: android.content.Context, event: Event) {
     try {
         val startMillis = parseEventToMillis(event)
-        val durationMillis = (event.durationMinutes ?: 60) * 60 * 1000L
+        val totalMinutes = (event.durationMinutes ?: 120) + (event.setupMinutes ?: 0)
+        val durationMillis = totalMinutes * 60 * 1000L
 
         val intent = Intent(Intent.ACTION_INSERT).apply {
             data = CalendarContract.Events.CONTENT_URI
             putExtra(CalendarContract.Events.TITLE, event.title)
             putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, startMillis)
             putExtra(CalendarContract.EXTRA_EVENT_END_TIME, startMillis + durationMillis)
-            event.description?.let {
-                putExtra(CalendarContract.Events.DESCRIPTION, it)
+            val notes = buildString {
+                if (!event.gameTitle.isNullOrBlank()) append("Game: ${event.gameTitle}\n")
+                if (!event.description.isNullOrBlank()) append(event.description)
+            }
+            if (notes.isNotBlank()) {
+                putExtra(CalendarContract.Events.DESCRIPTION, notes)
             }
             val location = buildString {
                 event.addressLine1?.let { append("$it, ") }
@@ -970,8 +978,9 @@ private fun addToCalendar(context: android.content.Context, event: Event) {
             }
         }
         context.startActivity(intent)
+        Toast.makeText(context, "Added to calendar!", Toast.LENGTH_SHORT).show()
     } catch (_: Exception) {
-        // Calendar app not available
+        Toast.makeText(context, "Could not open calendar app", Toast.LENGTH_SHORT).show()
     }
 }
 
