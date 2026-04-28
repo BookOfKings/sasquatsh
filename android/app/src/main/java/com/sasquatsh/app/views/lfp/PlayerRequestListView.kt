@@ -24,6 +24,7 @@ import coil.compose.AsyncImage
 import com.sasquatsh.app.models.PlayerRequest
 import com.sasquatsh.app.viewmodels.PlayerRequestListViewModel
 import com.sasquatsh.app.views.shared.BadgeView
+import com.sasquatsh.app.views.shared.D20SpinnerView
 import com.sasquatsh.app.views.shared.ErrorBannerView
 import java.text.SimpleDateFormat
 import java.util.*
@@ -196,7 +197,7 @@ fun PlayerRequestListView(
                                 .padding(32.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            CircularProgressIndicator()
+                            D20SpinnerView(size = 40.dp, modifier = Modifier.size(40.dp))
                         }
                     }
                 } else if (uiState.requests.isEmpty()) {

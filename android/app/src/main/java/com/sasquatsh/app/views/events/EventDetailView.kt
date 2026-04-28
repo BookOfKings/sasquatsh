@@ -36,7 +36,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -74,6 +73,7 @@ import com.sasquatsh.app.models.EventItem
 import com.sasquatsh.app.models.EventRegistration
 import com.sasquatsh.app.models.GameSystem
 import com.sasquatsh.app.viewmodels.EventDetailViewModel
+import com.sasquatsh.app.views.shared.D20SpinnerView
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -182,7 +182,7 @@ fun EventDetailView(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator()
+                    D20SpinnerView(size = 40.dp, modifier = Modifier.size(40.dp))
                 }
             } else if (event != null) {
                 LazyColumn(

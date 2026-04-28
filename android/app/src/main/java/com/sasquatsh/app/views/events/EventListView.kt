@@ -25,7 +25,6 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -64,6 +63,7 @@ import com.sasquatsh.app.models.EventSummary
 import com.sasquatsh.app.models.GameCategory
 import com.sasquatsh.app.models.GameSystem
 import com.sasquatsh.app.viewmodels.EventListViewModel
+import com.sasquatsh.app.views.shared.D20SpinnerView
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -208,7 +208,7 @@ fun EventListView(
                             .padding(top = 64.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator()
+                        D20SpinnerView(size = 40.dp, modifier = Modifier.size(40.dp))
                     }
                 }
             } else if (uiState.events.isEmpty()) {

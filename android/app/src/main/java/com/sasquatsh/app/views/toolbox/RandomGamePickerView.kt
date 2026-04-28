@@ -35,7 +35,6 @@ import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -68,6 +67,7 @@ import coil.compose.AsyncImage
 import com.sasquatsh.app.models.BggCachedGame
 import com.sasquatsh.app.models.CollectionGame
 import com.sasquatsh.app.viewmodels.CollectionViewModel
+import com.sasquatsh.app.views.shared.D20SpinnerView
 
 private data class PickedGame(
     val name: String,
@@ -357,7 +357,7 @@ fun RandomGamePickerView(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.Center
                         ) {
-                            CircularProgressIndicator(modifier = Modifier.size(32.dp))
+                            D20SpinnerView(size = 32.dp, modifier = Modifier.size(32.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 "Loading game library...",
@@ -374,7 +374,7 @@ fun RandomGamePickerView(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.Center
                         ) {
-                            CircularProgressIndicator(modifier = Modifier.size(32.dp))
+                            D20SpinnerView(size = 32.dp, modifier = Modifier.size(32.dp))
                         }
                     }
                 }

@@ -31,7 +31,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -72,6 +71,7 @@ import com.sasquatsh.app.viewmodels.AuthViewModel
 import com.sasquatsh.app.viewmodels.DashboardViewModel
 import com.sasquatsh.app.viewmodels.RaffleViewModel
 import com.sasquatsh.app.views.app.Routes
+import com.sasquatsh.app.views.shared.D20SpinnerView
 import com.sasquatsh.app.views.shared.ErrorBannerView
 import com.sasquatsh.app.views.shared.SubscriptionBadgeView
 import com.sasquatsh.app.views.shared.UserAvatarView
@@ -112,7 +112,7 @@ fun DashboardView(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator()
+                D20SpinnerView(size = 40.dp, modifier = Modifier.size(40.dp))
             }
         } else {
             LazyColumn(
