@@ -88,7 +88,13 @@ fun DashboardView(
     val authState by authViewModel.uiState.collectAsState()
     val dashState by dashboardViewModel.uiState.collectAsState()
     val raffleState by raffleViewModel.uiState.collectAsState()
-    var isRefreshing by remember { mutableStateOf(false) }
+    var userPulled by remember { mutableStateOf(false) }
+    val isRefreshing = userPulled && dashState.isLoading
+
+    // Stop showing refresh indicator once loading finishes
+    LaunchedEffect(dashState.isLoading) {
+        if (!dashState.isLoading) userPulled = false
+    }
 
     LaunchedEffect(Unit) {
         dashboardViewModel.loadDashboard()
@@ -98,10 +104,9 @@ fun DashboardView(
     PullToRefreshBox(
         isRefreshing = isRefreshing,
         onRefresh = {
-            isRefreshing = true
+            userPulled = true
             dashboardViewModel.loadDashboard()
             raffleViewModel.loadActiveRaffle()
-            isRefreshing = false
         },
         modifier = Modifier
             .fillMaxSize()
