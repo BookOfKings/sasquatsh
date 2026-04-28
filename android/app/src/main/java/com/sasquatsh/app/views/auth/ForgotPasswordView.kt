@@ -92,7 +92,7 @@ fun ForgotPasswordView(
 
             // Logo with primary background
             Image(
-                painter = painterResource(id = R.drawable.logo_white),
+                painter = painterResource(id = R.drawable.logo_meeple_white),
                 contentDescription = "Sasquatsh logo",
                 modifier = Modifier
                     .size(80.dp)

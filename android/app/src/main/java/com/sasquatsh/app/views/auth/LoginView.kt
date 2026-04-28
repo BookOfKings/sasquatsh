@@ -107,7 +107,7 @@ fun LoginView(
 
         // Logo section
         Image(
-            painter = painterResource(id = R.drawable.logo),
+            painter = painterResource(id = R.drawable.logo_full),
             contentDescription = "Sasquatsh logo",
             modifier = Modifier
                 .size(80.dp)

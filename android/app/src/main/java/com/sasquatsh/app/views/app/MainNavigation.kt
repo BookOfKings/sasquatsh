@@ -176,7 +176,7 @@ private fun SplashScreen() {
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Image(
-                painter = painterResource(id = R.drawable.logo_white),
+                painter = painterResource(id = R.drawable.logo_meeple_white),
                 contentDescription = "Sasquatsh logo",
                 modifier = Modifier.size(120.dp)
             )
@@ -449,7 +449,7 @@ private fun MainTopBar(onToolboxClick: () -> Unit = {}) {
         modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(horizontal = 12.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Image(painter = painterResource(id = R.drawable.logo), contentDescription = "Sasquatsh logo", modifier = Modifier.size(22.dp).clip(RoundedCornerShape(4.dp)))
+        Image(painter = painterResource(id = R.drawable.logo_full), contentDescription = "Sasquatsh logo", modifier = Modifier.size(22.dp).clip(RoundedCornerShape(4.dp)))
         Spacer(modifier = Modifier.width(8.dp))
         Row(modifier = Modifier.clickable { onToolboxClick() }, verticalAlignment = Alignment.CenterVertically) {
             Text("Gamer Toolbox", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
