@@ -25,7 +25,6 @@ import com.sasquatsh.app.viewmodels.AuthViewModel
 import com.sasquatsh.app.viewmodels.BillingViewModel
 import com.sasquatsh.app.views.profile.SubscriptionBadge
 import com.sasquatsh.app.views.shared.BadgeView
-import com.sasquatsh.app.views.shared.D20SpinnerView
 import com.sasquatsh.app.views.shared.ErrorBannerView
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,7 +66,7 @@ fun BillingView(
                     .padding(padding),
                 contentAlignment = Alignment.Center
             ) {
-                D20SpinnerView(size = 40.dp, modifier = Modifier.size(40.dp))
+                CircularProgressIndicator(modifier = Modifier.size(40.dp))
             }
         } else {
             Column(

@@ -73,7 +73,7 @@ import com.sasquatsh.app.models.EventItem
 import com.sasquatsh.app.models.EventRegistration
 import com.sasquatsh.app.models.GameSystem
 import com.sasquatsh.app.viewmodels.EventDetailViewModel
-import com.sasquatsh.app.views.shared.D20SpinnerView
+import androidx.compose.material3.CircularProgressIndicator
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -182,7 +182,7 @@ fun EventDetailView(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    D20SpinnerView(size = 40.dp, modifier = Modifier.size(40.dp))
+                    CircularProgressIndicator(modifier = Modifier.size(40.dp))
                 }
             } else if (event != null) {
                 LazyColumn(

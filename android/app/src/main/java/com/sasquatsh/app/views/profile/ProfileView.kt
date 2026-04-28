@@ -33,7 +33,6 @@ import com.sasquatsh.app.models.SubscriptionTier
 import com.sasquatsh.app.viewmodels.AuthViewModel
 import com.sasquatsh.app.viewmodels.ProfileViewModel
 import com.sasquatsh.app.views.shared.BadgeView
-import com.sasquatsh.app.views.shared.D20SpinnerView
 import com.sasquatsh.app.views.shared.ErrorBannerView
 import java.io.InputStream
 import java.text.SimpleDateFormat
@@ -93,7 +92,7 @@ fun ProfileView(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                D20SpinnerView(size = 40.dp, modifier = Modifier.size(40.dp))
+                CircularProgressIndicator(modifier = Modifier.size(40.dp))
             }
         } else {
             val profile = uiState.profile ?: return@Column

@@ -35,6 +35,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -71,7 +72,6 @@ import com.sasquatsh.app.viewmodels.AuthViewModel
 import com.sasquatsh.app.viewmodels.DashboardViewModel
 import com.sasquatsh.app.viewmodels.RaffleViewModel
 import com.sasquatsh.app.views.app.Routes
-import com.sasquatsh.app.views.shared.D20SpinnerView
 import com.sasquatsh.app.views.shared.ErrorBannerView
 import com.sasquatsh.app.views.shared.SubscriptionBadgeView
 import com.sasquatsh.app.views.shared.UserAvatarView
@@ -112,7 +112,7 @@ fun DashboardView(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                D20SpinnerView(size = 40.dp, modifier = Modifier.size(40.dp))
+                CircularProgressIndicator(modifier = Modifier.size(40.dp))
             }
         } else {
             LazyColumn(

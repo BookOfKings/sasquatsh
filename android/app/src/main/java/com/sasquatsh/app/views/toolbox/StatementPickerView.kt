@@ -54,7 +54,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sasquatsh.app.BuildConfig
-import com.sasquatsh.app.views.shared.D20SpinnerView
+import androidx.compose.material3.CircularProgressIndicator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -260,7 +260,7 @@ fun StatementPickerView(onBack: () -> Unit = {}) {
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        D20SpinnerView(size = 48.dp, modifier = Modifier.size(48.dp))
+                        CircularProgressIndicator(modifier = Modifier.size(48.dp))
                         Spacer(modifier = Modifier.height(20.dp))
                         Text(
                             "Who goes first?",
