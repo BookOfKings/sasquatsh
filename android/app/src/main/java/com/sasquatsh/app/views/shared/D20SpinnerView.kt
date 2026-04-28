@@ -45,8 +45,6 @@ fun D20SpinnerView(
             GLSurfaceView(context).apply {
                 setEGLContextClientVersion(2)
                 setEGLConfigChooser(8, 8, 8, 8, 16, 0)
-                holder.setFormat(android.graphics.PixelFormat.TRANSLUCENT)
-                setZOrderOnTop(true)
                 setRenderer(D20Renderer(colorArgb, numColorArgb))
                 renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
             }
