@@ -142,18 +142,18 @@ fun ToolboxView(
                 }
             }
 
-            // Round Counter
+            // Round Counter - iOS uses "#" symbol in brown/tan badge
             item {
                 ToolCard(
                     icon = Icons.Default.Looks3,
                     title = "Round Counter",
                     description = "Track game rounds with a tap. Autosaves between sessions.",
-                    color = MaterialTheme.colorScheme.secondary,
+                    color = Color(0xFFA2845E),
                     onClick = onNavigateToRoundCounter
                 )
             }
 
-            // Turn Tracker
+            // Turn Tracker - iOS uses circular arrows in green
             item {
                 ToolCard(
                     icon = Icons.Default.Sync,
@@ -164,10 +164,10 @@ fun ToolboxView(
                 )
             }
 
-            // Score Keeper
+            // Score Keeper - iOS uses numbered list icon in indigo/blue
             item {
                 ToolCard(
-                    icon = Icons.Default.Looks3,
+                    icon = Icons.Default.FormatListNumbered,
                     title = "Score Keeper",
                     description = "Track scores for any game. Remembers your players!",
                     color = Color(0xFF6366F1),
@@ -175,13 +175,13 @@ fun ToolboxView(
                 )
             }
 
-            // Random Game Picker
+            // Random Game Picker - iOS uses dice in gold/yellow
             item {
                 ToolCard(
                     icon = Icons.Default.Casino,
                     title = "Random Game Picker",
                     description = "Can't decide what to play? Let fate choose for you!",
-                    color = MaterialTheme.colorScheme.tertiary,
+                    color = Color(0xFFE8C93A),
                     onClick = onNavigateToRandomGame
                 )
             }
