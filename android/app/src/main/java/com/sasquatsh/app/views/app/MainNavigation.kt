@@ -45,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -183,7 +184,12 @@ private fun SplashScreen() {
             Spacer(modifier = Modifier.height(16.dp))
             Text("Sasquatsh", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
             Spacer(modifier = Modifier.height(24.dp))
-            CircularProgressIndicator(modifier = Modifier.size(48.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 3.dp)
+            com.sasquatsh.app.views.shared.D20SpinnerView(
+                size = 48.dp,
+                modifier = Modifier.size(48.dp),
+                color = Color.White,
+                numberColor = MaterialTheme.colorScheme.primary
+            )
         }
     }
 }
