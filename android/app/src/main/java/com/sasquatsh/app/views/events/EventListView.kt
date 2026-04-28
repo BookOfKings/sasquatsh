@@ -420,7 +420,10 @@ fun EventCard(
                         }
                     }
                     Text(
-                        text = formatEventDate(event.eventDate),
+                        text = buildString {
+                            append(formatEventDate(event.eventDate))
+                            event.startTime?.let { append("  ${formatStartTime(it)}") }
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -771,9 +774,12 @@ fun USStateDropdown(
 
 fun formatEventDate(dateString: String): String {
     return try {
+        // Try date-only format first (yyyy-MM-dd)
         val inputFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
         val outputFormat = java.text.SimpleDateFormat("EEE, MMM d, yyyy", java.util.Locale.US)
-        val date = inputFormat.parse(dateString) ?: return dateString
+        // Take only the first 10 chars to handle ISO timestamps like "2026-05-08T19:00:00"
+        val dateStr = if (dateString.length > 10) dateString.substring(0, 10) else dateString
+        val date = inputFormat.parse(dateStr) ?: return dateString
         outputFormat.format(date)
     } catch (_: Exception) {
         dateString

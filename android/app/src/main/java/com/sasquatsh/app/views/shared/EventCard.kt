@@ -136,7 +136,7 @@ fun EventCard(
                             modifier = Modifier.size(14.dp)
                         )
                         Text(
-                            text = event.eventDate,
+                            text = formatEventCardDate(event.eventDate),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -271,5 +271,16 @@ private fun formatTime(time: String): String {
         "$hour12:$minute $amPm"
     } catch (_: Exception) {
         time
+    }
+}
+
+private fun formatEventCardDate(dateString: String): String {
+    return try {
+        val inputFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+        val outputFormat = java.text.SimpleDateFormat("EEE, MMM d, yyyy", java.util.Locale.US)
+        val date = inputFormat.parse(dateString) ?: return dateString
+        outputFormat.format(date)
+    } catch (_: Exception) {
+        dateString
     }
 }

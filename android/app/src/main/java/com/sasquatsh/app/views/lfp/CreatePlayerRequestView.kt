@@ -116,7 +116,7 @@ fun CreatePlayerRequestView(
                 ) {
                     val selectedEvent = upcomingEvents.find { it.id == selectedEventId }
                     OutlinedTextField(
-                        value = selectedEvent?.let { "${it.title} - ${it.eventDate}" }
+                        value = selectedEvent?.let { "${it.title} - ${formatDropdownDate(it.eventDate)}" }
                             ?: "Choose an event...",
                         onValueChange = {},
                         readOnly = true,
@@ -133,7 +133,7 @@ fun CreatePlayerRequestView(
                     ) {
                         upcomingEvents.forEach { event ->
                             DropdownMenuItem(
-                                text = { Text("${event.title} - ${event.eventDate}") },
+                                text = { Text("${event.title} - ${formatDropdownDate(event.eventDate)}") },
                                 onClick = {
                                     selectedEventId = event.id
                                     eventDropdownExpanded = false
@@ -200,5 +200,16 @@ fun CreatePlayerRequestView(
 
             Spacer(modifier = Modifier.height(16.dp))
         }
+    }
+}
+
+private fun formatDropdownDate(dateString: String): String {
+    return try {
+        val inputFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+        val outputFormat = java.text.SimpleDateFormat("EEE, MMM d, yyyy", java.util.Locale.US)
+        val date = inputFormat.parse(dateString) ?: return dateString
+        outputFormat.format(date)
+    } catch (_: Exception) {
+        dateString
     }
 }

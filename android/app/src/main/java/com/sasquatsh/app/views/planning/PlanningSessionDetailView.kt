@@ -763,7 +763,7 @@ private fun DatesStep(
                                     )
                                     date.startTime?.let {
                                         Text(
-                                            "at $it",
+                                            "at ${formatPlanningTime(it)}",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -1316,7 +1316,7 @@ private fun FinalizeStep(
                         )
                         Text(formatEventDate(date.proposedDate), style = MaterialTheme.typography.bodyMedium)
                         date.startTime?.let {
-                            Text("at $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("at ${formatPlanningTime(it)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Spacer(modifier = Modifier.weight(1f))
                         Text("${date.availableCount ?: 0} available", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1615,4 +1615,23 @@ private fun AddItemDialog(
             }
         }
     )
+}
+
+// ─── Time formatting helper ───
+
+private fun formatPlanningTime(timeString: String): String {
+    return try {
+        val parts = timeString.split(":")
+        val hour = parts[0].toInt()
+        val minute = parts[1]
+        val amPm = if (hour >= 12) "PM" else "AM"
+        val hour12 = when {
+            hour == 0 -> 12
+            hour > 12 -> hour - 12
+            else -> hour
+        }
+        "$hour12:$minute $amPm"
+    } catch (_: Exception) {
+        timeString
+    }
 }

@@ -385,7 +385,7 @@ private fun UserHeaderCard(
 
         Button(
             onClick = onHostGame,
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(50),
             contentPadding = ButtonDefaults.ContentPadding
         ) {
             Icon(
@@ -419,7 +419,7 @@ private fun PendingInvitationsCard(
         )
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Row(
@@ -512,7 +512,7 @@ private fun DashboardSection(
         )
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
@@ -587,13 +587,13 @@ private fun CompactEventRow(
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = event.eventDate,
+                    text = formatDashboardDate(event.eventDate),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (event.startTime != null) {
                     Text(
-                        text = event.startTime,
+                        text = formatDashboardTime(event.startTime),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -760,7 +760,7 @@ private fun RaffleBanner(
         )
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
@@ -804,7 +804,7 @@ private fun UpgradeBanner(
                 )
             )
             .clickable(onClick = onClick)
-            .padding(16.dp)
+            .padding(12.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
@@ -838,5 +838,35 @@ private fun UpgradeBanner(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+    }
+}
+
+// ─── Date/Time formatting helpers ───
+
+private fun formatDashboardDate(dateString: String): String {
+    return try {
+        val inputFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+        val outputFormat = java.text.SimpleDateFormat("EEE, MMM d, yyyy", java.util.Locale.US)
+        val date = inputFormat.parse(dateString) ?: return dateString
+        outputFormat.format(date)
+    } catch (_: Exception) {
+        dateString
+    }
+}
+
+private fun formatDashboardTime(timeString: String): String {
+    return try {
+        val parts = timeString.split(":")
+        val hour = parts[0].toInt()
+        val minute = parts[1]
+        val amPm = if (hour >= 12) "PM" else "AM"
+        val hour12 = when {
+            hour == 0 -> 12
+            hour > 12 -> hour - 12
+            else -> hour
+        }
+        "$hour12:$minute $amPm"
+    } catch (_: Exception) {
+        timeString
     }
 }

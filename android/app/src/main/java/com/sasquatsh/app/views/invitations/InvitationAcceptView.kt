@@ -186,7 +186,7 @@ fun InvitationAcceptView(
                                         )
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text(
-                                            event.eventDate,
+                                            formatInviteDate(event.eventDate),
                                             style = MaterialTheme.typography.bodySmall
                                         )
                                     }
@@ -199,7 +199,7 @@ fun InvitationAcceptView(
                                         )
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text(
-                                            event.startTime,
+                                            formatInviteTime(event.startTime),
                                             style = MaterialTheme.typography.bodySmall
                                         )
                                     }
@@ -240,5 +240,35 @@ fun InvitationAcceptView(
 
             Spacer(modifier = Modifier.weight(1f))
         }
+    }
+}
+
+// ─── Date/Time formatting helpers ───
+
+private fun formatInviteDate(dateString: String): String {
+    return try {
+        val inputFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+        val outputFormat = java.text.SimpleDateFormat("EEE, MMM d, yyyy", java.util.Locale.US)
+        val date = inputFormat.parse(dateString) ?: return dateString
+        outputFormat.format(date)
+    } catch (_: Exception) {
+        dateString
+    }
+}
+
+private fun formatInviteTime(timeString: String): String {
+    return try {
+        val parts = timeString.split(":")
+        val hour = parts[0].toInt()
+        val minute = parts[1]
+        val amPm = if (hour >= 12) "PM" else "AM"
+        val hour12 = when {
+            hour == 0 -> 12
+            hour > 12 -> hour - 12
+            else -> hour
+        }
+        "$hour12:$minute $amPm"
+    } catch (_: Exception) {
+        timeString
     }
 }

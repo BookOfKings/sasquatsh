@@ -487,7 +487,7 @@ private fun DetailsSection(event: Event, context: android.content.Context) {
         ) {
             DetailRow(
                 icon = Icons.Default.DateRange,
-                text = formatEventDate(event.eventDate),
+                text = formatDetailDate(event.eventDate),
                 modifier = Modifier
                     .clickable { addToCalendar(context, event) }
             )
@@ -1015,6 +1015,17 @@ private fun shareEvent(context: android.content.Context, event: Event) {
         putExtra(Intent.EXTRA_TEXT, shareText)
     }
     context.startActivity(Intent.createChooser(intent, "Share Game"))
+}
+
+private fun formatDetailDate(dateString: String): String {
+    return try {
+        val inputFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+        val outputFormat = java.text.SimpleDateFormat("EEEE, MMM d, yyyy", java.util.Locale.US)
+        val date = inputFormat.parse(dateString) ?: return dateString
+        outputFormat.format(date)
+    } catch (_: Exception) {
+        dateString
+    }
 }
 
 private fun parseEventToMillis(event: Event): Long {

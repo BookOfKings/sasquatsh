@@ -75,7 +75,7 @@ fun DateAvailabilityGrid(
                             )
                             if (!date.startTime.isNullOrEmpty()) {
                                 Text(
-                                    text = date.startTime,
+                                    text = formatGridTime(date.startTime),
                                     fontSize = 9.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     textAlign = TextAlign.Center
@@ -214,4 +214,21 @@ private fun formatShortDate(dateStr: String): String {
 
 private fun countAvailable(date: PlanningDate): Int {
     return date.votes?.count { it.isAvailable } ?: 0
+}
+
+private fun formatGridTime(timeString: String): String {
+    return try {
+        val parts = timeString.split(":")
+        val hour = parts[0].toInt()
+        val minute = parts[1]
+        val amPm = if (hour >= 12) "PM" else "AM"
+        val hour12 = when {
+            hour == 0 -> 12
+            hour > 12 -> hour - 12
+            else -> hour
+        }
+        "$hour12:$minute $amPm"
+    } catch (_: Exception) {
+        timeString
+    }
 }

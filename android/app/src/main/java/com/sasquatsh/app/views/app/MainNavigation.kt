@@ -288,7 +288,10 @@ private fun MainScaffold(authViewModel: AuthViewModel) {
                 ProfileView(
                     authViewModel = authViewModel,
                     onNavigateToBilling = { navController.navigate(Routes.BILLING) },
-                    onNavigateToBlockedUsers = { navController.navigate(Routes.BLOCKED_USERS) }
+                    onNavigateToBlockedUsers = { navController.navigate(Routes.BLOCKED_USERS) },
+                    onNavigateToBadges = { navController.navigate(Routes.BADGES) },
+                    onNavigateToCollection = { navController.navigate(Routes.COLLECTION) },
+                    onNavigateToMtgDecks = { navController.navigate(Routes.MTG_DECKS) }
                 )
             }
 
