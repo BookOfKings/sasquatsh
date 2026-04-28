@@ -36,15 +36,16 @@ fun D20SpinnerView(
     numberColor: Color = Color.White
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "d20spin")
-    val angle by infiniteTransition.animateFloat(
+    val rawAngle by infiniteTransition.animateFloat(
         initialValue = 0f,
-        targetValue = 360f,
+        targetValue = 3600f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 3500, easing = LinearEasing),
+            animation = tween(durationMillis = 35000, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "d20angle"
     )
+    val angle = rawAngle % 360f
 
     Canvas(modifier = modifier.size(size)) {
         val cx = this.size.width / 2f
