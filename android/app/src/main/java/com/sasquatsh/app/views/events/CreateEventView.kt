@@ -1,5 +1,6 @@
 package com.sasquatsh.app.views.events
 
+import com.sasquatsh.app.views.shared.D20SpinnerView
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -24,7 +25,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenuItem
@@ -599,7 +599,7 @@ fun EventFormGameSearch(
                 modifier = Modifier.weight(1f),
                 trailingIcon = {
                     if (uiState.isSearchingBGG) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                        D20SpinnerView(size = 20.dp, modifier = Modifier.size(20.dp))
                     } else if (bggSearchText.isNotEmpty()) {
                         IconButton(onClick = {
                             bggSearchText = ""
@@ -679,7 +679,7 @@ fun EventFormGameSearch(
         if (uiState.isFetchingGameDetails) {
             Spacer(modifier = Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                D20SpinnerView(size = 16.dp, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Loading game details...",

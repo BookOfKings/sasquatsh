@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.sasquatsh.app.models.CreateInvitationInput
 import com.sasquatsh.app.models.UserSearchResult
+import com.sasquatsh.app.views.shared.D20SpinnerView
 import com.sasquatsh.app.services.GroupsService
 import com.sasquatsh.app.services.ProfileService
 import com.sasquatsh.app.views.shared.UserAvatarView
@@ -80,10 +81,7 @@ fun UserSearchInviteSheet(
                 },
                 trailingIcon = {
                     if (isSearching) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp
-                        )
+                        D20SpinnerView(size = 20.dp, modifier = Modifier.size(20.dp))
                     }
                 },
                 singleLine = true,

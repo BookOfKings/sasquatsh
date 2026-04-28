@@ -29,7 +29,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -62,6 +61,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.sasquatsh.app.models.MtgDeck
 import com.sasquatsh.app.models.MtgDeckCard
+import com.sasquatsh.app.views.shared.D20SpinnerView
 import com.sasquatsh.app.viewmodels.DeckBuilderViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -296,7 +296,7 @@ fun DeckBuilderView(
                             },
                             trailingIcon = {
                                 if (uiState.isSearching) {
-                                    CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                                    D20SpinnerView(size = 20.dp, modifier = Modifier.size(20.dp))
                                 } else if (uiState.searchQuery.isNotEmpty()) {
                                     IconButton(onClick = { viewModel.clearSearch() }) {
                                         Icon(Icons.Default.Clear, contentDescription = "Clear")

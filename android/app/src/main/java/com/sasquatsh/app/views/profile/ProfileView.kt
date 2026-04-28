@@ -30,6 +30,7 @@ import coil.compose.AsyncImage
 import com.sasquatsh.app.models.AppTimezone
 import com.sasquatsh.app.models.GameCategory
 import com.sasquatsh.app.models.SubscriptionTier
+import com.sasquatsh.app.views.shared.D20SpinnerView
 import com.sasquatsh.app.viewmodels.AuthViewModel
 import com.sasquatsh.app.viewmodels.ProfileViewModel
 import com.sasquatsh.app.views.shared.BadgeView
@@ -95,7 +96,7 @@ fun ProfileView(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(modifier = Modifier.size(40.dp))
+                D20SpinnerView(size = 40.dp, modifier = Modifier.size(40.dp))
             }
         } else {
             val profile = uiState.profile ?: return@Column
@@ -144,11 +145,7 @@ fun ProfileView(
                                         ),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(32.dp),
-                                        color = MaterialTheme.colorScheme.onPrimary,
-                                        strokeWidth = 2.dp
-                                    )
+                                    D20SpinnerView(size = 32.dp, modifier = Modifier.size(32.dp))
                                 }
                             }
                         }

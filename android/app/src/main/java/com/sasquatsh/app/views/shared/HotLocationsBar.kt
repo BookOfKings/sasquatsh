@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -22,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.sasquatsh.app.views.shared.D20SpinnerView
 import com.sasquatsh.app.models.EventLocation
 import com.sasquatsh.app.services.EventLocationsService
 
@@ -46,12 +46,9 @@ fun HotLocationsBar(
     }
 
     if (isLoading) {
-        CircularProgressIndicator(
-            modifier = Modifier
+        D20SpinnerView(size = 32.dp, modifier = Modifier
                 .size(32.dp)
-                .padding(8.dp),
-            color = MaterialTheme.colorScheme.primary
-        )
+                .padding(8.dp))
     }
 
     if (locations.isNotEmpty()) {

@@ -32,7 +32,6 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -63,6 +62,7 @@ import com.sasquatsh.app.models.DifficultyLevel
 import com.sasquatsh.app.models.EventSummary
 import com.sasquatsh.app.models.GameCategory
 import com.sasquatsh.app.models.GameSystem
+import com.sasquatsh.app.views.shared.D20SpinnerView
 import com.sasquatsh.app.viewmodels.EventListViewModel
 import kotlinx.coroutines.launch
 
@@ -208,7 +208,7 @@ fun EventListView(
                             .padding(top = 64.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator(modifier = Modifier.size(40.dp))
+                        D20SpinnerView(size = 40.dp, modifier = Modifier.size(40.dp))
                     }
                 }
             } else if (uiState.events.isEmpty()) {

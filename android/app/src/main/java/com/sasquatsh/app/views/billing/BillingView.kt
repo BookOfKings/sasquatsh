@@ -21,6 +21,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.sasquatsh.app.config.AppConfig
 import com.sasquatsh.app.models.InvoiceStatus
 import com.sasquatsh.app.models.SubscriptionTier
+import com.sasquatsh.app.views.shared.D20SpinnerView
 import com.sasquatsh.app.viewmodels.AuthViewModel
 import com.sasquatsh.app.viewmodels.BillingViewModel
 import com.sasquatsh.app.views.profile.SubscriptionBadge
@@ -66,7 +67,7 @@ fun BillingView(
                     .padding(padding),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(modifier = Modifier.size(40.dp))
+                D20SpinnerView(size = 40.dp, modifier = Modifier.size(40.dp))
             }
         } else {
             Column(

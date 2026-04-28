@@ -21,7 +21,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.sasquatsh.app.models.GameGroup
+import com.sasquatsh.app.views.shared.D20SpinnerView
 import com.sasquatsh.app.viewmodels.CreateEditGroupViewModel
 import com.sasquatsh.app.views.events.USStateDropdown
 
@@ -135,7 +135,7 @@ fun EditGroupView(
                 }
 
                 if (uiState.isUploadingLogo) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    D20SpinnerView(size = 24.dp, modifier = Modifier.size(24.dp))
                     Text(
                         text = "Uploading...",
                         style = MaterialTheme.typography.bodySmall,

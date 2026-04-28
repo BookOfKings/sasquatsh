@@ -28,7 +28,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -56,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.sasquatsh.app.views.shared.D20SpinnerView
 import com.sasquatsh.app.models.BggSearchResult
 import com.sasquatsh.app.models.CollectionGame
 import com.sasquatsh.app.services.BggService
@@ -417,13 +417,10 @@ fun BGGSearchView(
         )
 
         if (isSearching) {
-            CircularProgressIndicator(
-                modifier = Modifier
+            D20SpinnerView(size = 32.dp, modifier = Modifier
                     .size(32.dp)
                     .align(Alignment.CenterHorizontally)
-                    .padding(16.dp),
-                color = MaterialTheme.colorScheme.primary
-            )
+                    .padding(16.dp))
         }
 
         LazyColumn(
@@ -798,13 +795,10 @@ fun BGGGameSearchSheet(
             )
 
             if (isSearching) {
-                CircularProgressIndicator(
-                    modifier = Modifier
+                D20SpinnerView(size = 32.dp, modifier = Modifier
                         .size(32.dp)
                         .align(Alignment.CenterHorizontally)
-                        .padding(16.dp),
-                    color = MaterialTheme.colorScheme.primary
-                )
+                        .padding(16.dp))
             }
 
             LazyColumn(modifier = Modifier.fillMaxSize()) {

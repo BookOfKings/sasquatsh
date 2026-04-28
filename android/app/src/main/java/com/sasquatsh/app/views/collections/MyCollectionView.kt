@@ -24,7 +24,6 @@ import androidx.compose.material.icons.outlined.AddCircleOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,6 +48,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.sasquatsh.app.models.BggSearchResult
 import com.sasquatsh.app.models.CollectionGame
+import com.sasquatsh.app.views.shared.D20SpinnerView
 import com.sasquatsh.app.viewmodels.CollectionViewModel
 import com.sasquatsh.app.views.shared.LoadingView
 
@@ -213,7 +213,7 @@ private fun SearchTab(
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
             trailingIcon = {
                 if (uiState.isSearching) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                    D20SpinnerView(size = 20.dp, modifier = Modifier.size(20.dp))
                 } else if (uiState.searchQuery.isNotEmpty()) {
                     IconButton(onClick = { viewModel.updateSearchQuery("") }) {
                         Icon(Icons.Default.Clear, contentDescription = "Clear")
@@ -326,7 +326,7 @@ private fun GameRow(
             }
 
             if (isPending) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                D20SpinnerView(size = 24.dp, modifier = Modifier.size(24.dp))
             } else {
                 IconButton(onClick = onToggle) {
                     Icon(
@@ -390,7 +390,7 @@ private fun SearchResultRow(
             }
 
             if (isPending) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                D20SpinnerView(size = 24.dp, modifier = Modifier.size(24.dp))
             } else {
                 IconButton(onClick = onAdd, enabled = !isOwned) {
                     Icon(

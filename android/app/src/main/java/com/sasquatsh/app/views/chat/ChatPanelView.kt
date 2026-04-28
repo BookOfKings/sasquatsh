@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.sasquatsh.app.views.shared.D20SpinnerView
 import com.sasquatsh.app.viewmodels.AuthViewModel
 import com.sasquatsh.app.viewmodels.ChatViewModel
 import com.sasquatsh.app.views.shared.ErrorBannerView
@@ -132,7 +133,7 @@ fun ChatPanelView(
                                 .fillMaxWidth(),
                             contentAlignment = Alignment.Center
                         ) {
-                            CircularProgressIndicator(modifier = Modifier.size(40.dp))
+                            D20SpinnerView(size = 40.dp, modifier = Modifier.size(40.dp))
                         }
                     } else if (uiState.messages.isEmpty()) {
                         Box(

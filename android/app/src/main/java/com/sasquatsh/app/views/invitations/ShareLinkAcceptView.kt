@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.sasquatsh.app.views.shared.D20SpinnerView
 import com.sasquatsh.app.services.ShareLinkAcceptResult
 import com.sasquatsh.app.services.ShareLinkPreview
 import com.sasquatsh.app.services.ShareLinksService
@@ -196,11 +197,7 @@ fun ShareLinkAcceptView(
                         enabled = !isAccepting
                     ) {
                         if (isAccepting) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.onPrimary
-                            )
+                            D20SpinnerView(size = 18.dp, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                         }
                         Text("Join")

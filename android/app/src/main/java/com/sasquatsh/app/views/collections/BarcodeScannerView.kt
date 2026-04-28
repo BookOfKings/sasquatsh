@@ -25,7 +25,6 @@ import androidx.compose.material.icons.filled.QuestionMark
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -58,6 +57,7 @@ import com.sasquatsh.app.models.BggSearchResult
 import com.sasquatsh.app.models.UpcBggInfo
 import com.sasquatsh.app.models.UpcLookupResult
 import com.sasquatsh.app.services.BggService
+import com.sasquatsh.app.views.shared.D20SpinnerView
 import com.sasquatsh.app.services.GameUpcService
 import com.sasquatsh.app.views.shared.LoadingView
 import kotlinx.coroutines.delay
@@ -518,7 +518,7 @@ private fun ManualBggSearchView(
             },
             trailingIcon = {
                 if (isSearching) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                    D20SpinnerView(size = 20.dp, modifier = Modifier.size(20.dp))
                 }
             },
             modifier = Modifier

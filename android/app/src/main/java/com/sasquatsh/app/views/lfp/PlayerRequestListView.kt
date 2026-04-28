@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.sasquatsh.app.models.PlayerRequest
+import com.sasquatsh.app.views.shared.D20SpinnerView
 import com.sasquatsh.app.viewmodels.PlayerRequestListViewModel
 import com.sasquatsh.app.views.shared.BadgeView
 import com.sasquatsh.app.views.shared.ErrorBannerView
@@ -196,7 +197,7 @@ fun PlayerRequestListView(
                                 .padding(32.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            CircularProgressIndicator(modifier = Modifier.size(40.dp))
+                            D20SpinnerView(size = 40.dp, modifier = Modifier.size(40.dp))
                         }
                     }
                 } else if (uiState.requests.isEmpty()) {

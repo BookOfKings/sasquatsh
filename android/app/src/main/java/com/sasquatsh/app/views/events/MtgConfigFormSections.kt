@@ -20,7 +20,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -52,6 +51,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.sasquatsh.app.views.shared.D20SpinnerView
 import com.sasquatsh.app.models.MtgConfigState
 import com.sasquatsh.app.models.ScryfallCard
 import com.sasquatsh.app.services.ScryfallService
@@ -421,7 +421,7 @@ fun MtgConfigFormSections(
         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
         trailingIcon = {
             if (isSearchingBanned) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                D20SpinnerView(size = 20.dp, modifier = Modifier.size(20.dp))
             } else if (bannedCardSearch.isNotEmpty()) {
                 IconButton(onClick = {
                     bannedCardSearch = ""

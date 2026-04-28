@@ -38,7 +38,6 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -64,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.sasquatsh.app.models.Badge
+import com.sasquatsh.app.views.shared.D20SpinnerView
 import com.sasquatsh.app.viewmodels.BadgesViewModel
 import com.sasquatsh.app.views.shared.LoadingView
 
@@ -135,7 +135,7 @@ fun BadgesView(
                         enabled = !uiState.isComputing
                     ) {
                         if (uiState.isComputing) {
-                            CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                            D20SpinnerView(size = 18.dp, modifier = Modifier.size(18.dp))
                         } else {
                             Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
                         }
