@@ -182,7 +182,8 @@ fun SpinWheelPickerView(onBack: () -> Unit = {}) {
 
             val finalAngle = rotationAngle.value % 360f
             val segmentAngle = 360f / playerCount
-            val pointerAngle = (90f - finalAngle % 360f + 360f) % 360f
+            // Match iOS: pointer at top, wheel rotates clockwise
+            val pointerAngle = ((360f - finalAngle) % 360f + 360f) % 360f
             val winner = (floor(pointerAngle / segmentAngle).toInt()) % playerCount
 
             winnerIndex = winner
