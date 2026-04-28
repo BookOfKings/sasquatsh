@@ -183,7 +183,11 @@ private fun SplashScreen() {
             Spacer(modifier = Modifier.height(16.dp))
             Text("Sasquatsh", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
             Spacer(modifier = Modifier.height(24.dp))
-            CircularProgressIndicator(modifier = Modifier.size(48.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 3.dp)
+            com.sasquatsh.app.views.shared.D20SpinnerView(
+                modifier = Modifier.size(48.dp),
+                size = 48.dp,
+                color = MaterialTheme.colorScheme.onPrimary
+            )
         }
     }
 }
