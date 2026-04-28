@@ -450,6 +450,51 @@ fun ProfileView(
                     }
                 }
 
+                // Appearance
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.DarkMode,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "Appearance",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        val currentMode by com.sasquatsh.app.ui.theme.AppearanceManager.mode.collectAsState()
+                        val modes = listOf(
+                            com.sasquatsh.app.ui.theme.AppearanceMode.SYSTEM to "System",
+                            com.sasquatsh.app.ui.theme.AppearanceMode.LIGHT to "Light",
+                            com.sasquatsh.app.ui.theme.AppearanceMode.DARK to "Dark"
+                        )
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            modes.forEachIndexed { index, (mode, label) ->
+                                SegmentedButton(
+                                    selected = currentMode == mode,
+                                    onClick = {
+                                        com.sasquatsh.app.ui.theme.AppearanceManager.setMode(context, mode)
+                                    },
+                                    shape = SegmentedButtonDefaults.itemShape(index = index, count = modes.size)
+                                ) {
+                                    Text(label)
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Actions
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     // Edit Profile
