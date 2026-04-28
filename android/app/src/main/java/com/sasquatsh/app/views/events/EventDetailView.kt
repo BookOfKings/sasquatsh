@@ -72,6 +72,7 @@ import com.sasquatsh.app.models.GameSystem
 import com.sasquatsh.app.viewmodels.AuthViewModel
 import com.sasquatsh.app.viewmodels.EventDetailViewModel
 import com.sasquatsh.app.views.chat.ChatPanelView
+import com.sasquatsh.app.views.shared.UserAvatarView
 import android.widget.Toast
 import androidx.compose.material3.CircularProgressIndicator
 
@@ -416,14 +417,10 @@ private fun HeaderSection(event: Event) {
         // Host info
         event.host?.let { host ->
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // Avatar placeholder
-                AsyncImage(
-                    model = host.avatarUrl,
-                    contentDescription = host.displayName ?: "Host",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
+                UserAvatarView(
+                    url = host.avatarUrl,
+                    name = host.displayName,
+                    size = 40.dp
                 )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
@@ -827,13 +824,10 @@ private fun PlayerRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Avatar
-        AsyncImage(
-            model = registration.user?.avatarUrl,
-            contentDescription = registration.user?.displayName ?: "Player",
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
+        UserAvatarView(
+            url = registration.user?.avatarUrl,
+            name = registration.user?.displayName,
+            size = 36.dp
         )
 
         Spacer(modifier = Modifier.width(10.dp))
