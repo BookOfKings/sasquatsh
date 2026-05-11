@@ -61,12 +61,17 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun CreatePlanningView(
     groupId: String,
-    members: List<GroupMember>,
     onDismiss: () -> Unit,
+    onNavigateToSession: ((String) -> Unit)? = null,
     viewModel: CreatePlanningViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val members by viewModel.members.collectAsState()
     val context = LocalContext.current
+
+    androidx.compose.runtime.LaunchedEffect(groupId) {
+        viewModel.loadMembers(groupId)
+    }
 
     Scaffold(
         topBar = {
@@ -80,7 +85,13 @@ fun CreatePlanningView(
                 actions = {
                     TextButton(
                         onClick = {
-                            viewModel.save(groupId) { onDismiss() }
+                            viewModel.save(groupId) { session ->
+                                if (onNavigateToSession != null) {
+                                    onNavigateToSession(session.id)
+                                } else {
+                                    onDismiss()
+                                }
+                            }
                         },
                         enabled = uiState.isValid && !uiState.isLoading
                     ) {
@@ -233,10 +244,10 @@ fun CreatePlanningView(
                 OutlinedTextField(
                     value = uiState.maxParticipants?.toString() ?: "",
                     onValueChange = { viewModel.updateMaxParticipants(it.toIntOrNull()) },
-                    placeholder = { Text("Unlimited") },
+                    placeholder = { Text("No limit") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
-                    modifier = Modifier.width(100.dp)
+                    modifier = Modifier.width(120.dp)
                 )
             }
 

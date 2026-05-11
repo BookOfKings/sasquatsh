@@ -3,6 +3,7 @@ import { ref, reactive, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { checkUsernameAvailable } from '@/services/authApi'
+import { checkReferrer, type ReferrerCheck } from '@/services/referralApi'
 
 const router = useRouter()
 const route = useRoute()
@@ -14,13 +15,41 @@ const form = reactive({
   email: '',
   password: '',
   confirmPassword: '',
+  referrerUsername: '',
   ageConfirmed: false,
 })
 
-// Pre-fill email from query param (e.g., from invitation link)
+// Referrer validation state
+const referrerChecking = ref(false)
+const referrerResult = ref<ReferrerCheck | null>(null)
+let referrerCheckTimer: ReturnType<typeof setTimeout> | null = null
+
+// Watch referrer username changes
+watch(() => form.referrerUsername, (val) => {
+  referrerResult.value = null
+  if (referrerCheckTimer) clearTimeout(referrerCheckTimer)
+
+  if (!val?.trim()) return
+
+  referrerCheckTimer = setTimeout(async () => {
+    referrerChecking.value = true
+    try {
+      referrerResult.value = await checkReferrer(val.trim())
+    } catch {
+      referrerResult.value = null
+    } finally {
+      referrerChecking.value = false
+    }
+  }, 500)
+})
+
+// Pre-fill from query params
 onMounted(() => {
   if (route.query.email && typeof route.query.email === 'string') {
     form.email = route.query.email
+  }
+  if (route.query.ref && typeof route.query.ref === 'string') {
+    form.referrerUsername = route.query.ref
   }
 })
 
@@ -157,7 +186,8 @@ async function handleEmailSignup() {
     form.password,
     form.displayName,
     form.username,
-    recaptchaToken
+    recaptchaToken,
+    form.referrerUsername.trim() || undefined
   )
 
   if (result.ok) {
@@ -175,6 +205,11 @@ async function handleGoogleSignup() {
   loading.value = true
   errorMessage.value = ''
 
+  // Store referrer for OAuth flow (survives redirect)
+  if (form.referrerUsername.trim()) {
+    localStorage.setItem('referrerUsername', form.referrerUsername.trim())
+  }
+
   const result = await auth.loginWithGoogle()
 
   if (result.ok) {
@@ -190,6 +225,11 @@ async function handleGoogleSignup() {
 async function handleAppleSignup() {
   loading.value = true
   errorMessage.value = ''
+
+  // Store referrer for OAuth flow (survives redirect)
+  if (form.referrerUsername.trim()) {
+    localStorage.setItem('referrerUsername', form.referrerUsername.trim())
+  }
 
   const result = await auth.loginWithApple()
 
@@ -335,6 +375,55 @@ function goToLogin() {
             placeholder="Confirm your password"
             :disabled="loading"
           />
+        </div>
+
+        <!-- Referrer -->
+        <div class="bg-purple-50 border border-purple-200 rounded-lg p-3 text-sm">
+          <div class="flex items-start gap-2">
+            <svg class="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z"/>
+            </svg>
+            <p class="text-purple-700">Know someone on Sasquatsh? Enter their username below — they'll earn <strong>raffle entries</strong> and work toward <strong>3 months of Pro free</strong>!</p>
+          </div>
+        </div>
+        <div>
+          <label for="referrer" class="label">Referred by <span class="text-gray-400 font-normal">(optional)</span></label>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">@</span>
+            <input
+              id="referrer"
+              v-model="form.referrerUsername"
+              type="text"
+              class="input pl-7"
+              :class="{
+                'border-green-500 focus:ring-green-500': referrerResult?.valid,
+                'border-red-500 focus:ring-red-500': referrerResult && !referrerResult.valid
+              }"
+              placeholder="their_username"
+              :disabled="loading"
+            />
+            <div v-if="referrerChecking" class="absolute right-3 top-1/2 -translate-y-1/2">
+              <svg class="animate-spin h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+              </svg>
+            </div>
+            <div v-else-if="referrerResult?.valid" class="absolute right-3 top-1/2 -translate-y-1/2">
+              <svg class="h-5 w-5 text-green-500" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+              </svg>
+            </div>
+            <div v-else-if="referrerResult && !referrerResult.valid" class="absolute right-3 top-1/2 -translate-y-1/2">
+              <svg class="h-5 w-5 text-red-500" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
+              </svg>
+            </div>
+          </div>
+          <p v-if="referrerResult?.valid" class="text-xs text-green-600 mt-1">
+            Referred by {{ referrerResult.displayName || referrerResult.username }}
+          </p>
+          <p v-else-if="referrerResult && !referrerResult.valid" class="text-xs text-red-500 mt-1">{{ referrerResult.reason }}</p>
+          <p v-else class="text-xs text-gray-500 mt-1">Enter their username to give them credit for referring you</p>
         </div>
 
         <div class="flex items-start gap-2">

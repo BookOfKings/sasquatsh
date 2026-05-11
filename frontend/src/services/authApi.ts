@@ -27,6 +27,7 @@ export async function checkUsernameAvailable(username: string): Promise<Username
 export interface SyncUserOptions {
   username?: string
   recaptchaToken?: string
+  referrerUsername?: string
 }
 
 export async function getCurrentUser(idToken: string, options?: SyncUserOptions): Promise<User> {

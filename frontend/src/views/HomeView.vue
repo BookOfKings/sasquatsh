@@ -2,7 +2,7 @@
 import { onMounted, ref, computed } from 'vue'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useRouter } from 'vue-router'
-import { getStats, type Stats } from '@/services/statsApi'
+import { getRaffleWinners, type RaffleWinner } from '@/services/raffleApi'
 import { getEffectiveTier } from '@/types/user'
 import RaffleBanner from '@/components/raffle/RaffleBanner.vue'
 import GameSystemSelector from '@/components/common/GameSystemSelector.vue'
@@ -10,8 +10,10 @@ import GameSystemSelector from '@/components/common/GameSystemSelector.vue'
 const auth = useAuthStore()
 const router = useRouter()
 
-const stats = ref<Stats>({ gamesToday: 0, gamesEver: 0 })
-const statsLoading = ref(true)
+const loading = ref(true)
+const raffleWinners = ref<RaffleWinner[]>([])
+
+const latestWinner = computed(() => raffleWinners.value[0] ?? null)
 
 const isFreeTier = computed(() => {
   if (!auth.user.value) return true
@@ -20,11 +22,16 @@ const isFreeTier = computed(() => {
 
 onMounted(async () => {
   try {
-    stats.value = await getStats()
+    raffleWinners.value = await getRaffleWinners().catch(() => [])
   } finally {
-    statsLoading.value = false
+    loading.value = false
   }
 })
+
+function formatWinDate(dateStr: string): string {
+  const d = new Date(dateStr)
+  return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+}
 
 function goToLogin() {
   router.push('/login')
@@ -63,31 +70,55 @@ function goToPricing() {
       <p class="text-lg text-gray-600 mb-1">Plan legendary tabletop games with your crew</p>
       <p class="text-sm text-gray-500 mb-4">Create events with game-specific rules, formats, and structure built in.</p>
 
-      <!-- Stats Cards -->
-      <div class="grid grid-cols-2 gap-4 mb-6">
-        <div class="bg-primary-50 rounded-xl p-4">
-          <div class="flex items-center justify-center gap-2 mb-1">
-            <svg class="w-5 h-5 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M19,19H5V8H19M16,1V3H8V1H6V3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3H18V1"/>
+      <!-- Invite Rewards & Raffle Winner -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+        <!-- Invite Rewards -->
+        <div class="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-4 text-left">
+          <div class="flex items-center gap-2 mb-2">
+            <svg class="w-5 h-5 text-purple-500" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z"/>
             </svg>
-            <span class="text-sm font-medium text-primary-700">Today</span>
+            <span class="text-sm font-semibold text-purple-800">Invite Rewards</span>
           </div>
-          <div v-if="statsLoading" class="h-8 bg-primary-100 rounded animate-pulse"></div>
-          <div v-else class="text-2xl font-bold text-primary-600">
-            {{ stats.gamesToday }} <span class="text-sm font-normal">game{{ stats.gamesToday !== 1 ? 's' : '' }}</span>
+          <p class="text-xs text-purple-700 leading-relaxed">Refer friends and earn <strong>2 raffle entries</strong> each. Every <strong>10 referrals</strong> unlocks <strong>3 months of Pro free</strong>!</p>
+        </div>
+
+        <!-- Latest Raffle Winner -->
+        <div v-if="latestWinner" class="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-xl p-4 text-left">
+          <div class="flex items-center gap-2 mb-2">
+            <svg class="w-5 h-5 text-yellow-500" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M18,2C17.1,2 16,3 16,4H8C8,3 6.9,2 6,2H2V11C2,12 3,13 4,13H6.2C6.6,15 7.9,16.7 11,17V19.08C8,19.54 8,22 8,22H16C16,22 16,19.54 13,19.08V17C16.1,16.7 17.4,15 17.8,13H20C21,13 22,12 22,11V2H18M6,11H4V4H6V11M20,11H18V4H20V11Z"/>
+            </svg>
+            <span class="text-sm font-semibold text-yellow-800">Latest Winner</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <img
+              v-if="latestWinner.prizeImageUrl"
+              :src="latestWinner.prizeImageUrl"
+              :alt="latestWinner.prizeName"
+              class="w-10 h-10 object-cover rounded-lg flex-shrink-0"
+            />
+            <div class="min-w-0">
+              <p class="text-xs font-medium text-gray-900 truncate">{{ latestWinner.prizeName }}</p>
+              <div class="flex items-center gap-1 mt-0.5">
+                <img
+                  v-if="latestWinner.winner?.avatar_url"
+                  :src="latestWinner.winner.avatar_url"
+                  class="w-3.5 h-3.5 rounded-full object-cover"
+                />
+                <span class="text-xs text-gray-600">{{ latestWinner.winner?.display_name || latestWinner.winner?.username || 'Winner' }} · {{ formatWinDate(latestWinner.winnerSelectedAt) }}</span>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="bg-secondary-50 rounded-xl p-4">
-          <div class="flex items-center justify-center gap-2 mb-1">
-            <svg class="w-5 h-5 text-secondary-500" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
+        <div v-else class="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-xl p-4 text-left">
+          <div class="flex items-center gap-2 mb-2">
+            <svg class="w-5 h-5 text-yellow-500" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M18,2C17.1,2 16,3 16,4H8C8,3 6.9,2 6,2H2V11C2,12 3,13 4,13H6.2C6.6,15 7.9,16.7 11,17V19.08C8,19.54 8,22 8,22H16C16,22 16,19.54 13,19.08V17C16.1,16.7 17.4,15 17.8,13H20C21,13 22,12 22,11V2H18M6,11H4V4H6V11M20,11H18V4H20V11Z"/>
             </svg>
-            <span class="text-sm font-medium text-secondary-700">All Time</span>
+            <span class="text-sm font-semibold text-yellow-800">Monthly Raffle</span>
           </div>
-          <div v-if="statsLoading" class="h-8 bg-secondary-100 rounded animate-pulse"></div>
-          <div v-else class="text-2xl font-bold text-secondary-600">
-            {{ stats.gamesEver }} <span class="text-sm font-normal">game{{ stats.gamesEver !== 1 ? 's' : '' }}</span>
-          </div>
+          <p class="text-xs text-yellow-700">Host games, plan sessions, and invite friends to earn raffle entries!</p>
         </div>
       </div>
 
@@ -148,6 +179,23 @@ function goToPricing() {
             </button>
           </div>
         </div>
+        <!-- Referral CTA -->
+        <div class="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-4 mt-4">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 text-purple-500" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z"/>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="font-medium text-gray-900 text-sm">Invite friends, earn rewards</p>
+              <p class="text-xs text-gray-600">Get 2 raffle entries per referral. Refer 10 friends and get 3 months of Pro free!</p>
+            </div>
+            <button @click="router.push('/profile')" class="btn-outline text-sm whitespace-nowrap border-purple-300 text-purple-700 hover:bg-purple-100">
+              Share Link
+            </button>
+          </div>
+        </div>
       </template>
 
       <template v-else>
@@ -170,6 +218,16 @@ function goToPricing() {
           </button>
         </div>
 
+        <!-- Referral mention -->
+        <div class="text-center mb-4">
+          <p class="text-xs text-purple-600">
+            <svg class="w-3.5 h-3.5 inline-block mr-1 -mt-0.5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z"/>
+            </svg>
+            Referred by a friend? Enter their username at signup to earn them rewards!
+          </p>
+        </div>
+
         <!-- Game System Selector -->
         <div class="mb-6" style="overflow: visible;">
           <p class="text-xs text-gray-400 uppercase tracking-wide font-medium mb-3 text-center">Host by game system</p>
@@ -187,7 +245,54 @@ function goToPricing() {
           </svg>
           Browse public games
         </button>
+
       </template>
+
+      <!-- Past Raffle Winners (if more than 1) -->
+      <div v-if="raffleWinners.length > 1" class="mt-6 pt-6 border-t border-gray-200">
+        <h3 class="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <svg class="w-5 h-5 text-yellow-500" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M18,2C17.1,2 16,3 16,4H8C8,3 6.9,2 6,2H2V11C2,12 3,13 4,13H6.2C6.6,15 7.9,16.7 11,17V19.08C8,19.54 8,22 8,22H16C16,22 16,19.54 13,19.08V17C16.1,16.7 17.4,15 17.8,13H20C21,13 22,12 22,11V2H18M6,11H4V4H6V11M20,11H18V4H20V11Z"/>
+          </svg>
+          Past Winners
+        </h3>
+        <div class="space-y-2">
+          <div
+            v-for="w in raffleWinners.slice(1)"
+            :key="w.raffleId"
+            class="flex items-center gap-3 p-2 bg-yellow-50/50 border border-yellow-100 rounded-lg"
+          >
+            <img
+              v-if="w.prizeImageUrl"
+              :src="w.prizeImageUrl"
+              :alt="w.prizeName"
+              class="w-9 h-9 object-cover rounded flex-shrink-0"
+            />
+            <div class="flex-1 min-w-0">
+              <p class="text-xs font-medium text-gray-900 truncate">{{ w.prizeName }}</p>
+              <span class="text-xs text-gray-500">{{ w.winner?.display_name || w.winner?.username || 'Winner' }} · {{ formatWinDate(w.winnerSelectedAt) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- iOS App Promo -->
+      <div class="mt-6 pt-6 border-t border-gray-200">
+        <div class="flex items-center gap-4 text-left">
+          <div class="w-14 h-14 rounded-2xl bg-gray-900 flex items-center justify-center flex-shrink-0 shadow-md">
+            <img src="/logo.png" alt="Sasquatsh" class="w-10 h-10 rounded-lg" />
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="font-semibold text-gray-900 text-sm">Sasquatsh for iOS</p>
+            <p class="text-xs text-gray-500 mt-0.5">Manage your game nights, scan barcodes to add games to your collection, and get notified when plans change — all from your phone.</p>
+          </div>
+        </div>
+        <div class="mt-4 flex justify-center">
+          <a href="https://apps.apple.com/app/sasquatsh/id6762443523" target="_blank" rel="noopener noreferrer" class="inline-block">
+            <img src="https://tools.applemediaservices.com/api/badges/download-on-the-app-store/black/en-us?size=250x83" alt="Download on the App Store" class="h-10" />
+          </a>
+        </div>
+      </div>
     </div>
   </div>
 </template>

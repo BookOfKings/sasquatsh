@@ -24,6 +24,7 @@ export interface UserProfile {
   isAdmin: boolean
   isFoundingMember: boolean
   blockedUserIds: string[]
+  bggUsername: string | null
   collectionVisibility: 'public' | 'private'
   createdAt: string
   updatedAt: string
@@ -106,5 +107,6 @@ export interface UpdateProfileInput {
   bio?: string | null
   favoriteGames?: string[] | null
   preferredGameTypes?: string[] | null
+  bggUsername?: string | null
   collectionVisibility?: 'public' | 'private'
 }

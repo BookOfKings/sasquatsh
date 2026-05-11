@@ -78,6 +78,7 @@ export async function createShareLink(
     linkType: 'session' | 'group_recurring'
     planningSessionId?: string
     eventId?: string
+    recurringGameId?: string
     maxUses?: number
     expiresInDays?: number
   }

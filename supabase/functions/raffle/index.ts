@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
         .from('raffles')
         .select(`
           *,
-          winner:users!winner_user_id(id, display_name, avatar_url),
+          winner:users!winner_user_id(id, display_name, avatar_url, email, username),
           created_by:users!created_by_user_id(id, display_name)
         `)
         .order('created_at', { ascending: false })
@@ -172,7 +172,7 @@ Deno.serve(async (req) => {
         .from('raffles')
         .select(`
           *,
-          winner:users!winner_user_id(id, display_name, avatar_url)
+          winner:users!winner_user_id(id, display_name, avatar_url, email, username)
         `)
         .eq('id', raffleId)
         .single()
@@ -226,6 +226,35 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Public: Get past raffle winners
+    if (action === 'winners') {
+      const { data: pastRaffles, error: winnersError } = await supabase
+        .from('raffles')
+        .select(`
+          id, title, prize_name, prize_image_url, winner_selected_at,
+          winner:users!winner_user_id(id, display_name, avatar_url, username)
+        `)
+        .not('winner_user_id', 'is', null)
+        .in('status', ['ended', 'active'])
+        .order('winner_selected_at', { ascending: false })
+        .limit(10)
+
+      if (winnersError) {
+        return errorResponse(winnersError.message, 500)
+      }
+
+      return jsonResponse({
+        winners: (pastRaffles || []).map((r: Record<string, unknown>) => ({
+          raffleId: r.id,
+          title: r.title,
+          prizeName: r.prize_name,
+          prizeImageUrl: r.prize_image_url,
+          winnerSelectedAt: r.winner_selected_at,
+          winner: r.winner,
+        })),
+      })
+    }
+
     // Get active raffle (default)
     const now = new Date().toISOString()
 
@@ -233,7 +262,7 @@ Deno.serve(async (req) => {
       .from('raffles')
       .select(`
         *,
-        winner:users!winner_user_id(id, display_name, avatar_url)
+        winner:users!winner_user_id(id, display_name, avatar_url, email, username)
       `)
       .eq('status', 'active')
       .lte('start_date', now)

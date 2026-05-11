@@ -65,6 +65,29 @@ export async function getActiveRaffle(
   return response.raffle
 }
 
+// Get past raffle winners (public)
+export interface RaffleWinner {
+  raffleId: string
+  title: string
+  prizeName: string
+  prizeImageUrl: string | null
+  winnerSelectedAt: string
+  winner: {
+    id: string
+    display_name: string | null
+    avatar_url: string | null
+    username: string | null
+  }
+}
+
+export async function getRaffleWinners(): Promise<RaffleWinner[]> {
+  const response = await authenticatedRequest<{ winners: RaffleWinner[] }>(
+    '/raffle?action=winners',
+    null
+  )
+  return response.winners
+}
+
 // Get a specific raffle by ID
 export async function getRaffle(
   raffleId: string,

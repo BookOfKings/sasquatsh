@@ -42,9 +42,11 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.Verified
@@ -61,6 +63,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -124,6 +128,8 @@ fun PlanningSessionDetailView(
     var showAddItem by remember { mutableStateOf(false) }
     var showCancelConfirm by remember { mutableStateOf(false) }
     var showChat by remember { mutableStateOf(false) }
+    var showSuggestGame by remember { mutableStateOf(false) }
+    var showInviteMore by remember { mutableStateOf(false) }
 
     // Finalize state
     var selectedDateId by remember { mutableStateOf<String?>(null) }
@@ -133,7 +139,7 @@ fun PlanningSessionDetailView(
 
     val session = uiState.session
     val isCreator = session?.createdByUserId == currentUserId
-    val stepCount = if (isCreator) 5 else 4
+    val stepCount = if (isCreator) 6 else 4
 
     fun isInvitee(): Boolean {
         return session?.invitees?.any { it.userId == currentUserId } == true
@@ -161,18 +167,40 @@ fun PlanningSessionDetailView(
         viewModel.loadSession(sessionId)
     }
 
+    var initialized by remember { mutableStateOf(false) }
     LaunchedEffect(session) {
-        if (session != null) {
+        if (session != null && !initialized) {
+            initialized = true
             prefillAvailability()
             if (hasResponded()) currentStep = 1
             session.tableCount?.let { if (it >= 2) tableCountInput = it }
         }
     }
 
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = session?.title ?: "Planning Session",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
+                navigationIcon = {
+                    TextButton(onClick = onNavigateBack) {
+                        Text("Back")
+                    }
+                }
+            )
+        }
+    ) { scaffoldPadding ->
     PullToRefreshBox(
         isRefreshing = uiState.isLoading,
         onRefresh = { viewModel.loadSession(sessionId) },
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(scaffoldPadding)
     ) {
         if (uiState.isLoading && session == null) {
             LoadingView()
@@ -206,7 +234,13 @@ fun PlanningSessionDetailView(
                 HeaderCard(session = session, respondedCount = respondedCount, totalInvitees = totalInvitees, hasResponded = hasResponded())
 
                 // Error/Action messages
-                uiState.error?.let { ErrorBannerView(message = it) }
+                uiState.error?.let {
+                    ErrorBannerView(
+                        message = it,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        onDismiss = { viewModel.clearError() }
+                    )
+                }
                 uiState.actionMessage?.let { msg ->
                     Text(
                         text = msg,
@@ -262,7 +296,7 @@ fun PlanningSessionDetailView(
                         onVote = { viewModel.voteForGame(it) },
                         onUnvote = { viewModel.unvoteGame(it) },
                         onRemoveSuggestion = { viewModel.removeSuggestion(it) },
-                        onSuggestGame = { /* open game suggest sheet */ },
+                        onSuggestGame = { showSuggestGame = true },
                         onBack = { currentStep = 0 },
                         onNext = { currentStep = 2 }
                     )
@@ -285,6 +319,14 @@ fun PlanningSessionDetailView(
                         onNext = { if (isCreator) currentStep = 4 }
                     )
                     4 -> if (isCreator) {
+                        LocationStep(
+                            session = session,
+                            viewModel = viewModel,
+                            onBack = { currentStep = 3 },
+                            onNext = { currentStep = 5 }
+                        )
+                    }
+                    5 -> if (isCreator) {
                         FinalizeStep(
                             session = session,
                             selectedDateId = selectedDateId,
@@ -295,7 +337,10 @@ fun PlanningSessionDetailView(
                             onSelectGame = { selectedGameId = it },
                             onAssignTable = { table, gameId -> tableGameAssignments[table] = gameId },
                             onRemoveTableAssignment = { tableGameAssignments.remove(it) },
-                            onUpdateTableCount = { tableCountInput = it },
+                            onUpdateTableCount = {
+                                tableCountInput = it
+                                viewModel.updateSettings(it)
+                            },
                             onToggleMultiTable = { enabled ->
                                 if (enabled) {
                                     viewModel.updateSettings(tableCountInput)
@@ -305,14 +350,14 @@ fun PlanningSessionDetailView(
                             },
                             onFinalize = {
                                 val isMultiTable = (session.tableCount ?: 0) >= 2
-                                if (isMultiTable && tableGameAssignments.isNotEmpty()) {
-                                    viewModel.scheduleSessions(tableGameAssignments.toMap())
-                                }
-                                viewModel.finalize(selectedDateId, if (isMultiTable) null else selectedGameId) { eventId ->
-                                    onNavigateToEvent(eventId)
-                                }
+                                viewModel.finalize(
+                                    selectedDateId = selectedDateId,
+                                    selectedGameId = if (isMultiTable) null else selectedGameId,
+                                    tableGameAssignments = tableGameAssignments.toMap(),
+                                    onEventCreated = { eventId -> onNavigateToEvent(eventId) }
+                                )
                             },
-                            onBack = { currentStep = 3 }
+                            onBack = { currentStep = 4 }
                         )
                     }
                 }
@@ -328,7 +373,7 @@ fun PlanningSessionDetailView(
                     ) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             FilledTonalButton(
-                                onClick = { /* invite more */ },
+                                onClick = { showInviteMore = true },
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Icon(Icons.Filled.PersonAdd, null, modifier = Modifier.size(16.dp))
@@ -348,6 +393,7 @@ fun PlanningSessionDetailView(
             }
         }
     }
+    } // end Scaffold
 
     // Add Item Dialog
     if (showAddItem) {
@@ -358,6 +404,45 @@ fun PlanningSessionDetailView(
                 showAddItem = false
             }
         )
+    }
+
+    // Suggest game dialog
+    if (showSuggestGame) {
+        SuggestGameDialog(
+            bggService = viewModel.bggService,
+            collectionsService = viewModel.collectionsService,
+            onDismiss = { showSuggestGame = false },
+            onSuggest = { name, bggId, thumbnailUrl ->
+                viewModel.suggestGame(
+                    com.sasquatsh.app.models.SuggestGameInput(
+                        gameName = name,
+                        bggId = bggId,
+                        thumbnailUrl = thumbnailUrl
+                    )
+                )
+                showSuggestGame = false
+            }
+        )
+    }
+
+    // Invite more members dialog
+    if (showInviteMore && session != null) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showInviteMore = false },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            PlanningAddInviteesSheet(
+                sessionId = session.id,
+                groupId = session.groupId,
+                groupsService = viewModel.groupsService,
+                planningService = viewModel.planningService,
+                onAdded = {
+                    showInviteMore = false
+                    viewModel.loadSession(session.id)
+                },
+                onDismiss = { showInviteMore = false }
+            )
+        }
     }
 
     // Cancel confirm dialog
@@ -598,12 +683,12 @@ private fun StepperView(
     onStepClick: (Int) -> Unit
 ) {
     val labels = if (isCreator) {
-        listOf("Dates", "Games", "Items", "People", "Finalize")
+        listOf("Dates", "Games", "Items", "People", "Location", "Finalize")
     } else {
         listOf("Dates", "Games", "Items", "People")
     }
     val icons = if (isCreator) {
-        listOf(Icons.Filled.CalendarMonth, Icons.Filled.Casino, Icons.Filled.Backpack, Icons.Filled.Groups, Icons.Filled.Verified)
+        listOf(Icons.Filled.CalendarMonth, Icons.Filled.Casino, Icons.Filled.Backpack, Icons.Filled.Groups, Icons.Filled.LocationOn, Icons.Filled.Verified)
     } else {
         listOf(Icons.Filled.CalendarMonth, Icons.Filled.Casino, Icons.Filled.Backpack, Icons.Filled.Groups)
     }
@@ -788,7 +873,7 @@ private fun DatesStep(
         }
 
         // Nav
-        StepNav(back = null, forward = 1, stepCount = 5, isCreator = true, onStep = { onNext() })
+        StepNavRow(onBack = null, backLabel = null, onNext = onNext, nextLabel = "Games")
     }
 }
 
@@ -1156,7 +1241,7 @@ private fun PeopleStep(
         }
 
         if (isCreator) {
-            StepNavRow(onBack = onBack, backLabel = "Items", onNext = onNext, nextLabel = "Finalize")
+            StepNavRow(onBack = onBack, backLabel = "Items", onNext = onNext, nextLabel = "Location")
         } else {
             StepNavRow(onBack = onBack, backLabel = "Items", onNext = null, nextLabel = null)
         }
@@ -1222,7 +1307,140 @@ private fun InviteeCell(invitee: PlanningInvitee, session: PlanningSession) {
     }
 }
 
-// ---- Step 5: Finalize ----
+// ---- Step 5: Location ----
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LocationStep(
+    session: PlanningSession,
+    viewModel: PlanningSessionViewModel,
+    onBack: () -> Unit,
+    onNext: () -> Unit
+) {
+    var useVenueMode by remember { mutableStateOf(session.eventLocationId != null || session.addressLine1.isNullOrEmpty()) }
+    var selectedVenueName by remember { mutableStateOf<String?>(null) }
+    var venueHall by remember { mutableStateOf(session.venueHall ?: "") }
+    var venueRoom by remember { mutableStateOf(session.venueRoom ?: "") }
+    var venueTable by remember { mutableStateOf(session.venueTable ?: "") }
+    var addressLine1 by remember { mutableStateOf(session.addressLine1 ?: "") }
+    var city by remember { mutableStateOf(session.city ?: "") }
+    var addressState by remember { mutableStateOf(session.state ?: "") }
+    var postalCode by remember { mutableStateOf(session.postalCode ?: "") }
+    var locationDetails by remember { mutableStateOf(session.locationDetails ?: "") }
+    var eventLocationId by remember { mutableStateOf(session.eventLocationId) }
+    var showVenueSelector by remember { mutableStateOf(false) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Event Location", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                Text(
+                    "Where will the game night take place?",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                // Venue / Custom toggle
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilledTonalButton(
+                        onClick = { useVenueMode = true },
+                        colors = if (useVenueMode) ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        ) else ButtonDefaults.filledTonalButtonColors()
+                    ) { Text("Select Venue") }
+                    FilledTonalButton(
+                        onClick = { useVenueMode = false },
+                        colors = if (!useVenueMode) ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        ) else ButtonDefaults.filledTonalButtonColors()
+                    ) { Text("Custom Address") }
+                }
+
+                if (useVenueMode) {
+                    // Hot locations
+                    com.sasquatsh.app.views.shared.HotLocationsBar(
+                        eventLocationsService = viewModel.eventLocationsService,
+                        selectedId = eventLocationId,
+                        onSelect = { venue ->
+                            eventLocationId = venue.id
+                            selectedVenueName = venue.name
+                        }
+                    )
+
+                    Button(onClick = { showVenueSelector = true }) {
+                        Text("Choose a Venue")
+                    }
+
+                    if (eventLocationId != null) {
+                        selectedVenueName?.let {
+                            Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                        }
+
+                        OutlinedTextField(value = venueHall, onValueChange = { venueHall = it }, label = { Text("Hall") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = venueRoom, onValueChange = { venueRoom = it }, label = { Text("Room") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = venueTable, onValueChange = { venueTable = it }, label = { Text("Table") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    }
+                } else {
+                    OutlinedTextField(value = addressLine1, onValueChange = { addressLine1 = it }, label = { Text("Address") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = city, onValueChange = { city = it }, label = { Text("City") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = addressState, onValueChange = { addressState = it }, label = { Text("State") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = postalCode, onValueChange = { postalCode = it }, label = { Text("Postal Code") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                }
+
+                OutlinedTextField(value = locationDetails, onValueChange = { locationDetails = it }, label = { Text("Location Details") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+
+                // Save button
+                Button(
+                    onClick = {
+                        viewModel.updateLocation(
+                            eventLocationId = if (useVenueMode) eventLocationId else null,
+                            venue = null,
+                            venueHall = venueHall.ifEmpty { null },
+                            venueRoom = venueRoom.ifEmpty { null },
+                            venueTable = venueTable.ifEmpty { null },
+                            addressLine1 = if (!useVenueMode) addressLine1.ifEmpty { null } else null,
+                            city = if (!useVenueMode) city.ifEmpty { null } else null,
+                            state = if (!useVenueMode) addressState.ifEmpty { null } else null,
+                            postalCode = if (!useVenueMode) postalCode.ifEmpty { null } else null,
+                            locationDetails = locationDetails.ifEmpty { null }
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Save Location")
+                }
+            }
+        }
+
+        StepNavRow(onBack = onBack, backLabel = "People", onNext = onNext, nextLabel = "Finalize")
+    }
+
+    // Venue selector dialog
+    if (showVenueSelector) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showVenueSelector = false },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            com.sasquatsh.app.views.shared.VenueSelector(
+                eventLocationsService = viewModel.eventLocationsService,
+                onSelect = { venue ->
+                    eventLocationId = venue.id
+                    selectedVenueName = venue.name
+                    showVenueSelector = false
+                },
+                onDismiss = { showVenueSelector = false }
+            )
+        }
+    }
+}
+
+// ---- Step 6: Finalize ----
 
 @Composable
 private fun FinalizeStep(
@@ -1243,6 +1461,28 @@ private fun FinalizeStep(
     val isMultiTable = (session.tableCount ?: 0) >= 2
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        // Validation warnings at top
+        val issues = mutableListOf<String>()
+        if (selectedDateId == null) issues.add("Select a date below")
+        if (isMultiTable && tableGameAssignments.isEmpty()) issues.add("Assign at least one game to a table")
+        if (issues.isNotEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .background(Color(0xFFFF9800).copy(alpha = 0.08f), RoundedCornerShape(8.dp))
+                    .padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                issues.forEach { issue ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("!", color = Color(0xFFFF9800), fontWeight = FontWeight.Bold)
+                        Text(issue, style = MaterialTheme.typography.bodySmall, color = Color(0xFFFF9800))
+                    }
+                }
+            }
+        }
+
         // Event mode toggle
         Card(
             modifier = Modifier
@@ -1323,10 +1563,11 @@ private fun FinalizeStep(
                     }
                 }
 
-                // Game selection (single table)
+                // Game selection
+                val games = session.gameSuggestions
                 if (!isMultiTable) {
+                    // Single table - select one game
                     Text("Select Game", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
-                    val games = session.gameSuggestions
                     if (!games.isNullOrEmpty()) {
                         games.sortedByDescending { it.voteCount }.forEach { game ->
                             Row(
@@ -1358,25 +1599,100 @@ private fun FinalizeStep(
                     } else {
                         Text("No games suggested", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                }
+                } else {
+                    // Multi-table - assign games to tables
+                    Text("Assign Games to Tables", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
 
-                // Validation
-                val issues = mutableListOf<String>()
-                if (selectedDateId == null) issues.add("Select a date above")
-                if (isMultiTable && tableGameAssignments.isEmpty()) issues.add("Assign at least one game to a table")
-
-                if (issues.isNotEmpty()) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFFFF9800).copy(alpha = 0.08f), RoundedCornerShape(8.dp))
-                            .padding(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    // Table count stepper
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        issues.forEach { issue ->
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text("!", color = Color(0xFFFF9800), fontWeight = FontWeight.Bold)
-                                Text(issue, style = MaterialTheme.typography.bodySmall, color = Color(0xFFFF9800))
+                        Text("Number of Tables", style = MaterialTheme.typography.bodyMedium)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(
+                                onClick = { if (tableCountInput > 2) onUpdateTableCount(tableCountInput - 1) },
+                                enabled = tableCountInput > 2
+                            ) {
+                                Text("-", style = MaterialTheme.typography.titleLarge)
+                            }
+                            Text("$tableCountInput", style = MaterialTheme.typography.titleMedium)
+                            IconButton(
+                                onClick = { if (tableCountInput < 10) onUpdateTableCount(tableCountInput + 1) }
+                            ) {
+                                Text("+", style = MaterialTheme.typography.titleLarge)
+                            }
+                        }
+                    }
+
+                    // Table assignments
+                    for (table in 1..tableCountInput) {
+                        val assignedGameId = tableGameAssignments[table]
+                        val assignedGame = games?.firstOrNull { it.id == assignedGameId }
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (assignedGame != null)
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                                else MaterialTheme.colorScheme.surfaceContainerHigh
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    "Table $table",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                if (assignedGame != null) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(Icons.Filled.Casino, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                        Text(assignedGame.gameName, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                                        IconButton(onClick = { onRemoveTableAssignment(table) }, modifier = Modifier.size(24.dp)) {
+                                            Icon(Icons.Filled.Close, "Remove", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+                                } else if (!games.isNullOrEmpty()) {
+                                    // Show games to pick from
+                                    games.sortedByDescending { it.voteCount }.forEach { game ->
+                                        val alreadyAssigned = tableGameAssignments.values.contains(game.id)
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable(enabled = !alreadyAssigned) { onAssignTable(table, game.id) }
+                                                .padding(vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Filled.Add, null,
+                                                tint = if (alreadyAssigned) MaterialTheme.colorScheme.outlineVariant
+                                                else MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Text(
+                                                game.gameName,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = if (alreadyAssigned) MaterialTheme.colorScheme.outlineVariant
+                                                else MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Spacer(modifier = Modifier.weight(1f))
+                                            Text("${game.voteCount} votes", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    }
+                                } else {
+                                    Text("No games to assign", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                             }
                         }
                     }
@@ -1393,7 +1709,7 @@ private fun FinalizeStep(
             }
         }
 
-        StepNavRow(onBack = onBack, backLabel = "People", onNext = null, nextLabel = null)
+        StepNavRow(onBack = onBack, backLabel = "Location", onNext = null, nextLabel = null)
     }
 }
 
@@ -1633,5 +1949,222 @@ private fun formatPlanningTime(timeString: String): String {
         "$hour12:$minute $amPm"
     } catch (_: Exception) {
         timeString
+    }
+}
+
+// ---- Suggest Game Dialog ----
+
+@Composable
+private fun SuggestGameDialog(
+    bggService: com.sasquatsh.app.services.BggService,
+    collectionsService: com.sasquatsh.app.services.CollectionsService,
+    onDismiss: () -> Unit,
+    onSuggest: (name: String, bggId: Int?, thumbnailUrl: String?) -> Unit
+) {
+    var activeTab by remember { mutableIntStateOf(0) } // 0=Collection, 1=BGG Search
+    var searchText by remember { mutableStateOf("") }
+    var bggResults by remember { mutableStateOf<List<com.sasquatsh.app.models.BggSearchResult>>(emptyList()) }
+    var isSearching by remember { mutableStateOf(false) }
+    var myGames by remember { mutableStateOf<List<com.sasquatsh.app.models.CollectionGame>>(emptyList()) }
+    var filterText by remember { mutableStateOf("") }
+
+    // Load collection
+    LaunchedEffect(Unit) {
+        try {
+            myGames = collectionsService.getMyCollection().sortedBy { it.gameName.lowercase() }
+        } catch (_: Exception) {}
+    }
+
+    // Debounced BGG search
+    LaunchedEffect(searchText) {
+        if (searchText.length < 2) {
+            bggResults = emptyList()
+            return@LaunchedEffect
+        }
+        kotlinx.coroutines.delay(400)
+        isSearching = true
+        try {
+            bggResults = bggService.searchGames(searchText)
+        } catch (_: Exception) {
+            bggResults = emptyList()
+        }
+        isSearching = false
+    }
+
+    val filteredCollection = if (filterText.isEmpty()) myGames
+    else myGames.filter { it.gameName.contains(filterText, ignoreCase = true) }
+
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.95f)
+                .height(480.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .padding(16.dp)
+        ) {
+            // Title
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Suggest a Game", style = MaterialTheme.typography.titleLarge)
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Filled.Close, "Close")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Tabs
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilledTonalButton(
+                    onClick = { activeTab = 0 },
+                    colors = if (activeTab == 0) ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    ) else ButtonDefaults.filledTonalButtonColors()
+                ) {
+                    Icon(Icons.Filled.Casino, null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("My Collection")
+                }
+                FilledTonalButton(
+                    onClick = { activeTab = 1 },
+                    colors = if (activeTab == 1) ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    ) else ButtonDefaults.filledTonalButtonColors()
+                ) {
+                    Icon(Icons.Filled.Search, null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("BGG Search")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            when (activeTab) {
+                0 -> {
+                    // Collection filter
+                    OutlinedTextField(
+                        value = filterText,
+                        onValueChange = { filterText = it },
+                        placeholder = { Text("Filter collection...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Column(
+                        modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (filteredCollection.isEmpty()) {
+                            Text(
+                                "No games in your collection",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(vertical = 24.dp)
+                            )
+                        }
+                        filteredCollection.forEach { game ->
+                            GameSuggestRow(
+                                name = game.gameName,
+                                thumbnailUrl = game.thumbnailUrl,
+                                year = game.yearPublished,
+                                onClick = { onSuggest(game.gameName, game.bggId, game.thumbnailUrl) }
+                            )
+                        }
+                    }
+                }
+                1 -> {
+                    // BGG search
+                    OutlinedTextField(
+                        value = searchText,
+                        onValueChange = { searchText = it },
+                        placeholder = { Text("Search BoardGameGeek...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        trailingIcon = {
+                            if (isSearching) {
+                                com.sasquatsh.app.views.shared.D20SpinnerView(
+                                    size = 20.dp,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Column(
+                        modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        bggResults.take(10).forEach { result ->
+                            GameSuggestRow(
+                                name = result.name,
+                                thumbnailUrl = result.thumbnailUrl,
+                                year = result.yearPublished,
+                                onClick = { onSuggest(result.name, result.bggId, result.thumbnailUrl) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GameSuggestRow(
+    name: String,
+    thumbnailUrl: String?,
+    year: Int?,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (thumbnailUrl != null) {
+            AsyncImage(
+                model = thumbnailUrl,
+                contentDescription = name,
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(6.dp)),
+                contentScale = ContentScale.Crop
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                name,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            year?.let {
+                Text(
+                    "$it",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        Icon(
+            Icons.Filled.Add,
+            contentDescription = "Suggest",
+            tint = MaterialTheme.colorScheme.primary
+        )
     }
 }

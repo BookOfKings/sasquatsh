@@ -237,16 +237,18 @@ fun TurnTrackerView(onBack: () -> Unit = {}) {
 
     // Initialize TTS if trash talk enabled
     DisposableEffect(trashTalk) {
+        var engine: TextToSpeech? = null
         if (trashTalk) {
-            val engine = TextToSpeech(context) { status ->
+            engine = TextToSpeech(context) { status ->
                 if (status == TextToSpeech.SUCCESS) {
-                    tts?.language = Locale.US
+                    engine?.language = Locale.US
+                    tts = engine
                 }
             }
-            tts = engine
-            onDispose { engine.shutdown() }
-        } else {
-            onDispose { }
+        }
+        onDispose {
+            engine?.shutdown()
+            tts = null
         }
     }
 

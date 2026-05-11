@@ -12,7 +12,6 @@ function computeNextOccurrence(
   afterDate: Date
 ): string {
   if (frequency === 'weekly') {
-    // Next matching dayOfWeek on or after afterDate
     const d = new Date(afterDate)
     const diff = (dayOfWeek - d.getUTCDay() + 7) % 7
     d.setUTCDate(d.getUTCDate() + (diff === 0 ? 0 : diff))
@@ -20,7 +19,6 @@ function computeNextOccurrence(
   }
 
   if (frequency === 'biweekly') {
-    // Next matching dayOfWeek at least 14 days after afterDate
     const d = new Date(afterDate)
     d.setUTCDate(d.getUTCDate() + 14)
     const diff = (dayOfWeek - d.getUTCDay() + 7) % 7
@@ -29,7 +27,6 @@ function computeNextOccurrence(
   }
 
   if (frequency === 'monthly') {
-    // Nth dayOfWeek of next month (monthlyWeek=1 means 1st, -1 means last)
     const d = new Date(afterDate)
     let year = d.getUTCFullYear()
     let month = d.getUTCMonth() + 1
@@ -39,14 +36,12 @@ function computeNextOccurrence(
     }
 
     if (monthlyWeek === -1) {
-      // Last occurrence of dayOfWeek in the month
       const lastDay = new Date(Date.UTC(year, month + 1, 0))
       const diff = (lastDay.getUTCDay() - dayOfWeek + 7) % 7
       lastDay.setUTCDate(lastDay.getUTCDate() - diff)
       return lastDay.toISOString().slice(0, 10)
     }
 
-    // Nth occurrence (1-4)
     const week = monthlyWeek ?? 1
     const firstOfMonth = new Date(Date.UTC(year, month, 1))
     const firstDayDiff = (dayOfWeek - firstOfMonth.getUTCDay() + 7) % 7
@@ -55,19 +50,392 @@ function computeNextOccurrence(
     return result.toISOString().slice(0, 10)
   }
 
-  // Fallback: weekly
   return computeNextOccurrence('weekly', dayOfWeek, null, afterDate)
 }
 
+// ── Advance next_occurrence_date for a recurring game ──────────────────
+async function advanceNextDate(
+  supabase: ReturnType<typeof createClient>,
+  rg: Record<string, unknown>,
+  nextDate: string
+) {
+  const afterDate = new Date(nextDate)
+  afterDate.setUTCDate(afterDate.getUTCDate() + 1)
+  const newNextDate = computeNextOccurrence(
+    rg.frequency as string,
+    rg.day_of_week as number,
+    rg.monthly_week as number | null,
+    afterDate
+  )
+
+  await supabase
+    .from('recurring_games')
+    .update({
+      last_generated_date: nextDate,
+      next_occurrence_date: newNextDate,
+    })
+    .eq('id', rg.id)
+}
+
+// ── Generate a planning session from a recurring game ──────────────────
+async function generatePlanningSession(
+  supabase: ReturnType<typeof createClient>,
+  rg: Record<string, unknown>,
+  nextDate: string
+): Promise<boolean> {
+  // Only one open session at a time: skip if there's already an open session for this recurring game
+  const { data: openSession } = await supabase
+    .from('planning_sessions')
+    .select('id')
+    .eq('from_recurring_game_id', rg.id)
+    .eq('status', 'open')
+    .maybeSingle()
+
+  if (openSession) return false // wait for current session to finalize
+
+  // Idempotency check: planning session already exists for this date?
+  const { data: existingSession } = await supabase
+    .from('planning_sessions')
+    .select('id')
+    .eq('from_recurring_game_id', rg.id)
+    .eq('target_event_date', nextDate)
+    .maybeSingle()
+
+  if (existingSession) return false // skip
+
+  // Compute response deadline: event date minus deadline_day_offset at 23:59
+  const deadlineOffset = (rg.deadline_day_offset as number) ?? 1
+  const deadlineDate = new Date(nextDate + 'T23:59:00Z')
+  deadlineDate.setUTCDate(deadlineDate.getUTCDate() - deadlineOffset)
+
+  // Determine max_games based on host's tier
+  let maxGames = 5
+  if (rg.host_user_id) {
+    const { data: hostUser } = await supabase
+      .from('users')
+      .select('subscription_tier, subscription_override_tier')
+      .eq('id', rg.host_user_id)
+      .single()
+    if (hostUser) {
+      const tier = hostUser.subscription_override_tier || hostUser.subscription_tier || 'free'
+      maxGames = tier === 'pro' || tier === 'premium' ? 10 : 5
+    }
+  }
+
+  // Create planning session
+  const { data: session, error: sessionError } = await supabase
+    .from('planning_sessions')
+    .insert({
+      group_id: rg.group_id,
+      created_by_user_id: rg.host_user_id,
+      title: rg.title,
+      description: rg.description,
+      response_deadline: deadlineDate.toISOString(),
+      status: 'open',
+      max_participants: rg.max_players,
+      max_games: maxGames,
+      table_count: rg.table_count,
+      open_to_group: true,
+      from_recurring_game_id: rg.id,
+      target_event_date: nextDate,
+      // Location fields
+      event_location_id: rg.event_location_id,
+      address_line1: rg.address_line1,
+      city: rg.city,
+      state: rg.state,
+      postal_code: rg.postal_code,
+      location_details: rg.location_details,
+    })
+    .select('id')
+    .single()
+
+  if (sessionError) {
+    console.error(`Failed to create planning session for recurring game ${rg.id}: ${sessionError.message}`)
+    return false
+  }
+
+  // Add proposed date
+  await supabase
+    .from('planning_dates')
+    .insert({
+      session_id: session.id,
+      proposed_date: nextDate,
+      start_time: rg.start_time || '19:00',
+    })
+
+  // Invite all group members
+  const { data: members } = await supabase
+    .from('group_memberships')
+    .select('user_id')
+    .eq('group_id', rg.group_id)
+
+  if (members && members.length > 0) {
+    const invitees = members.map(m => ({
+      session_id: session.id,
+      user_id: m.user_id,
+      has_slot: true, // All group members get a participation slot
+      // Host is auto-accepted
+      accepted_at: m.user_id === rg.host_user_id ? new Date().toISOString() : null,
+    }))
+
+    await supabase.from('planning_invitees').insert(invitees)
+  }
+
+  console.log(`Created planning session ${session.id} for recurring game ${rg.id} (event date: ${nextDate}, deadline: ${deadlineDate.toISOString()})`)
+  return true
+}
+
+// ── Generate a direct event from a recurring game (existing behavior) ──
+async function generateEvent(
+  supabase: ReturnType<typeof createClient>,
+  rg: Record<string, unknown>,
+  nextDate: string
+): Promise<boolean> {
+  // Idempotency check
+  const { data: existing } = await supabase
+    .from('events')
+    .select('id')
+    .eq('from_recurring_game_id', rg.id)
+    .eq('event_date', nextDate)
+    .maybeSingle()
+
+  if (existing) return false // skip
+
+  const { error: insertError } = await supabase
+    .from('events')
+    .insert({
+      host_user_id: rg.host_user_id,
+      group_id: rg.group_id,
+      title: rg.title,
+      description: rg.description,
+      game_system: rg.game_system ?? 'board_game',
+      game_title: rg.game_title,
+      event_date: nextDate,
+      start_time: rg.start_time,
+      timezone: rg.timezone,
+      duration_minutes: rg.duration_minutes ?? 120,
+      max_players: rg.max_players ?? 4,
+      host_is_playing: rg.host_is_playing ?? true,
+      is_public: rg.is_public ?? true,
+      status: 'published',
+      event_location_id: rg.event_location_id,
+      address_line1: rg.address_line1,
+      city: rg.city,
+      state: rg.state,
+      postal_code: rg.postal_code,
+      location_details: rg.location_details,
+      from_recurring_game_id: rg.id,
+    })
+
+  if (insertError) {
+    console.error(`Failed to create event for recurring game ${rg.id}: ${insertError.message}`)
+    return false
+  }
+
+  return true
+}
+
+// ── Auto-finalize expired planning sessions ────────────────────────────
+async function autoFinalizeSessions(
+  supabase: ReturnType<typeof createClient>
+): Promise<{ finalized: number; errors: string[] }> {
+  const errors: string[] = []
+  let finalized = 0
+
+  // Find open planning sessions from recurring games where deadline has passed
+  const { data: expiredSessions, error: fetchError } = await supabase
+    .from('planning_sessions')
+    .select('*')
+    .not('from_recurring_game_id', 'is', null)
+    .eq('status', 'open')
+    .lt('response_deadline', new Date().toISOString())
+
+  if (fetchError || !expiredSessions || expiredSessions.length === 0) {
+    return { finalized: 0, errors: fetchError ? [fetchError.message] : [] }
+  }
+
+  for (const session of expiredSessions) {
+    try {
+      // Get the proposed date (should be exactly one for recurring sessions)
+      const { data: dates } = await supabase
+        .from('planning_dates')
+        .select('id, proposed_date, start_time')
+        .eq('session_id', session.id)
+        .limit(1)
+
+      const finalDate = dates?.[0]
+      if (!finalDate) {
+        errors.push(`No proposed date for session ${session.id}`)
+        continue
+      }
+
+      // Get game suggestions with vote counts
+      const { data: suggestions } = await supabase
+        .from('planning_game_suggestions')
+        .select('id, bgg_id, game_name, thumbnail_url, min_players, max_players, playing_time')
+        .eq('session_id', session.id)
+
+      // Count votes per suggestion
+      let qualifyingGames: Record<string, unknown>[] = []
+      let topGame: Record<string, unknown> | null = null
+
+      if (suggestions && suggestions.length > 0) {
+        const suggestionIds = suggestions.map(s => s.id)
+        const { data: allVotes } = await supabase
+          .from('planning_game_votes')
+          .select('suggestion_id')
+          .in('suggestion_id', suggestionIds)
+
+        const voteCounts: Record<string, number> = {}
+        for (const v of allVotes ?? []) {
+          voteCounts[v.suggestion_id] = (voteCounts[v.suggestion_id] || 0) + 1
+        }
+
+        // Qualifying games: 2+ votes (or all if none qualify)
+        const gamesWithVotes = suggestions.map(s => ({
+          ...s,
+          voteCount: voteCounts[s.id] || 0,
+        }))
+        gamesWithVotes.sort((a, b) => b.voteCount - a.voteCount)
+
+        qualifyingGames = gamesWithVotes
+          .filter(g => g.voteCount >= 2)
+          .map(g => ({
+            bgg_id: g.bgg_id,
+            game_name: g.game_name,
+            thumbnail_url: g.thumbnail_url,
+            min_players: g.min_players,
+            max_players: g.max_players,
+            playing_time: g.playing_time,
+            votes: g.voteCount,
+          }))
+
+        topGame = gamesWithVotes[0] || null
+      }
+
+      // Determine multi-table
+      const isMultiTable = (session.table_count ?? 0) >= 2 && !!session.scheduled_sessions
+
+      // Get available voters for auto-registration
+      const { data: dateVotes } = await supabase
+        .from('planning_date_votes')
+        .select('user_id')
+        .eq('date_id', finalDate.id)
+        .eq('is_available', true)
+
+      const availableUserIds = (dateVotes ?? []).map(v => v.user_id)
+
+      // Determine max players
+      const maxPlayers = session.max_participants || Math.max(availableUserIds.length + 1, 8)
+
+      // Create the event
+      const { data: event, error: eventError } = await supabase
+        .from('events')
+        .insert({
+          host_user_id: session.created_by_user_id,
+          group_id: session.group_id,
+          title: session.title,
+          description: session.description,
+          game_title: topGame?.game_name || null,
+          event_date: finalDate.proposed_date,
+          start_time: finalDate.start_time || '19:00',
+          duration_minutes: 180,
+          max_players: maxPlayers,
+          status: 'published',
+          is_public: false,
+          from_planning_session_id: session.id,
+          from_recurring_game_id: session.from_recurring_game_id,
+          planned_games: qualifyingGames.length > 0 ? qualifyingGames : null,
+          is_multi_table: isMultiTable,
+          // Location
+          event_location_id: session.event_location_id,
+          venue_hall: session.venue_hall,
+          venue_room: session.venue_room,
+          venue_table: session.venue_table,
+          address_line1: session.address_line1,
+          city: session.city,
+          state: session.state,
+          postal_code: session.postal_code,
+          location_details: session.location_details,
+        })
+        .select('id')
+        .single()
+
+      if (eventError) {
+        errors.push(`Failed to create event for session ${session.id}: ${eventError.message}`)
+        continue
+      }
+
+      // Register available voters as attendees
+      if (availableUserIds.length > 0) {
+        const registrations = availableUserIds.map(userId => ({
+          event_id: event.id,
+          user_id: userId,
+          status: 'confirmed',
+        }))
+        await supabase.from('event_registrations').upsert(registrations, { onConflict: 'event_id,user_id' })
+      }
+
+      // Handle multi-table setup
+      if (isMultiTable && session.table_count) {
+        const tableRows = []
+        for (let i = 1; i <= session.table_count; i++) {
+          tableRows.push({
+            event_id: event.id,
+            table_number: i,
+            table_name: `Table ${i}`,
+          })
+        }
+        await supabase.from('event_tables').insert(tableRows)
+      }
+
+      // Copy planning items to event items
+      const { data: planningItems } = await supabase
+        .from('planning_session_items')
+        .select('item_name, item_category, quantity_needed, claimed_by_user_id, claimed_at')
+        .eq('session_id', session.id)
+
+      if (planningItems && planningItems.length > 0) {
+        const eventItems = planningItems.map(item => ({
+          event_id: event.id,
+          item_name: item.item_name,
+          item_category: item.item_category,
+          quantity_needed: item.quantity_needed,
+          claimed_by_user_id: item.claimed_by_user_id,
+          claimed_at: item.claimed_at,
+        }))
+        await supabase.from('event_items').insert(eventItems)
+      }
+
+      // Mark session as finalized
+      await supabase
+        .from('planning_sessions')
+        .update({
+          status: 'finalized',
+          finalized_date: finalDate.proposed_date,
+          finalized_game_id: topGame?.id || null,
+          created_event_id: event.id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', session.id)
+
+      finalized++
+      console.log(`Auto-finalized session ${session.id} → event ${event.id}`)
+    } catch (err) {
+      errors.push(`Unexpected error finalizing session ${session.id}: ${(err as Error).message}`)
+    }
+  }
+
+  return { finalized, errors }
+}
+
+// ── Main handler ───────────────────────────────────────────────────────
 Deno.serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: getCorsHeaders(req) })
   }
 
   const corsHeaders = getCorsHeaders(req)
-
-  // This function runs as a cron job with service role — no auth required
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
   const generated: string[] = []
@@ -75,7 +443,7 @@ Deno.serve(async (req) => {
   const errors: string[] = []
 
   try {
-    // Find all active recurring games whose next occurrence is within 14 days
+    // ── Pass 1: Generate new events/planning sessions ──────────────
     const { data: recurringGames, error: fetchError } = await supabase
       .from('recurring_games')
       .select('*')
@@ -89,127 +457,47 @@ Deno.serve(async (req) => {
       )
     }
 
-    if (!recurringGames || recurringGames.length === 0) {
-      return new Response(
-        JSON.stringify({ generated: 0, skipped: 0, errors: [] }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    for (const rg of recurringGames) {
+    for (const rg of recurringGames ?? []) {
       try {
-        const nextDate = rg.next_occurrence_date
+        const nextDate = rg.next_occurrence_date as string
 
-        // Check for duplicate: has an event already been created for this date?
-        const { data: existing, error: dupError } = await supabase
-          .from('events')
-          .select('id')
-          .eq('from_recurring_game_id', rg.id)
-          .eq('event_date', nextDate)
-          .maybeSingle()
-
-        if (dupError) {
-          errors.push(`Error checking duplicate for recurring game ${rg.id}: ${dupError.message}`)
-          continue
+        let created: boolean
+        if (rg.generates_planning_session) {
+          created = await generatePlanningSession(supabase, rg, nextDate)
+        } else {
+          created = await generateEvent(supabase, rg, nextDate)
         }
 
-        if (existing) {
-          // Event already exists for this date, skip but advance the next_occurrence_date
+        if (created) {
+          generated.push(rg.id)
+        } else {
           skipped++
-
-          // Compute new next_occurrence_date based on the current one
-          const afterDate = new Date(nextDate)
-          afterDate.setUTCDate(afterDate.getUTCDate() + 1) // day after current occurrence
-          const newNextDate = computeNextOccurrence(
-            rg.frequency,
-            rg.day_of_week,
-            rg.monthly_week,
-            afterDate
-          )
-
-          await supabase
-            .from('recurring_games')
-            .update({
-              last_generated_date: nextDate,
-              next_occurrence_date: newNextDate,
-            })
-            .eq('id', rg.id)
-
-          continue
         }
 
-        // Insert new event
-        const { error: insertError } = await supabase
-          .from('events')
-          .insert({
-            host_user_id: rg.host_user_id,
-            group_id: rg.group_id,
-            title: rg.title,
-            description: rg.description,
-            game_system: rg.game_system ?? 'board_game',
-            game_title: rg.game_title,
-            event_date: nextDate,
-            start_time: rg.start_time,
-            timezone: rg.timezone,
-            duration_minutes: rg.duration_minutes ?? 120,
-            max_players: rg.max_players ?? 4,
-            host_is_playing: rg.host_is_playing ?? true,
-            is_public: rg.is_public ?? true,
-            status: 'published',
-            event_location_id: rg.event_location_id,
-            address_line1: rg.address_line1,
-            city: rg.city,
-            state: rg.state,
-            postal_code: rg.postal_code,
-            location_details: rg.location_details,
-            from_recurring_game_id: rg.id,
-          })
-
-        if (insertError) {
-          errors.push(`Failed to create event for recurring game ${rg.id}: ${insertError.message}`)
-          continue
-        }
-
-        generated.push(rg.id)
-
-        // Update recurring game: set last_generated_date and compute new next_occurrence_date
-        const afterDate = new Date(nextDate)
-        afterDate.setUTCDate(afterDate.getUTCDate() + 1) // day after current occurrence
-        const newNextDate = computeNextOccurrence(
-          rg.frequency,
-          rg.day_of_week,
-          rg.monthly_week,
-          afterDate
-        )
-
-        const { error: updateError } = await supabase
-          .from('recurring_games')
-          .update({
-            last_generated_date: nextDate,
-            next_occurrence_date: newNextDate,
-          })
-          .eq('id', rg.id)
-
-        if (updateError) {
-          errors.push(`Event created but failed to update recurring game ${rg.id}: ${updateError.message}`)
-        }
+        // Advance next_occurrence_date regardless
+        await advanceNextDate(supabase, rg, nextDate)
       } catch (err) {
         errors.push(`Unexpected error for recurring game ${rg.id}: ${(err as Error).message}`)
       }
     }
+
+    // ── Pass 2: Auto-finalize expired planning sessions ────────────
+    const finalizeResult = await autoFinalizeSessions(supabase)
+    errors.push(...finalizeResult.errors)
+
+    return new Response(
+      JSON.stringify({
+        generated: generated.length,
+        skipped,
+        autoFinalized: finalizeResult.finalized,
+        errors,
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
   } catch (err) {
     return new Response(
       JSON.stringify({ error: `Unexpected error: ${(err as Error).message}` }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
-
-  return new Response(
-    JSON.stringify({
-      generated: generated.length,
-      skipped,
-      errors,
-    }),
-    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  )
 })

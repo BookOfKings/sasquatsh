@@ -215,6 +215,26 @@ function parseGameDetails(xml: string): BggGame | null {
   }
 }
 
+// Parse collection results from BGG XML
+function parseBggCollection(xml: string): Array<{
+  bggId: number
+  name: string
+  yearPublished: number | null
+  thumbnailUrl: string | null
+  imageUrl: string | null
+}> {
+  const items = getAllElements(xml, 'item')
+  return items.map(item => {
+    const bggId = parseInt(getAttributeFromElement(item, 'objectid') || '0', 10)
+    const name = getElementText(item, 'name') || ''
+    const yearPublished = parseInt(getElementText(item, 'yearpublished') || '0', 10) || null
+    const thumbnailUrl = getElementText(item, 'thumbnail') || null
+    const imageUrl = getElementText(item, 'image') || null
+
+    return { bggId, name, yearPublished, thumbnailUrl, imageUrl }
+  }).filter(r => r.bggId > 0 && r.name)
+}
+
 // Search local cache first
 async function searchLocalCache(supabase: ReturnType<typeof createClient>, query: string): Promise<BggSearchResult[]> {
   // Try the full-text search function first
@@ -577,5 +597,29 @@ Deno.serve(async (req) => {
     }
   }
 
-  return errorResponse('Missing search or id parameter', 400)
+  // Get a BGG user's collection
+  const bggUsername = url.searchParams.get('collection')
+  if (bggUsername) {
+    try {
+      console.log(`Fetching BGG collection for user: ${bggUsername}`)
+
+      const bggUrl = `${BGG_API_BASE}/collection?username=${encodeURIComponent(bggUsername)}&own=1&excludesubtype=boardgameexpansion`
+      const response = await fetchWithRetry(bggUrl, 5) // More retries for collections (202 queuing)
+
+      if (!response) {
+        return errorResponse('Failed to fetch collection from BGG. The username may be incorrect or BGG may be busy — please try again.', 503)
+      }
+
+      const xml = await response.text()
+      const games = parseBggCollection(xml)
+
+      console.log(`Found ${games.length} games in BGG collection for ${bggUsername}`)
+      return jsonResponse({ games, username: bggUsername })
+    } catch (err) {
+      console.error('BGG collection error:', err)
+      return errorResponse('Failed to fetch BGG collection — please try again', 503)
+    }
+  }
+
+  return errorResponse('Missing search, id, or collection parameter', 400)
 })

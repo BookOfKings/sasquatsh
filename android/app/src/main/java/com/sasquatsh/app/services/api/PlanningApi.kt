@@ -145,4 +145,12 @@ interface PlanningApi {
         @Query("action") action: String = "schedule-sessions",
         @Body body: Any
     ): Response<Any>
+
+    // POST planning?id=...&action=update-location
+    @POST("planning")
+    suspend fun updateLocation(
+        @Query("id") sessionId: String,
+        @Query("action") action: String = "update-location",
+        @Body body: Any
+    ): Response<Any>
 }

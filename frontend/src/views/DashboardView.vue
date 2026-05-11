@@ -12,6 +12,7 @@ import AdBanner from '@/components/ads/AdBanner.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
 import RaffleCard from '@/components/raffle/RaffleCard.vue'
 import { computeMyBadges } from '@/services/badgesApi'
+import { getReferralStats, type ReferralStats } from '@/services/referralApi'
 
 const auth = useAuthStore()
 const eventStore = useEventStore()
@@ -30,6 +31,8 @@ const respondingTo = ref<string | null>(null)
 const newBadgeCount = ref(0)
 const decliningPlanningSession = ref<string | null>(null)
 const acceptingPlanningSession = ref<string | null>(null)
+const referralStats = ref<ReferralStats | null>(null)
+const referralLinkCopied = ref(false)
 
 // Check if initial page load is still in progress
 const isInitialLoading = computed(() => loadingMy.value && loadingHosted.value && loadingGroups.value)
@@ -99,7 +102,7 @@ onMounted(async () => {
     loadingPlanningInvitations.value = false
   }
 
-  // Silently compute badges in the background (no UI blocking)
+  // Silently compute badges and load referral stats in the background
   try {
     const token = await auth.getIdToken()
     if (token) {
@@ -108,11 +111,23 @@ onMounted(async () => {
           newBadgeCount.value = result.newlyEarned
         }
       }).catch(() => {})
+
+      getReferralStats(token).then(stats => {
+        referralStats.value = stats
+      }).catch(() => {})
     }
   } catch {
-    // Silent — badge computation is non-critical
+    // Silent — non-critical
   }
 })
+
+function copyReferralLink() {
+  const link = `https://sasquatsh.com/signup?ref=${auth.user.value?.username || ''}`
+  navigator.clipboard.writeText(link).then(() => {
+    referralLinkCopied.value = true
+    setTimeout(() => { referralLinkCopied.value = false }, 2000)
+  })
+}
 
 async function handleLogout() {
   await auth.logout()
@@ -740,6 +755,49 @@ async function handleAcceptPlanningSession(sessionId: string) {
     <!-- Active Raffle -->
     <div class="mt-6 mb-8">
       <RaffleCard />
+    </div>
+
+    <!-- Referral Program -->
+    <div class="card p-4 mt-6 mb-6">
+      <div class="flex items-start gap-3">
+        <div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+          <svg class="w-5 h-5 text-purple-500" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z"/>
+          </svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <h3 class="font-semibold text-gray-900 text-sm">Invite Friends, Earn Rewards</h3>
+          <p class="text-xs text-gray-600 mt-0.5">Get 2 raffle entries per referral. Refer 10 friends for 3 months of Pro free!</p>
+
+          <div v-if="referralStats" class="mt-2">
+            <div class="flex items-center justify-between text-xs mb-1">
+              <span class="text-purple-700 font-medium">{{ referralStats.totalReferrals }} referral{{ referralStats.totalReferrals !== 1 ? 's' : '' }}</span>
+              <span class="text-gray-500">{{ referralStats.progressToNext }}/10 toward next reward</span>
+            </div>
+            <div class="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                class="h-full bg-purple-500 rounded-full transition-all"
+                :style="{ width: `${(referralStats.progressToNext / 10) * 100}%` }"
+              ></div>
+            </div>
+          </div>
+
+          <div class="flex gap-2 mt-3">
+            <input
+              :value="`sasquatsh.com/signup?ref=${auth.user.value?.username || ''}`"
+              readonly
+              class="text-xs px-2 py-1.5 border border-gray-200 rounded bg-gray-50 flex-1 min-w-0 truncate"
+              @click="($event.target as HTMLInputElement)?.select()"
+            />
+            <button
+              class="text-xs px-3 py-1.5 rounded border border-purple-300 text-purple-700 hover:bg-purple-50 transition-colors whitespace-nowrap"
+              @click="copyReferralLink"
+            >
+              {{ referralLinkCopied ? 'Copied!' : 'Copy Link' }}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Ad Banner for free tier users -->

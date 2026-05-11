@@ -43,6 +43,10 @@ class CreateEditGroupViewModel @Inject constructor(
 
     private var groupId: String? = null
 
+    fun clearError() {
+        _uiState.update { it.copy(error = null) }
+    }
+
     fun updateName(name: String) {
         _uiState.update { it.copy(name = name) }
     }

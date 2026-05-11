@@ -127,12 +127,9 @@ fun GameSearchSourcePicker(
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "BGG",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.width(36.dp)
+                PoweredByBggLogo(
+                    modifier = Modifier.width(36.dp),
+                    height = 28.dp
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
@@ -395,15 +392,11 @@ fun BGGSearchView(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // BGG logo placeholder
-        Text(
-            text = "BoardGameGeek",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
+        PoweredByBggLogo(
             modifier = Modifier
                 .align(Alignment.CenterHorizontally)
-                .padding(top = 8.dp, bottom = 4.dp)
+                .padding(top = 8.dp, bottom = 4.dp),
+            height = 32.dp
         )
 
         SearchBarView(
@@ -773,15 +766,11 @@ fun BGGGameSearchSheet(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // BGG logo placeholder
-            Text(
-                text = "BoardGameGeek",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
+            PoweredByBggLogo(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
-                    .padding(top = 8.dp, bottom = 4.dp)
+                    .padding(top = 8.dp, bottom = 4.dp),
+                height = 32.dp
             )
 
             SearchBarView(

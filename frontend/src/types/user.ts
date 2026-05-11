@@ -8,6 +8,7 @@ export interface User {
   subscriptionExpiresAt?: string
   subscriptionStatus?: 'active' | 'past_due' | 'canceled' | 'incomplete'
   subscriptionOverrideTier?: 'free' | 'basic' | 'pro' | 'premium'
+  subscriptionOverrideExpiresAt?: string
   accountStatus?: 'active' | 'suspended' | 'banned'
   isAdmin: boolean
   isFoundingMember: boolean
@@ -16,9 +17,14 @@ export interface User {
   authProvider?: 'password' | 'google.com' | 'facebook.com' | string
 }
 
-// Helper to get the effective tier (override takes precedence)
+// Helper to get the effective tier (override takes precedence if not expired)
 export function getEffectiveTier(user: User): 'free' | 'basic' | 'pro' | 'premium' {
-  return user.subscriptionOverrideTier || user.subscriptionTier
+  if (user.subscriptionOverrideTier) {
+    if (!user.subscriptionOverrideExpiresAt || new Date(user.subscriptionOverrideExpiresAt) > new Date()) {
+      return user.subscriptionOverrideTier
+    }
+  }
+  return user.subscriptionTier
 }
 
 export interface UserSummary {

@@ -131,7 +131,7 @@ Deno.serve(async (req) => {
         .from('users')
         .update(updateFields)
         .eq('firebase_uid', firebaseUser.uid)
-        .select('id, firebase_uid, email, username, display_name, avatar_url, subscription_tier, subscription_expires_at, subscription_status, subscription_override_tier, account_status, is_admin, is_founding_member, blocked_user_ids, created_at, auth_provider')
+        .select('id, firebase_uid, email, username, display_name, avatar_url, subscription_tier, subscription_expires_at, subscription_status, subscription_override_tier, subscription_override_expires_at, account_status, is_admin, is_founding_member, blocked_user_ids, created_at, auth_provider')
         .single()
 
       if (error) {
@@ -149,8 +149,8 @@ Deno.serve(async (req) => {
       return jsonResponse(transformUser(data))
     }
 
-    // New user - parse body for username and recaptcha token
-    let body: { username?: string; recaptchaToken?: string } = {}
+    // New user - parse body for username, recaptcha token, and referrer
+    let body: { username?: string; recaptchaToken?: string; referrerUsername?: string } = {}
     try {
       body = await req.json()
     } catch {
@@ -200,18 +200,37 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Look up referrer if provided
+    let referrerUserId: string | null = null
+    if (body.referrerUsername?.trim()) {
+      const { data: referrer } = await supabase
+        .from('users')
+        .select('id')
+        .ilike('username', body.referrerUsername.trim())
+        .single()
+
+      if (referrer) {
+        referrerUserId = referrer.id
+      }
+    }
+
     // Create new user - use username as display_name if not provided
     // Use upsert to handle race conditions and provider linking
+    const insertData: Record<string, unknown> = {
+      firebase_uid: firebaseUser.uid,
+      email: firebaseUser.email,
+      display_name: firebaseUser.name || username,
+      avatar_url: firebaseUser.picture,
+      username: username,
+      auth_provider: firebaseUser.signInProvider || 'password',
+    }
+    if (referrerUserId) {
+      insertData.referred_by_user_id = referrerUserId
+    }
+
     const { data, error } = await supabase
       .from('users')
-      .upsert({
-        firebase_uid: firebaseUser.uid,
-        email: firebaseUser.email,
-        display_name: firebaseUser.name || username,
-        avatar_url: firebaseUser.picture,
-        username: username,
-        auth_provider: firebaseUser.signInProvider || 'password',
-      }, { onConflict: 'firebase_uid' })
+      .upsert(insertData, { onConflict: 'firebase_uid' })
       .select()
       .single()
 
@@ -226,6 +245,19 @@ Deno.serve(async (req) => {
         return jsonResponse(transformUser(existing))
       }
       return errorResponse(error.message, 500)
+    }
+
+    // Process referral credit if referrer was found
+    if (referrerUserId && data) {
+      try {
+        // Prevent self-referral
+        if (referrerUserId !== data.id) {
+          await processReferralCredit(supabase, referrerUserId, data.id as string)
+        }
+      } catch (err) {
+        console.error('Failed to process referral:', err)
+        // Don't fail signup over referral errors
+      }
     }
 
     return jsonResponse(transformUser(data))
@@ -278,6 +310,119 @@ Deno.serve(async (req) => {
   return errorResponse('Method not allowed', 405)
 })
 
+async function processReferralCredit(
+  supabase: ReturnType<typeof createClient>,
+  referrerUserId: string,
+  referredUserId: string
+) {
+  // Create referral record
+  const { data: referral, error: refError } = await supabase
+    .from('referrals')
+    .insert({
+      referrer_user_id: referrerUserId,
+      referred_user_id: referredUserId,
+      status: 'credited',
+      credited_at: new Date().toISOString(),
+    })
+    .select('id')
+    .single()
+
+  if (refError) {
+    console.error('Failed to create referral:', refError)
+    return
+  }
+
+  // Award 2 raffle entries to the referrer for the active raffle
+  const now = new Date().toISOString()
+  const { data: activeRaffle } = await supabase
+    .from('raffles')
+    .select('id')
+    .eq('status', 'active')
+    .lte('start_date', now)
+    .gt('end_date', now)
+    .order('start_date', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (activeRaffle) {
+    await supabase
+      .from('raffle_entries')
+      .insert({
+        raffle_id: activeRaffle.id,
+        user_id: referrerUserId,
+        entry_type: 'referral',
+        source_id: referral.id,
+        entry_count: 2,
+      })
+    console.log(`Awarded 2 raffle entries to referrer ${referrerUserId} for referral ${referral.id}`)
+  }
+
+  // Check if referrer has hit a 10-referral milestone
+  const { count: totalReferrals } = await supabase
+    .from('referrals')
+    .select('id', { count: 'exact', head: true })
+    .eq('referrer_user_id', referrerUserId)
+    .eq('status', 'credited')
+
+  const referralCount = totalReferrals ?? 0
+
+  if (referralCount > 0 && referralCount % 10 === 0) {
+    // Check if this milestone was already rewarded
+    const { data: existingReward } = await supabase
+      .from('referral_rewards')
+      .select('id')
+      .eq('user_id', referrerUserId)
+      .eq('referral_count_at_reward', referralCount)
+      .maybeSingle()
+
+    if (!existingReward) {
+      // Get current override expiry to stack
+      const { data: referrerUser } = await supabase
+        .from('users')
+        .select('subscription_override_tier, subscription_override_expires_at')
+        .eq('id', referrerUserId)
+        .single()
+
+      // Calculate new expiry: extend from current expiry or start from now
+      let baseDate = new Date()
+      if (referrerUser?.subscription_override_expires_at) {
+        const currentExpiry = new Date(referrerUser.subscription_override_expires_at)
+        if (currentExpiry > baseDate) {
+          baseDate = currentExpiry
+        }
+      }
+
+      const newExpiry = new Date(baseDate)
+      newExpiry.setMonth(newExpiry.getMonth() + 3)
+
+      // Only upgrade, don't downgrade (e.g., don't overwrite 'premium' with 'pro')
+      const currentOverride = referrerUser?.subscription_override_tier
+      const shouldSetOverride = !currentOverride || currentOverride === 'free' || currentOverride === 'basic' || currentOverride === 'pro'
+
+      if (shouldSetOverride) {
+        await supabase
+          .from('users')
+          .update({
+            subscription_override_tier: 'pro',
+            subscription_override_expires_at: newExpiry.toISOString(),
+          })
+          .eq('id', referrerUserId)
+
+        console.log(`Awarded 3 months Pro to ${referrerUserId} for ${referralCount} referrals (expires ${newExpiry.toISOString()})`)
+      }
+
+      // Record the milestone
+      await supabase
+        .from('referral_rewards')
+        .insert({
+          user_id: referrerUserId,
+          referral_count_at_reward: referralCount,
+          pro_expires_at: newExpiry.toISOString(),
+        })
+    }
+  }
+}
+
 function transformUser(row: Record<string, unknown>) {
   return {
     id: row.id,
@@ -289,6 +434,7 @@ function transformUser(row: Record<string, unknown>) {
     subscriptionExpiresAt: row.subscription_expires_at,
     subscriptionStatus: row.subscription_status ?? 'active',
     subscriptionOverrideTier: row.subscription_override_tier,
+    subscriptionOverrideExpiresAt: row.subscription_override_expires_at,
     accountStatus: row.account_status ?? 'active',
     isAdmin: row.is_admin ?? false,
     isFoundingMember: row.is_founding_member ?? false,

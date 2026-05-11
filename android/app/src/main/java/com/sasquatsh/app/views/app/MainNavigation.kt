@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.PersonSearch
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -108,8 +109,10 @@ object Routes {
     const val EDIT_EVENT = "edit_event/{eventId}"
     const val GROUP_DETAIL = "group/{groupId}"
     const val PLANNING_DETAIL = "planning/{sessionId}"
+    const val CREATE_PLANNING = "create_planning/{groupId}"
     const val CREATE_EVENT = "create_event"
     const val CREATE_GROUP = "create_group"
+    const val EDIT_GROUP = "edit_group/{groupId}"
     const val PRICING = "pricing"
     const val BILLING = "billing"
     const val RAFFLE_DETAIL = "raffle_detail"
@@ -132,6 +135,8 @@ object Routes {
     fun editEvent(eventId: String) = "edit_event/$eventId"
     fun groupDetail(groupId: String) = "group/$groupId"
     fun planningDetail(sessionId: String) = "planning/$sessionId"
+    fun editGroup(groupId: String) = "edit_group/$groupId"
+    fun createPlanning(groupId: String) = "create_planning/$groupId"
 }
 
 data class BottomNavItem(
@@ -144,7 +149,7 @@ private val bottomNavItems = listOf(
     BottomNavItem(Routes.DASHBOARD, "Dashboard", Icons.Default.Dashboard),
     BottomNavItem(Routes.GAMES, "Games", Icons.Default.Casino),
     BottomNavItem(Routes.GROUPS, "Groups", Icons.Default.Groups),
-    BottomNavItem(Routes.NEED_PLAYERS, "Need Players", Icons.Default.PersonSearch),
+    BottomNavItem(Routes.NEED_PLAYERS, "Players", Icons.Default.PersonSearch),
     BottomNavItem(Routes.PROFILE, "Profile", Icons.Default.Person)
 )
 
@@ -187,8 +192,7 @@ private fun SplashScreen() {
             com.sasquatsh.app.views.shared.D20SpinnerView(
                 size = 48.dp,
                 modifier = Modifier.size(48.dp),
-                color = Color(0xFF6366F1),
-                numberColor = Color.White
+                color = Color(0xFF6366F1)
             )
         }
     }
@@ -317,9 +321,11 @@ private fun MainScaffold(authViewModel: AuthViewModel) {
                 arguments = listOf(navArgument("eventId") { type = NavType.StringType })
             ) { backStackEntry ->
                 val eventId = backStackEntry.arguments?.getString("eventId") ?: return@composable
-                // EditEventView needs the eventId to load — use placeholder for now
-                // since EditEventView expects a pre-loaded event
-                PlaceholderScreen("Edit Event: $eventId")
+                com.sasquatsh.app.views.events.EditEventView(
+                    eventId = eventId,
+                    onDismiss = { navController.popBackStack() },
+                    onDeleted = { navController.popBackStack() }
+                )
             }
 
             // ===== GROUP ROUTES =====
@@ -333,13 +339,24 @@ private fun MainScaffold(authViewModel: AuthViewModel) {
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToEvent = { eventId -> navController.navigate(Routes.eventDetail(eventId)) },
                     onNavigateToPlanning = { sessionId -> navController.navigate(Routes.planningDetail(sessionId)) },
-                    onNavigateToCreatePlanning = { /* TODO: CreatePlanningView needs members list */ },
-                    onNavigateToEditGroup = { /* TODO: EditGroupView needs group object */ }
+                    onNavigateToCreatePlanning = { navController.navigate(Routes.createPlanning(groupId)) },
+                    onNavigateToEditGroup = { id -> navController.navigate(Routes.editGroup(id)) }
                 )
             }
 
             composable(Routes.CREATE_GROUP) {
                 CreateGroupView(onDismiss = { navController.popBackStack() })
+            }
+
+            composable(
+                route = Routes.EDIT_GROUP,
+                arguments = listOf(navArgument("groupId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val editGroupId = backStackEntry.arguments?.getString("groupId") ?: return@composable
+                com.sasquatsh.app.views.groups.EditGroupView(
+                    groupId = editGroupId,
+                    onDismiss = { navController.popBackStack() }
+                )
             }
 
             // ===== PLANNING ROUTES =====
@@ -352,6 +369,21 @@ private fun MainScaffold(authViewModel: AuthViewModel) {
                     sessionId = sessionId,
                     onNavigateToEvent = { eventId -> navController.navigate(Routes.eventDetail(eventId)) },
                     onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            composable(
+                route = Routes.CREATE_PLANNING,
+                arguments = listOf(navArgument("groupId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val planGroupId = backStackEntry.arguments?.getString("groupId") ?: return@composable
+                com.sasquatsh.app.views.planning.CreatePlanningView(
+                    groupId = planGroupId,
+                    onDismiss = { navController.popBackStack() },
+                    onNavigateToSession = { sessionId ->
+                        navController.popBackStack()
+                        navController.navigate(Routes.planningDetail(sessionId))
+                    }
                 )
             }
 
@@ -476,8 +508,20 @@ private fun MainBottomBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
             NavigationBarItem(
                 selected = selectedTab == index,
                 onClick = { onTabSelected(index) },
-                icon = { Icon(imageVector = item.icon, contentDescription = item.label, modifier = Modifier.size(24.dp)) },
-                label = { Text(text = item.label, style = MaterialTheme.typography.labelSmall, fontWeight = if (selectedTab == index) FontWeight.SemiBold else FontWeight.Medium, fontSize = 10.sp) },
+                icon = {
+                    Icon(
+                        imageVector = item.icon,
+                        contentDescription = item.label
+                    )
+                },
+                label = {
+                    Text(
+                        text = item.label,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                },
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = MaterialTheme.colorScheme.primary,
                     selectedTextColor = MaterialTheme.colorScheme.primary,

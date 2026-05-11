@@ -51,6 +51,42 @@ async function resolveGroupCurrentTarget(
   return null
 }
 
+async function resolveRecurringGameTarget(
+  supabase: ReturnType<typeof createClient>,
+  recurringGameId: string
+): Promise<{ type: 'planning_session' | 'event'; id: string; title: string } | null> {
+  // 1. Open planning session for this recurring game
+  const { data: openSession } = await supabase
+    .from('planning_sessions')
+    .select('id, title')
+    .eq('from_recurring_game_id', recurringGameId)
+    .eq('status', 'open')
+    .order('response_deadline', { ascending: true })
+    .limit(1)
+    .single()
+
+  if (openSession) {
+    return { type: 'planning_session', id: openSession.id, title: openSession.title }
+  }
+
+  // 2. Next upcoming event from this recurring game
+  const today = new Date().toISOString().split('T')[0]
+  const { data: nextEvent } = await supabase
+    .from('events')
+    .select('id, title')
+    .eq('from_recurring_game_id', recurringGameId)
+    .gte('event_date', today)
+    .order('event_date', { ascending: true })
+    .limit(1)
+    .single()
+
+  if (nextEvent) {
+    return { type: 'event', id: nextEvent.id, title: nextEvent.title }
+  }
+
+  return null
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: getCorsHeaders(req) })
@@ -124,8 +160,10 @@ Deno.serve(async (req) => {
         }
       }
     } else {
-      // group_recurring — resolve dynamically
-      target = await resolveGroupCurrentTarget(supabase, link.group_id)
+      // group_recurring — resolve dynamically (recurring-game-specific if set, otherwise group-wide)
+      target = link.recurring_game_id
+        ? await resolveRecurringGameTarget(supabase, link.recurring_game_id)
+        : await resolveGroupCurrentTarget(supabase, link.group_id)
     }
 
     return jsonResponse({
@@ -189,6 +227,8 @@ Deno.serve(async (req) => {
         target = { type: 'planning_session', id: link.planning_session_id }
       } else if (link.link_type === 'session' && link.event_id) {
         target = { type: 'event', id: link.event_id }
+      } else if (link.recurring_game_id) {
+        target = await resolveRecurringGameTarget(supabase, link.recurring_game_id)
       } else {
         target = await resolveGroupCurrentTarget(supabase, link.group_id)
       }
@@ -231,6 +271,8 @@ Deno.serve(async (req) => {
       } else if (link.event_id) {
         target = { type: 'event', id: link.event_id }
       }
+    } else if (link.recurring_game_id) {
+      target = await resolveRecurringGameTarget(supabase, link.recurring_game_id)
     } else {
       target = await resolveGroupCurrentTarget(supabase, link.group_id)
     }
@@ -313,7 +355,7 @@ Deno.serve(async (req) => {
     if (!user) return errorResponse('User not found', 404)
 
     const body = await req.json()
-    const { groupId, linkType, planningSessionId, eventId, maxUses, expiresInDays } = body
+    const { groupId, linkType, planningSessionId, eventId, recurringGameId, maxUses, expiresInDays } = body
 
     if (!groupId) return errorResponse('groupId is required', 400)
     if (!linkType || !['session', 'group_recurring'].includes(linkType)) {
@@ -347,6 +389,7 @@ Deno.serve(async (req) => {
         link_type: linkType,
         planning_session_id: planningSessionId || null,
         event_id: eventId || null,
+        recurring_game_id: recurringGameId || null,
         max_uses: maxUses || null,
         expires_at: expiresAt,
       })

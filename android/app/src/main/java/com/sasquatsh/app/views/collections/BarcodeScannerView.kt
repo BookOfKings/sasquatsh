@@ -501,11 +501,7 @@ private fun ManualBggSearchView(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                "Find the game on BGG",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            com.sasquatsh.app.views.shared.PoweredByBggLogo(height = 28.dp)
             ScanAnotherButton(onScanAnother)
         }
 

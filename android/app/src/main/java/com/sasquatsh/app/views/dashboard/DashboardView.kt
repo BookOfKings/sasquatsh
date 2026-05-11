@@ -664,7 +664,7 @@ private fun CompactPlanningRow(
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = session.responseDeadline,
+                text = "Respond by ${formatDashboardDate(session.responseDeadline)}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

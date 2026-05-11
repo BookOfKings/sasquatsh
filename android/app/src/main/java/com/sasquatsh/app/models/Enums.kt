@@ -298,7 +298,23 @@ enum class AppTimezone(val value: String) {
         }
 
     companion object {
-        fun fromValue(value: String): AppTimezone? =
-            entries.find { it.value == value }
+        fun fromValue(value: String): AppTimezone? {
+            entries.find { it.value == value }?.let { return it }
+            // Fallback: match by common abbreviations
+            return when (value.uppercase()) {
+                "ET", "EST", "EDT", "EASTERN" -> EASTERN
+                "CT", "CST", "CDT", "CENTRAL" -> CENTRAL
+                "MT", "MDT", "MOUNTAIN" -> MOUNTAIN
+                "MST", "ARIZONA" -> ARIZONA
+                "PT", "PST", "PDT", "PACIFIC" -> PACIFIC
+                "AKT", "AKST", "AKDT", "ALASKA" -> ALASKA
+                "HST", "HAST", "HAWAII" -> HAWAII
+                "GMT", "BST", "UK" -> UK
+                "CET", "CEST" -> CENTRAL_EUROPE
+                "JST" -> JAPAN
+                "AEST", "AEDT" -> SYDNEY
+                else -> null
+            }
+        }
     }
 }

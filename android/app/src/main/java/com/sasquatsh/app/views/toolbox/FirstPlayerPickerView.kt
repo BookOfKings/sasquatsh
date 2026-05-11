@@ -53,7 +53,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.delay
 
 private val fingerColors = listOf(
-    Color.Red, Color.Blue, Color.Green, Color(0xFFFFA500), Color(0xFF800080)
+    Color.Red, Color.Blue, Color.Green, Color(0xFFFFA500), Color(0xFF800080),
+    Color.Cyan, Color(0xFFFF69B4), Color.Yellow, Color(0xFF00CED1), Color(0xFFFF4500)
 )
 
 private enum class PickerPhase { WAITING, COUNTDOWN, PULSING, SELECTED }
@@ -69,6 +70,7 @@ fun FirstPlayerPickerView(
     var winnerIndex by remember { mutableIntStateOf(-1) }
     var countdown by remember { mutableIntStateOf(3) }
     var touchIdsAtStart by remember { mutableStateOf(setOf<Int>()) }
+    var touchCountAtStart by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
 
     // Pulse animation
@@ -83,21 +85,25 @@ fun FirstPlayerPickerView(
     // Countdown + selection logic
     LaunchedEffect(phase) {
         if (phase == PickerPhase.COUNTDOWN) {
+            touchCountAtStart = touches.size
             countdown = 3
             for (i in 3 downTo 1) {
                 countdown = i
-                val progress = (3 - i).toDouble() / 2.0 // 0.0, 0.5, 1.0
+                val progress = (3 - i).toDouble() / 2.0
                 PickerSoundEngine.playCountdownTick(progress)
                 delay(1000)
                 if (phase != PickerPhase.COUNTDOWN) return@LaunchedEffect
             }
             phase = PickerPhase.PULSING
+        }
+        if (phase == PickerPhase.PULSING) {
             delay(2000)
-            if (phase == PickerPhase.PULSING && touches.isNotEmpty()) {
-                winnerIndex = (0 until touches.size).random()
+            // Select winner from however many touches remain (use snapshot count as fallback)
+            val count = if (touches.isNotEmpty()) touches.size else touchCountAtStart
+            if (count > 0) {
+                winnerIndex = (0 until count).random()
                 phase = PickerPhase.SELECTED
                 PickerSoundEngine.playSelectChime()
-                // Haptic feedback
                 try {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                         val vm = context.getSystemService(VibratorManager::class.java)
@@ -173,16 +179,16 @@ fun FirstPlayerPickerView(
                                     phase = PickerPhase.COUNTDOWN
                                 }
                             }
-                            PickerPhase.COUNTDOWN, PickerPhase.PULSING -> {
-                                if (currentIds != touchIdsAtStart) {
-                                    if (sorted.size < 2) {
-                                        phase = PickerPhase.WAITING
-                                    } else {
-                                        touchIdsAtStart = currentIds
-                                        PickerSoundEngine.playTransition()
-                                        phase = PickerPhase.COUNTDOWN
-                                    }
+                            PickerPhase.COUNTDOWN -> {
+                                // Only reset if ALL fingers lift (< 2)
+                                if (sorted.size < 2) {
+                                    phase = PickerPhase.WAITING
                                 }
+                                // If fingers changed but still >= 2, just update the set
+                                // Don't restart countdown for minor touch changes
+                            }
+                            PickerPhase.PULSING -> {
+                                // Don't reset during pulsing — selection is about to happen
                             }
                             PickerPhase.SELECTED -> {
                                 // Tap to reset
@@ -304,7 +310,7 @@ fun FirstPlayerPickerView(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                "Supports up to 5 players",
+                                "Supports up to 10 players",
                                 color = Color.White.copy(alpha = 0.3f),
                                 fontSize = 14.sp
                             )

@@ -7,6 +7,7 @@ import com.sasquatsh.app.models.BggSearchResult
 import com.sasquatsh.app.models.CollectionGame
 import com.sasquatsh.app.services.BggService
 import com.sasquatsh.app.services.CollectionsService
+import com.sasquatsh.app.services.GameUpcService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -41,7 +42,8 @@ data class CollectionUiState(
 @HiltViewModel
 class CollectionViewModel @Inject constructor(
     private val collectionsService: CollectionsService,
-    private val bggService: BggService
+    val bggService: BggService,
+    val gameUpcService: GameUpcService
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CollectionUiState())
@@ -54,16 +56,21 @@ class CollectionViewModel @Inject constructor(
             _uiState.update { it.copy(isLoading = true) }
             try {
                 val myGames = collectionsService.getMyCollection()
-                val topGames = collectionsService.getTopGames()
                 _uiState.update {
                     it.copy(
                         myGames = myGames.sortedBy { g -> g.gameName },
-                        topGames = topGames,
                         isLoading = false
                     )
                 }
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.localizedMessage, isLoading = false) }
+            }
+            // Load top games separately so a failure doesn't block my collection
+            try {
+                val topGames = collectionsService.getTopGames()
+                _uiState.update { it.copy(topGames = topGames) }
+            } catch (_: Exception) {
+                // Top games are non-critical
             }
         }
     }
@@ -138,6 +145,24 @@ class CollectionViewModel @Inject constructor(
                 } catch (e: Exception) {
                     _uiState.update { it.copy(error = e.localizedMessage, pendingAdds = it.pendingAdds - bggId) }
                 }
+            }
+        }
+    }
+
+    fun addFromInput(input: AddCollectionGameInput) {
+        viewModelScope.launch {
+            val bggId = input.bggId
+            _uiState.update { it.copy(pendingAdds = it.pendingAdds + bggId) }
+            try {
+                val added = collectionsService.addGame(input)
+                _uiState.update { state ->
+                    state.copy(
+                        myGames = (state.myGames + added).sortedBy { it.gameName },
+                        pendingAdds = state.pendingAdds - bggId
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.localizedMessage, pendingAdds = it.pendingAdds - bggId) }
             }
         }
     }

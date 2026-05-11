@@ -9,6 +9,7 @@ import {
   deleteRecurringGame,
 } from '@/services/recurringGamesApi'
 import { canCreateRecurringGame } from '@/config/subscriptionLimits'
+import { createShareLink } from '@/services/shareLinksApi'
 import RecurringGameCard from './RecurringGameCard.vue'
 import RecurringGameForm from './RecurringGameForm.vue'
 
@@ -31,6 +32,7 @@ const editingGame = ref<RecurringGame | undefined>(undefined)
 const showDeleteConfirm = ref(false)
 const gameToDelete = ref<RecurringGame | null>(null)
 const deleteFutureEvents = ref(false)
+const copiedLinkId = ref<string | null>(null)
 
 // Tier check (default to free if unknown)
 const currentTier = ref<'free' | 'basic' | 'pro' | 'premium'>('free')
@@ -95,6 +97,23 @@ async function handleDelete() {
     await loadGames()
   } catch (err: any) {
     error.value = err.message || 'Failed to delete recurring game'
+  }
+}
+
+async function handleCopyLink(game: RecurringGame) {
+  try {
+    const token = await authStore.getIdToken()
+    if (!token) return
+    const link = await createShareLink(token, {
+      groupId: props.groupId,
+      linkType: 'group_recurring',
+      recurringGameId: game.id,
+    })
+    await navigator.clipboard.writeText(link.url)
+    copiedLinkId.value = game.id
+    setTimeout(() => { copiedLinkId.value = null }, 2000)
+  } catch (err: any) {
+    error.value = err.message || 'Failed to create share link'
   }
 }
 
@@ -176,10 +195,12 @@ onMounted(() => {
         v-for="game in games"
         :key="game.id"
         :game="game"
+        :link-copied="copiedLinkId === game.id"
         :is-admin="isAdmin"
         @edit="openEditForm"
         @delete="confirmDelete"
         @toggle-active="handleToggleActive"
+        @copy-link="handleCopyLink"
       />
     </div>
 

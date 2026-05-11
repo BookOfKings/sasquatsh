@@ -645,6 +645,11 @@ private fun ShelfManualSearchView(
             )
         }
 
+        com.sasquatsh.app.views.shared.PoweredByBggLogo(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            height = 24.dp
+        )
+
         OutlinedTextField(
             value = bggSearchQuery,
             onValueChange = onQueryChange,

@@ -21,8 +21,12 @@ import com.sasquatsh.app.models.UpdateEventInput
 import com.sasquatsh.app.models.Warhammer40kConfigState
 import com.sasquatsh.app.models.YugiohConfigState
 import com.sasquatsh.app.services.BggService
+import com.sasquatsh.app.services.CollectionsService
+import com.sasquatsh.app.services.EventLocationsService
 import com.sasquatsh.app.services.EventsService
 import com.sasquatsh.app.services.GroupsService
+import com.sasquatsh.app.services.ProfileService
+import com.sasquatsh.app.services.ScryfallService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -71,6 +75,7 @@ data class CreateEditEventUiState(
     val yugiohConfig: YugiohConfigState? = null,
     val warhammer40kConfig: Warhammer40kConfigState? = null,
     val selectedGames: List<BggGame> = emptyList(),
+    val originalEventGames: List<com.sasquatsh.app.models.EventGameSummary> = emptyList(),
     val isFetchingGameDetails: Boolean = false,
     val availableGroups: List<GroupSummary> = emptyList(),
     val bggSearchResults: List<BggSearchResult> = emptyList(),
@@ -94,6 +99,15 @@ data class CreateEditEventUiState(
             if (isBoardGame && selectedGames.isEmpty() && !isEditing) {
                 issues.add("Select at least one game")
             }
+            val hasVenue = eventLocationId != null
+            val hasCustomLocation = city.trim().isNotEmpty() && postalCode.trim().isNotEmpty()
+            if (!useVenueMode && !hasVenue && !hasCustomLocation) {
+                if (city.trim().isNotEmpty() && postalCode.trim().isEmpty()) {
+                    issues.add("Postal/zip code is required")
+                } else {
+                    issues.add("A location is required — select a venue or enter city and zip code")
+                }
+            }
             return issues
         }
 }
@@ -102,7 +116,11 @@ data class CreateEditEventUiState(
 class CreateEditEventViewModel @Inject constructor(
     private val eventsService: EventsService,
     private val groupsService: GroupsService,
-    private val bggService: BggService
+    private val bggService: BggService,
+    private val profileService: ProfileService,
+    val collectionsService: CollectionsService,
+    val eventLocationsService: EventLocationsService,
+    val scryfallService: ScryfallService
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CreateEditEventUiState())
@@ -110,6 +128,10 @@ class CreateEditEventViewModel @Inject constructor(
 
     private var eventId: String? = null
     private var bggSearchJob: Job? = null
+
+    fun clearError() {
+        _uiState.update { it.copy(error = null) }
+    }
 
     fun updateTitle(title: String) {
         _uiState.update { it.copy(title = title) }
@@ -240,6 +262,20 @@ class CreateEditEventViewModel @Inject constructor(
                 _uiState.update { it.copy(availableGroups = emptyList()) }
             }
         }
+        // Load user's timezone from profile (only for new events, not editing)
+        if (!_uiState.value.isEditing) {
+            viewModelScope.launch {
+                try {
+                    val profile = profileService.getMyProfile()
+                    profile.timezone?.let { tz ->
+                        val appTz = AppTimezone.fromValue(tz)
+                        if (appTz != null) {
+                            _uiState.update { it.copy(timezone = appTz) }
+                        }
+                    }
+                } catch (_: Exception) { /* use default */ }
+            }
+        }
     }
 
     fun selectVenue(venue: EventLocation) {
@@ -275,6 +311,9 @@ class CreateEditEventViewModel @Inject constructor(
     }
 
     fun addGame(searchResult: BggSearchResult) {
+        // Skip duplicates
+        if (_uiState.value.selectedGames.any { it.bggId == searchResult.bggId }) return
+
         viewModelScope.launch {
             _uiState.update { it.copy(isFetchingGameDetails = true) }
             try {
@@ -317,9 +356,25 @@ class CreateEditEventViewModel @Inject constructor(
         eventId = event.id
         val timeFormatter = SimpleDateFormat("HH:mm", Locale.US)
 
+        // Convert event games to BggGame list for the form
+        val existingGames = (event.games ?: emptyList())
+            .sortedByDescending { it.isPrimary }
+            .map { g ->
+                BggGame(
+                    bggId = g.bggId ?: 0,
+                    name = g.gameName,
+                    thumbnailUrl = g.thumbnailUrl,
+                    minPlayers = g.minPlayers,
+                    maxPlayers = g.maxPlayers,
+                    playingTime = g.playingTime
+                )
+            }
+
         _uiState.update {
             it.copy(
                 isEditing = true,
+                selectedGames = existingGames,
+                originalEventGames = event.games ?: emptyList(),
                 title = event.title,
                 description = event.description.orEmpty(),
                 gameSystem = event.gameSystem ?: GameSystem.BOARD_GAME,
@@ -396,6 +451,37 @@ class CreateEditEventViewModel @Inject constructor(
                         warhammer40kConfig = state.warhammer40kConfig?.toInput()
                     )
                     val event = eventsService.updateEvent(eventId!!, input)
+
+                    // Sync games: remove deleted, add new
+                    val currentBggIds = state.selectedGames.map { it.bggId }.toSet()
+                    val originalBggIds = state.originalEventGames.mapNotNull { it.bggId }.toSet()
+
+                    // Remove games that were in original but not in current
+                    for (og in state.originalEventGames) {
+                        val bggId = og.bggId ?: continue
+                        if (bggId !in currentBggIds) {
+                            try { eventsService.removeGame(og.id) } catch (_: Exception) {}
+                        }
+                    }
+
+                    // Add games that are in current but not in original
+                    for ((index, game) in state.selectedGames.withIndex()) {
+                        if (game.bggId !in originalBggIds) {
+                            val gameInput = AddEventGameInput(
+                                eventId = eventId!!,
+                                bggId = game.bggId,
+                                gameName = game.name,
+                                thumbnailUrl = game.thumbnailUrl,
+                                minPlayers = game.minPlayers,
+                                maxPlayers = game.maxPlayers,
+                                playingTime = game.playingTime,
+                                isPrimary = index == 0,
+                                isAlternative = index != 0
+                            )
+                            try { eventsService.addGame(gameInput) } catch (_: Exception) {}
+                        }
+                    }
+
                     _uiState.update { it.copy(isLoading = false) }
                     onSuccess(event)
                 } else {

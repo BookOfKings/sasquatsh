@@ -59,7 +59,8 @@ private enum class CollectionViewMode { CARDS, LIST }
 @Composable
 fun UserCollectionListView(
     games: List<CollectionGame>,
-    userName: String
+    userName: String,
+    onDismiss: (() -> Unit)? = null
 ) {
     var searchText by remember { mutableStateOf("") }
     var viewMode by remember { mutableStateOf(CollectionViewMode.CARDS) }
@@ -71,7 +72,16 @@ fun UserCollectionListView(
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("$userName's Games") })
+            TopAppBar(
+                title = { Text("$userName's Games") },
+                navigationIcon = {
+                    if (onDismiss != null) {
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.Default.Clear, contentDescription = "Close")
+                        }
+                    }
+                }
+            )
         }
     ) { padding ->
         Column(

@@ -7,6 +7,8 @@ export interface RaffleUser {
   id: string
   displayName: string | null
   avatarUrl: string | null
+  username?: string | null
+  email?: string | null
   subscriptionTier?: string
 }
 

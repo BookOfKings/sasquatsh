@@ -8,8 +8,10 @@ import {
   getTopGames,
   addGamesToCollection,
   removeGameFromCollection,
+  fetchBggCollection,
   type CollectionGame,
   type TopGame,
+  type BggCollectionGame,
 } from '@/services/collectionsApi'
 
 const auth = useAuthStore()
@@ -20,10 +22,11 @@ const topGames = ref<TopGame[]>([])
 const searchResults = ref<any[]>([])
 const searchQuery = ref('')
 const loading = ref(true)
+const savedBggUsername = ref('')
 const collectionVisibility = ref<'public' | 'private'>('private')
 const savingVisibility = ref(false)
 const searching = ref(false)
-const activeTab = ref<'collection' | 'browse' | 'search'>('collection')
+const activeTab = ref<'collection' | 'browse' | 'search' | 'import'>('collection')
 const pendingAdds = ref<Set<number>>(new Set())
 const pendingRemoves = ref<Set<number>>(new Set())
 
@@ -44,6 +47,8 @@ onMounted(async () => {
     myGames.value = collection
     topGames.value = top
     collectionVisibility.value = profile.collectionVisibility ?? 'private'
+    savedBggUsername.value = profile.bggUsername ?? ''
+    bggUsername.value = profile.bggUsername ?? ''
   } catch (err) {
     console.error('Failed to load collection:', err)
   } finally {
@@ -158,6 +163,119 @@ async function toggleVisibility() {
   }
 }
 
+// BGG Import
+const bggUsername = ref('')
+const bggImportLoading = ref(false)
+const bggImportError = ref('')
+const bggImportGames = ref<BggCollectionGame[]>([])
+const bggImportSuccess = ref('')
+const bggImporting = ref(false)
+const syncMode = ref<'add' | 'sync'>('add')
+const savingBggUsername = ref(false)
+
+async function fetchBggUserCollection() {
+  const username = bggUsername.value.trim()
+  if (!username) {
+    bggImportError.value = 'Please enter your BGG username'
+    return
+  }
+
+  bggImportError.value = ''
+  bggImportSuccess.value = ''
+  bggImportGames.value = []
+  bggImportLoading.value = true
+
+  try {
+    // Save BGG username to profile if changed
+    if (username !== savedBggUsername.value) {
+      const token = await auth.getIdToken()
+      if (token) {
+        savingBggUsername.value = true
+        try {
+          await updateProfile(token, { bggUsername: username })
+          savedBggUsername.value = username
+        } catch { /* non-critical */ }
+        savingBggUsername.value = false
+      }
+    }
+
+    const games = await fetchBggCollection(username)
+    if (games.length === 0) {
+      bggImportError.value = `No owned games found for BGG user "${username}". Make sure the username is correct and the collection is public.`
+      return
+    }
+    bggImportGames.value = games
+  } catch (err: any) {
+    bggImportError.value = err.message || 'Failed to fetch BGG collection'
+  } finally {
+    bggImportLoading.value = false
+  }
+}
+
+const bggNewGames = computed(() => {
+  return bggImportGames.value.filter(g => !ownedBggIds.value.has(g.bggId))
+})
+
+const bggRemovedGames = computed(() => {
+  if (bggImportGames.value.length === 0) return []
+  const bggIds = new Set(bggImportGames.value.map(g => g.bggId))
+  return myGames.value.filter(g => !bggIds.has(g.bgg_id))
+})
+
+async function importBggGames() {
+  const token = await auth.getIdToken()
+  if (!token) return
+
+  bggImporting.value = true
+  bggImportError.value = ''
+
+  try {
+    // Add new games from BGG
+    const gamesToAdd = bggNewGames.value
+    if (gamesToAdd.length > 0) {
+      for (let i = 0; i < gamesToAdd.length; i += 50) {
+        const batch = gamesToAdd.slice(i, i + 50)
+        const added = await addGamesToCollection(token, batch.map(g => ({
+          bgg_id: g.bggId,
+          name: g.name,
+          thumbnail_url: g.thumbnailUrl,
+          image_url: g.imageUrl,
+          year_published: g.yearPublished,
+        })))
+        myGames.value.push(...added)
+      }
+    }
+
+    // If sync mode, remove games not in BGG
+    if (syncMode.value === 'sync' && bggRemovedGames.value.length > 0) {
+      for (const game of bggRemovedGames.value) {
+        await removeGameFromCollection(token, game.bgg_id)
+      }
+      const bggIds = new Set(bggImportGames.value.map(g => g.bggId))
+      myGames.value = myGames.value.filter(g => bggIds.has(g.bgg_id))
+    }
+
+    myGames.value.sort((a, b) => a.game_name.localeCompare(b.game_name))
+
+    const addedCount = gamesToAdd.length
+    const removedCount = syncMode.value === 'sync' ? bggRemovedGames.value.length : 0
+
+    if (addedCount === 0 && removedCount === 0) {
+      bggImportSuccess.value = 'Your collection is already in sync with BGG!'
+    } else {
+      const parts = []
+      if (addedCount > 0) parts.push(`added ${addedCount}`)
+      if (removedCount > 0) parts.push(`removed ${removedCount}`)
+      bggImportSuccess.value = `Successfully ${parts.join(' and ')} game${addedCount + removedCount !== 1 ? 's' : ''}!`
+    }
+    bggImportGames.value = []
+  } catch (err: any) {
+    bggImportError.value = err.message || 'Failed to import games'
+  } finally {
+    bggImporting.value = false
+  }
+}
+
 // Image lightbox
 const lightboxImage = ref<string | null>(null)
 const lightboxName = ref('')
@@ -228,6 +346,13 @@ const filteredGames = computed(() => {
         :class="activeTab === 'search' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
       >
         Search BGG
+      </button>
+      <button
+        @click="activeTab = 'import'"
+        class="px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px"
+        :class="activeTab === 'import' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+      >
+        Import from BGG
       </button>
     </div>
 
@@ -490,6 +615,175 @@ const filteredGames = computed(() => {
       <div v-if="!searchQuery && !searching" class="text-center py-8 text-gray-400">
         Type a game name to search BoardGameGeek
       </div>
+    </div>
+
+    <!-- Import from BGG Tab -->
+    <div v-else-if="activeTab === 'import'">
+      <div class="card p-6 mb-6">
+        <h2 class="font-semibold text-gray-900 mb-2">Sync with BoardGameGeek</h2>
+        <p class="text-sm text-gray-500 mb-4">Connect your BGG account to import and keep your game collection in sync.</p>
+
+        <div class="flex gap-2 mb-4">
+          <input
+            v-model="bggUsername"
+            type="text"
+            placeholder="Your BGG username"
+            class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            @keydown.enter="fetchBggUserCollection"
+          />
+          <button
+            @click="fetchBggUserCollection"
+            :disabled="bggImportLoading"
+            class="btn-primary px-6"
+          >
+            <svg v-if="bggImportLoading" class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            <span v-else>Fetch Collection</span>
+          </button>
+        </div>
+
+        <!-- Sync Mode -->
+        <div class="flex gap-3">
+          <button
+            type="button"
+            class="flex-1 px-4 py-3 rounded-lg border-2 text-sm font-medium transition-colors text-left"
+            :class="syncMode === 'add' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'"
+            @click="syncMode = 'add'"
+          >
+            <div class="font-semibold">Add New Only</div>
+            <div class="text-xs mt-0.5 opacity-75">Add games from BGG that aren't in your Sasquatsh collection. Keeps any games you added manually.</div>
+          </button>
+          <button
+            type="button"
+            class="flex-1 px-4 py-3 rounded-lg border-2 text-sm font-medium transition-colors text-left"
+            :class="syncMode === 'sync' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'"
+            @click="syncMode = 'sync'"
+          >
+            <div class="font-semibold">Full Sync (BGG is source of truth)</div>
+            <div class="text-xs mt-0.5 opacity-75">Match your Sasquatsh collection to BGG exactly. Games not in BGG will be removed.</div>
+          </button>
+        </div>
+
+        <div v-if="bggImportError" class="alert-error mt-4">{{ bggImportError }}</div>
+        <div v-if="bggImportSuccess" class="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">{{ bggImportSuccess }}</div>
+      </div>
+
+      <!-- Preview results -->
+      <div v-if="bggImportGames.length > 0">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <div>
+            <p class="font-medium text-gray-900">Found {{ bggImportGames.length }} game{{ bggImportGames.length !== 1 ? 's' : '' }} on BGG</p>
+            <p class="text-sm text-gray-500">
+              <span v-if="bggNewGames.length > 0" class="text-green-600">+{{ bggNewGames.length }} to add</span>
+              <span v-if="bggNewGames.length > 0 && (bggImportGames.length - bggNewGames.length > 0 || (syncMode === 'sync' && bggRemovedGames.length > 0))"> · </span>
+              <span v-if="bggImportGames.length - bggNewGames.length > 0">{{ bggImportGames.length - bggNewGames.length }} already owned</span>
+              <span v-if="syncMode === 'sync' && bggRemovedGames.length > 0" class="text-red-500"> · -{{ bggRemovedGames.length }} to remove</span>
+            </p>
+          </div>
+          <button
+            v-if="bggNewGames.length > 0 || (syncMode === 'sync' && bggRemovedGames.length > 0)"
+            @click="importBggGames"
+            :disabled="bggImporting"
+            class="btn-primary whitespace-nowrap"
+          >
+            <svg v-if="bggImporting" class="w-5 h-5 animate-spin mr-2" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            {{ syncMode === 'sync' ? 'Sync Collection' : `Import ${bggNewGames.length} Game${bggNewGames.length !== 1 ? 's' : ''}` }}
+          </button>
+          <span v-else class="text-sm text-green-600 font-medium">Already in sync!</span>
+        </div>
+
+        <!-- Games to remove (sync mode only) -->
+        <div v-if="syncMode === 'sync' && bggRemovedGames.length > 0" class="mb-4">
+          <p class="text-sm font-medium text-red-600 mb-2">Will be removed (not in BGG):</p>
+          <div class="space-y-1">
+            <div
+              v-for="game in bggRemovedGames"
+              :key="game.bgg_id"
+              class="flex items-center gap-3 p-2 bg-red-50 border border-red-200 rounded-lg"
+            >
+              <img
+                v-if="game.thumbnail_url"
+                :src="game.thumbnail_url"
+                :alt="game.game_name"
+                class="w-8 h-8 object-cover rounded flex-shrink-0"
+              />
+              <div v-else class="w-8 h-8 bg-red-100 rounded flex-shrink-0"></div>
+              <div class="flex-1 min-w-0">
+                <div class="font-medium text-sm truncate text-red-800">{{ game.game_name }}</div>
+              </div>
+              <svg class="w-4 h-4 text-red-400 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Games to add -->
+        <div v-if="bggNewGames.length > 0" class="mb-4">
+          <p class="text-sm font-medium text-green-600 mb-2">New games to add:</p>
+          <div class="space-y-1">
+            <div
+              v-for="game in bggNewGames"
+              :key="game.bggId"
+              class="flex items-center gap-3 p-2 bg-green-50 border border-green-200 rounded-lg"
+            >
+              <img
+                v-if="game.thumbnailUrl"
+                :src="game.thumbnailUrl"
+                :alt="game.name"
+                class="w-8 h-8 object-cover rounded flex-shrink-0"
+              />
+              <div v-else class="w-8 h-8 bg-green-100 rounded flex-shrink-0"></div>
+              <div class="flex-1 min-w-0">
+                <div class="font-medium text-sm truncate text-green-800">{{ game.name }}</div>
+                <div v-if="game.yearPublished" class="text-xs text-green-600">({{ game.yearPublished }})</div>
+              </div>
+              <svg class="w-4 h-4 text-green-400 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Already owned -->
+        <div v-if="bggImportGames.length - bggNewGames.length > 0">
+          <details class="group">
+            <summary class="text-sm font-medium text-gray-500 cursor-pointer hover:text-gray-700 mb-2">
+              {{ bggImportGames.length - bggNewGames.length }} already in your collection
+            </summary>
+            <div class="space-y-1">
+              <div
+                v-for="game in bggImportGames.filter(g => ownedBggIds.has(g.bggId))"
+                :key="game.bggId"
+                class="flex items-center gap-3 p-2 bg-white border border-gray-200 rounded-lg opacity-50"
+              >
+                <img
+                  v-if="game.thumbnailUrl"
+                  :src="game.thumbnailUrl"
+                  :alt="game.name"
+                  class="w-8 h-8 object-cover rounded flex-shrink-0"
+                />
+                <div v-else class="w-8 h-8 bg-gray-100 rounded flex-shrink-0"></div>
+                <div class="flex-1 min-w-0">
+                  <div class="font-medium text-sm truncate">{{ game.name }}</div>
+                </div>
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
+    </div>
+
+    <!-- BGG Attribution -->
+    <div class="flex items-center justify-end mt-6">
+      <a href="https://boardgamegeek.com" target="_blank" rel="noopener noreferrer" class="hover:opacity-80 transition-opacity">
+        <img src="/powered-by-bgg.svg" alt="Powered by BoardGameGeek" class="h-5" />
+      </a>
     </div>
 
     <!-- Image Lightbox -->

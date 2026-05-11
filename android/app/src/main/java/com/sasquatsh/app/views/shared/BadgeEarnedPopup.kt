@@ -98,7 +98,7 @@ fun BadgeEarnedPopup(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(badges) { userBadge ->
-                    val badge = userBadge.badge
+                    val badge = userBadge.badge ?: return@items
                     val catColor = categoryColor(badge.category)
                     val shape = RoundedCornerShape(12.dp)
 

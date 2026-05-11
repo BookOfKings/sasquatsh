@@ -11,13 +11,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.cos
@@ -32,8 +30,7 @@ import kotlin.math.sqrt
 fun D20SpinnerView(
     modifier: Modifier = Modifier,
     size: Dp = 80.dp,
-    color: Color = Color(0xFF6366F1),
-    numberColor: Color = Color.White
+    color: Color = Color(0xFF6366F1)
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "d20spin")
     val rawAngle by infiniteTransition.animateFloat(
@@ -52,14 +49,14 @@ fun D20SpinnerView(
         val cy = this.size.height / 2f
         val scale = this.size.minDimension / 3.2f
 
-        drawD20(cx, cy, scale, angle, color, numberColor)
+        drawD20(cx, cy, scale, angle, color)
     }
 }
 
 private fun DrawScope.drawD20(
     cx: Float, cy: Float, scale: Float,
     angleDeg: Float,
-    faceColor: Color, numColor: Color
+    faceColor: Color
 ) {
     val phi = (1f + sqrt(5f)) / 2f
     val s = 0.75f
@@ -90,8 +87,6 @@ private fun DrawScope.drawD20(
         intArrayOf(4, 9, 5), intArrayOf(2, 4, 11), intArrayOf(6, 2, 10),
         intArrayOf(8, 6, 7), intArrayOf(9, 8, 1)
     )
-
-    val numbers = intArrayOf(20, 8, 14, 2, 17, 1, 13, 7, 19, 4, 16, 10, 6, 18, 12, 5, 11, 15, 3, 9)
 
     // Rotation axis (matching iOS: 0.3, 1, 0.15 normalized)
     val ax = 0.3f; val ay = 1f; val az = 0.15f
@@ -155,13 +150,6 @@ private fun DrawScope.drawD20(
     // Depth sort (painter's algorithm — draw far faces first)
     faceList.sortBy { it.depth }
 
-    val textPaint = android.graphics.Paint().apply {
-        color = numColor.hashCode()
-        textAlign = android.graphics.Paint.Align.CENTER
-        typeface = android.graphics.Typeface.DEFAULT_BOLD
-        isAntiAlias = true
-    }
-
     for (fd in faceList) {
         // Project 3D → 2D
         val x0 = cx + fd.p0[0] * scale; val y0 = cy - fd.p0[1] * scale
@@ -181,34 +169,12 @@ private fun DrawScope.drawD20(
             close()
         }
 
-        // Fill
+        // Fill face
         drawPath(path, shadedColor, style = Fill)
-        // Edge
-        drawPath(path, Color.White.copy(alpha = 0.15f), style = Stroke(width = 0.8f))
-
-        // Number at centroid
-        val centX = (x0 + x1 + x2) / 3f
-        val centY = (y0 + y1 + y2) / 3f
-
-        // Scale text to face size
-        val faceSize = maxOf(
-            sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0)),
-            sqrt((x2 - x0) * (x2 - x0) + (y2 - y0) * (y2 - y0))
-        )
-        val num = numbers[fd.index]
-        textPaint.textSize = faceSize * (if (num >= 10) 0.28f else 0.35f)
-        textPaint.color = android.graphics.Color.argb(
-            (255 * fd.brightness).toInt().coerceIn(100, 255),
-            (numColor.red * 255).toInt(),
-            (numColor.green * 255).toInt(),
-            (numColor.blue * 255).toInt()
-        )
-
-        drawContext.canvas.nativeCanvas.drawText(
-            "$num",
-            centX,
-            centY + textPaint.textSize / 3f,
-            textPaint
-        )
+        // Subtle edge highlight
+        val edgeR = (faceColor.red * fd.brightness * 0.7f * 255).toInt().coerceIn(0, 255)
+        val edgeG = (faceColor.green * fd.brightness * 0.7f * 255).toInt().coerceIn(0, 255)
+        val edgeB = (faceColor.blue * fd.brightness * 0.7f * 255).toInt().coerceIn(0, 255)
+        drawPath(path, Color(edgeR, edgeG, edgeB, 60), style = Stroke(width = 0.6f))
     }
 }

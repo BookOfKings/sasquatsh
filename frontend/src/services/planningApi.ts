@@ -198,6 +198,32 @@ export async function updateSessionSettings(
   )
 }
 
+// Update planning session location
+export async function updateSessionLocation(
+  token: string,
+  sessionId: string,
+  location: {
+    eventLocationId?: string | null
+    venueHall?: string | null
+    venueRoom?: string | null
+    venueTable?: string | null
+    addressLine1?: string | null
+    city?: string | null
+    state?: string | null
+    postalCode?: string | null
+    locationDetails?: string | null
+  }
+): Promise<{ message: string }> {
+  return authenticatedRequest<{ message: string }>(
+    `/planning?id=${sessionId}&action=update-location`,
+    token,
+    {
+      method: 'POST',
+      body: JSON.stringify(location),
+    }
+  )
+}
+
 // Finalize planning session and create event
 export async function finalizePlanningSession(
   token: string,

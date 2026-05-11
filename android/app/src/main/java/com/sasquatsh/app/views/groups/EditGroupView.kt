@@ -1,5 +1,9 @@
 package com.sasquatsh.app.views.groups
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,12 +23,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -41,27 +47,75 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
-import com.sasquatsh.app.models.GameGroup
 import com.sasquatsh.app.views.shared.D20SpinnerView
+import com.sasquatsh.app.views.shared.ErrorBannerView
 import com.sasquatsh.app.viewmodels.CreateEditGroupViewModel
+import com.sasquatsh.app.viewmodels.GroupDetailViewModel
 import com.sasquatsh.app.views.events.USStateDropdown
+import com.sasquatsh.app.views.shared.LoadingView
+import java.io.ByteArrayOutputStream
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditGroupView(
-    group: GameGroup,
+    groupId: String,
     onDismiss: () -> Unit,
-    viewModel: CreateEditGroupViewModel = hiltViewModel()
+    viewModel: CreateEditGroupViewModel = hiltViewModel(),
+    detailViewModel: GroupDetailViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val detailState by detailViewModel.uiState.collectAsState()
     var showRemoveLogoConfirm by remember { mutableStateOf(false) }
+    var groupLoaded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
-    LaunchedEffect(group) {
-        viewModel.loadForEdit(group)
+    // Photo picker
+    val photoLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let {
+            try {
+                val inputStream = context.contentResolver.openInputStream(it)
+                val bitmap = BitmapFactory.decodeStream(inputStream)
+                inputStream?.close()
+                if (bitmap != null) {
+                    // Resize to max 512px and compress
+                    val maxDim = 512
+                    val scale = minOf(maxDim.toFloat() / bitmap.width, maxDim.toFloat() / bitmap.height, 1f)
+                    val resized = if (scale < 1f) {
+                        Bitmap.createScaledBitmap(
+                            bitmap,
+                            (bitmap.width * scale).toInt(),
+                            (bitmap.height * scale).toInt(),
+                            true
+                        )
+                    } else bitmap
+                    val baos = ByteArrayOutputStream()
+                    resized.compress(Bitmap.CompressFormat.JPEG, 80, baos)
+                    viewModel.uploadLogo(baos.toByteArray())
+                }
+            } catch (e: Exception) {
+                // Error handled in viewModel
+            }
+        }
+    }
+
+    LaunchedEffect(groupId) {
+        detailViewModel.loadGroup(groupId)
+    }
+
+    LaunchedEffect(detailState.group) {
+        detailState.group?.let { group ->
+            if (!groupLoaded) {
+                viewModel.loadForEdit(group)
+                groupLoaded = true
+            }
+        }
     }
 
     Scaffold(
@@ -75,190 +129,198 @@ fun EditGroupView(
                 },
                 actions = {
                     TextButton(
-                        onClick = {
-                            viewModel.save { onDismiss() }
-                        },
+                        onClick = { viewModel.save { onDismiss() } },
                         enabled = uiState.isValid && !uiState.isLoading
                     ) {
-                        Text("Save")
+                        if (uiState.isLoading) {
+                            D20SpinnerView(size = 20.dp, modifier = Modifier.size(20.dp))
+                        } else {
+                            Text(
+                                "Save",
+                                color = if (uiState.isValid) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                            )
+                        }
                     }
                 }
             )
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Group Logo
-            Text(
-                text = "Group Logo",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
-
+        if (detailState.isLoading && !groupLoaded) {
+            LoadingView(modifier = Modifier.padding(padding))
+        } else {
             Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                val logoUrl = uiState.currentLogoUrl
-                if (logoUrl != null) {
-                    AsyncImage(
-                        model = logoUrl,
-                        contentDescription = "Group logo",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(80.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(MaterialTheme.colorScheme.primaryContainer)
+                // Error banner at top
+                uiState.error?.let { error ->
+                    ErrorBannerView(
+                        message = error,
+                        onDismiss = { viewModel.clearError() }
                     )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .size(80.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(MaterialTheme.colorScheme.primaryContainer),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Groups,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
                 }
 
-                if (uiState.isUploadingLogo) {
-                    D20SpinnerView(size = 24.dp, modifier = Modifier.size(24.dp))
-                    Text(
-                        text = "Uploading...",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                } else {
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        // Upload button placeholder - photo picker requires Activity context
-                        TextButton(onClick = { /* photo picker */ }) {
-                            Text(
-                                text = if (uiState.currentLogoUrl != null) "Change" else "Upload",
-                                color = MaterialTheme.colorScheme.primary
+                // Group Logo
+                Text(
+                    text = "Group Logo",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    val logoUrl = uiState.currentLogoUrl
+                    if (logoUrl != null) {
+                        AsyncImage(
+                            model = logoUrl,
+                            contentDescription = "Group logo",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(80.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.primaryContainer)
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(80.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.primaryContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Groups,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(28.dp)
                             )
                         }
+                    }
 
-                        if (uiState.currentLogoUrl != null) {
-                            TextButton(onClick = { showRemoveLogoConfirm = true }) {
-                                Text("Remove", color = MaterialTheme.colorScheme.error)
+                    if (uiState.isUploadingLogo) {
+                        D20SpinnerView(size = 24.dp, modifier = Modifier.size(24.dp))
+                        Text(
+                            text = "Uploading...",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OutlinedButton(onClick = { photoLauncher.launch("image/*") }) {
+                                Icon(Icons.Filled.PhotoCamera, null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(if (uiState.currentLogoUrl != null) "Change" else "Upload")
+                            }
+
+                            if (uiState.currentLogoUrl != null) {
+                                TextButton(onClick = { showRemoveLogoConfirm = true }) {
+                                    Text("Remove", color = MaterialTheme.colorScheme.error)
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            // Group Info
-            Text(
-                text = "Group Info",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            OutlinedTextField(
-                value = uiState.name,
-                onValueChange = { viewModel.updateName(it) },
-                label = { Text("Group Name") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            OutlinedTextField(
-                value = uiState.description,
-                onValueChange = { viewModel.updateDescription(it) },
-                label = { Text("Description") },
-                minLines = 3,
-                maxLines = 6,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            // Group Type
-            Text(
-                text = "Type",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            GroupTypePicker(
-                selected = uiState.groupType,
-                onSelect = { viewModel.updateGroupType(it) }
-            )
-
-            // Location
-            Text(
-                text = "Location",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            OutlinedTextField(
-                value = uiState.locationCity,
-                onValueChange = { viewModel.updateLocationCity(it) },
-                label = { Text("City") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            USStateDropdown(
-                selected = uiState.locationState,
-                onSelect = { viewModel.updateLocationState(it) }
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
+                // Group Info
                 Text(
-                    text = "Radius (miles)",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f)
+                    text = "Group Info",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
                 )
+
                 OutlinedTextField(
-                    value = uiState.locationRadiusMiles?.toString() ?: "",
-                    onValueChange = {
-                        viewModel.updateLocationRadiusMiles(it.toIntOrNull())
-                    },
-                    placeholder = { Text("25") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    value = uiState.name,
+                    onValueChange = { viewModel.updateName(it) },
+                    label = { Text("Group Name") },
                     singleLine = true,
-                    modifier = Modifier.width(100.dp)
+                    modifier = Modifier.fillMaxWidth()
                 )
-            }
 
-            // Join Policy
-            Text(
-                text = "Join Policy",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
+                OutlinedTextField(
+                    value = uiState.description,
+                    onValueChange = { viewModel.updateDescription(it) },
+                    label = { Text("Description") },
+                    minLines = 3,
+                    maxLines = 6,
+                    modifier = Modifier.fillMaxWidth()
+                )
 
-            JoinPolicyPicker(
-                selected = uiState.joinPolicy,
-                onSelect = { viewModel.updateJoinPolicy(it) }
-            )
-
-            // Error
-            uiState.error?.let { error ->
+                // Group Type
                 Text(
-                    text = error,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error
+                    text = "Type",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
                 )
-            }
 
-            Spacer(modifier = Modifier.height(32.dp))
+                GroupTypePicker(
+                    selected = uiState.groupType,
+                    onSelect = { viewModel.updateGroupType(it) }
+                )
+
+                // Location
+                Text(
+                    text = "Location",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                OutlinedTextField(
+                    value = uiState.locationCity,
+                    onValueChange = { viewModel.updateLocationCity(it) },
+                    label = { Text("City") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                USStateDropdown(
+                    selected = uiState.locationState,
+                    onSelect = { viewModel.updateLocationState(it) }
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Radius (miles)",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = uiState.locationRadiusMiles?.toString() ?: "",
+                        onValueChange = {
+                            viewModel.updateLocationRadiusMiles(it.toIntOrNull())
+                        },
+                        placeholder = { Text("25") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.width(100.dp)
+                    )
+                }
+
+                // Join Policy
+                Text(
+                    text = "Join Policy",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                JoinPolicyPicker(
+                    selected = uiState.joinPolicy,
+                    onSelect = { viewModel.updateJoinPolicy(it) }
+                )
+
+                Spacer(modifier = Modifier.height(32.dp))
+            }
         }
     }
 

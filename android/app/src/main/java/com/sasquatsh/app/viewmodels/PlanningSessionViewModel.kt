@@ -9,7 +9,13 @@ import com.sasquatsh.app.models.ItemCategory
 import com.sasquatsh.app.models.PlanningResponseInput
 import com.sasquatsh.app.models.PlanningSession
 import com.sasquatsh.app.models.ScheduleEntry
+import com.sasquatsh.app.models.BggSearchResult
 import com.sasquatsh.app.models.SuggestGameInput
+import com.sasquatsh.app.models.EventLocation
+import com.sasquatsh.app.services.BggService
+import com.sasquatsh.app.services.CollectionsService
+import com.sasquatsh.app.services.EventLocationsService
+import com.sasquatsh.app.services.GroupsService
 import com.sasquatsh.app.services.PlanningService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,7 +34,11 @@ data class PlanningSessionUiState(
 
 @HiltViewModel
 class PlanningSessionViewModel @Inject constructor(
-    private val planningService: PlanningService,
+    val planningService: PlanningService,
+    val bggService: BggService,
+    val collectionsService: CollectionsService,
+    val eventLocationsService: EventLocationsService,
+    val groupsService: GroupsService,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -131,11 +141,29 @@ class PlanningSessionViewModel @Inject constructor(
         }
     }
 
-    fun finalize(selectedDateId: String?, selectedGameId: String?, onEventCreated: (String) -> Unit) {
+    fun finalize(
+        selectedDateId: String?,
+        selectedGameId: String?,
+        tableGameAssignments: Map<Int, String>,
+        onEventCreated: (String) -> Unit
+    ) {
         val session = _uiState.value.session ?: return
         viewModelScope.launch {
             _uiState.update { it.copy(error = null) }
             try {
+                // For multi-table, save schedule before finalizing
+                val isMultiTable = (session.tableCount ?: 0) >= 2 && tableGameAssignments.isNotEmpty()
+                if (isMultiTable) {
+                    val schedule = tableGameAssignments.map { (tableNumber, suggestionId) ->
+                        com.sasquatsh.app.models.ScheduleEntry(
+                            suggestionId = suggestionId,
+                            tableNumber = tableNumber,
+                            slotIndex = 0
+                        )
+                    }
+                    planningService.scheduleSessions(session.id, schedule)
+                }
+
                 val result = planningService.finalizeSession(session.id, selectedDateId, selectedGameId)
                 _uiState.update { it.copy(actionMessage = result.message) }
                 onEventCreated(result.eventId)
@@ -270,5 +298,60 @@ class PlanningSessionViewModel @Inject constructor(
 
     fun clearActionMessage() {
         _uiState.update { it.copy(actionMessage = null) }
+    }
+
+    fun clearError() {
+        _uiState.update { it.copy(error = null) }
+    }
+
+    fun updateLocation(
+        eventLocationId: String?,
+        venue: EventLocation?,
+        venueHall: String?,
+        venueRoom: String?,
+        venueTable: String?,
+        addressLine1: String?,
+        city: String?,
+        state: String?,
+        postalCode: String?,
+        locationDetails: String?
+    ) {
+        val session = _uiState.value.session ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(error = null) }
+            try {
+                planningService.updateLocation(
+                    sessionId = session.id,
+                    eventLocationId = eventLocationId,
+                    venueHall = venueHall,
+                    venueRoom = venueRoom,
+                    venueTable = venueTable,
+                    addressLine1 = addressLine1,
+                    city = city,
+                    state = state,
+                    postalCode = postalCode,
+                    locationDetails = locationDetails
+                )
+                _uiState.update { uiState ->
+                    val currentSession = uiState.session ?: return@update uiState
+                    uiState.copy(
+                        session = currentSession.copy(
+                            eventLocationId = eventLocationId,
+                            venueHall = venueHall,
+                            venueRoom = venueRoom,
+                            venueTable = venueTable,
+                            addressLine1 = addressLine1,
+                            city = city,
+                            state = state,
+                            postalCode = postalCode,
+                            locationDetails = locationDetails
+                        ),
+                        actionMessage = "Location updated"
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.localizedMessage) }
+            }
+        }
     }
 }

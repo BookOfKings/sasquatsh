@@ -39,6 +39,9 @@ data class Event(
     @Json(name = "registrations") val registrations: List<EventRegistration>? = null,
     @Json(name = "items") val items: List<EventItem>? = null,
     @Json(name = "games") val games: List<EventGameSummary>? = null,
+    @Json(name = "plannedGames") val plannedGames: List<PlannedGame>? = null,
+    @Json(name = "tables") val tables: List<MultiTableInfo>? = null,
+    @Json(name = "sessions") val sessions: List<EventGameSession>? = null,
     @Json(name = "mtgConfig") val mtgConfig: MtgEventConfig? = null,
     @Json(name = "pokemonConfig") val pokemonConfig: PokemonEventConfig? = null,
     @Json(name = "yugiohConfig") val yugiohConfig: YugiohEventConfig? = null,
@@ -102,6 +105,40 @@ data class EventGameSummary(
     @Json(name = "playingTime") val playingTime: Int? = null,
     @Json(name = "isPrimary") val isPrimary: Boolean = false,
     @Json(name = "isAlternative") val isAlternative: Boolean = false
+)
+
+@JsonClass(generateAdapter = true)
+data class PlannedGame(
+    @Json(name = "bggId") val bggId: Int? = null,
+    @Json(name = "name") val name: String = "",
+    @Json(name = "image") val image: String? = null,
+    @Json(name = "interestedCount") val interestedCount: Int = 0,
+    @Json(name = "minPlayers") val minPlayers: Int? = null,
+    @Json(name = "maxPlayers") val maxPlayers: Int? = null,
+    @Json(name = "playingTime") val playingTime: Int? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class MultiTableInfo(
+    @Json(name = "id") val id: String,
+    @Json(name = "tableNumber") val tableNumber: Int,
+    @Json(name = "tableName") val tableName: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class EventGameSession(
+    @Json(name = "id") val id: String,
+    @Json(name = "tableId") val tableId: String? = null,
+    @Json(name = "tableNumber") val tableNumber: Int = 0,
+    @Json(name = "bggId") val bggId: Int? = null,
+    @Json(name = "gameName") val gameName: String = "",
+    @Json(name = "thumbnailUrl") val thumbnailUrl: String? = null,
+    @Json(name = "minPlayers") val minPlayers: Int? = null,
+    @Json(name = "maxPlayers") val maxPlayers: Int? = null,
+    @Json(name = "durationMinutes") val durationMinutes: Int? = null,
+    @Json(name = "status") val status: String? = null,
+    @Json(name = "registeredCount") val registeredCount: Int = 0,
+    @Json(name = "isUserRegistered") val isUserRegistered: Boolean = false
 )
 
 data class CreateEventInput(

@@ -37,8 +37,8 @@ object PickerSoundEngine {
 
     // ── audio format shared by all tracks ───────────────────────────────
     private val audioAttributes: AudioAttributes = AudioAttributes.Builder()
-        .setUsage(AudioAttributes.USAGE_GAME)
-        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+        .setUsage(AudioAttributes.USAGE_MEDIA)
+        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
         .build()
 
     private val audioFormat: AudioFormat = AudioFormat.Builder()
@@ -94,15 +94,15 @@ object PickerSoundEngine {
     //  BUFFER GENERATION
     // ══════════════════════════════════════════════════════════════════════
 
-    /** ~80 ms muted bell for finger tap. */
+    /** ~150 ms bell for finger tap. */
     private fun generateTapBuffer(scaleIndex: Int): ShortArray {
-        val durationSec = 0.08
+        val durationSec = 0.15
         val numSamples = (SAMPLE_RATE * durationSec).toInt()
         val buffer = ShortArray(numSamples)
 
         val freq = C_MAJOR_SCALE[scaleIndex]
         val partialFreq = freq * 2.2
-        val volume = 0.4
+        val volume = 0.8
         val attackSec = 0.003
 
         for (i in 0 until numSamples) {
@@ -110,7 +110,7 @@ object PickerSoundEngine {
 
             // Envelope: soft 3 ms attack, fast exponential decay
             val attack = if (t < attackSec) t / attackSec else 1.0
-            val decay = exp(-t * 35.0)
+            val decay = exp(-t * 20.0)
             val envelope = attack * decay
 
             // Fundamental + inharmonic partial
@@ -131,7 +131,7 @@ object PickerSoundEngine {
         val numSamples = (SAMPLE_RATE * durationSec).toInt()
         val buffer = ShortArray(numSamples)
 
-        val volume = 0.45
+        val volume = 0.85
 
         // G major chord: G4, B4, D5
         val freqs = doubleArrayOf(392.0, 493.88, 587.33)
@@ -156,9 +156,9 @@ object PickerSoundEngine {
         return buffer
     }
 
-    /** ~60 ms damped bell tick whose pitch ascends with [progress]. */
+    /** ~200 ms bell tick whose pitch ascends with [progress]. */
     private fun generateCountdownBuffer(progress: Double): ShortArray {
-        val durationSec = 0.06
+        val durationSec = 0.2
         val numSamples = (SAMPLE_RATE * durationSec).toInt()
         val buffer = ShortArray(numSamples)
 
@@ -167,14 +167,14 @@ object PickerSoundEngine {
             .coerceIn(0, C_MAJOR_SCALE.lastIndex)
         val freq = C_MAJOR_SCALE[scaleIdx]
         val partialFreq = freq * 3.0
-        val volume = 0.3 + progress * 0.15
+        val volume = 0.7 + progress * 0.2
         val attackSec = 0.002
 
         for (i in 0 until numSamples) {
             val t = i.toDouble() / SAMPLE_RATE
 
             val attack = if (t < attackSec) t / attackSec else 1.0
-            val decay = exp(-t * 45.0)
+            val decay = exp(-t * 25.0)
             val envelope = attack * decay
 
             val sample = sin(TWO_PI * freq * t) +
@@ -185,13 +185,13 @@ object PickerSoundEngine {
         return buffer
     }
 
-    /** ~500 ms full resonant bell with rich harmonics. */
+    /** ~800 ms full resonant bell with rich harmonics. */
     private fun generateSelectChimeBuffer(): ShortArray {
-        val durationSec = 0.5
+        val durationSec = 0.8
         val numSamples = (SAMPLE_RATE * durationSec).toInt()
         val buffer = ShortArray(numSamples)
 
-        val volume = 0.35
+        val volume = 0.85
         val onsetSec = 0.005
 
         // Partials: frequency, amplitude, decay rate
@@ -233,25 +233,30 @@ object PickerSoundEngine {
     private fun playBuffer(buffer: ShortArray) {
         Thread({
             try {
-                val bufferBytes = buffer.size * 2 // 16-bit = 2 bytes per sample
+                val minBufSize = AudioTrack.getMinBufferSize(
+                    SAMPLE_RATE,
+                    AudioFormat.CHANNEL_OUT_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT
+                )
+                val bufferBytes = maxOf(buffer.size * 2, minBufSize)
                 val track = AudioTrack.Builder()
                     .setAudioAttributes(audioAttributes)
                     .setAudioFormat(audioFormat)
                     .setBufferSizeInBytes(bufferBytes)
-                    .setTransferMode(AudioTrack.MODE_STATIC)
+                    .setTransferMode(AudioTrack.MODE_STREAM)
                     .build()
 
-                track.write(buffer, 0, buffer.size)
                 track.play()
+                track.write(buffer, 0, buffer.size)
 
                 // Wait for playback to finish then release resources.
-                val durationMs = (buffer.size * 1000L) / SAMPLE_RATE + 50
+                val durationMs = (buffer.size * 1000L) / SAMPLE_RATE + 100
                 Thread.sleep(durationMs)
 
                 track.stop()
                 track.release()
-            } catch (_: Exception) {
-                // Silently swallow audio errors – sound is non-critical UI feedback.
+            } catch (e: Exception) {
+                android.util.Log.e("PickerSound", "Playback error", e)
             }
         }, "PickerSound").start()
     }

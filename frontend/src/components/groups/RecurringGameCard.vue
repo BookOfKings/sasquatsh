@@ -5,12 +5,14 @@ import type { RecurringGame } from '@/types/groups'
 const props = defineProps<{
   game: RecurringGame
   isAdmin: boolean
+  linkCopied?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'edit', game: RecurringGame): void
   (e: 'delete', game: RecurringGame): void
   (e: 'toggle-active', game: RecurringGame): void
+  (e: 'copy-link', game: RecurringGame): void
 }>()
 
 const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -138,6 +140,14 @@ const gameSystemInfo = computed(() => {
         {{ gameSystemInfo.label }}
       </span>
 
+      <!-- Planning mode badge -->
+      <span v-if="game.generatesPlanningSession" class="chip bg-purple-100 text-purple-700 border border-purple-300">
+        <svg class="w-3 h-3 mr-1" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M19,19H5V8H19M16,1V3H8V1H6V3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3H18V1"/>
+        </svg>
+        Planning Mode
+      </span>
+
       <!-- Game title -->
       <span v-if="game.gameTitle" class="chip border border-primary-500 text-primary-500">
         {{ game.gameTitle }}
@@ -167,6 +177,17 @@ const gameSystemInfo = computed(() => {
 
     <!-- Admin actions -->
     <div v-if="isAdmin" class="flex items-center gap-2 pt-3 border-t border-gray-100">
+      <button
+        v-if="game.generatesPlanningSession"
+        type="button"
+        class="btn-outline btn-sm text-purple-600 border-purple-300 hover:bg-purple-50"
+        @click.stop="emit('copy-link', game)"
+      >
+        <svg class="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M10.59,13.41C11,13.8 11,14.44 10.59,14.83C10.2,15.22 9.56,15.22 9.17,14.83C7.22,12.88 7.22,9.71 9.17,7.76L12.71,4.22C14.66,2.27 17.83,2.27 19.78,4.22C21.73,6.17 21.73,9.34 19.78,11.29L18.29,12.78C18.3,11.96 18.17,11.14 17.89,10.36L18.36,9.88C19.54,8.71 19.54,6.81 18.36,5.64C17.19,4.46 15.29,4.46 14.12,5.64L10.59,9.17C9.41,10.34 9.41,12.24 10.59,13.41M13.41,9.17C13.8,8.78 14.44,8.78 14.83,9.17C16.78,11.12 16.78,14.29 14.83,16.24L11.29,19.78C9.34,21.73 6.17,21.73 4.22,19.78C2.27,17.83 2.27,14.66 4.22,12.71L5.71,11.22C5.7,12.04 5.83,12.86 6.11,13.65L5.64,14.12C4.46,15.29 4.46,17.19 5.64,18.36C6.81,19.54 8.71,19.54 9.88,18.36L13.41,14.83C14.59,13.66 14.59,11.76 13.41,10.59C13,10.2 13,9.56 13.41,9.17Z"/>
+        </svg>
+        {{ linkCopied ? 'Copied!' : 'Share Link' }}
+      </button>
       <button
         type="button"
         class="btn-outline btn-sm"

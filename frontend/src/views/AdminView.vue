@@ -86,6 +86,11 @@ function withMinLoadingTime<T>(promise: Promise<T>, startTime: number): Promise<
 const activeTab = ref<'dashboard' | 'users' | 'groups' | 'events' | 'notes' | 'bugs' | 'chatReports' | 'ads' | 'raffles' | 'locations' | 'caches'>('dashboard')
 const activeCacheTab = ref<'bgg' | 'mtg'>('bgg')
 
+// Cron job state
+const cronRunning = ref(false)
+const cronResult = ref('')
+const cronError = ref(false)
+
 // Events state
 const deletingEventId = ref<string | null>(null)
 const eventsLoading = ref(false)
@@ -343,6 +348,48 @@ onMounted(async () => {
   await loadCacheGames()
   await loadMtgCacheStats()
 })
+
+const SUPABASE_FUNCTIONS_URL = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL
+
+async function runCronJob() {
+  cronRunning.value = true
+  cronResult.value = ''
+  cronError.value = false
+
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+
+    const response = await fetch(`${SUPABASE_FUNCTIONS_URL}/admin-stats?action=run-generator`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        'X-Firebase-Token': token,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    const data = await response.json()
+
+    if (data.error) {
+      cronError.value = true
+      cronResult.value = data.error
+    } else {
+      const parts = []
+      if (data.generated > 0) parts.push(`${data.generated} generated`)
+      if (data.skipped > 0) parts.push(`${data.skipped} skipped`)
+      if (data.autoFinalized > 0) parts.push(`${data.autoFinalized} auto-finalized`)
+      if (data.errors?.length > 0) parts.push(`${data.errors.length} errors`)
+      cronResult.value = parts.length > 0 ? parts.join(', ') : 'No recurring games to process'
+      cronError.value = (data.errors?.length ?? 0) > 0
+    }
+  } catch (err: any) {
+    cronError.value = true
+    cronResult.value = err.message || 'Failed to run generator'
+  } finally {
+    cronRunning.value = false
+  }
+}
 
 async function loadDashboard() {
   dashboardLoading.value = true
@@ -2830,6 +2877,33 @@ function getLocationTypeLabel(location: EventLocation): string {
           </div>
         </div>
 
+        <!-- Quick Actions -->
+        <div class="mb-8">
+          <h2 class="text-lg font-semibold mb-4">Quick Actions</h2>
+          <div class="card p-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="font-medium text-gray-900">Recurring Games Generator</h3>
+                <p class="text-sm text-gray-500">Generate new planning sessions/events and auto-finalize expired sessions</p>
+                <p v-if="cronResult" class="text-sm mt-1" :class="cronError ? 'text-red-600' : 'text-green-600'">
+                  {{ cronResult }}
+                </p>
+              </div>
+              <button
+                class="btn-primary text-sm whitespace-nowrap"
+                :disabled="cronRunning"
+                @click="runCronJob"
+              >
+                <svg v-if="cronRunning" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                {{ cronRunning ? 'Running...' : 'Run Now' }}
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- Service Health Section -->
         <div>
           <h2 class="text-lg font-semibold mb-4">Service Health</h2>
@@ -4172,12 +4246,16 @@ function getLocationTypeLabel(location: EventLocation): string {
                   </div>
 
                   <!-- Winner Info -->
-                  <div v-if="raffle.winner" class="mt-2 p-2 bg-green-50 rounded-lg">
-                    <div class="flex items-center gap-2">
+                  <div v-if="raffle.winner" class="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <div class="flex items-center gap-2 mb-1">
                       <UserAvatar :user="{ avatarUrl: raffle.winner.avatarUrl, displayName: raffle.winner.displayName }" size="sm" :show-badge="false" />
-                      <span class="font-medium text-green-800">Winner: {{ raffle.winner.displayName || 'Unknown' }}</span>
-                      <span v-if="raffle.winnerNotifiedAt" class="text-xs text-green-600">Notified</span>
-                      <span v-if="raffle.winnerClaimedAt" class="text-xs text-green-600">Claimed</span>
+                      <span class="font-medium text-green-800">Winner: {{ raffle.winner.displayName || raffle.winner.username || 'Unknown' }}</span>
+                      <span v-if="raffle.winnerNotifiedAt" class="text-xs bg-green-200 text-green-800 px-1.5 py-0.5 rounded-full">Notified</span>
+                      <span v-if="raffle.winnerClaimedAt" class="text-xs bg-green-200 text-green-800 px-1.5 py-0.5 rounded-full">Claimed</span>
+                    </div>
+                    <div class="text-sm text-green-700 pl-8 space-y-0.5">
+                      <div v-if="raffle.winner.username">@{{ raffle.winner.username }}</div>
+                      <div v-if="raffle.winner.email">{{ raffle.winner.email }}</div>
                     </div>
                   </div>
                 </div>

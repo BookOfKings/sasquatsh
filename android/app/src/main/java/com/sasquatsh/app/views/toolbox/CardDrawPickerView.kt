@@ -149,7 +149,11 @@ fun CardDrawPickerView(onBack: () -> Unit = {}) {
 
     fun drawCard() {
         if (cardRevealed) return
-        val card = deck.removeFirst()
+        if (deck.isEmpty()) {
+            deck = buildDeck()
+        }
+        if (currentPlayerIndex >= activePlayers.size) return
+        val card = deck.removeAt(0)
         val playerNum = activePlayers[currentPlayerIndex]
         draws.add(PlayerDraw(playerNum, card, isTiebreaker = tiebreakerRound > 0))
         cardRevealed = true
@@ -352,7 +356,7 @@ private fun DrawingPhase(
     onNext: () -> Unit,
     isLastPlayer: Boolean
 ) {
-    val currentPlayer = activePlayers[currentPlayerIndex]
+    val currentPlayer = activePlayers.getOrElse(currentPlayerIndex) { 1 }
 
     Column(
         modifier = Modifier
@@ -618,9 +622,8 @@ private fun CardFace(card: PlayingCard, width: Dp = 160.dp, height: Dp = 220.dp)
     Box(
         modifier = Modifier
             .size(width, height)
-            .shadow(8.dp, RoundedCornerShape(12.dp))
             .background(Color.White, RoundedCornerShape(12.dp))
-            .border(1.dp, Color(0xFFDDDDDD), RoundedCornerShape(12.dp))
+            .border(2.dp, Color(0xFFCCCCCC), RoundedCornerShape(12.dp))
     ) {
         // Top-left rank + suit
         Column(
@@ -686,7 +689,6 @@ private fun CardBack(width: Dp = 160.dp, height: Dp = 220.dp) {
     Box(
         modifier = Modifier
             .size(width, height)
-            .shadow(8.dp, RoundedCornerShape(12.dp))
             .background(CardBackBlue, RoundedCornerShape(12.dp))
             .drawBehind {
                 drawDiamondPattern(this)
@@ -740,7 +742,6 @@ private fun MiniCard(draw: PlayerDraw) {
     Column(
         modifier = Modifier
             .size(36.dp, 48.dp)
-            .shadow(2.dp, RoundedCornerShape(4.dp))
             .background(Color.White, RoundedCornerShape(4.dp))
             .border(0.5.dp, Color(0xFFDDDDDD), RoundedCornerShape(4.dp)),
         horizontalAlignment = Alignment.CenterHorizontally,

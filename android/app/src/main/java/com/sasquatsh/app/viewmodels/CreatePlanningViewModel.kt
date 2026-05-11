@@ -3,8 +3,10 @@ package com.sasquatsh.app.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sasquatsh.app.models.CreatePlanningSessionInput
+import com.sasquatsh.app.models.GroupMember
 import com.sasquatsh.app.models.PlanningSession
 import com.sasquatsh.app.models.ProposedDateInput
+import com.sasquatsh.app.services.GroupsService
 import com.sasquatsh.app.services.PlanningService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -52,11 +54,25 @@ data class CreatePlanningUiState(
 
 @HiltViewModel
 class CreatePlanningViewModel @Inject constructor(
-    private val planningService: PlanningService
+    private val planningService: PlanningService,
+    private val groupsService: GroupsService
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CreatePlanningUiState())
     val uiState: StateFlow<CreatePlanningUiState> = _uiState.asStateFlow()
+
+    private val _members = MutableStateFlow<List<GroupMember>>(emptyList())
+    val members: StateFlow<List<GroupMember>> = _members.asStateFlow()
+
+    fun loadMembers(groupId: String) {
+        viewModelScope.launch {
+            try {
+                _members.value = groupsService.getMembers(groupId)
+            } catch (_: Exception) {
+                _members.value = emptyList()
+            }
+        }
+    }
 
     fun updateTitle(title: String) {
         _uiState.update { it.copy(title = title) }

@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import type { RecurringGame, CreateRecurringGameInput, RecurringFrequency } from '@/types/groups'
+import { useAuthStore } from '@/stores/useAuthStore'
+import { getEffectiveTier } from '@/types/user'
+import type { SubscriptionTier } from '@/config/subscriptionLimits'
+import EventLocationSection from '@/components/events/shared/EventLocationSection.vue'
 
 const props = defineProps<{
   game?: RecurringGame
@@ -11,6 +15,12 @@ const emit = defineEmits<{
   (e: 'save', data: CreateRecurringGameInput): void
   (e: 'cancel'): void
 }>()
+
+const authStore = useAuthStore()
+const currentTier = computed((): SubscriptionTier => {
+  if (!authStore.user.value) return 'free'
+  return getEffectiveTier(authStore.user.value)
+})
 
 const isEditing = computed(() => !!props.game)
 const modalTitle = computed(() => isEditing.value ? 'Edit Recurring Game' : 'Create Recurring Game')
@@ -25,15 +35,18 @@ const startTime = ref(props.game?.startTime ?? '19:00')
 const durationMinutes = ref(props.game?.durationMinutes ?? 120)
 const gameSystem = ref(props.game?.gameSystem ?? 'board_game')
 const gameTitle = ref(props.game?.gameTitle ?? '')
-const locationMode = ref<'group' | 'custom'>(
-  props.game?.city || props.game?.addressLine1 ? 'custom' : 'group'
-)
+const eventLocationId = ref<string | undefined>(props.game?.eventLocationId || undefined)
+const addressLine1 = ref(props.game?.addressLine1 ?? '')
 const city = ref(props.game?.city ?? '')
 const state = ref(props.game?.state ?? '')
 const postalCode = ref(props.game?.postalCode ?? '')
+const locationDetails = ref(props.game?.locationDetails ?? '')
 const maxPlayers = ref(props.game?.maxPlayers ?? 4)
 const hostIsPlaying = ref(props.game?.hostIsPlaying ?? true)
 const isPublic = ref(props.game?.isPublic ?? true)
+const generatesPlanningSession = ref(props.game?.generatesPlanningSession ?? false)
+const deadlineDayOffset = ref(props.game?.deadlineDayOffset ?? 1)
+const tableCount = ref<number | null>(props.game?.tableCount ?? null)
 
 // Validation
 const errors = ref<Record<string, string>>({})
@@ -86,9 +99,7 @@ function validate(): boolean {
   if (frequency.value === 'monthly' && monthlyWeek.value === null) {
     errs.monthlyWeek = 'Please select which week'
   }
-  if (locationMode.value === 'custom' && !city.value.trim()) {
-    errs.city = 'City is required for custom location'
-  }
+  // Location validation removed — venue selector handles its own state
   errors.value = errs
   return Object.keys(errs).length === 0
 }
@@ -111,10 +122,18 @@ function handleSave() {
     isPublic: isPublic.value,
   }
 
-  if (locationMode.value === 'custom') {
-    data.city = city.value.trim()
-    data.state = state.value.trim() || undefined
-    data.postalCode = postalCode.value.trim() || undefined
+  data.eventLocationId = eventLocationId.value || undefined
+  data.addressLine1 = addressLine1.value.trim() || undefined
+  data.city = city.value.trim() || undefined
+  data.state = state.value.trim() || undefined
+  data.postalCode = postalCode.value.trim() || undefined
+  data.locationDetails = locationDetails.value.trim() || undefined
+
+  // Planning session mode
+  data.generatesPlanningSession = generatesPlanningSession.value
+  if (generatesPlanningSession.value) {
+    data.deadlineDayOffset = deadlineDayOffset.value
+    data.tableCount = tableCount.value ?? undefined
   }
 
   emit('save', data)
@@ -282,59 +301,21 @@ function handleSave() {
         <!-- Location -->
         <div>
           <label class="label">Location</label>
-          <div class="flex gap-4 mb-3">
-            <label class="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                v-model="locationMode"
-                value="group"
-                class="w-4 h-4 text-primary-500 focus:ring-primary-500"
-              />
-              <span class="text-sm text-gray-700">Use group location</span>
-            </label>
-            <label class="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                v-model="locationMode"
-                value="custom"
-                class="w-4 h-4 text-primary-500 focus:ring-primary-500"
-              />
-              <span class="text-sm text-gray-700">Custom address</span>
-            </label>
-          </div>
-
-          <div v-if="locationMode === 'custom'" class="space-y-3">
-            <div class="grid grid-cols-12 gap-3">
-              <div class="col-span-5">
-                <label for="rg-city" class="label">City <span class="text-red-500">*</span></label>
-                <input
-                  id="rg-city"
-                  v-model="city"
-                  type="text"
-                  class="input"
-                />
-                <p v-if="errors.city" class="text-sm text-red-500 mt-1">{{ errors.city }}</p>
-              </div>
-              <div class="col-span-4">
-                <label for="rg-state" class="label">State</label>
-                <input
-                  id="rg-state"
-                  v-model="state"
-                  type="text"
-                  class="input"
-                />
-              </div>
-              <div class="col-span-3">
-                <label for="rg-zip" class="label">Zip</label>
-                <input
-                  id="rg-zip"
-                  v-model="postalCode"
-                  type="text"
-                  class="input"
-                />
-              </div>
-            </div>
-          </div>
+          <EventLocationSection
+            :event-location-id="eventLocationId"
+            :address-line1="addressLine1"
+            :city="city"
+            :state="state"
+            :postal-code="postalCode"
+            :location-details="locationDetails"
+            :current-tier="currentTier"
+            @update:event-location-id="eventLocationId = $event"
+            @update:address-line1="addressLine1 = $event"
+            @update:city="city = $event"
+            @update:state="state = $event"
+            @update:postal-code="postalCode = $event"
+            @update:location-details="locationDetails = $event"
+          />
         </div>
 
         <!-- Max Players -->
@@ -368,6 +349,45 @@ function handleSave() {
             />
             <span class="text-sm text-gray-700">Public (visible to non-members)</span>
           </label>
+        </div>
+
+        <!-- Planning Session Mode -->
+        <div class="border border-purple-200 rounded-lg p-4 bg-purple-50/50">
+          <label class="flex items-center gap-2 cursor-pointer mb-2">
+            <input
+              type="checkbox"
+              v-model="generatesPlanningSession"
+              class="w-4 h-4 rounded text-purple-500 focus:ring-purple-500"
+            />
+            <span class="text-sm font-medium text-purple-800">Use planning session mode</span>
+          </label>
+          <p class="text-xs text-purple-600 mb-3">When enabled, creates a planning session with RSVP, game voting, and auto-finalization instead of a direct event.</p>
+
+          <div v-if="generatesPlanningSession" class="space-y-3 pt-2 border-t border-purple-200">
+            <div>
+              <label class="label text-sm">RSVP deadline (days before event)</label>
+              <select v-model.number="deadlineDayOffset" class="input">
+                <option :value="1">1 day before</option>
+                <option :value="2">2 days before</option>
+                <option :value="3">3 days before</option>
+                <option :value="4">4 days before</option>
+                <option :value="5">5 days before</option>
+                <option :value="7">1 week before</option>
+              </select>
+            </div>
+            <div>
+              <label class="label text-sm">Number of tables</label>
+              <input
+                v-model.number="tableCount"
+                type="number"
+                min="1"
+                max="20"
+                class="input"
+                placeholder="Leave empty for single table"
+              />
+              <p class="text-xs text-gray-500 mt-1">Set 2+ for multi-table game nights where players pick tables</p>
+            </div>
+          </div>
         </div>
 
         <!-- Actions -->

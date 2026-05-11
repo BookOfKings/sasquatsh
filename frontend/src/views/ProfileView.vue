@@ -18,6 +18,7 @@ import StateSelect from '@/components/common/StateSelect.vue'
 import type { BggGame } from '@/types/bgg'
 import { TIER_NAMES, type SubscriptionTier } from '@/config/subscriptionLimits'
 import { getEffectiveTier } from '@/types/user'
+import { getReferralStats, type ReferralStats } from '@/services/referralApi'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -67,6 +68,10 @@ const deleteConfirmText = ref('')
 const deleting = ref(false)
 const deleteError = ref('')
 
+// Referral state
+const referralStats = ref<ReferralStats | null>(null)
+const referralLinkCopied = ref(false)
+
 const form = reactive<UpdateProfileInput>({
   username: '',
   displayName: '',
@@ -85,6 +90,7 @@ const form = reactive<UpdateProfileInput>({
   activeLocationTable: undefined,
   timezone: 'America/New_York',
   bio: '',
+  bggUsername: '',
   favoriteGames: [],
   preferredGameTypes: [],
 })
@@ -261,11 +267,24 @@ async function loadProfile() {
 
     profile.value = await getMyProfile(token)
     populateForm()
+
+    // Load referral stats (non-blocking)
+    getReferralStats(token).then(stats => {
+      referralStats.value = stats
+    }).catch(() => { /* non-critical */ })
   } catch (err) {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to load profile'
   } finally {
     loading.value = false
   }
+}
+
+function copyReferralLink() {
+  const link = `https://sasquatsh.com/signup?ref=${profile.value?.username || ''}`
+  navigator.clipboard.writeText(link).then(() => {
+    referralLinkCopied.value = true
+    setTimeout(() => { referralLinkCopied.value = false }, 2000)
+  })
 }
 
 async function loadBlockedUsers() {
@@ -480,6 +499,7 @@ async function populateForm() {
   form.activeLocationTable = profile.value.activeLocationTable ?? undefined
   form.timezone = profile.value.timezone ?? 'America/New_York'
   form.bio = profile.value.bio ?? ''
+  form.bggUsername = profile.value.bggUsername ?? ''
   form.favoriteGames = profile.value.favoriteGames ?? []
   form.preferredGameTypes = profile.value.preferredGameTypes ?? []
   // Reset username availability state
@@ -891,6 +911,23 @@ function goToGroup(slug: string) {
               class="input"
               placeholder="Tell others about yourself..."
             ></textarea>
+          </div>
+
+          <!-- BGG Username -->
+          <div>
+            <label class="label">BoardGameGeek Username</label>
+            <div class="relative">
+              <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
+              </svg>
+              <input
+                v-model="form.bggUsername"
+                type="text"
+                class="input pl-10"
+                placeholder="Your BGG username"
+              />
+            </div>
+            <p class="text-sm text-gray-500 mt-1">Link your BoardGameGeek account to import and sync your game collection</p>
           </div>
 
           <!-- Home Location -->
@@ -1311,6 +1348,56 @@ function goToGroup(slug: string) {
                 {{ currentTier === 'free' ? 'View Plans' : 'Manage' }}
               </router-link>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Referral Program -->
+      <div class="card mb-6">
+        <div class="p-4 border-b border-gray-100">
+          <h3 class="font-semibold flex items-center gap-2">
+            <svg class="w-5 h-5 text-purple-500" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z"/>
+            </svg>
+            Refer a Friend
+          </h3>
+        </div>
+        <div class="p-4">
+          <p class="text-sm text-gray-600 mb-3">
+            For every 10 friends you refer, you get <strong>3 months of Pro free</strong>. Each referral also earns you <strong>2 raffle entries</strong>.
+          </p>
+
+          <!-- Referral Stats -->
+          <div v-if="referralStats" class="mb-4">
+            <div class="flex items-center justify-between text-sm mb-1">
+              <span class="text-gray-600">{{ referralStats.totalReferrals }} referral{{ referralStats.totalReferrals !== 1 ? 's' : '' }}</span>
+              <span class="text-gray-500">{{ referralStats.progressToNext }}/10 toward next reward</span>
+            </div>
+            <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                class="h-full bg-purple-500 rounded-full transition-all"
+                :style="{ width: `${(referralStats.progressToNext / 10) * 100}%` }"
+              ></div>
+            </div>
+            <div v-if="referralStats.activeProReward" class="mt-2 text-xs text-purple-600 font-medium">
+              Pro subscription active until {{ new Date(referralStats.activeProReward.expiresAt).toLocaleDateString() }}
+            </div>
+          </div>
+
+          <!-- Shareable Link -->
+          <div class="flex gap-2">
+            <input
+              :value="`https://sasquatsh.com/signup?ref=${profile?.username || ''}`"
+              readonly
+              class="input text-sm flex-1 bg-gray-50"
+              @click="($event.target as HTMLInputElement)?.select()"
+            />
+            <button
+              class="btn-outline text-sm px-3"
+              @click="copyReferralLink"
+            >
+              {{ referralLinkCopied ? 'Copied!' : 'Copy' }}
+            </button>
           </div>
         </div>
       </div>

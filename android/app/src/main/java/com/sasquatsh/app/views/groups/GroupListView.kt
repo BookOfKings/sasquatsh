@@ -176,12 +176,45 @@ fun GroupListView(
                     )
                 }
             } else {
-                items(uiState.groups, key = { it.id }) { group ->
-                    GroupCard(
-                        group = group,
-                        onClick = { onNavigateToDetail(group.id) },
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
+                val myGroups = uiState.groups.filter { it.userRole != null }
+                val otherGroups = uiState.groups.filter { it.userRole == null }
+
+                if (myGroups.isNotEmpty()) {
+                    item {
+                        Text(
+                            "My Groups",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
+                    items(myGroups, key = { it.id }) { group ->
+                        GroupCard(
+                            group = group,
+                            onClick = { onNavigateToDetail(group.id) },
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
+                }
+
+                if (otherGroups.isNotEmpty()) {
+                    if (myGroups.isNotEmpty()) {
+                        item {
+                            Text(
+                                "Discover Groups",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+                        }
+                    }
+                    items(otherGroups, key = { it.id }) { group ->
+                        GroupCard(
+                            group = group,
+                            onClick = { onNavigateToDetail(group.id) },
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
                 }
             }
         }

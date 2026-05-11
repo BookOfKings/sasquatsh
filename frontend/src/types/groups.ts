@@ -81,6 +81,9 @@ export interface RecurringGame {
   gameTitle: string | null
   isPublic: boolean
   isActive: boolean
+  generatesPlanningSession: boolean
+  deadlineDayOffset: number
+  tableCount: number | null
   nextOccurrenceDate: string | null
   lastGeneratedDate: string | null
   hostUserId: string | null
@@ -108,6 +111,9 @@ export interface CreateRecurringGameInput {
   gameSystem?: string
   gameTitle?: string
   isPublic?: boolean
+  generatesPlanningSession?: boolean
+  deadlineDayOffset?: number
+  tableCount?: number
 }
 
 export interface UpdateRecurringGameInput extends Partial<CreateRecurringGameInput> {

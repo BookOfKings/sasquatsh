@@ -16,6 +16,17 @@ export interface PlanningSession {
   maxGames: number // Tier-based limit: Basic=5, Pro=10
   tableCount: number | null // For multi-table sessions
   openToGroup: boolean // When true, any group member can join
+  eventLocationId: string | null
+  venueHall: string | null
+  venueRoom: string | null
+  venueTable: string | null
+  addressLine1: string | null
+  city: string | null
+  state: string | null
+  postalCode: string | null
+  locationDetails: string | null
+  fromRecurringGameId: string | null
+  targetEventDate: string | null
   scheduledSessions: ScheduleEntry[] | null // Game schedule before finalize
   hostSessionPreferences: HostPreference[] | null // Host's preferred sessions
   inviteeCount?: number
@@ -144,6 +155,16 @@ export interface CreatePlanningSessionInput {
   maxParticipants?: number
   tableCount?: number // For multi-table sessions (>= 2)
   openToGroup?: boolean
+  // Location fields
+  eventLocationId?: string
+  venueHall?: string
+  venueRoom?: string
+  venueTable?: string
+  addressLine1?: string
+  city?: string
+  state?: string
+  postalCode?: string
+  locationDetails?: string
 }
 
 export interface PlanningResponseInput {

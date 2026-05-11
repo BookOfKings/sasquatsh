@@ -4,6 +4,8 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.CalendarContract
 import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.Casino
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -73,6 +75,7 @@ import com.sasquatsh.app.viewmodels.AuthViewModel
 import com.sasquatsh.app.viewmodels.EventDetailViewModel
 import com.sasquatsh.app.views.chat.ChatPanelView
 import com.sasquatsh.app.views.shared.UserAvatarView
+import com.sasquatsh.app.views.shared.UserProfileSheetHost
 import android.widget.Toast
 import com.sasquatsh.app.views.shared.D20SpinnerView
 
@@ -90,10 +93,24 @@ fun EventDetailView(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
     var showAddItemDialog by remember { mutableStateOf(false) }
-    val currentUserId = viewModel.getCurrentUserId()
+    var profileUserId by remember { mutableStateOf<String?>(null) }
+    val authState by authViewModel.uiState.collectAsState()
+    val currentUserId = authState.user?.id // Supabase user ID, not Firebase UID
     val event = uiState.event
-    val isHost = currentUserId != null && event != null && viewModel.isHost(currentUserId)
+    val isHost = currentUserId != null && event != null && event.hostUserId == currentUserId
     val isRegistered = currentUserId != null && event != null && viewModel.isRegistered(currentUserId)
+
+    // Reload event data when returning from edit
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                viewModel.loadEvent(eventId)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     Scaffold(
         topBar = {
@@ -191,7 +208,7 @@ fun EventDetailView(
                 ) {
                     // Header Section
                     item {
-                        HeaderSection(event = event)
+                        HeaderSection(event = event, onProfileClick = { profileUserId = it })
                         Spacer(modifier = Modifier.height(16.dp))
                     }
 
@@ -273,7 +290,12 @@ fun EventDetailView(
                     item {
                         GamesSection(
                             games = event.games,
+                            plannedGames = event.plannedGames,
+                            sessions = event.sessions,
+                            tables = event.tables,
+                            gameTitle = event.gameTitle,
                             isHost = isHost,
+                            isMultiTable = event.isMultiTable == true,
                             onRemoveGame = { gameId -> viewModel.removeGame(gameId) }
                         )
                         Spacer(modifier = Modifier.height(16.dp))
@@ -287,7 +309,8 @@ fun EventDetailView(
                             currentUserId = currentUserId,
                             onClaimItem = { viewModel.claimItem(it) },
                             onUnclaimItem = { viewModel.unclaimItem(it) },
-                            onShowAddItem = { showAddItemDialog = true }
+                            onShowAddItem = { showAddItemDialog = true },
+                            onProfileClick = { profileUserId = it }
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                     }
@@ -368,12 +391,18 @@ fun EventDetailView(
             }
         )
     }
+
+    // User profile popup
+    UserProfileSheetHost(
+        userId = profileUserId,
+        onDismiss = { profileUserId = null }
+    )
 }
 
 // ─── Header Section ───
 
 @Composable
-private fun HeaderSection(event: Event) {
+private fun HeaderSection(event: Event, onProfileClick: (String) -> Unit = {}) {
     SectionCard(modifier = Modifier.padding(horizontal = 16.dp)) {
         // Title
         Text(
@@ -382,8 +411,24 @@ private fun HeaderSection(event: Event) {
             color = MaterialTheme.colorScheme.onSurface
         )
 
-        // Game title
-        if (!event.gameTitle.isNullOrEmpty()) {
+        // Game title / multi-table summary
+        if (event.isMultiTable == true) {
+            val sessionCount = event.sessions?.size ?: 0
+            val tableCount = event.tables?.size ?: event.sessions?.map { it.tableNumber }?.distinct()?.size ?: 0
+            if (sessionCount > 0 && tableCount > 0) {
+                Text(
+                    text = "$sessionCount game${if (sessionCount != 1) "s" else ""} on $tableCount table${if (tableCount != 1) "s" else ""}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color(0xFF9C27B0)
+                )
+            } else if (!event.gameTitle.isNullOrEmpty()) {
+                Text(
+                    text = event.gameTitle,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else if (!event.gameTitle.isNullOrEmpty()) {
             Text(
                 text = event.gameTitle,
                 style = MaterialTheme.typography.titleMedium,
@@ -404,6 +449,9 @@ private fun HeaderSection(event: Event) {
                 text = event.status.replaceFirstChar { it.uppercase() },
                 isPrimary = false
             )
+            if (event.isMultiTable == true) {
+                BadgeChip(text = "Multi-Table", isPrimary = false)
+            }
             if (event.isCharityEvent) {
                 BadgeChip(text = "Charity", isPrimary = false)
             }
@@ -420,7 +468,9 @@ private fun HeaderSection(event: Event) {
                 UserAvatarView(
                     url = host.avatarUrl,
                     name = host.displayName,
-                    size = 40.dp
+                    size = 40.dp,
+                    userId = host.id,
+                    onProfileClick = onProfileClick
                 )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
@@ -626,25 +676,146 @@ private fun ActionButtons(
 @Composable
 private fun GamesSection(
     games: List<EventGameSummary>?,
+    plannedGames: List<com.sasquatsh.app.models.PlannedGame>? = null,
+    sessions: List<com.sasquatsh.app.models.EventGameSession>? = null,
+    tables: List<com.sasquatsh.app.models.MultiTableInfo>? = null,
+    gameTitle: String? = null,
     isHost: Boolean,
+    isMultiTable: Boolean = false,
     onRemoveGame: (String) -> Unit
 ) {
     SectionCard(modifier = Modifier.padding(horizontal = 16.dp)) {
-        Text(
-            text = "Games",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Games",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            if (isMultiTable) {
+                androidx.compose.material3.Surface(
+                    color = Color(0xFF9C27B0).copy(alpha = 0.1f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        text = "Multi-Table",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF9C27B0),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        if (games.isNullOrEmpty()) {
-            Text(
-                text = "No games added yet",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        } else {
+        // Multi-table: show sessions grouped by table
+        if (isMultiTable && !sessions.isNullOrEmpty()) {
+            val tableMap = tables?.associateBy { it.id } ?: emptyMap()
+            val sessionsByTable = sessions.groupBy { it.tableNumber }.toSortedMap()
+
+            sessionsByTable.forEach { (tableNum, tableSessions) ->
+                Text(
+                    text = "Table $tableNum",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Color(0xFF9C27B0),
+                    modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
+                )
+                tableSessions.forEach { session ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        session.thumbnailUrl?.let { url ->
+                            AsyncImage(
+                                model = url,
+                                contentDescription = session.gameName,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = session.gameName,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                val minP = session.minPlayers
+                                val maxP = session.maxPlayers
+                                if (minP != null && maxP != null) {
+                                    Text(
+                                        text = "$minP-$maxP players",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                session.durationMinutes?.let {
+                                    Text(
+                                        text = "${it}min",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                if (session.registeredCount > 0) {
+                                    Text(
+                                        text = "${session.registeredCount} joined",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // Multi-table fallback: show planned games if no sessions
+        else if (isMultiTable && !plannedGames.isNullOrEmpty()) {
+            plannedGames.forEach { game ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    game.image?.let { url ->
+                        AsyncImage(
+                            model = url,
+                            contentDescription = game.name,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(game.name, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            val minP = game.minPlayers
+                            val maxP = game.maxPlayers
+                            if (minP != null && maxP != null) {
+                                Text("$minP-$maxP players", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            if (game.interestedCount > 0) {
+                                Text("${game.interestedCount} interested", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // Single table: show event_games
+        else if (!games.isNullOrEmpty()) {
             games.forEach { game ->
                 Row(
                     modifier = Modifier
@@ -652,7 +823,6 @@ private fun GamesSection(
                         .padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Thumbnail
                     game.thumbnailUrl?.let { url ->
                         AsyncImage(
                             model = url,
@@ -664,44 +834,45 @@ private fun GamesSection(
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                     }
-
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = game.gameName,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                        Text(game.gameName, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
                         val minP = game.minPlayers
                         val maxP = game.maxPlayers
                         if (minP != null && maxP != null) {
-                            Text(
-                                text = "$minP-$maxP players",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Text("$minP-$maxP players", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
-
                     if (game.isPrimary) {
                         BadgeChip(text = "Primary", isPrimary = false)
                         Spacer(modifier = Modifier.width(8.dp))
                     }
-
                     if (isHost) {
-                        IconButton(
-                            onClick = { onRemoveGame(game.id) },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Delete,
-                                contentDescription = "Remove game",
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(16.dp)
-                            )
+                        IconButton(onClick = { onRemoveGame(game.id) }, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Default.Delete, "Remove game", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
                         }
                     }
                 }
             }
+        }
+        // Fallback: show gameTitle if nothing else is available
+        else if (!gameTitle.isNullOrEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                androidx.compose.material3.Icon(
+                    Icons.Default.Casino,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(40.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(gameTitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+            }
+        }
+        // True empty state
+        else {
+            Text("No games added yet", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -715,7 +886,8 @@ private fun PlayersAndItemsSection(
     currentUserId: String?,
     onClaimItem: (String) -> Unit,
     onUnclaimItem: (String) -> Unit,
-    onShowAddItem: () -> Unit
+    onShowAddItem: () -> Unit,
+    onProfileClick: (String) -> Unit = {}
 ) {
     SectionCard(modifier = Modifier.padding(horizontal = 16.dp)) {
         // Header
@@ -751,7 +923,8 @@ private fun PlayersAndItemsSection(
             registrations.forEach { reg ->
                 PlayerRow(
                     registration = reg,
-                    items = event.items?.filter { it.claimedByUserId == reg.userId }
+                    items = event.items?.filter { it.claimedByUserId == reg.userId },
+                    onProfileClick = onProfileClick
                 )
                 HorizontalDivider(
                     modifier = Modifier.padding(vertical = 2.dp),
@@ -815,7 +988,8 @@ private fun PlayersAndItemsSection(
 @Composable
 private fun PlayerRow(
     registration: EventRegistration,
-    items: List<EventItem>?
+    items: List<EventItem>?,
+    onProfileClick: (String) -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -827,7 +1001,9 @@ private fun PlayerRow(
         UserAvatarView(
             url = registration.user?.avatarUrl,
             name = registration.user?.displayName,
-            size = 36.dp
+            size = 36.dp,
+            userId = registration.userId,
+            onProfileClick = onProfileClick
         )
 
         Spacer(modifier = Modifier.width(10.dp))

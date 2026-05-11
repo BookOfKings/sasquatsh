@@ -138,4 +138,31 @@ class PlanningService @Inject constructor(
         val response = planningApi.updateSettings(sessionId = sessionId, body = body)
         if (!response.isSuccessful) throw Exception("Failed to update settings")
     }
+
+    suspend fun updateLocation(
+        sessionId: String,
+        eventLocationId: String?,
+        venueHall: String?,
+        venueRoom: String?,
+        venueTable: String?,
+        addressLine1: String?,
+        city: String?,
+        state: String?,
+        postalCode: String?,
+        locationDetails: String?
+    ) {
+        val body = mapOf(
+            "eventLocationId" to eventLocationId,
+            "venueHall" to venueHall,
+            "venueRoom" to venueRoom,
+            "venueTable" to venueTable,
+            "addressLine1" to addressLine1,
+            "city" to city,
+            "state" to state,
+            "postalCode" to postalCode,
+            "locationDetails" to locationDetails
+        )
+        val response = planningApi.updateLocation(sessionId = sessionId, body = body)
+        if (!response.isSuccessful) throw Exception("Failed to update location")
+    }
 }

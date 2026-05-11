@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -313,14 +314,10 @@ fun ScoreKeeperView(onBack: () -> Unit = {}) {
         }
     }
 
-    // Auto-save session on state changes
-    LaunchedEffect(phase, players.toList(), history.toList(), gameName, highestWins) {
-        if (sessionRestored) {
-            if (phase == ScoringPhase.SETUP) {
-                clearSession(context)
-            } else {
-                saveSession(context, phase, players.toList(), gameName, highestWins, history.toList())
-            }
+    // Auto-save session on state changes (only during active game, not setup)
+    LaunchedEffect(phase, players.toList(), history.toList()) {
+        if (sessionRestored && phase != ScoringPhase.SETUP) {
+            saveSession(context, phase, players.toList(), gameName, highestWins, history.toList())
         }
     }
 
@@ -367,6 +364,7 @@ fun ScoreKeeperView(onBack: () -> Unit = {}) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .imePadding()
         ) {
             when (phase) {
                 // ===================== SETUP =====================
@@ -380,43 +378,39 @@ fun ScoreKeeperView(onBack: () -> Unit = {}) {
                         item {
                             Text("Game Name", style = MaterialTheme.typography.labelLarge)
                             Spacer(modifier = Modifier.height(6.dp))
-                            Box {
-                                OutlinedTextField(
-                                    value = gameName,
-                                    onValueChange = { v ->
-                                        gameName = v
-                                        showGameDropdown = v.isNotEmpty() &&
-                                                savedGames.any { it.contains(v, ignoreCase = true) && !it.equals(v, ignoreCase = true) }
-                                    },
-                                    placeholder = { Text("e.g. Flip 7, Catan, Uno...") },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true,
-                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                                    keyboardActions = KeyboardActions(onDone = {
-                                        showGameDropdown = false
-                                    })
-                                )
-                                // Autocomplete dropdown
-                                val filteredGames = savedGames.filter {
-                                    gameName.isNotEmpty() && it.contains(gameName, ignoreCase = true) && !it.equals(gameName, ignoreCase = true)
-                                }
-                                DropdownMenu(
-                                    expanded = showGameDropdown && filteredGames.isNotEmpty(),
-                                    onDismissRequest = { showGameDropdown = false }
+                            OutlinedTextField(
+                                value = gameName,
+                                onValueChange = { gameName = it },
+                                placeholder = { Text("e.g. Flip 7, Catan, Uno...") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
+                            )
+                            // Game suggestions as chips
+                            val gameMatches = if (gameName.isNotEmpty()) {
+                                savedGames.filter {
+                                    it.contains(gameName, ignoreCase = true) && !it.equals(gameName, ignoreCase = true)
+                                }.take(6)
+                            } else emptyList()
+
+                            if (gameMatches.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(
+                                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    filteredGames.take(8).forEach { game ->
-                                        DropdownMenuItem(
-                                            text = { Text(game) },
-                                            onClick = {
-                                                gameName = game
-                                                showGameDropdown = false
-                                            }
+                                    gameMatches.forEach { game ->
+                                        AssistChip(
+                                            onClick = { gameName = game },
+                                            label = { Text(game, fontSize = 13.sp) },
+                                            colors = AssistChipDefaults.assistChipColors(
+                                                containerColor = MaterialTheme.colorScheme.primaryContainer
+                                            )
                                         )
                                     }
                                 }
-                            }
-                            // Quick-pick chips for recent games
-                            if (gameName.isEmpty() && savedGames.isNotEmpty()) {
+                            } else if (gameName.isEmpty() && savedGames.isNotEmpty()) {
+                                // Quick-pick chips for recent games when field is empty
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Row(
                                     modifier = Modifier.horizontalScroll(rememberScrollState()),
@@ -462,68 +456,60 @@ fun ScoreKeeperView(onBack: () -> Unit = {}) {
                         item {
                             Text("Add Players", style = MaterialTheme.typography.labelLarge)
                             Spacer(modifier = Modifier.height(6.dp))
-                            Box {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedTextField(
+                                    value = newPlayerName,
+                                    onValueChange = { newPlayerName = it },
+                                    placeholder = { Text("Player name") },
+                                    modifier = Modifier.weight(1f),
+                                    singleLine = true,
+                                    keyboardActions = KeyboardActions(onDone = {
+                                        addPlayer(newPlayerName)
+                                    }),
+                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
+                                )
+                                IconButton(
+                                    onClick = { addPlayer(newPlayerName) },
+                                    enabled = newPlayerName.trim().isNotEmpty()
                                 ) {
-                                    OutlinedTextField(
-                                        value = newPlayerName,
-                                        onValueChange = { v ->
-                                            newPlayerName = v
-                                            val playerNameSet = players.map { it.name.lowercase() }.toSet()
-                                            showNameDropdown = v.isNotEmpty() && savedNames.any {
-                                                it.contains(v, ignoreCase = true) &&
-                                                        !it.equals(v, ignoreCase = true) &&
-                                                        it.lowercase() !in playerNameSet
-                                            }
-                                        },
-                                        placeholder = { Text("Player name") },
-                                        modifier = Modifier.weight(1f),
-                                        singleLine = true,
-                                        keyboardActions = KeyboardActions(onDone = {
-                                            addPlayer(newPlayerName)
-                                            showNameDropdown = false
-                                        }),
-                                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
+                                    Icon(
+                                        Icons.Default.AddCircle,
+                                        contentDescription = "Add player",
+                                        tint = if (newPlayerName.trim().isNotEmpty())
+                                            MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                                        modifier = Modifier.size(28.dp)
                                     )
-                                    IconButton(
-                                        onClick = {
-                                            addPlayer(newPlayerName)
-                                            showNameDropdown = false
-                                        },
-                                        enabled = newPlayerName.trim().isNotEmpty()
-                                    ) {
-                                        Icon(
-                                            Icons.Default.AddCircle,
-                                            contentDescription = "Add player",
-                                            tint = if (newPlayerName.trim().isNotEmpty())
-                                                MaterialTheme.colorScheme.primary
-                                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
-                                            modifier = Modifier.size(28.dp)
-                                        )
-                                    }
                                 }
-                                // Name autocomplete dropdown
-                                val playerNameSet = players.map { it.name.lowercase() }.toSet()
-                                val filteredNames = savedNames.filter {
-                                    newPlayerName.isNotEmpty() &&
-                                            it.contains(newPlayerName, ignoreCase = true) &&
+                            }
+                            // Name suggestions as chips (no dropdown, no focus steal)
+                            val playerNameSet = players.map { it.name.lowercase() }.toSet()
+                            val suggestions = if (newPlayerName.isNotEmpty()) {
+                                savedNames.filter {
+                                    it.contains(newPlayerName, ignoreCase = true) &&
                                             !it.equals(newPlayerName, ignoreCase = true) &&
                                             it.lowercase() !in playerNameSet
-                                }
-                                DropdownMenu(
-                                    expanded = showNameDropdown && filteredNames.isNotEmpty(),
-                                    onDismissRequest = { showNameDropdown = false }
+                                }.take(6)
+                            } else emptyList()
+
+                            if (suggestions.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(
+                                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    filteredNames.take(8).forEach { name ->
-                                        DropdownMenuItem(
-                                            text = { Text(name) },
+                                    suggestions.forEach { name ->
+                                        AssistChip(
                                             onClick = {
-                                                newPlayerName = name
                                                 addPlayer(name)
-                                                showNameDropdown = false
-                                            }
+                                            },
+                                            label = { Text(name, fontSize = 13.sp) },
+                                            colors = AssistChipDefaults.assistChipColors(
+                                                containerColor = MaterialTheme.colorScheme.primaryContainer
+                                            )
                                         )
                                     }
                                 }
@@ -575,21 +561,40 @@ fun ScoreKeeperView(onBack: () -> Unit = {}) {
                         }
                     }
 
-                    // Start button
-                    Button(
-                        onClick = {
-                            saveGameName(context, gameName)
-                            savedGames = loadSavedGames(context)
-                            history.clear()
-                            scoreInputs.clear()
-                            phase = ScoringPhase.PLAYING
-                        },
-                        enabled = players.size >= 2,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 12.dp)
+                    // Start button + validation
+                    Column(
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
                     ) {
-                        Text("Start Game")
+                        if (players.size < 2) {
+                            Text(
+                                text = if (players.isEmpty()) "Add at least 2 players to start"
+                                else "Add ${2 - players.size} more player to start",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                        Button(
+                            onClick = {
+                                saveGameName(context, gameName)
+                                savedGames = loadSavedGames(context)
+                                history.clear()
+                                scoreInputs.clear()
+                                phase = ScoringPhase.PLAYING
+                            },
+                            enabled = players.size >= 2,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp),
+                            shape = RoundedCornerShape(24.dp)
+                        ) {
+                            Icon(Icons.Default.EmojiEvents, contentDescription = null, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Start Scoring (${players.size} players)", fontWeight = FontWeight.SemiBold)
+                        }
                     }
                 }
 

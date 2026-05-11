@@ -147,6 +147,13 @@ onMounted(async () => {
       </div>
     </template>
 
+    <!-- BGG Attribution -->
+    <div class="flex items-center justify-end mt-6">
+      <a href="https://boardgamegeek.com" target="_blank" rel="noopener noreferrer" class="hover:opacity-80 transition-opacity">
+        <img src="/powered-by-bgg.svg" alt="Powered by BoardGameGeek" class="h-5" />
+      </a>
+    </div>
+
     <!-- Image Lightbox -->
     <Teleport to="body">
       <div

@@ -64,7 +64,9 @@ class EventsService @Inject constructor(
 
     suspend fun createEvent(input: CreateEventInput): Event {
         val response = eventsApi.createEvent(input)
-        if (!response.isSuccessful) throw Exception("Failed to create event")
+        if (!response.isSuccessful) {
+            throw Exception(parseErrorMessage(response) ?: "Failed to create event")
+        }
         val json = moshi.adapter(Any::class.java).toJson(response.body())
         return moshi.adapter(Event::class.java).fromJson(json)
             ?: throw Exception("Failed to parse event")
@@ -72,10 +74,21 @@ class EventsService @Inject constructor(
 
     suspend fun updateEvent(id: String, input: UpdateEventInput): Event {
         val response = eventsApi.updateEvent(id, input)
-        if (!response.isSuccessful) throw Exception("Failed to update event")
+        if (!response.isSuccessful) {
+            throw Exception(parseErrorMessage(response) ?: "Failed to update event")
+        }
         val json = moshi.adapter(Any::class.java).toJson(response.body())
         return moshi.adapter(Event::class.java).fromJson(json)
             ?: throw Exception("Failed to parse event")
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun parseErrorMessage(response: retrofit2.Response<*>): String? {
+        return try {
+            val errorBody = response.errorBody()?.string() ?: return null
+            val map = moshi.adapter(Any::class.java).fromJson(errorBody) as? Map<String, Any?>
+            (map?.get("error") as? String) ?: (map?.get("message") as? String)
+        } catch (_: Exception) { null }
     }
 
     suspend fun deleteEvent(id: String) {

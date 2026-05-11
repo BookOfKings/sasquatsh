@@ -104,44 +104,81 @@ fun PlanningAddInviteesSheet(
                     }
                 }
                 else -> {
-                    LazyColumn {
-                        items(members, key = { it.userId }) { member ->
-                            val selected = selectedIds.contains(member.userId)
-                            Row(
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        LazyColumn(modifier = Modifier.weight(1f)) {
+                            items(members, key = { it.userId }) { member ->
+                                val selected = selectedIds.contains(member.userId)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            selectedIds = if (selected) {
+                                                selectedIds - member.userId
+                                            } else {
+                                                selectedIds + member.userId
+                                            }
+                                        }
+                                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (selected) Icons.Default.CheckCircle
+                                            else Icons.Outlined.Circle,
+                                        contentDescription = if (selected) "Selected" else "Not selected",
+                                        tint = if (selected) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                    )
+
+                                    UserAvatarView(
+                                        url = member.avatarUrl,
+                                        name = member.displayName,
+                                        size = 32.dp
+                                    )
+
+                                    Text(
+                                        text = member.displayName ?: "Member",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                HorizontalDivider()
+                            }
+                        }
+
+                        // Bottom add button
+                        if (selectedIds.isNotEmpty()) {
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        isSaving = true
+                                        try {
+                                            planningService.addInvitees(
+                                                sessionId = sessionId,
+                                                userIds = selectedIds.toList()
+                                            )
+                                            onAdded()
+                                            onDismiss()
+                                        } catch (e: Exception) {
+                                            error = e.localizedMessage ?: "Failed to add invitees"
+                                        }
+                                        isSaving = false
+                                    }
+                                },
+                                enabled = !isSaving,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable {
-                                        selectedIds = if (selected) {
-                                            selectedIds - member.userId
-                                        } else {
-                                            selectedIds + member.userId
-                                        }
-                                    }
-                                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    .padding(16.dp)
                             ) {
-                                Icon(
-                                    imageVector = if (selected) Icons.Default.CheckCircle
-                                        else Icons.Outlined.Circle,
-                                    contentDescription = if (selected) "Selected" else "Not selected",
-                                    tint = if (selected) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                                )
-
-                                UserAvatarView(
-                                    url = member.avatarUrl,
-                                    name = member.displayName,
-                                    size = 32.dp
-                                )
-
-                                Text(
-                                    text = member.displayName ?: "Member",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
+                                if (isSaving) {
+                                    com.sasquatsh.app.views.shared.D20SpinnerView(
+                                        size = 20.dp,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                } else {
+                                    Text("Add ${selectedIds.size} Member${if (selectedIds.size != 1) "s" else ""}")
+                                }
                             }
-                            HorizontalDivider()
                         }
                     }
                 }

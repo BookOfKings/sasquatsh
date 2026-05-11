@@ -18,10 +18,16 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Casino
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -70,6 +76,10 @@ import com.sasquatsh.app.models.DifficultyLevel
 import com.sasquatsh.app.models.EventStatus
 import com.sasquatsh.app.models.GameCategory
 import com.sasquatsh.app.models.GameSystem
+import com.sasquatsh.app.models.MtgConfigState
+import com.sasquatsh.app.models.PokemonConfigState
+import com.sasquatsh.app.models.YugiohConfigState
+import com.sasquatsh.app.models.Warhammer40kConfigState
 import com.sasquatsh.app.viewmodels.CreateEditEventViewModel
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -129,37 +139,13 @@ fun CreateEventView(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // ── Basic Information ──
-            EventFormBasicInfo(
-                viewModel = viewModel,
-                uiState = uiState
-            )
-
-            // ── Date & Time ──
-            EventFormDateTime(
-                viewModel = viewModel,
-                uiState = uiState
-            )
-
-            // ── Location ──
-            EventFormLocation(
-                viewModel = viewModel,
-                uiState = uiState
-            )
-
-            // ── Game Search (Board Games only) ──
-            if (uiState.isBoardGame) {
-                EventFormGameSearch(
-                    viewModel = viewModel,
-                    uiState = uiState
+            // ── Error Banner ──
+            uiState.error?.let { error ->
+                com.sasquatsh.app.views.shared.ErrorBannerView(
+                    message = error,
+                    onDismiss = { viewModel.clearError() }
                 )
             }
-
-            // ── Game Settings ──
-            EventFormGameSettings(
-                viewModel = viewModel,
-                uiState = uiState
-            )
 
             // ── Validation Issues ──
             if (uiState.validationIssues.isNotEmpty()) {
@@ -187,14 +173,71 @@ fun CreateEventView(
                 }
             }
 
-            // ── Error ──
-            uiState.error?.let { error ->
-                Text(
-                    text = error,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error
+            // ── Basic Information ──
+            EventFormBasicInfo(
+                viewModel = viewModel,
+                uiState = uiState
+            )
+
+            // ── Date & Time ──
+            EventFormDateTime(
+                viewModel = viewModel,
+                uiState = uiState
+            )
+
+            // ── Location ──
+            EventFormLocation(
+                viewModel = viewModel,
+                uiState = uiState
+            )
+
+            // ── Game Search (Board Games only) ──
+            if (uiState.isBoardGame) {
+                EventFormGameSearch(
+                    viewModel = viewModel,
+                    uiState = uiState
                 )
             }
+
+            // ── Game System Config ──
+            when (uiState.gameSystem) {
+                GameSystem.MTG -> {
+                    val config = uiState.mtgConfig ?: MtgConfigState()
+                    MtgConfigFormSections(
+                        config = config,
+                        onConfigChange = { viewModel.updateMtgConfig(it) },
+                        scryfallService = viewModel.scryfallService
+                    )
+                }
+                GameSystem.POKEMON_TCG -> {
+                    val config = uiState.pokemonConfig ?: PokemonConfigState()
+                    PokemonConfigFormSections(
+                        config = config,
+                        onConfigChange = { viewModel.updatePokemonConfig(it) }
+                    )
+                }
+                GameSystem.YUGIOH -> {
+                    val config = uiState.yugiohConfig ?: YugiohConfigState()
+                    YugiohConfigFormSections(
+                        config = config,
+                        onConfigChange = { viewModel.updateYugiohConfig(it) }
+                    )
+                }
+                GameSystem.WARHAMMER_40K -> {
+                    val config = uiState.warhammer40kConfig ?: Warhammer40kConfigState()
+                    Warhammer40kConfigFormSections(
+                        config = config,
+                        onConfigChange = { viewModel.updateWarhammer40kConfig(it) }
+                    )
+                }
+                else -> { /* Board Game — no extra config */ }
+            }
+
+            // ── Game Settings ──
+            EventFormGameSettings(
+                viewModel = viewModel,
+                uiState = uiState
+            )
 
             Spacer(modifier = Modifier.height(32.dp))
         }
@@ -342,15 +385,39 @@ fun EventFormDateTime(
 
     // Date picker dialog
     if (showDatePicker) {
+        // DatePicker works in UTC — convert local date to UTC for initial selection
+        val utcCal = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply {
+            val localCal = Calendar.getInstance().apply { time = uiState.eventDate }
+            set(Calendar.YEAR, localCal.get(Calendar.YEAR))
+            set(Calendar.MONTH, localCal.get(Calendar.MONTH))
+            set(Calendar.DAY_OF_MONTH, localCal.get(Calendar.DAY_OF_MONTH))
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
         val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = uiState.eventDate.time
+            initialSelectedDateMillis = utcCal.timeInMillis
         )
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
                 TextButton(onClick = {
-                    datePickerState.selectedDateMillis?.let {
-                        viewModel.updateEventDate(Date(it))
+                    datePickerState.selectedDateMillis?.let { utcMillis ->
+                        // Convert UTC midnight back to a local Date with the correct day
+                        val utcCalResult = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply {
+                            timeInMillis = utcMillis
+                        }
+                        val localCal = Calendar.getInstance().apply {
+                            set(Calendar.YEAR, utcCalResult.get(Calendar.YEAR))
+                            set(Calendar.MONTH, utcCalResult.get(Calendar.MONTH))
+                            set(Calendar.DAY_OF_MONTH, utcCalResult.get(Calendar.DAY_OF_MONTH))
+                            set(Calendar.HOUR_OF_DAY, 12) // noon to avoid any edge cases
+                            set(Calendar.MINUTE, 0)
+                            set(Calendar.SECOND, 0)
+                            set(Calendar.MILLISECOND, 0)
+                        }
+                        viewModel.updateEventDate(localCal.time)
                     }
                     showDatePicker = false
                 }) {
@@ -429,6 +496,8 @@ fun EventFormLocation(
     viewModel: CreateEditEventViewModel,
     uiState: com.sasquatsh.app.viewmodels.CreateEditEventUiState
 ) {
+    var showVenueSelector by remember { mutableStateOf(false) }
+
     SectionCard {
         Text(
             text = "Location",
@@ -510,7 +579,14 @@ fun EventFormLocation(
                     modifier = Modifier.fillMaxWidth()
                 )
             } else {
-                TextButton(onClick = { /* Navigate to venue selector */ }) {
+                // Hot locations quick-pick
+                com.sasquatsh.app.views.shared.HotLocationsBar(
+                    eventLocationsService = viewModel.eventLocationsService,
+                    selectedId = uiState.eventLocationId,
+                    onSelect = { venue -> viewModel.selectVenue(venue) }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(onClick = { showVenueSelector = true }) {
                     Text("Choose a Venue")
                 }
             }
@@ -564,6 +640,25 @@ fun EventFormLocation(
             )
         }
     }
+
+    // Venue selector as fullscreen dialog
+    if (showVenueSelector) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showVenueSelector = false },
+            properties = androidx.compose.ui.window.DialogProperties(
+                usePlatformDefaultWidth = false
+            )
+        ) {
+            com.sasquatsh.app.views.shared.VenueSelector(
+                eventLocationsService = viewModel.eventLocationsService,
+                onSelect = { venue ->
+                    viewModel.selectVenue(venue)
+                    showVenueSelector = false
+                },
+                onDismiss = { showVenueSelector = false }
+            )
+        }
+    }
 }
 
 // ─── Game Search Section (Board Games Only) ───
@@ -574,8 +669,69 @@ fun EventFormGameSearch(
     uiState: com.sasquatsh.app.viewmodels.CreateEditEventUiState
 ) {
     var bggSearchText by remember { mutableStateOf("") }
+    var showCollectionPicker by remember { mutableStateOf(false) }
+
+    // Collection picker dialog
+    if (showCollectionPicker) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showCollectionPicker = false },
+            properties = androidx.compose.ui.window.DialogProperties(
+                usePlatformDefaultWidth = false
+            )
+        ) {
+            CollectionPickerForEvent(
+                collectionsService = viewModel.collectionsService,
+                selectedBggIds = uiState.selectedGames.mapNotNull { it.bggId }.toSet(),
+                onSelect = { game ->
+                    val searchResult = com.sasquatsh.app.models.BggSearchResult(
+                        bggId = game.bggId ?: return@CollectionPickerForEvent,
+                        name = game.gameName,
+                        yearPublished = game.yearPublished,
+                        thumbnailUrl = game.thumbnailUrl
+                    )
+                    viewModel.addGame(searchResult)
+                },
+                onDismiss = { showCollectionPicker = false }
+            )
+        }
+    }
 
     SectionCard {
+        // Browse My Collection button
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { showCollectionPicker = true }
+                .padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                Icons.Default.Casino,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+            )
+            Text(
+                "Browse My Collection",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+        com.sasquatsh.app.views.shared.PoweredByBggLogo(
+            modifier = Modifier.padding(bottom = 8.dp),
+            height = 24.dp
+        )
         // BGG search field
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -889,10 +1045,10 @@ private fun SelectedGameRow(
 
         IconButton(onClick = onRemove) {
             Icon(
-                Icons.Default.Delete,
-                contentDescription = "Remove",
+                Icons.Default.Close,
+                contentDescription = "Remove game",
                 tint = MaterialTheme.colorScheme.error,
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(22.dp)
             )
         }
     }
@@ -953,6 +1109,23 @@ fun GameSystemSelector(
             onValueChange = {},
             readOnly = true,
             label = { Text("Game System") },
+            leadingIcon = {
+                gameSystemLogoRes(selected)?.let { resId ->
+                    androidx.compose.foundation.Image(
+                        painter = androidx.compose.ui.res.painterResource(id = resId),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(RoundedCornerShape(4.dp)),
+                        contentScale = ContentScale.Fit
+                    )
+                } ?: Icon(
+                    Icons.Default.Casino,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
             modifier = Modifier
                 .fillMaxWidth()
@@ -961,7 +1134,32 @@ fun GameSystemSelector(
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             GameSystem.entries.forEach { system ->
                 DropdownMenuItem(
-                    text = { Text(system.displayName) },
+                    text = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            val logoRes = gameSystemLogoRes(system)
+                            if (logoRes != null) {
+                                androidx.compose.foundation.Image(
+                                    painter = androidx.compose.ui.res.painterResource(id = logoRes),
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .clip(RoundedCornerShape(4.dp)),
+                                    contentScale = ContentScale.Fit
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Default.Casino,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(24.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            Text(system.displayName)
+                        }
+                    },
                     onClick = {
                         onSelect(system)
                         expanded = false
@@ -969,6 +1167,16 @@ fun GameSystemSelector(
                 )
             }
         }
+    }
+}
+
+private fun gameSystemLogoRes(system: GameSystem): Int? {
+    return when (system) {
+        GameSystem.MTG -> com.sasquatsh.app.R.drawable.mtg_logo
+        GameSystem.POKEMON_TCG -> com.sasquatsh.app.R.drawable.pokemon_logo
+        GameSystem.YUGIOH -> com.sasquatsh.app.R.drawable.yugioh_logo
+        GameSystem.WARHAMMER_40K -> com.sasquatsh.app.R.drawable.warhammer40k_logo
+        else -> null
     }
 }
 
@@ -1154,6 +1362,158 @@ private fun StatusDropdown(
                         expanded = false
                     }
                 )
+            }
+        }
+    }
+}
+
+// ─── Collection Picker for Event ───
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CollectionPickerForEvent(
+    collectionsService: com.sasquatsh.app.services.CollectionsService,
+    selectedBggIds: Set<Int>,
+    onSelect: (com.sasquatsh.app.models.CollectionGame) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var games by remember { mutableStateOf<List<com.sasquatsh.app.models.CollectionGame>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var filterText by remember { mutableStateOf("") }
+
+    val filtered = if (filterText.isEmpty()) games
+    else games.filter { it.gameName.contains(filterText, ignoreCase = true) }
+
+    LaunchedEffect(Unit) {
+        try {
+            games = collectionsService.getMyCollection().sortedBy { it.gameName.lowercase() }
+        } catch (_: Exception) { }
+        isLoading = false
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("My Collection") },
+                navigationIcon = {
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            OutlinedTextField(
+                value = filterText,
+                onValueChange = { filterText = it },
+                placeholder = { Text("Filter games...") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+
+            if (isLoading) {
+                com.sasquatsh.app.views.shared.LoadingView()
+            } else if (games.isEmpty()) {
+                com.sasquatsh.app.views.shared.EmptyStateView(
+                    icon = Icons.Default.Casino,
+                    title = "No Games",
+                    message = "Add games to your collection first"
+                )
+            } else {
+                LazyColumn(
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(filtered, key = { g -> g.id }) { game ->
+                        val bggId = game.bggId ?: 0
+                        val alreadyAdded = selectedBggIds.contains(bggId)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable(enabled = !alreadyAdded) { onSelect(game) }
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val thumbUrl = game.thumbnailUrl
+                            if (thumbUrl != null) {
+                                AsyncImage(
+                                    model = thumbUrl,
+                                    contentDescription = game.gameName,
+                                    modifier = Modifier
+                                        .size(50.dp)
+                                        .clip(RoundedCornerShape(8.dp)),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Card(
+                                    modifier = Modifier.size(50.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                    )
+                                ) {}
+                            }
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    game.gameName,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = if (alreadyAdded) MaterialTheme.colorScheme.onSurfaceVariant
+                                    else MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    val year = game.yearPublished
+                                    if (year != null) {
+                                        Text(
+                                            "$year",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    val minP = game.minPlayers
+                                    val maxP = game.maxPlayers
+                                    if (minP != null && maxP != null) {
+                                        val players = if (minP == maxP) "${minP}p" else "${minP}-${maxP}p"
+                                        Text(
+                                            players,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (alreadyAdded) {
+                                Icon(
+                                    Icons.Default.CheckCircle,
+                                    contentDescription = "Already added",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = "Add",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }

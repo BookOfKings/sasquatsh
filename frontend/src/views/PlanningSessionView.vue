@@ -20,6 +20,7 @@ import {
   scheduleGameSessions,
   setHostSessionPreferences,
   updateSessionSettings,
+  updateSessionLocation,
 } from '@/services/planningApi'
 import { getGroupMembers } from '@/services/groupsApi'
 import { supabase } from '@/services/supabase'
@@ -34,6 +35,7 @@ import DateAvailabilitySummary from '@/components/planning/DateAvailabilitySumma
 import GameSuggestionCard from '@/components/planning/GameSuggestionCard.vue'
 import SessionScheduler from '@/components/planning/SessionScheduler.vue'
 import UserAvatar from '@/components/common/UserAvatar.vue'
+import EventLocationSection from '@/components/events/shared/EventLocationSection.vue'
 import ChatPanel from '@/components/chat/ChatPanel.vue'
 import { getChatStats } from '@/services/chatApi'
 import { createShareLink } from '@/services/shareLinksApi'
@@ -135,6 +137,21 @@ const newItem = reactive({
   quantity: 1,
 })
 
+// Location state
+const locationForm = reactive({
+  eventLocationId: undefined as string | undefined,
+  venueHall: undefined as string | undefined,
+  venueRoom: undefined as string | undefined,
+  venueTable: undefined as string | undefined,
+  addressLine1: '',
+  city: '',
+  state: '',
+  postalCode: '',
+  locationDetails: '',
+})
+const savingLocation = ref(false)
+const locationSaved = ref(false)
+
 // Invite more members state
 const showInviteModal = ref(false)
 const loadingMembers = ref(false)
@@ -149,10 +166,11 @@ const steps = computed(() => {
     { id: 2, name: 'Games', icon: 'M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z' },
     { id: 3, name: 'Items', icon: 'M20,6H16V4C16,2.89 15.11,2 14,2H10C8.89,2 8,2.89 8,4V6H4C2.89,6 2,6.89 2,8V19C2,20.11 2.89,21 4,21H20C21.11,21 22,20.11 22,19V8C22,6.89 21.11,6 20,6M10,4H14V6H10V4Z' },
     { id: 4, name: 'People', icon: 'M16,13C15.71,13 15.38,13 15.03,13.05C16.19,13.89 17,15 17,16.5V19H23V16.5C23,14.17 18.33,13 16,13M8,13C5.67,13 1,14.17 1,16.5V19H15V16.5C15,14.17 10.33,13 8,13M8,11A3,3 0 0,0 11,8A3,3 0 0,0 8,5A3,3 0 0,0 5,8A3,3 0 0,0 8,11M16,11A3,3 0 0,0 19,8A3,3 0 0,0 16,5A3,3 0 0,0 13,8A3,3 0 0,0 16,11Z' },
+    { id: 5, name: 'Location', icon: 'M12,11.5A2.5,2.5 0 0,1 9.5,9A2.5,2.5 0 0,1 12,6.5A2.5,2.5 0 0,1 14.5,9A2.5,2.5 0 0,1 12,11.5M12,2A7,7 0 0,0 5,9C5,14.25 12,22 12,22C12,22 19,14.25 19,9A7,7 0 0,0 12,2Z' },
   ]
   // Add finalize step for creator
   if (isCreator.value) {
-    baseSteps.push({ id: 5, name: 'Finalize', icon: 'M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z' })
+    baseSteps.push({ id: 6, name: 'Finalize', icon: 'M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z' })
   }
   return baseSteps
 })
@@ -163,7 +181,8 @@ const stepCompletion = computed((): Record<number, boolean> => ({
   2: (session.value?.gameSuggestions?.length ?? 0) > 0, // Games - completed if any games suggested
   3: (session.value?.items?.length ?? 0) > 0, // Items - completed if any items exist
   4: true, // People - always "complete" (just viewing)
-  5: session.value?.status === 'finalized', // Finalize - completed if finalized
+  5: !!(session.value?.eventLocationId || session.value?.city), // Location - completed if set
+  6: session.value?.status === 'finalized', // Finalize - completed if finalized
 }))
 const invitingMembers = ref(false)
 const sendInviteEmails = ref(true)
@@ -330,6 +349,20 @@ async function loadSession(preserveFormState = false) {
     // Initialize finalize mode and table count based on session type
     finalizeMode.value = isMultiTable.value ? 'multi-table' : 'single'
     desiredTableCount.value = session.value.tableCount ?? 2
+
+    // Initialize location form from session data
+    locationForm.eventLocationId = session.value.eventLocationId || undefined
+    locationForm.venueHall = session.value.venueHall || undefined
+    locationForm.venueRoom = session.value.venueRoom || undefined
+    locationForm.venueTable = session.value.venueTable || undefined
+    locationForm.addressLine1 = session.value.addressLine1 || ''
+    locationForm.city = session.value.city || ''
+    locationForm.state = session.value.state || ''
+    locationForm.postalCode = session.value.postalCode || ''
+    locationForm.locationDetails = session.value.locationDetails || ''
+
+    // Load collections for game suggestions (non-blocking)
+    loadCollections()
 
     // Load chat stats
     chatStats.value = await getChatStats('planning', sessionId.value)
@@ -537,6 +570,43 @@ async function handleSaveSchedule(schedule: ScheduleEntry[], preferences: HostPr
     errorMessage.value = err instanceof Error ? err.message : 'Failed to save schedule'
   } finally {
     savingSchedule.value = false
+  }
+}
+
+async function handleSaveLocation() {
+  savingLocation.value = true
+  locationSaved.value = false
+  errorMessage.value = ''
+
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+
+    await updateSessionLocation(token, session.value!.id, {
+      eventLocationId: locationForm.eventLocationId || null,
+      venueHall: locationForm.venueHall || null,
+      venueRoom: locationForm.venueRoom || null,
+      venueTable: locationForm.venueTable || null,
+      addressLine1: locationForm.addressLine1?.trim() || null,
+      city: locationForm.city?.trim() || null,
+      state: locationForm.state?.trim() || null,
+      postalCode: locationForm.postalCode?.trim() || null,
+      locationDetails: locationForm.locationDetails?.trim() || null,
+    })
+
+    // Update local session state
+    if (session.value) {
+      session.value.eventLocationId = locationForm.eventLocationId || null
+      session.value.city = locationForm.city || null
+      session.value.state = locationForm.state || null
+    }
+
+    locationSaved.value = true
+    setTimeout(() => { locationSaved.value = false }, 3000)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to save location'
+  } finally {
+    savingLocation.value = false
   }
 }
 
@@ -1722,7 +1792,97 @@ function formatRelativeTime(isoString: string | null): string {
                 </svg>
                 Back: Items
               </button>
-              <button v-if="isCreator" class="btn-primary" @click="currentStep = 5">
+              <button class="btn-primary" @click="currentStep = 5">
+                Next: Location
+                <svg class="w-4 h-4 ml-1" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 5: Location -->
+        <div v-show="currentStep === 5" class="card mb-6">
+          <div class="p-6 border-b border-gray-100">
+            <h2 class="font-semibold">Location</h2>
+            <p class="text-sm text-gray-500 mt-1">
+              <template v-if="isCreator">Set where this game night will take place</template>
+              <template v-else>
+                <span v-if="session?.eventLocationId || session?.city">The host has set a location for this game night.</span>
+                <span v-else>The host hasn't set a location yet.</span>
+              </template>
+            </p>
+          </div>
+          <div class="p-6">
+            <!-- Creator can edit -->
+            <template v-if="isCreator">
+              <EventLocationSection
+                :event-location-id="locationForm.eventLocationId"
+                :venue-hall="locationForm.venueHall"
+                :venue-room="locationForm.venueRoom"
+                :venue-table="locationForm.venueTable"
+                :address-line1="locationForm.addressLine1"
+                :city="locationForm.city"
+                :state="locationForm.state"
+                :postal-code="locationForm.postalCode"
+                :location-details="locationForm.locationDetails"
+                :current-tier="session?.createdBy?.subscriptionOverrideTier || session?.createdBy?.subscriptionTier || 'free'"
+                @update:event-location-id="locationForm.eventLocationId = $event"
+                @update:venue-hall="locationForm.venueHall = $event"
+                @update:venue-room="locationForm.venueRoom = $event"
+                @update:venue-table="locationForm.venueTable = $event"
+                @update:address-line1="locationForm.addressLine1 = $event"
+                @update:city="locationForm.city = $event"
+                @update:state="locationForm.state = $event"
+                @update:postal-code="locationForm.postalCode = $event"
+                @update:location-details="locationForm.locationDetails = $event"
+              />
+              <div class="flex items-center gap-3 mt-4">
+                <button
+                  class="btn-primary"
+                  :disabled="savingLocation"
+                  @click="handleSaveLocation"
+                >
+                  <svg v-if="savingLocation" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                  </svg>
+                  Save Location
+                </button>
+                <span v-if="locationSaved" class="text-sm text-green-600">Saved!</span>
+              </div>
+            </template>
+
+            <!-- Non-creator view -->
+            <template v-else>
+              <div v-if="session?.city" class="flex items-start gap-3 text-gray-700">
+                <svg class="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12,11.5A2.5,2.5 0 0,1 9.5,9A2.5,2.5 0 0,1 12,6.5A2.5,2.5 0 0,1 14.5,9A2.5,2.5 0 0,1 12,11.5M12,2A7,7 0 0,0 5,9C5,14.25 12,22 12,22C12,22 19,14.25 19,9A7,7 0 0,0 12,2Z"/>
+                </svg>
+                <div>
+                  <p v-if="session.addressLine1" class="text-sm">{{ session.addressLine1 }}</p>
+                  <p class="text-sm">{{ session.city }}<span v-if="session.state">, {{ session.state }}</span> {{ session.postalCode }}</p>
+                  <p v-if="session.locationDetails" class="text-xs text-gray-500 mt-1">{{ session.locationDetails }}</p>
+                </div>
+              </div>
+              <div v-else class="text-center py-6 text-gray-400">
+                <svg class="w-10 h-10 mx-auto mb-2" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12,11.5A2.5,2.5 0 0,1 9.5,9A2.5,2.5 0 0,1 12,6.5A2.5,2.5 0 0,1 14.5,9A2.5,2.5 0 0,1 12,11.5M12,2A7,7 0 0,0 5,9C5,14.25 12,22 12,22C12,22 19,14.25 19,9A7,7 0 0,0 12,2Z"/>
+                </svg>
+                <p class="text-sm">No location set yet</p>
+              </div>
+            </template>
+
+            <!-- Navigation buttons -->
+            <div class="mt-6 pt-4 border-t border-gray-200 flex items-center justify-between">
+              <button class="btn-ghost" @click="currentStep = 4">
+                <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M15.41,16.58L10.83,12L15.41,7.41L14,6L8,12L14,18L15.41,16.58Z"/>
+                </svg>
+                Back: People
+              </button>
+              <button v-if="isCreator" class="btn-primary" @click="currentStep = 6">
                 Next: Finalize
                 <svg class="w-4 h-4 ml-1" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"/>
@@ -1732,8 +1892,8 @@ function formatRelativeTime(isoString: string | null): string {
           </div>
         </div>
 
-        <!-- Step 5: Finalize (Creator only) -->
-        <div v-show="currentStep === 5 && isCreator" class="space-y-6">
+        <!-- Step 6: Finalize (Creator only) -->
+        <div v-show="currentStep === 6 && isCreator" class="space-y-6">
           <!-- Event Mode Toggle -->
           <div class="card">
             <div class="p-6 border-b border-gray-100">
@@ -1898,11 +2058,11 @@ function formatRelativeTime(isoString: string | null): string {
                 </svg>
                 Create Game Event
               </button>
-              <button class="btn-ghost" @click="currentStep = 4">
+              <button class="btn-ghost" @click="currentStep = 5">
                 <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M15.41,16.58L10.83,12L15.41,7.41L14,6L8,12L14,18L15.41,16.58Z"/>
                 </svg>
-                Back to People
+                Back to Location
               </button>
             </div>
           </div>

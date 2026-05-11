@@ -225,9 +225,9 @@ fun UserProfileSheet(
                                     modifier = Modifier.width(70.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
-                                    BadgeIcon(badge = ub.badge, size = 36)
+                                    ub.badge?.let { BadgeIcon(badge = it, size = 36) }
                                     Text(
-                                        text = ub.badge.name,
+                                        text = ub.badge?.name ?: "",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurface,
                                         maxLines = 1,
@@ -275,9 +275,9 @@ fun UserProfileSheet(
                                         .width(70.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
-                                    BadgeIcon(badge = ub.badge, size = 36)
+                                    ub.badge?.let { BadgeIcon(badge = it, size = 36) }
                                     Text(
-                                        text = ub.badge.name,
+                                        text = ub.badge?.name ?: "",
                                         fontSize = 9.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 1,
@@ -359,7 +359,7 @@ fun UserProfileSheet(
                             }
                         }
 
-                        if (collection.size > 5 && onViewAllGames != null) {
+                        if (onViewAllGames != null) {
                             Spacer(modifier = Modifier.height(4.dp))
                             TextButton(
                                 onClick = {

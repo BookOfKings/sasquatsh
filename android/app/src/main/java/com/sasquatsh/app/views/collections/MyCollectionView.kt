@@ -19,8 +19,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Inbox
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.AddCircleOutline
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -33,11 +35,15 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,11 +52,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import com.sasquatsh.app.models.AddCollectionGameInput
 import com.sasquatsh.app.models.BggSearchResult
 import com.sasquatsh.app.models.CollectionGame
 import com.sasquatsh.app.views.shared.D20SpinnerView
 import com.sasquatsh.app.viewmodels.CollectionViewModel
 import com.sasquatsh.app.views.shared.LoadingView
+import com.sasquatsh.app.views.shared.PoweredByBggLogo
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,9 +66,24 @@ fun MyCollectionView(
     viewModel: CollectionViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    var showBarcodeScanner by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.loadCollection()
+    }
+
+    // Barcode scanner as fullscreen dialog
+    if (showBarcodeScanner) {
+        BarcodeScannerView(
+            gameUpcService = viewModel.gameUpcService,
+            bggService = viewModel.bggService,
+            initialOwnedBggIds = uiState.ownedBggIds,
+            onGameFound = { input ->
+                viewModel.addFromInput(input)
+            },
+            onDismiss = { showBarcodeScanner = false }
+        )
+        return
     }
 
     Scaffold(
@@ -73,23 +96,47 @@ fun MyCollectionView(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Tab picker
-            TabRow(selectedTabIndex = uiState.activeTab) {
-                Tab(
-                    selected = uiState.activeTab == 0,
-                    onClick = { viewModel.updateActiveTab(0) },
-                    text = { Text("My Games (${uiState.myGames.size})") }
-                )
-                Tab(
-                    selected = uiState.activeTab == 1,
-                    onClick = { viewModel.updateActiveTab(1) },
-                    text = { Text("Top 50") }
-                )
-                Tab(
-                    selected = uiState.activeTab == 2,
-                    onClick = { viewModel.updateActiveTab(2) },
-                    text = { Text("Search") }
-                )
+            // Tab picker + scan button (matching iOS layout)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                TabRow(
+                    selectedTabIndex = uiState.activeTab,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Tab(
+                        selected = uiState.activeTab == 0,
+                        onClick = { viewModel.updateActiveTab(0) },
+                        text = { Text("My Games (${uiState.myGames.size})") }
+                    )
+                    Tab(
+                        selected = uiState.activeTab == 1,
+                        onClick = { viewModel.updateActiveTab(1) },
+                        text = { Text("Top 50") }
+                    )
+                    Tab(
+                        selected = uiState.activeTab == 2,
+                        onClick = { viewModel.updateActiveTab(2) },
+                        text = { Text("Search") }
+                    )
+                }
+
+                Button(
+                    onClick = { showBarcodeScanner = true },
+                    modifier = Modifier.size(40.dp),
+                    contentPadding = PaddingValues(0.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.QrCodeScanner,
+                        contentDescription = "Scan barcode",
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
 
             when (uiState.activeTab) {
@@ -106,6 +153,30 @@ private fun MyGamesTab(
     uiState: com.sasquatsh.app.viewmodels.CollectionUiState,
     viewModel: CollectionViewModel
 ) {
+    var gameToRemove by remember { mutableStateOf<CollectionGame?>(null) }
+
+    // Confirm removal dialog
+    gameToRemove?.let { game ->
+        AlertDialog(
+            onDismissRequest = { gameToRemove = null },
+            title = { Text("Remove Game") },
+            text = { Text("Remove \"${game.gameName}\" from your collection?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.toggleGame(game.bggId ?: 0, game, true)
+                    gameToRemove = null
+                }) {
+                    Text("Remove", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { gameToRemove = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         // Filter
         OutlinedTextField(
@@ -161,9 +232,7 @@ private fun MyGamesTab(
                             game = game,
                             isOwned = true,
                             isPending = uiState.pendingRemoves.contains(game.bggId ?: 0),
-                            onToggle = {
-                                viewModel.toggleGame(game.bggId ?: 0, game, true)
-                            }
+                            onToggle = { gameToRemove = game }
                         )
                     }
                 }
@@ -177,6 +246,29 @@ private fun TopGamesTab(
     uiState: com.sasquatsh.app.viewmodels.CollectionUiState,
     viewModel: CollectionViewModel
 ) {
+    var gameToRemove by remember { mutableStateOf<CollectionGame?>(null) }
+
+    gameToRemove?.let { game ->
+        AlertDialog(
+            onDismissRequest = { gameToRemove = null },
+            title = { Text("Remove Game") },
+            text = { Text("Remove \"${game.gameName}\" from your collection?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.toggleGame(game.bggId ?: 0, game, true)
+                    gameToRemove = null
+                }) {
+                    Text("Remove", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { gameToRemove = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     if (uiState.topGames.isEmpty() && uiState.isLoading) {
         LoadingView()
     } else {
@@ -186,13 +278,18 @@ private fun TopGamesTab(
         ) {
             items(uiState.topGames, key = { it.id }) { game ->
                 val bggId = game.bggId ?: 0
+                val isOwned = uiState.ownedBggIds.contains(bggId)
                 GameRow(
                     game = game,
-                    isOwned = uiState.ownedBggIds.contains(bggId),
+                    isOwned = isOwned,
                     isPending = uiState.pendingAdds.contains(bggId) || uiState.pendingRemoves.contains(bggId),
                     showRank = true,
                     onToggle = {
-                        viewModel.toggleGame(bggId, game, uiState.ownedBggIds.contains(bggId))
+                        if (isOwned) {
+                            gameToRemove = game
+                        } else {
+                            viewModel.toggleGame(bggId, game, false)
+                        }
                     }
                 )
             }
@@ -206,6 +303,10 @@ private fun SearchTab(
     viewModel: CollectionViewModel
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
+        PoweredByBggLogo(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            height = 28.dp
+        )
         OutlinedTextField(
             value = uiState.searchQuery,
             onValueChange = { viewModel.updateSearchQuery(it) },

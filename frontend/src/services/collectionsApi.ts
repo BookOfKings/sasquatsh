@@ -109,6 +109,40 @@ export async function addGamesToCollection(
   return data.games
 }
 
+export interface BggCollectionGame {
+  bggId: number
+  name: string
+  yearPublished: number | null
+  thumbnailUrl: string | null
+  imageUrl: string | null
+}
+
+export async function fetchBggCollection(bggUsername: string): Promise<BggCollectionGame[]> {
+  let response: Response
+  try {
+    response = await fetch(`${FUNCTIONS_URL}/bgg?collection=${encodeURIComponent(bggUsername)}`, {
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+      },
+    })
+  } catch {
+    throw new Error('Unable to connect to the server. Please check your internet connection and try again.')
+  }
+
+  if (!response.ok) {
+    let message = response.statusText
+    try {
+      const data = await response.json()
+      if (data?.error) message = data.error
+    } catch { /* no body */ }
+    throw new Error(message)
+  }
+
+  const data = await response.json()
+  return data.games
+}
+
 export async function removeGameFromCollection(token: string, bggId: number): Promise<void> {
   await authRequest<{ removed: boolean }>(`/collections?bggId=${bggId}`, token, {
     method: 'DELETE',

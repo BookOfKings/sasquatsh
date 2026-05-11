@@ -36,6 +36,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.sasquatsh.app.models.Event
+import com.sasquatsh.app.models.GameSystem
+import com.sasquatsh.app.models.MtgConfigState
+import com.sasquatsh.app.models.PokemonConfigState
+import com.sasquatsh.app.models.YugiohConfigState
+import com.sasquatsh.app.models.Warhammer40kConfigState
 import com.sasquatsh.app.views.shared.D20SpinnerView
 import com.sasquatsh.app.viewmodels.CreateEditEventViewModel
 import com.sasquatsh.app.viewmodels.EventDetailViewModel
@@ -126,14 +131,19 @@ fun EditEventView(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // ── Error Banner ──
+                uiState.error?.let { error ->
+                    com.sasquatsh.app.views.shared.ErrorBannerView(
+                        message = error,
+                        onDismiss = { viewModel.clearError() }
+                    )
+                }
+
                 // ── Basic Information ──
                 EventFormBasicInfo(
                     viewModel = viewModel,
                     uiState = uiState
                 )
-
-                // ── Game System Config ──
-                // (Game system-specific sections would go here, e.g. MtgConfigFormSections)
 
                 // ── Date & Time ──
                 EventFormDateTime(
@@ -147,21 +157,54 @@ fun EditEventView(
                     uiState = uiState
                 )
 
+                // ── Game Search (Board Games only) ──
+                if (uiState.isBoardGame) {
+                    EventFormGameSearch(
+                        viewModel = viewModel,
+                        uiState = uiState
+                    )
+                }
+
+                // ── Game System Config ──
+                when (uiState.gameSystem) {
+                    GameSystem.MTG -> {
+                        val config = uiState.mtgConfig ?: MtgConfigState()
+                        MtgConfigFormSections(
+                            config = config,
+                            onConfigChange = { viewModel.updateMtgConfig(it) },
+                            scryfallService = viewModel.scryfallService
+                        )
+                    }
+                    GameSystem.POKEMON_TCG -> {
+                        val config = uiState.pokemonConfig ?: PokemonConfigState()
+                        PokemonConfigFormSections(
+                            config = config,
+                            onConfigChange = { viewModel.updatePokemonConfig(it) }
+                        )
+                    }
+                    GameSystem.YUGIOH -> {
+                        val config = uiState.yugiohConfig ?: YugiohConfigState()
+                        YugiohConfigFormSections(
+                            config = config,
+                            onConfigChange = { viewModel.updateYugiohConfig(it) }
+                        )
+                    }
+                    GameSystem.WARHAMMER_40K -> {
+                        val config = uiState.warhammer40kConfig ?: Warhammer40kConfigState()
+                        Warhammer40kConfigFormSections(
+                            config = config,
+                            onConfigChange = { viewModel.updateWarhammer40kConfig(it) }
+                        )
+                    }
+                    else -> { /* Board Game — no extra config */ }
+                }
+
                 // ── Game Settings (with status picker in edit mode) ──
                 EventFormGameSettings(
                     viewModel = viewModel,
                     uiState = uiState,
                     showStatusPicker = true
                 )
-
-                // ── Error ──
-                uiState.error?.let { error ->
-                    Text(
-                        text = error,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
 
                 // ── Delete button ──
                 Spacer(modifier = Modifier.height(8.dp))

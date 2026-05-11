@@ -54,7 +54,9 @@ async function initializeAuth(): Promise<void> {
         redirectHandled.value = true
         try {
           const idToken = await result.user.getIdToken()
-          user.value = await getCurrentUser(idToken)
+          const storedReferrer = localStorage.getItem('referrerUsername')
+          if (storedReferrer) localStorage.removeItem('referrerUsername')
+          user.value = await getCurrentUser(idToken, storedReferrer ? { referrerUsername: storedReferrer } : undefined)
           firebaseUser.value = result.user
           isLoading.value = false
           isInitialized.value = true
@@ -100,7 +102,9 @@ async function initializeAuth(): Promise<void> {
           redirectHandled.value = true
           try {
             const idToken = await result.user.getIdToken()
-            user.value = await getCurrentUser(idToken)
+            const storedReferrer = localStorage.getItem('referrerUsername')
+            if (storedReferrer) localStorage.removeItem('referrerUsername')
+            user.value = await getCurrentUser(idToken, storedReferrer ? { referrerUsername: storedReferrer } : undefined)
             firebaseUser.value = result.user
             isLoading.value = false
             isInitialized.value = true
@@ -155,7 +159,9 @@ async function initializeAuth(): Promise<void> {
         console.log('[Auth] Syncing user with backend...')
         try {
           const idToken = await fbUser.getIdToken()
-          user.value = await getCurrentUser(idToken)
+          const storedReferrer = localStorage.getItem('referrerUsername')
+          if (storedReferrer) localStorage.removeItem('referrerUsername')
+          user.value = await getCurrentUser(idToken, storedReferrer ? { referrerUsername: storedReferrer } : undefined)
           console.log('[Auth] User synced successfully')
           // Check for saved redirect from login page
           const loginRedirect = localStorage.getItem('loginRedirect')
@@ -216,7 +222,8 @@ async function signupWithEmail(
   password: string,
   displayName: string,
   username: string,
-  recaptchaToken?: string
+  recaptchaToken?: string,
+  referrerUsername?: string
 ): Promise<{ ok: boolean; message: string }> {
   isLoading.value = true
   error.value = null
@@ -234,7 +241,7 @@ async function signupWithEmail(
     if (result.user) {
       try {
         const idToken = await result.user.getIdToken()
-        user.value = await getCurrentUser(idToken, { username, recaptchaToken })
+        user.value = await getCurrentUser(idToken, { username, recaptchaToken, referrerUsername })
         firebaseUser.value = result.user
       } catch (syncErr: any) {
         console.error('Failed to sync user with backend:', syncErr)

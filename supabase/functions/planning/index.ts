@@ -97,6 +97,8 @@ Deno.serve(async (req) => {
           id, group_id, created_by_user_id, title, description,
           response_deadline, status, finalized_date, created_event_id, created_at,
           max_participants, table_count, open_to_group,
+          event_location_id, venue_hall, venue_room, venue_table,
+          address_line1, city, state, postal_code, location_details,
           group:groups(id, name, slug),
           created_by:users!created_by_user_id(id, display_name, username, avatar_url, is_founding_member, is_admin, subscription_tier, subscription_override_tier),
           invitees:planning_invitees(count)
@@ -116,6 +118,8 @@ Deno.serve(async (req) => {
           id, group_id, created_by_user_id, title, description,
           response_deadline, status, finalized_date, finalized_game_id, created_event_id, created_at,
           max_participants, max_games, table_count, open_to_group, scheduled_sessions, host_session_preferences,
+          event_location_id, venue_hall, venue_room, venue_table,
+          address_line1, city, state, postal_code, location_details,
           group:groups(id, name, slug),
           created_by:users!created_by_user_id(id, display_name, username, avatar_url, is_founding_member, is_admin, subscription_tier, subscription_override_tier)
         `)
@@ -324,6 +328,16 @@ Deno.serve(async (req) => {
           max_games: maxGamesForDisplay,
           table_count: body.tableCount || null,
           open_to_group: openToGroup,
+          // Location fields
+          event_location_id: body.eventLocationId || null,
+          venue_hall: body.venueHall || null,
+          venue_room: body.venueRoom || null,
+          venue_table: body.venueTable || null,
+          address_line1: body.addressLine1 || null,
+          city: body.city || null,
+          state: body.state || null,
+          postal_code: body.postalCode || null,
+          location_details: body.locationDetails || null,
         })
         .select()
         .single()
@@ -1199,6 +1213,39 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Update location (creator only)
+    if (action === 'update-location') {
+      if (session.status !== 'open') {
+        return errorResponse('Session is no longer open', 400)
+      }
+      if (!isCreator) {
+        return errorResponse('Only the session creator can update location', 403)
+      }
+
+      const body = await req.json()
+
+      const { error: updateError } = await supabase
+        .from('planning_sessions')
+        .update({
+          event_location_id: body.eventLocationId || null,
+          venue_hall: body.venueHall || null,
+          venue_room: body.venueRoom || null,
+          venue_table: body.venueTable || null,
+          address_line1: body.addressLine1 || null,
+          city: body.city || null,
+          state: body.state || null,
+          postal_code: body.postalCode || null,
+          location_details: body.locationDetails || null,
+        })
+        .eq('id', sessionId)
+
+      if (updateError) {
+        return errorResponse('Failed to update location', 500)
+      }
+
+      return jsonResponse({ message: 'Location updated' })
+    }
+
     // Schedule games to tables/time slots (host only, before finalize)
     if (action === 'schedule-sessions') {
       if (session.status !== 'open') {
@@ -1489,6 +1536,16 @@ Deno.serve(async (req) => {
           from_planning_session_id: sessionId,
           planned_games: qualifyingGames.length > 0 ? qualifyingGames : null,
           is_multi_table: isMultiTable,
+          // Location from planning session
+          event_location_id: session.event_location_id || null,
+          venue_hall: session.venue_hall || null,
+          venue_room: session.venue_room || null,
+          venue_table: session.venue_table || null,
+          address_line1: session.address_line1 || null,
+          city: session.city || null,
+          state: session.state || null,
+          postal_code: session.postal_code || null,
+          location_details: session.location_details || null,
         })
         .select('id')
         .single()
@@ -1708,6 +1765,17 @@ function transformSessionSummary(row: Record<string, unknown>) {
     maxGames: row.max_games ?? 5,
     tableCount: row.table_count ?? null,
     openToGroup: row.open_to_group ?? false,
+    fromRecurringGameId: row.from_recurring_game_id ?? null,
+    targetEventDate: row.target_event_date ?? null,
+    eventLocationId: row.event_location_id ?? null,
+    venueHall: row.venue_hall ?? null,
+    venueRoom: row.venue_room ?? null,
+    venueTable: row.venue_table ?? null,
+    addressLine1: row.address_line1 ?? null,
+    city: row.city ?? null,
+    state: row.state ?? null,
+    postalCode: row.postal_code ?? null,
+    locationDetails: row.location_details ?? null,
     scheduledSessions: row.scheduled_sessions ?? null,
     hostSessionPreferences: row.host_session_preferences ?? null,
     inviteeCount: (row.invitees as { count: number }[])?.[0]?.count ?? 0,

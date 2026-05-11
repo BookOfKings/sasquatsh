@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.sasquatsh.app.models.GroupSearchFilter
 import com.sasquatsh.app.models.GroupSummary
 import com.sasquatsh.app.models.GroupType
+import com.sasquatsh.app.models.MemberRole
 import com.sasquatsh.app.services.GroupsService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
@@ -77,9 +78,34 @@ class GroupListViewModel @Inject constructor(
                 val publicGroups = publicGroupsDeferred.await()
                 val myGroups = myGroupsDeferred.await()
 
+                // Build a map of group ID -> user's role from my groups
+                val roleMap = myGroups.associate { it.id to it.userRole }
+
+                // Annotate public groups with user's role, dedup against my groups
+                val myGroupIds = myGroups.map { it.id }.toSet()
+                val annotatedPublic = publicGroups
+                    .filter { it.id !in myGroupIds }
+                    .map { group ->
+                        val role = roleMap[group.id]
+                        if (role != null) group.copy(userRole = role) else group
+                    }
+
+                // Merge: my groups first (sorted by role priority), then other groups alphabetically
+                val rolePriority = mapOf(
+                    MemberRole.OWNER to 0,
+                    MemberRole.ADMIN to 1,
+                    MemberRole.MEMBER to 2
+                )
+                val sortedMyGroups = myGroups.sortedWith(
+                    compareBy<GroupSummary> { rolePriority[it.userRole] ?: 3 }
+                        .thenBy { it.name.lowercase() }
+                )
+                val sortedOtherGroups = annotatedPublic.sortedBy { it.name.lowercase() }
+                val merged = sortedMyGroups + sortedOtherGroups
+
                 _uiState.update {
                     it.copy(
-                        groups = publicGroups,
+                        groups = merged,
                         myGroupCount = myGroups.size,
                         isLoading = false
                     )

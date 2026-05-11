@@ -36,6 +36,7 @@ function toUserProfile(row: Record<string, unknown>) {
     isAdmin: row.is_admin as boolean ?? false,
     isFoundingMember: row.is_founding_member as boolean ?? false,
     blockedUserIds: row.blocked_user_ids as string[] ?? [],
+    bggUsername: row.bgg_username as string | null,
     collectionVisibility: (row.collection_visibility as string) ?? 'private',
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
@@ -312,6 +313,7 @@ Deno.serve(async (req) => {
     if (body.activeLocationTable !== undefined) updates.active_location_table = body.activeLocationTable?.trim() || null
     if (body.timezone !== undefined) updates.timezone = body.timezone?.trim() || null
     if (body.collectionVisibility !== undefined) updates.collection_visibility = body.collectionVisibility
+    if (body.bggUsername !== undefined) updates.bgg_username = body.bggUsername?.trim() || null
 
     const { data, error } = await supabase
       .from('users')

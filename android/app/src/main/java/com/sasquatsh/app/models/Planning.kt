@@ -28,7 +28,16 @@ data class PlanningSession(
     @Json(name = "maxGames") val maxGames: Int? = null,
     @Json(name = "tableCount") val tableCount: Int? = null,
     @Json(name = "scheduledSessions") val scheduledSessions: Any? = null,
-    @Json(name = "hostSessionPreferences") val hostSessionPreferences: Any? = null
+    @Json(name = "hostSessionPreferences") val hostSessionPreferences: Any? = null,
+    @Json(name = "eventLocationId") val eventLocationId: String? = null,
+    @Json(name = "venueHall") val venueHall: String? = null,
+    @Json(name = "venueRoom") val venueRoom: String? = null,
+    @Json(name = "venueTable") val venueTable: String? = null,
+    @Json(name = "addressLine1") val addressLine1: String? = null,
+    @Json(name = "city") val city: String? = null,
+    @Json(name = "state") val state: String? = null,
+    @Json(name = "postalCode") val postalCode: String? = null,
+    @Json(name = "locationDetails") val locationDetails: String? = null
 )
 
 @JsonClass(generateAdapter = true)

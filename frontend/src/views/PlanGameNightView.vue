@@ -11,6 +11,7 @@ import type { Group, GroupMember } from '@/types/groups'
 import type { BggSearchResult } from '@/types/bgg'
 import type { SuggestGameInput } from '@/types/planning'
 import UserAvatar from '@/components/common/UserAvatar.vue'
+import EventLocationSection from '@/components/events/shared/EventLocationSection.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -49,6 +50,16 @@ const form = reactive({
   isMultiTable: false,
   tableCount: 2,
   openToGroup: false,
+  // Location
+  eventLocationId: undefined as string | undefined,
+  venueHall: undefined as string | undefined,
+  venueRoom: undefined as string | undefined,
+  venueTable: undefined as string | undefined,
+  addressLine1: '',
+  city: '',
+  state: '',
+  postalCode: '',
+  locationDetails: '',
 })
 
 const slug = computed(() => route.params.slug as string)
@@ -200,6 +211,16 @@ async function handleSubmit() {
       initialGameSuggestions: suggestedGames.value.length > 0 ? suggestedGames.value : undefined,
       maxParticipants: form.hasParticipantLimit ? form.maxParticipants : undefined,
       tableCount: form.isMultiTable ? form.tableCount : undefined,
+      // Location
+      eventLocationId: form.eventLocationId || undefined,
+      venueHall: form.venueHall || undefined,
+      venueRoom: form.venueRoom || undefined,
+      venueTable: form.venueTable || undefined,
+      addressLine1: form.addressLine1?.trim() || undefined,
+      city: form.city?.trim() || undefined,
+      state: form.state?.trim() || undefined,
+      postalCode: form.postalCode?.trim() || undefined,
+      locationDetails: form.locationDetails?.trim() || undefined,
     })
 
     router.push(`/planning/${session.id}`)
@@ -635,6 +656,33 @@ function formatDate(dateStr: string): string {
               Members will then sign up for specific game sessions.
             </p>
           </div>
+        </div>
+
+        <!-- Location (Optional) -->
+        <div class="card p-6">
+          <h2 class="font-semibold mb-4">Location (Optional)</h2>
+          <p class="text-sm text-gray-500 mb-4">Set the venue or address now, or add it later from the planning session.</p>
+          <EventLocationSection
+            :event-location-id="form.eventLocationId"
+            :venue-hall="form.venueHall"
+            :venue-room="form.venueRoom"
+            :venue-table="form.venueTable"
+            :address-line1="form.addressLine1"
+            :city="form.city"
+            :state="form.state"
+            :postal-code="form.postalCode"
+            :location-details="form.locationDetails"
+            :current-tier="currentTier"
+            @update:event-location-id="form.eventLocationId = $event"
+            @update:venue-hall="form.venueHall = $event"
+            @update:venue-room="form.venueRoom = $event"
+            @update:venue-table="form.venueTable = $event"
+            @update:address-line1="form.addressLine1 = $event"
+            @update:city="form.city = $event"
+            @update:state="form.state = $event"
+            @update:postal-code="form.postalCode = $event"
+            @update:location-details="form.locationDetails = $event"
+          />
         </div>
 
         <!-- Submit -->

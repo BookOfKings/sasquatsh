@@ -2058,6 +2058,19 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Run recurring games generator (admin proxy)
+    if (action === 'run-generator') {
+      const genResponse = await fetch(`${supabaseUrl}/functions/v1/recurring-games-generator`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+          'Content-Type': 'application/json',
+        },
+      })
+      const genResult = await genResponse.json()
+      return jsonResponse(genResult)
+    }
+
     return errorResponse('Unknown action', 400)
   }
 

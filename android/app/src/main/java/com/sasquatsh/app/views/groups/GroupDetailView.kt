@@ -132,6 +132,7 @@ fun GroupDetailView(
     var transferTargetId by remember { mutableStateOf<String?>(null) }
     var transferTargetName by remember { mutableStateOf("") }
     var showChat by remember { mutableStateOf(false) }
+    var profileUserId by remember { mutableStateOf<String?>(null) }
     var showRecurringGameForm by remember { mutableStateOf(false) }
     var editingRecurringGame by remember { mutableStateOf<com.sasquatsh.app.models.RecurringGame?>(null) }
 
@@ -257,12 +258,14 @@ fun GroupDetailView(
                         },
                         onRevokeInvitation = { id -> viewModel.revokeInvitation(id) },
                         onLoadRequests = { viewModel.loadJoinRequests() },
-                        onLoadInvitations = { viewModel.loadInvitations() }
+                        onLoadInvitations = { viewModel.loadInvitations() },
+                        onProfileClick = { profileUserId = it }
                     )
                 } else if (isMember) {
                     MembersSection(
                         members = uiState.members,
-                        currentUserId = currentUserId
+                        currentUserId = currentUserId,
+                        onProfileClick = { profileUserId = it }
                     )
                 }
 
@@ -380,6 +383,12 @@ fun GroupDetailView(
             }
         )
     }
+
+    // User profile popup
+    com.sasquatsh.app.views.shared.UserProfileSheetHost(
+        userId = profileUserId,
+        onDismiss = { profileUserId = null }
+    )
 }
 
 // ---- Header Section ----
@@ -1045,7 +1054,8 @@ private fun RecurringGamesSection(
 @Composable
 private fun MembersSection(
     members: List<GroupMember>,
-    currentUserId: String?
+    currentUserId: String?,
+    onProfileClick: (String) -> Unit = {}
 ) {
     Card(
         modifier = Modifier
@@ -1062,7 +1072,7 @@ private fun MembersSection(
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             members.forEachIndexed { index, member ->
                 if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                MemberRow(member = member, isAdmin = false, isOwner = false, currentUserId = currentUserId)
+                MemberRow(member = member, isAdmin = false, isOwner = false, currentUserId = currentUserId, onProfileClick = onProfileClick)
             }
         }
     }
@@ -1085,7 +1095,8 @@ private fun AdminPanelSection(
     onCreateInvitation: (Int?, Int?, (GroupInvitation) -> Unit) -> Unit,
     onRevokeInvitation: (String) -> Unit,
     onLoadRequests: () -> Unit,
-    onLoadInvitations: () -> Unit
+    onLoadInvitations: () -> Unit,
+    onProfileClick: (String) -> Unit = {}
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
 
@@ -1138,7 +1149,8 @@ private fun AdminPanelSection(
                             currentUserId = currentUserId,
                             onChangeRole = onChangeRole,
                             onRemoveMember = onRemoveMember,
-                            onTransferOwnership = onTransferOwnership
+                            onTransferOwnership = onTransferOwnership,
+                            onProfileClick = onProfileClick
                         )
                     }
                 }
@@ -1185,7 +1197,8 @@ private fun MemberRow(
     currentUserId: String?,
     onChangeRole: ((String, MemberRole) -> Unit)? = null,
     onRemoveMember: ((String) -> Unit)? = null,
-    onTransferOwnership: ((String, String) -> Unit)? = null
+    onTransferOwnership: ((String, String) -> Unit)? = null,
+    onProfileClick: (String) -> Unit = {}
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
@@ -1200,7 +1213,8 @@ private fun MemberRow(
             url = member.avatarUrl,
             name = member.displayName,
             size = 40.dp,
-            userId = member.userId
+            userId = member.userId,
+            onProfileClick = onProfileClick
         )
 
         Column(modifier = Modifier.weight(1f)) {

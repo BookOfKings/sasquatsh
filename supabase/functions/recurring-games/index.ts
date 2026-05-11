@@ -84,6 +84,9 @@ function transformRecurringGame(row: Record<string, unknown>) {
     gameTitle: row.game_title,
     isPublic: row.is_public,
     isActive: row.is_active,
+    generatesPlanningSession: row.generates_planning_session ?? false,
+    deadlineDayOffset: row.deadline_day_offset ?? 1,
+    tableCount: row.table_count ?? null,
     nextOccurrenceDate: row.next_occurrence_date,
     lastGeneratedDate: row.last_generated_date,
     hostUserId: row.host_user_id,
@@ -278,6 +281,9 @@ Deno.serve(async (req) => {
       game_system: input.gameSystem ?? 'board_game',
       game_title: input.gameTitle ?? null,
       is_public: input.isPublic ?? true,
+      generates_planning_session: input.generatesPlanningSession ?? false,
+      deadline_day_offset: input.deadlineDayOffset ?? 1,
+      table_count: input.tableCount ?? null,
       is_active: true,
       next_occurrence_date: nextOccurrenceDate,
       host_user_id: user.id,
@@ -358,6 +364,9 @@ Deno.serve(async (req) => {
       gameTitle: 'game_title',
       isPublic: 'is_public',
       isActive: 'is_active',
+      generatesPlanningSession: 'generates_planning_session',
+      deadlineDayOffset: 'deadline_day_offset',
+      tableCount: 'table_count',
     }
 
     for (const [camel, snake] of Object.entries(fieldMap)) {
