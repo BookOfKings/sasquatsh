@@ -11,6 +11,11 @@ final class CreatePlanningViewModel {
     var openToGroup = false
     var maxParticipants: Int?
     var tableCount: Int?
+    var addressLine1 = ""
+    var city = ""
+    var state = ""
+    var postalCode = ""
+    var locationDetails = ""
 
     var isLoading = false
     var error: String?
@@ -50,7 +55,12 @@ final class CreatePlanningViewModel {
             proposedDates: dates,
             openToGroup: openToGroup ? true : nil,
             maxParticipants: maxParticipants,
-            tableCount: tableCount
+            tableCount: tableCount,
+            addressLine1: addressLine1.isEmpty ? nil : addressLine1,
+            city: city.isEmpty ? nil : city,
+            state: state.isEmpty ? nil : state,
+            postalCode: postalCode.isEmpty ? nil : postalCode,
+            locationDetails: locationDetails.isEmpty ? nil : locationDetails
         )
 
         do {

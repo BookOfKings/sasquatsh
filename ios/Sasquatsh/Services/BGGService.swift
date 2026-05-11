@@ -1,9 +1,25 @@
 import Foundation
 
+struct BggCollectionResponse: Decodable {
+    let games: [BggCollectionGame]
+    let username: String
+}
+
+struct BggCollectionGame: Decodable, Identifiable {
+    let bggId: Int
+    let name: String
+    let yearPublished: Int?
+    let thumbnailUrl: String?
+    let imageUrl: String?
+
+    var id: Int { bggId }
+}
+
 protocol BGGServiceProtocol: Sendable {
     func searchGames(query: String) async throws -> [BggSearchResult]
     func getGameDetails(bggId: Int) async throws -> BggGame
     func listCachedGames(page: Int, limit: Int) async throws -> BggCacheListResponse
+    func fetchCollection(username: String) async throws -> BggCollectionResponse
 }
 
 final class BGGService: BGGServiceProtocol {
@@ -27,5 +43,11 @@ final class BGGService: BGGServiceProtocol {
             .init(name: "page", value: String(page)),
             .init(name: "limit", value: String(limit))
         ], authenticated: true)
+    }
+
+    func fetchCollection(username: String) async throws -> BggCollectionResponse {
+        try await api.get("bgg", queryItems: [
+            .init(name: "collection", value: username)
+        ], authenticated: false)
     }
 }

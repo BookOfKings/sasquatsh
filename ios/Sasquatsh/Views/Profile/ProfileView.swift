@@ -15,6 +15,8 @@ struct ProfileView: View {
     @State private var isDeleting = false
     @State private var accountError: String?
     @State private var earnedBadgeCount = 0
+    @State private var referralStats: ReferralStats?
+    @State private var referralLinkCopied = false
 
     var body: some View {
         ScrollView {
@@ -131,6 +133,81 @@ struct ProfileView: View {
                         .cardStyle()
                     }
                     .buttonStyle(.plain)
+
+                    // Referral Program
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "person.badge.plus")
+                                .foregroundStyle(.purple)
+                            Text("Refer a Friend")
+                                .font(.md3TitleSmall)
+                                .foregroundStyle(Color.md3OnSurface)
+                        }
+
+                        Text("For every 10 friends you refer, you get **3 months of Pro free**. Each referral also earns you **2 raffle entries**.")
+                            .font(.md3BodySmall)
+                            .foregroundStyle(Color.md3OnSurfaceVariant)
+
+                        if let stats = referralStats {
+                            // Progress
+                            VStack(spacing: 4) {
+                                HStack {
+                                    Text("\(stats.totalReferrals) referral\(stats.totalReferrals == 1 ? "" : "s")")
+                                        .font(.md3BodySmall)
+                                        .foregroundStyle(Color.md3OnSurfaceVariant)
+                                    Spacer()
+                                    Text("\(stats.progressToNext)/10 toward next reward")
+                                        .font(.md3LabelSmall)
+                                        .foregroundStyle(Color.md3OnSurfaceVariant)
+                                }
+                                GeometryReader { geo in
+                                    ZStack(alignment: .leading) {
+                                        RoundedRectangle(cornerRadius: 4)
+                                            .fill(Color.md3SurfaceContainerHigh)
+                                            .frame(height: 8)
+                                        RoundedRectangle(cornerRadius: 4)
+                                            .fill(.purple)
+                                            .frame(width: geo.size.width * CGFloat(stats.progressToNext) / 10.0, height: 8)
+                                    }
+                                }
+                                .frame(height: 8)
+                            }
+
+                            if let reward = stats.activeProReward {
+                                Text("Pro subscription active until \(reward.expiresAt.toDate?.displayDate ?? reward.expiresAt)")
+                                    .font(.md3LabelSmall)
+                                    .foregroundStyle(.purple)
+                            }
+                        }
+
+                        // Shareable link
+                        if let username = vm.profile?.username {
+                            HStack(spacing: 8) {
+                                Text("sasquatsh.com/signup?ref=\(username)")
+                                    .font(.system(.caption, design: .monospaced))
+                                    .foregroundStyle(Color.md3OnSurfaceVariant)
+                                    .lineLimit(1)
+                                Spacer()
+                                Button {
+                                    UIPasteboard.general.string = "https://sasquatsh.com/signup?ref=\(username)"
+                                    referralLinkCopied = true
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                        referralLinkCopied = false
+                                    }
+                                } label: {
+                                    Text(referralLinkCopied ? "Copied!" : "Copy")
+                                        .font(.md3LabelMedium)
+                                        .foregroundStyle(Color.md3OnSecondaryContainer)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 6)
+                                        .background(Color.md3SecondaryContainer)
+                                        .clipShape(Capsule())
+                                }
+                            }
+                        }
+                    }
+                    .padding()
+                    .cardStyle()
 
                     // Game Collection
                     NavigationLink {
@@ -393,6 +470,11 @@ struct ProfileView: View {
             await vm.loadProfile()
             if let response = try? await services.badges.getMyBadges() {
                 earnedBadgeCount = response.badges.count
+            }
+            if let stats: ReferralStats = try? await services.api.get("referrals", queryItems: [
+                .init(name: "action", value: "stats")
+            ]) {
+                referralStats = stats
             }
         }
         .sheet(isPresented: $showChangePassword) {

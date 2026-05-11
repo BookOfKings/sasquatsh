@@ -9,11 +9,17 @@ struct MyCollectionView: View {
     @State private var isLoading = true
     @State private var isSearching = false
     @State private var error: String?
-    @State private var activeTab = 0 // 0=My Games, 1=Top 50, 2=Search
+    @State private var activeTab = 0 // 0=My Games, 1=Top 50, 2=Search, 3=Import BGG
     @State private var filterText = ""
     @State private var pendingAdds: Set<Int> = []
     @State private var pendingRemoves: Set<Int> = []
     @State private var showBarcodeScanner = false
+    @State private var bggUsername = ""
+    @State private var bggGames: [BggCollectionGame] = []
+    @State private var isFetchingBgg = false
+    @State private var bggError: String?
+    @State private var bggImportResult: String?
+    @State private var isImporting = false
 
     private var ownedBggIds: Set<Int> {
         Set(myGames.compactMap(\.bggId))
@@ -29,9 +35,10 @@ struct MyCollectionView: View {
             // Tab picker + scan button
             HStack(spacing: 8) {
                 Picker("", selection: $activeTab) {
-                    Text("My Games (\(myGames.count))").tag(0)
+                    Text("My Games").tag(0)
                     Text("Top 50").tag(1)
                     Text("Search").tag(2)
+                    Text("Import").tag(3)
                 }
                 .pickerStyle(.segmented)
 
@@ -56,6 +63,8 @@ struct MyCollectionView: View {
                 topGamesTab
             case 2:
                 searchTab
+            case 3:
+                importBggTab
             default:
                 EmptyView()
             }
@@ -221,6 +230,302 @@ struct MyCollectionView: View {
                 searchBGG()
             }
         }
+    }
+
+    // MARK: - Import BGG Tab
+
+    private var importBggTab: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                // BGG logo + description
+                VStack(spacing: 8) {
+                    Image("bgg-logo")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(height: 36)
+
+                    Text("Import your BoardGameGeek collection")
+                        .font(.md3BodyMedium)
+                        .foregroundStyle(Color.md3OnSurfaceVariant)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.top, 8)
+
+                // Username input
+                HStack {
+                    Image(systemName: "person.fill")
+                        .foregroundStyle(Color.md3OnSurfaceVariant)
+                    TextField("BGG Username", text: $bggUsername)
+                        .autocapitalization(.none)
+                        .autocorrectionDisabled()
+                        .submitLabel(.search)
+                        .onSubmit { Task { await fetchBggCollection() } }
+                    if isFetchingBgg {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                }
+                .padding(12)
+                .background(Color.md3Surface)
+                .clipShape(RoundedRectangle(cornerRadius: MD3Shape.medium))
+                .padding(.horizontal)
+                .task {
+                    // Pre-fill from profile if set
+                    if bggUsername.isEmpty {
+                        if let profile = try? await services.profile.getMyProfile() {
+                            if let bgg = profile.bggUsername, !bgg.isEmpty {
+                                bggUsername = bgg
+                            }
+                        }
+                    }
+                }
+
+                if bggUsername.isEmpty {
+                    HStack(spacing: 8) {
+                        Image(systemName: "info.circle")
+                            .foregroundStyle(Color.md3Tertiary)
+                        Text("Set your BGG username in your Profile to auto-fill this field.")
+                            .font(.md3BodySmall)
+                            .foregroundStyle(Color.md3OnSurfaceVariant)
+                    }
+                    .padding(10)
+                    .background(Color.md3TertiaryContainer.opacity(0.3))
+                    .clipShape(RoundedRectangle(cornerRadius: MD3Shape.small))
+                    .padding(.horizontal)
+                }
+
+                // Fetch button
+                Button {
+                    Task { await fetchBggCollection() }
+                } label: {
+                    Text("Fetch Collection")
+                        .primaryButtonStyle()
+                }
+                .disabled(bggUsername.trimmingCharacters(in: .whitespaces).isEmpty || isFetchingBgg)
+                .padding(.horizontal)
+
+                // Error
+                if let bggError {
+                    Text(bggError)
+                        .font(.md3BodySmall)
+                        .foregroundStyle(Color.md3Error)
+                        .padding(.horizontal)
+                }
+
+                // Import result
+                if let bggImportResult {
+                    Text(bggImportResult)
+                        .font(.md3BodyMedium)
+                        .foregroundStyle(.green)
+                        .padding(.horizontal)
+                }
+
+                // Games list
+                if !bggGames.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("\(bggGames.count) games found on BGG")
+                            .font(.md3TitleSmall)
+                            .foregroundStyle(Color.md3OnSurface)
+                            .padding(.horizontal)
+
+                        // Sync buttons
+                        HStack(spacing: 12) {
+                            Button {
+                                Task { await importBgg(mode: .addNew) }
+                            } label: {
+                                VStack(spacing: 4) {
+                                    Image(systemName: "plus.circle")
+                                        .font(.system(size: 20))
+                                    Text("Add New Only")
+                                        .font(.md3LabelMedium)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(Color.md3Primary)
+                                .foregroundStyle(Color.md3OnPrimary)
+                                .clipShape(RoundedRectangle(cornerRadius: MD3Shape.medium))
+                            }
+
+                            Button {
+                                Task { await importBgg(mode: .fullSync) }
+                            } label: {
+                                VStack(spacing: 4) {
+                                    Image(systemName: "arrow.triangle.2.circlepath")
+                                        .font(.system(size: 20))
+                                    Text("Full Sync")
+                                        .font(.md3LabelMedium)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(Color.md3SecondaryContainer)
+                                .foregroundStyle(Color.md3OnSecondaryContainer)
+                                .clipShape(RoundedRectangle(cornerRadius: MD3Shape.medium))
+                            }
+                        }
+                        .disabled(isImporting)
+                        .padding(.horizontal)
+
+                        if isImporting {
+                            HStack {
+                                ProgressView()
+                                    .controlSize(.small)
+                                Text("Importing...")
+                                    .font(.md3BodySmall)
+                                    .foregroundStyle(Color.md3OnSurfaceVariant)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                        }
+
+                        Text("**Add New Only** — adds games from BGG not already in your collection\n**Full Sync** — makes your collection match BGG exactly (removes games not on BGG)")
+                            .font(.md3BodySmall)
+                            .foregroundStyle(Color.md3OnSurfaceVariant)
+                            .padding(.horizontal)
+
+                        // Preview list
+                        ForEach(bggGames.prefix(20)) { game in
+                            HStack(spacing: 10) {
+                                if let url = game.thumbnailUrl, let imageURL = URL(string: url) {
+                                    AsyncImage(url: imageURL) { image in
+                                        image.resizable().aspectRatio(contentMode: .fill)
+                                    } placeholder: {
+                                        Color.md3SurfaceVariant
+                                    }
+                                    .frame(width: 40, height: 40)
+                                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                                }
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(game.name)
+                                        .font(.md3BodyMedium)
+                                        .lineLimit(1)
+                                    if let year = game.yearPublished {
+                                        Text(String(year))
+                                            .font(.md3BodySmall)
+                                            .foregroundStyle(Color.md3OnSurfaceVariant)
+                                    }
+                                }
+                                Spacer()
+                                if ownedBggIds.contains(game.bggId) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.green)
+                                        .font(.system(size: 16))
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
+
+                        if bggGames.count > 20 {
+                            Text("...and \(bggGames.count - 20) more")
+                                .font(.md3BodySmall)
+                                .foregroundStyle(Color.md3OnSurfaceVariant)
+                                .padding(.horizontal)
+                        }
+                    }
+                }
+            }
+            .padding(.bottom, 20)
+        }
+    }
+
+    private enum ImportMode { case addNew, fullSync }
+
+    private func fetchBggCollection() async {
+        let username = bggUsername.trimmingCharacters(in: .whitespaces)
+        guard !username.isEmpty else { return }
+        isFetchingBgg = true
+        bggError = nil
+        bggImportResult = nil
+        bggGames = []
+        do {
+            let response = try await services.bgg.fetchCollection(username: username)
+            bggGames = response.games
+            if bggGames.isEmpty {
+                bggError = "No games found for '\(username)'. Check the username and make sure the collection is public on BGG."
+            }
+        } catch {
+            bggError = error.localizedDescription
+        }
+        isFetchingBgg = false
+    }
+
+    private func importBgg(mode: ImportMode) async {
+        isImporting = true
+        bggImportResult = nil
+        bggError = nil
+
+        var added = 0
+        var removed = 0
+
+        do {
+            switch mode {
+            case .addNew:
+                // Add games from BGG that aren't in our collection
+                let newGames = bggGames.filter { !ownedBggIds.contains($0.bggId) }
+                for game in newGames {
+                    let input = AddCollectionGameInput(
+                        bggId: game.bggId,
+                        name: game.name,
+                        thumbnailUrl: game.thumbnailUrl,
+                        imageUrl: game.imageUrl,
+                        minPlayers: nil,
+                        maxPlayers: nil,
+                        playingTime: nil,
+                        yearPublished: game.yearPublished,
+                        bggRank: nil,
+                        averageRating: nil
+                    )
+                    let result = try await services.collections.addGame(input)
+                    myGames.append(contentsOf: result)
+                    added += 1
+                }
+
+            case .fullSync:
+                // Add missing games
+                let bggIds = Set(bggGames.map(\.bggId))
+                let newGames = bggGames.filter { !ownedBggIds.contains($0.bggId) }
+                for game in newGames {
+                    let input = AddCollectionGameInput(
+                        bggId: game.bggId,
+                        name: game.name,
+                        thumbnailUrl: game.thumbnailUrl,
+                        imageUrl: game.imageUrl,
+                        minPlayers: nil,
+                        maxPlayers: nil,
+                        playingTime: nil,
+                        yearPublished: game.yearPublished,
+                        bggRank: nil,
+                        averageRating: nil
+                    )
+                    let result = try await services.collections.addGame(input)
+                    myGames.append(contentsOf: result)
+                    added += 1
+                }
+                // Remove games not on BGG
+                let toRemove = myGames.filter { game in
+                    guard let bggId = game.bggId else { return false }
+                    return !bggIds.contains(bggId)
+                }
+                for game in toRemove {
+                    guard let bggId = game.bggId else { continue }
+                    try await services.collections.removeGame(bggId: bggId)
+                    myGames.removeAll { $0.bggId == bggId }
+                    removed += 1
+                }
+            }
+
+            myGames.sort { $0.gameName < $1.gameName }
+
+            switch mode {
+            case .addNew:
+                bggImportResult = "Added \(added) new game\(added == 1 ? "" : "s") to your collection"
+            case .fullSync:
+                bggImportResult = "Synced: \(added) added, \(removed) removed"
+            }
+        } catch {
+            bggError = "Import failed: \(error.localizedDescription)"
+        }
+
+        isImporting = false
     }
 
     // MARK: - Game Row

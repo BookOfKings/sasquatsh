@@ -65,6 +65,16 @@ struct CreatePlanningView: View {
                     }
                 }
 
+                Section(header: Text("Location"), footer: Text("Set the venue or address now, or add it later from the planning session.")) {
+                    TextField("Address", text: $vm.addressLine1)
+                    TextField("City", text: $vm.city)
+                    USStatePicker(selection: $vm.state)
+                    TextField("Postal Code", text: $vm.postalCode)
+                        .keyboardType(.numberPad)
+                    TextField("Location Details", text: $vm.locationDetails, axis: .vertical)
+                        .lineLimit(2...4)
+                }
+
                 Section("Invite Members") {
                     ForEach(members) { member in
                         HStack {

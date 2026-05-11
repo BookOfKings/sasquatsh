@@ -388,10 +388,66 @@ struct PlanningSessionDetailView: View {
                         .foregroundStyle(Color.md3OnSurfaceVariant)
                 }
             }
+
+            // Location
+            if hasLocation(session) {
+                Divider()
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "mappin.and.ellipse")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Color.md3Primary)
+                        Text("Location")
+                            .font(.md3LabelLarge)
+                            .foregroundStyle(Color.md3OnSurface)
+                    }
+
+                    if let addr = session.addressLine1, !addr.isEmpty {
+                        Text(addr)
+                            .font(.md3BodySmall)
+                            .foregroundStyle(Color.md3OnSurfaceVariant)
+                    }
+
+                    let cityState = [session.city, session.state].compactMap { $0 }.filter { !$0.isEmpty }
+                    if !cityState.isEmpty {
+                        HStack(spacing: 4) {
+                            Text(cityState.joined(separator: ", "))
+                                .font(.md3BodySmall)
+                                .foregroundStyle(Color.md3OnSurfaceVariant)
+                            if let zip = session.postalCode, !zip.isEmpty {
+                                Text(zip)
+                                    .font(.md3BodySmall)
+                                    .foregroundStyle(Color.md3OnSurfaceVariant)
+                            }
+                        }
+                    }
+
+                    let venue = [session.venueHall, session.venueRoom, session.venueTable]
+                        .compactMap { $0 }.filter { !$0.isEmpty }
+                    if !venue.isEmpty {
+                        Text(venue.joined(separator: " · "))
+                            .font(.md3BodySmall)
+                            .foregroundStyle(Color.md3OnSurfaceVariant)
+                    }
+
+                    if let details = session.locationDetails, !details.isEmpty {
+                        Text(details)
+                            .font(.md3BodySmall)
+                            .foregroundStyle(Color.md3OnSurfaceVariant)
+                    }
+                }
+            }
         }
         .padding()
         .cardStyle()
         .padding(.horizontal)
+    }
+
+    private func hasLocation(_ session: PlanningSession) -> Bool {
+        (session.addressLine1 != nil && !session.addressLine1!.isEmpty) ||
+        (session.city != nil && !session.city!.isEmpty) ||
+        (session.venueHall != nil && !session.venueHall!.isEmpty) ||
+        (session.locationDetails != nil && !session.locationDetails!.isEmpty)
     }
 
     private func statusColor(_ status: PlanningStatus) -> Color {

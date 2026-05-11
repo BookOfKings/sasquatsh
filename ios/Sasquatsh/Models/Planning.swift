@@ -25,6 +25,15 @@ struct PlanningSession: Codable, Identifiable {
     var tableCount: Int?
     var scheduledSessions: AnyCodable?
     var hostSessionPreferences: AnyCodable?
+    var eventLocationId: String?
+    var venueHall: String?
+    var venueRoom: String?
+    var venueTable: String?
+    var addressLine1: String?
+    var city: String?
+    var state: String?
+    var postalCode: String?
+    var locationDetails: String?
 }
 
 struct PlanningGroupInfo: Codable {
@@ -97,6 +106,15 @@ struct CreatePlanningSessionInput: Codable {
     var openToGroup: Bool?
     var maxParticipants: Int?
     var tableCount: Int?
+    var eventLocationId: String?
+    var venueHall: String?
+    var venueRoom: String?
+    var venueTable: String?
+    var addressLine1: String?
+    var city: String?
+    var state: String?
+    var postalCode: String?
+    var locationDetails: String?
 }
 
 struct ProposedDateInput: Codable {
