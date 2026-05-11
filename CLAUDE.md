@@ -67,6 +67,23 @@ gamenightapp/
 └── CLAUDE.md                 # This file
 ```
 
+## Security Rules
+
+**NEVER commit secrets, API keys, or tokens to code or migration files.** This includes:
+- Supabase service role keys
+- Firebase service account keys
+- Stripe secret keys
+- BGG API tokens
+- Any Bearer tokens or passwords
+
+**For database migrations** that need to call edge functions (e.g., pg_cron jobs), use `current_setting('app.settings.service_role_key', true)` to reference the key at runtime instead of hardcoding it.
+
+**For edge functions**, secrets are accessed via `Deno.env.get()` — never hardcode them.
+
+**For frontend code**, only use `VITE_` prefixed env vars which are public by design (anon keys, project URLs).
+
+If a secret needs to be stored, put it in **Project Oracle secrets** or **Supabase secrets** — never in source code.
+
 ## Deployment
 
 ### Frontend Deployment (Firebase Hosting)
