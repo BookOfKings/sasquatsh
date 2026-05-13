@@ -172,14 +172,13 @@ fun RoundCounterView(
                     }
                 }
 
-                if (uiState.reachedMaxRound) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "Final round!",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
+                Text(
+                    if (uiState.reachedMaxRound) "Final round!"
+                    else "tap to edit",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (uiState.reachedMaxRound) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
 
                 Spacer(modifier = Modifier.height(20.dp))
 

@@ -362,8 +362,13 @@ fun PlanningSessionDetailView(
                     }
                 }
 
-                // Chat section (collapsible)
-                PlanningChatSection(showChat = showChat, onToggle = { showChat = !showChat })
+                // Chat section
+                com.sasquatsh.app.views.chat.ChatPanelView(
+                    contextType = "planning",
+                    contextId = sessionId,
+                    authViewModel = authViewModel,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
 
                 // Creator bottom actions
                 if (session.status == PlanningStatus.OPEN && isCreator) {
@@ -1753,7 +1758,7 @@ private fun EventModeButton(
 // ---- Chat Section ----
 
 @Composable
-private fun PlanningChatSection(showChat: Boolean, onToggle: () -> Unit) {
+private fun PlanningChatSection(showChat: Boolean, onToggle: () -> Unit, sessionId: String, authViewModel: com.sasquatsh.app.viewmodels.AuthViewModel) {
     val rotationAngle by animateFloatAsState(
         targetValue = if (showChat) 180f else 0f,
         label = "chat_chevron"
@@ -1791,11 +1796,11 @@ private fun PlanningChatSection(showChat: Boolean, onToggle: () -> Unit) {
             AnimatedVisibility(visible = showChat) {
                 Column {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    Text(
-                        "Chat coming soon...",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(16.dp)
+                    com.sasquatsh.app.views.chat.ChatPanelView(
+                        contextType = "planning",
+                        contextId = sessionId,
+                        authViewModel = authViewModel,
+                        modifier = Modifier.height(400.dp)
                     )
                 }
             }

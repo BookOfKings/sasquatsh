@@ -65,8 +65,11 @@ class BadgesViewModel @Inject constructor(
             _uiState.update { it.copy(isComputing = true) }
             try {
                 val result = badgesService.computeBadges()
+                // Also reload all badges in case they weren't loaded yet
+                val allBadges = try { badgesService.getAllBadges() } catch (_: Exception) { _uiState.value.allBadges }
                 _uiState.update {
                     it.copy(
+                        allBadges = if (allBadges.isNotEmpty()) allBadges.sortedBy { b -> b.sortOrder } else it.allBadges,
                         earnedBadges = result.badges,
                         newlyEarned = result.newlyEarned ?: 0,
                         isComputing = false

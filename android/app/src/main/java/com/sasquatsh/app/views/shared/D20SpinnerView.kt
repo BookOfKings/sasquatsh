@@ -24,7 +24,7 @@ import kotlin.math.sqrt
 
 /**
  * A spinning D20 (icosahedron) rendered with Compose Canvas.
- * Pure Compose — no GLSurfaceView, no transparency artifacts.
+ * Clean faceted die with two-tone lighting and white edge highlights.
  */
 @Composable
 fun D20SpinnerView(
@@ -61,7 +61,6 @@ private fun DrawScope.drawD20(
     val phi = (1f + sqrt(5f)) / 2f
     val s = 0.75f
 
-    // Icosahedron vertices
     val rawVerts = arrayOf(
         floatArrayOf(-1f * s, phi * s, 0f),
         floatArrayOf(1f * s, phi * s, 0f),
@@ -88,7 +87,6 @@ private fun DrawScope.drawD20(
         intArrayOf(8, 6, 7), intArrayOf(9, 8, 1)
     )
 
-    // Rotation axis (matching iOS: 0.3, 1, 0.15 normalized)
     val ax = 0.3f; val ay = 1f; val az = 0.15f
     val axLen = sqrt(ax * ax + ay * ay + az * az)
     val ux = ax / axLen; val uy = ay / axLen; val uz = az / axLen
@@ -96,7 +94,6 @@ private fun DrawScope.drawD20(
     val rad = Math.toRadians(angleDeg.toDouble()).toFloat()
     val cosA = cos(rad); val sinA = sin(rad)
 
-    // Rotate vertices using Rodrigues' rotation formula
     fun rotate(v: FloatArray): FloatArray {
         val dot = ux * v[0] + uy * v[1] + uz * v[2]
         val cx2 = uy * v[2] - uz * v[1]
@@ -111,24 +108,22 @@ private fun DrawScope.drawD20(
 
     val rotated = rawVerts.map { rotate(it) }
 
-    // Light direction (normalized)
-    val lx = 0.37f; val ly = 0.56f; val lz = 0.74f
+    // Two-tone lighting for depth
+    val keyLx = 0.37f; val keyLy = 0.56f; val keyLz = 0.74f
+    val fillLx = -0.5f; val fillLy = -0.3f; val fillLz = 0.3f
 
-    // Collect face data for depth sorting
     data class FaceData(
-        val index: Int,
         val p0: FloatArray, val p1: FloatArray, val p2: FloatArray,
         val depth: Float, val brightness: Float
     )
 
     val faceList = mutableListOf<FaceData>()
 
-    for ((fi, face) in faces.withIndex()) {
+    for (face in faces) {
         val v0 = rotated[face[0]]
         val v1 = rotated[face[1]]
         val v2 = rotated[face[2]]
 
-        // Face normal
         val e1x = v1[0] - v0[0]; val e1y = v1[1] - v0[1]; val e1z = v1[2] - v0[2]
         val e2x = v2[0] - v0[0]; val e2y = v2[1] - v0[1]; val e2z = v2[2] - v0[2]
         var nx = e1y * e2z - e1z * e2y
@@ -137,30 +132,26 @@ private fun DrawScope.drawD20(
         val nLen = sqrt(nx * nx + ny * ny + nz * nz)
         if (nLen > 0f) { nx /= nLen; ny /= nLen; nz /= nLen }
 
-        // Back-face culling (skip faces pointing away from camera)
         if (nz <= 0f) continue
 
         val avgZ = (v0[2] + v1[2] + v2[2]) / 3f
-        val diffuse = maxOf(0f, nx * lx + ny * ly + nz * lz)
-        val brightness = 0.35f + 0.65f * diffuse
+        val keyDiffuse = maxOf(0f, nx * keyLx + ny * keyLy + nz * keyLz)
+        val fillDiffuse = maxOf(0f, nx * fillLx + ny * fillLy + nz * fillLz)
+        val brightness = 0.25f + 0.55f * keyDiffuse + 0.2f * fillDiffuse
 
-        faceList.add(FaceData(fi, v0, v1, v2, avgZ, brightness))
+        faceList.add(FaceData(v0, v1, v2, avgZ, brightness))
     }
 
-    // Depth sort (painter's algorithm — draw far faces first)
     faceList.sortBy { it.depth }
 
     for (fd in faceList) {
-        // Project 3D → 2D
         val x0 = cx + fd.p0[0] * scale; val y0 = cy - fd.p0[1] * scale
         val x1 = cx + fd.p1[0] * scale; val y1 = cy - fd.p1[1] * scale
         val x2 = cx + fd.p2[0] * scale; val y2 = cy - fd.p2[1] * scale
 
-        // Shade face color by brightness
         val r = ((faceColor.red * fd.brightness * 255).toInt().coerceIn(0, 255))
         val g = ((faceColor.green * fd.brightness * 255).toInt().coerceIn(0, 255))
         val b = ((faceColor.blue * fd.brightness * 255).toInt().coerceIn(0, 255))
-        val shadedColor = Color(r, g, b)
 
         val path = Path().apply {
             moveTo(x0, y0)
@@ -169,12 +160,10 @@ private fun DrawScope.drawD20(
             close()
         }
 
-        // Fill face
-        drawPath(path, shadedColor, style = Fill)
-        // Subtle edge highlight
-        val edgeR = (faceColor.red * fd.brightness * 0.7f * 255).toInt().coerceIn(0, 255)
-        val edgeG = (faceColor.green * fd.brightness * 0.7f * 255).toInt().coerceIn(0, 255)
-        val edgeB = (faceColor.blue * fd.brightness * 0.7f * 255).toInt().coerceIn(0, 255)
-        drawPath(path, Color(edgeR, edgeG, edgeB, 60), style = Stroke(width = 0.6f))
+        drawPath(path, Color(r, g, b), style = Fill)
+
+        // White edge highlights
+        val edgeAlpha = (40 + (fd.brightness * 40).toInt()).coerceIn(20, 80)
+        drawPath(path, Color.White.copy(alpha = edgeAlpha / 255f), style = Stroke(width = 0.8f))
     }
 }

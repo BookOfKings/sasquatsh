@@ -79,8 +79,17 @@ fun ProfileView(
         }
     }
 
+    var earnedBadgeCount by remember { mutableIntStateOf(0) }
+    val badgesViewModel: com.sasquatsh.app.viewmodels.BadgesViewModel = hiltViewModel()
+    val badgesState by badgesViewModel.uiState.collectAsState()
+
     LaunchedEffect(Unit) {
         profileViewModel.loadProfile()
+        badgesViewModel.loadBadges()
+    }
+
+    LaunchedEffect(badgesState.earnedBadges) {
+        earnedBadgeCount = badgesState.earnedBadges.size
     }
 
     val scrollState = rememberScrollState()
@@ -279,7 +288,7 @@ fun ProfileView(
                         Icon(
                             imageVector = Icons.Default.EmojiEvents,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.tertiary
+                            tint = androidx.compose.ui.graphics.Color(0xFFFFD700)
                         )
                         Text(
                             text = "Badges & Achievements",
@@ -287,6 +296,13 @@ fun ProfileView(
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.weight(1f)
                         )
+                        if (earnedBadgeCount > 0) {
+                            Text(
+                                text = "$earnedBadgeCount",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                         Icon(
                             imageVector = Icons.Default.ChevronRight,
                             contentDescription = null,

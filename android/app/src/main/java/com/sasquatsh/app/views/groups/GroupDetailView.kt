@@ -215,10 +215,11 @@ fun GroupDetailView(
 
                 // 4. Group Chat (members only, collapsible)
                 if (isMember) {
-                    GroupChatSection(
-                        showChat = showChat,
-                        onToggle = { showChat = !showChat },
-                        groupId = groupId
+                    com.sasquatsh.app.views.chat.ChatPanelView(
+                        contextType = "group",
+                        contextId = groupId,
+                        authViewModel = authViewModel,
+                        modifier = Modifier.padding(horizontal = 16.dp)
                     )
                 }
 
@@ -940,7 +941,8 @@ private fun PlanningSection(
 private fun GroupChatSection(
     showChat: Boolean,
     onToggle: () -> Unit,
-    groupId: String
+    groupId: String,
+    authViewModel: com.sasquatsh.app.viewmodels.AuthViewModel
 ) {
     val rotationAngle by animateFloatAsState(
         targetValue = if (showChat) 180f else 0f,
@@ -979,12 +981,11 @@ private fun GroupChatSection(
             AnimatedVisibility(visible = showChat) {
                 Column {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    // Chat placeholder - will connect to ChatPanelView
-                    Text(
-                        text = "Chat coming soon...",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(16.dp)
+                    com.sasquatsh.app.views.chat.ChatPanelView(
+                        contextType = "group",
+                        contextId = groupId,
+                        authViewModel = authViewModel,
+                        modifier = Modifier.height(400.dp)
                     )
                 }
             }

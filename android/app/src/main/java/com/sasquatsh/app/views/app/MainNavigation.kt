@@ -409,7 +409,7 @@ private fun MainScaffold(authViewModel: AuthViewModel) {
             }
 
             composable(Routes.BADGES) {
-                BadgesView()
+                BadgesView(onBack = { navController.popBackStack() })
             }
 
             composable(Routes.COLLECTION) {
