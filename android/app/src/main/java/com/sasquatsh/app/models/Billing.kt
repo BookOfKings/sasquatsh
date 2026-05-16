@@ -10,7 +10,8 @@ data class SubscriptionInfo(
     @Json(name = "hasStripeAccount") val hasStripeAccount: Boolean = false,
     @Json(name = "hasActiveSubscription") val hasActiveSubscription: Boolean = false,
     @Json(name = "subscriptionSource") val subscriptionSource: String? = null,
-    @Json(name = "hasAppleSubscription") val hasAppleSubscription: Boolean? = null
+    @Json(name = "hasAppleSubscription") val hasAppleSubscription: Boolean? = null,
+    @Json(name = "hasGoogleSubscription") val hasGoogleSubscription: Boolean? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -67,4 +68,10 @@ data class CancelResponse(
 @JsonClass(generateAdapter = true)
 data class ReactivateResponse(
     @Json(name = "message") val message: String
+)
+
+@JsonClass(generateAdapter = true)
+data class GooglePlayVerifyResponse(
+    @Json(name = "success") val success: Boolean,
+    @Json(name = "tier") val tier: String? = null
 )

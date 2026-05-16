@@ -8,6 +8,7 @@ import com.sasquatsh.app.models.GroupType
 import com.sasquatsh.app.models.JoinPolicy
 import com.sasquatsh.app.models.UpdateGroupInput
 import com.sasquatsh.app.services.GroupsService
+import com.sasquatsh.app.services.TierLimitException
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +28,7 @@ data class CreateEditGroupUiState(
     val isLoading: Boolean = false,
     val isUploadingLogo: Boolean = false,
     val error: String? = null,
+    val showUpgradePrompt: Boolean = false,
     val isEditing: Boolean = false,
     val currentLogoUrl: String? = null
 ) {
@@ -125,10 +127,16 @@ class CreateEditGroupViewModel @Inject constructor(
                     _uiState.update { it.copy(isLoading = false) }
                     onSuccess(group)
                 }
+            } catch (e: TierLimitException) {
+                _uiState.update { it.copy(showUpgradePrompt = true, isLoading = false) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.localizedMessage, isLoading = false) }
             }
         }
+    }
+
+    fun dismissUpgradePrompt() {
+        _uiState.update { it.copy(showUpgradePrompt = false) }
     }
 
     fun uploadLogo(imageData: ByteArray) {

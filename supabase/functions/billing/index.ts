@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
   // Get user from database
   const { data: user, error: userError } = await supabase
     .from('users')
-    .select('id, email, subscription_tier, subscription_expires_at, subscription_status, subscription_override_tier, stripe_customer_id, stripe_subscription_id, subscription_source, apple_original_transaction_id')
+    .select('id, email, subscription_tier, subscription_expires_at, subscription_status, subscription_override_tier, stripe_customer_id, stripe_subscription_id, subscription_source, apple_original_transaction_id, google_purchase_token')
     .eq('firebase_uid', firebaseUser.uid)
     .single()
 
@@ -158,6 +158,7 @@ Deno.serve(async (req) => {
       hasActiveSubscription: !!user.stripe_subscription_id,
       subscriptionSource: user.subscription_source || (user.stripe_subscription_id ? 'stripe' : null),
       hasAppleSubscription: !!user.apple_original_transaction_id,
+      hasGoogleSubscription: !!user.google_purchase_token,
     })
   }
 
@@ -171,6 +172,15 @@ Deno.serve(async (req) => {
           message: 'Apple subscriptions must be managed through iOS Settings or the App Store.',
           manageUrl: 'https://apps.apple.com/account/subscriptions',
           source: 'apple',
+        })
+      }
+
+      // Google Play subscriptions must be managed through the Play Store
+      if (user.subscription_source === 'google') {
+        return jsonResponse({
+          message: 'Google Play subscriptions must be managed through the Google Play Store.',
+          manageUrl: 'https://play.google.com/store/account/subscriptions',
+          source: 'google',
         })
       }
 

@@ -1,7 +1,6 @@
 package com.sasquatsh.app.views.billing
 
-import android.content.Intent
-import android.net.Uri
+import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -16,29 +15,37 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.sasquatsh.app.config.AppConfig
 import com.sasquatsh.app.models.SubscriptionTier
 import com.sasquatsh.app.viewmodels.AuthViewModel
+import com.sasquatsh.app.viewmodels.BillingViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PricingView(
     authViewModel: AuthViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    billingViewModel: BillingViewModel = hiltViewModel()
 ) {
     val authState by authViewModel.uiState.collectAsState()
+    val billingState by billingViewModel.uiState.collectAsState()
     val currentTier = authState.user?.effectiveTier ?: SubscriptionTier.FREE
     val context = LocalContext.current
-    var showSuccess by rememberSaveable { mutableStateOf(false) }
-    var purchasedTierName by rememberSaveable { mutableStateOf("") }
+    val activity = context as? Activity
+    var isAnnual by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        billingViewModel.loadGoogleProducts()
+    }
+
+    // Handle success message
+    val showSuccess = billingState.successMessage != null
+    val successTier = billingState.successMessage
 
     Scaffold(
         topBar = {
@@ -55,152 +62,264 @@ fun PricingView(
             )
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .background(MaterialTheme.colorScheme.surfaceContainer)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
-            // Header
-            Text(
-                text = "Simple, Transparent Pricing",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center
-            )
-            Text(
-                text = "Choose the plan that fits your game nights",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
-
-            // Free Tier
-            TierCard(
-                tierName = "Free",
-                price = "$0",
-                priceSubtitle = "forever",
-                features = listOf(
-                    "Host 1 game per event",
-                    "Create 1 group",
-                    "Basic event management",
-                    "Join unlimited events"
-                ),
-                isPopular = false,
-                isCurrent = currentTier == SubscriptionTier.FREE,
-                buttonTitle = if (currentTier == SubscriptionTier.FREE) "Current Plan" else "Downgrade",
-                isDisabled = currentTier == SubscriptionTier.FREE,
-                onTap = {}
-            )
-
-            // Basic Tier
-            TierCard(
-                tierName = "Basic",
-                price = "$4.99",
-                priceSubtitle = "/month",
-                features = listOf(
-                    "Up to 5 games per event",
-                    "Create up to 5 groups",
-                    "1 recurring game per group",
-                    "Table/room/hall locations",
-                    "Game night planning",
-                    "Event chat",
-                    "No ads"
-                ),
-                isPopular = true,
-                isCurrent = currentTier == SubscriptionTier.BASIC,
-                buttonTitle = buttonTitle(currentTier, SubscriptionTier.BASIC),
-                isDisabled = currentTier == SubscriptionTier.BASIC,
-                onTap = {
-                    // Open Stripe checkout in browser
-                    val intent = Intent(
-                        Intent.ACTION_VIEW,
-                        Uri.parse("${AppConfig.PRICING_URL}?tier=basic")
-                    )
-                    context.startActivity(intent)
-                }
-            )
-
-            // Pro Tier
-            TierCard(
-                tierName = "Pro",
-                price = "$7.99",
-                priceSubtitle = "/month",
-                features = listOf(
-                    "Up to 10 games per event",
-                    "Create up to 10 groups",
-                    "Unlimited recurring games",
-                    "Table/room/hall locations",
-                    "Game night planning",
-                    "Items to bring lists",
-                    "Event chat",
-                    "No ads"
-                ),
-                isPopular = false,
-                isCurrent = currentTier == SubscriptionTier.PRO,
-                buttonTitle = buttonTitle(currentTier, SubscriptionTier.PRO),
-                isDisabled = currentTier == SubscriptionTier.PRO,
-                onTap = {
-                    val intent = Intent(
-                        Intent.ACTION_VIEW,
-                        Uri.parse("${AppConfig.PRICING_URL}?tier=pro")
-                    )
-                    context.startActivity(intent)
-                }
-            )
-
-            // Legal links
+        Box(modifier = Modifier.fillMaxSize()) {
             Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .background(MaterialTheme.colorScheme.surfaceContainer)
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                TextButton(onClick = {
-                    val intent = Intent(
-                        Intent.ACTION_VIEW,
-                        Uri.parse("https://sasquatsh.com/terms")
-                    )
-                    context.startActivity(intent)
-                }) {
+                // Header
+                Text(
+                    text = "Simple, Transparent Pricing",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = "Choose the plan that fits your game nights",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+
+                // Monthly / Annual toggle
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     Text(
-                        text = "Terms of Service",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "Monthly",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (!isAnnual) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Switch(
+                        checked = isAnnual,
+                        onCheckedChange = { isAnnual = it }
+                    )
+                    Text(
+                        text = "Annual",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (isAnnual) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (isAnnual) {
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = MaterialTheme.colorScheme.tertiaryContainer
+                        ) {
+                            Text(
+                                text = "Save ~17%",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Free Tier
+                TierCard(
+                    tierName = "Free",
+                    price = "$0",
+                    priceSubtitle = "forever",
+                    features = listOf(
+                        "Host 1 game per event",
+                        "Create 1 group",
+                        "Basic event management",
+                        "Join unlimited events"
+                    ),
+                    isPopular = false,
+                    isCurrent = currentTier == SubscriptionTier.FREE,
+                    buttonTitle = if (currentTier == SubscriptionTier.FREE) "Current Plan" else "Downgrade",
+                    isDisabled = currentTier == SubscriptionTier.FREE,
+                    isLoading = false,
+                    onTap = {}
+                )
+
+                // Basic Tier
+                val basicProduct = billingViewModel.getProductForTier("basic", isAnnual)
+                val basicPrice = basicProduct?.let { billingViewModel.getFormattedPrice(it) }
+                    ?: if (isAnnual) "$49.99" else "$4.99"
+                val basicSubtitle = if (isAnnual) "/year" else "/month"
+
+                TierCard(
+                    tierName = "Basic",
+                    price = basicPrice,
+                    priceSubtitle = basicSubtitle,
+                    features = listOf(
+                        "Up to 5 games per event",
+                        "Create up to 5 groups",
+                        "1 recurring game per group",
+                        "Table/room/hall locations",
+                        "Game night planning",
+                        "Event chat",
+                        "No ads"
+                    ),
+                    isPopular = true,
+                    isCurrent = currentTier == SubscriptionTier.BASIC,
+                    buttonTitle = buttonTitle(currentTier, SubscriptionTier.BASIC),
+                    isDisabled = currentTier == SubscriptionTier.BASIC || billingState.purchaseInProgress,
+                    isLoading = billingState.purchaseInProgress,
+                    onTap = {
+                        if (activity != null && basicProduct != null) {
+                            val offerToken = basicProduct.subscriptionOfferDetails
+                                ?.firstOrNull()?.offerToken ?: return@TierCard
+                            billingViewModel.purchaseSubscription(activity, basicProduct, offerToken)
+                        }
+                    }
+                )
+
+                // Pro Tier
+                val proProduct = billingViewModel.getProductForTier("pro", isAnnual)
+                val proPrice = proProduct?.let { billingViewModel.getFormattedPrice(it) }
+                    ?: if (isAnnual) "$79.99" else "$7.99"
+                val proSubtitle = if (isAnnual) "/year" else "/month"
+
+                TierCard(
+                    tierName = "Pro",
+                    price = proPrice,
+                    priceSubtitle = proSubtitle,
+                    features = listOf(
+                        "Up to 10 games per event",
+                        "Create up to 10 groups",
+                        "Unlimited recurring games",
+                        "Table/room/hall locations",
+                        "Game night planning",
+                        "Items to bring lists",
+                        "Event chat",
+                        "No ads"
+                    ),
+                    isPopular = false,
+                    isCurrent = currentTier == SubscriptionTier.PRO,
+                    buttonTitle = buttonTitle(currentTier, SubscriptionTier.PRO),
+                    isDisabled = currentTier == SubscriptionTier.PRO || billingState.purchaseInProgress,
+                    isLoading = billingState.purchaseInProgress,
+                    onTap = {
+                        if (activity != null && proProduct != null) {
+                            val offerToken = proProduct.subscriptionOfferDetails
+                                ?.firstOrNull()?.offerToken ?: return@TierCard
+                            billingViewModel.purchaseSubscription(activity, proProduct, offerToken)
+                        }
+                    }
+                )
+
+                // Restore purchases
+                TextButton(
+                    onClick = { billingViewModel.restorePurchases() },
+                    enabled = !billingState.actionLoading
+                ) {
+                    Text(
+                        text = "Restore Purchases",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
-                TextButton(onClick = {
-                    val intent = Intent(
-                        Intent.ACTION_VIEW,
-                        Uri.parse("https://sasquatsh.com/privacy")
-                    )
-                    context.startActivity(intent)
-                }) {
+
+                // Legal links
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
                     Text(
-                        text = "Privacy Policy",
+                        text = "Subscriptions automatically renew unless cancelled at least 24 hours before the end of the current period. Manage subscriptions in Google Play Store settings.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 16.dp)
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        TextButton(onClick = {
+                            val intent = android.content.Intent(
+                                android.content.Intent.ACTION_VIEW,
+                                android.net.Uri.parse("https://sasquatsh.com/terms")
+                            )
+                            context.startActivity(intent)
+                        }) {
+                            Text(
+                                text = "Terms of Service",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        TextButton(onClick = {
+                            val intent = android.content.Intent(
+                                android.content.Intent.ACTION_VIEW,
+                                android.net.Uri.parse("https://sasquatsh.com/privacy")
+                            )
+                            context.startActivity(intent)
+                        }) {
+                            Text(
+                                text = "Privacy Policy",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+            }
+
+            // Error snackbar
+            billingState.error?.let { error ->
+                Snackbar(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(16.dp),
+                    action = {
+                        TextButton(onClick = { billingViewModel.clearMessages() }) {
+                            Text("Dismiss")
+                        }
+                    }
+                ) {
+                    Text(error)
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            // Loading overlay
+            if (billingState.purchaseInProgress) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.3f)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                            Text(
+                                text = "Processing purchase...",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 
     if (showSuccess) {
         AlertDialog(
             onDismissRequest = {
-                showSuccess = false
+                billingViewModel.clearMessages()
                 onBack()
             },
-            title = { Text("Welcome to $purchasedTierName!") },
-            text = { Text("Your subscription is now active. Enjoy your upgraded features!") },
+            title = { Text("Subscription Active!") },
+            text = { Text(successTier ?: "Your subscription is now active. Enjoy your upgraded features!") },
             confirmButton = {
                 TextButton(onClick = {
-                    showSuccess = false
+                    billingViewModel.clearMessages()
                     onBack()
                 }) {
                     Text("Let's Go")
@@ -220,6 +339,7 @@ private fun TierCard(
     isCurrent: Boolean,
     buttonTitle: String,
     isDisabled: Boolean,
+    isLoading: Boolean,
     onTap: () -> Unit
 ) {
     val borderColor = when {

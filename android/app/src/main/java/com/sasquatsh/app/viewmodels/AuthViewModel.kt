@@ -86,7 +86,7 @@ class AuthViewModel @Inject constructor(
                     .build()
                 firebaseUser.updateProfile(profileUpdates).await()
 
-                val body = mapOf("username" to username)
+                val body = mapOf("username" to username, "platform" to "android")
                 apiClient.post<User>("auth-sync", body, authenticated = true)
                 syncUser()
             } catch (e: Exception) {
@@ -140,7 +140,7 @@ class AuthViewModel @Inject constructor(
     private suspend fun syncUser() {
         try {
             val fcmToken = authService.getFcmToken()
-            val body = mapOf("fcmToken" to fcmToken)
+            val body = mapOf("fcmToken" to fcmToken, "platform" to "android")
             val syncedUser = apiClient.post<User>("auth-sync", body, authenticated = true)
             _uiState.update { it.copy(user = syncedUser, error = null) }
         } catch (e: Exception) {

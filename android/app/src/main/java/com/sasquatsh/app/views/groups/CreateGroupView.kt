@@ -14,6 +14,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -46,6 +47,7 @@ import com.sasquatsh.app.views.events.USStateDropdown
 @Composable
 fun CreateGroupView(
     onDismiss: () -> Unit,
+    onNavigateToPricing: () -> Unit = {},
     viewModel: CreateEditGroupViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -180,6 +182,29 @@ fun CreateGroupView(
 
             Spacer(modifier = Modifier.height(32.dp))
         }
+    }
+
+    if (uiState.showUpgradePrompt) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissUpgradePrompt() },
+            title = { Text("Plan Limit Reached") },
+            text = {
+                Text("You've reached the group limit on your current plan. Upgrade to create more groups.")
+            },
+            confirmButton = {
+                Button(onClick = {
+                    viewModel.dismissUpgradePrompt()
+                    onNavigateToPricing()
+                }) {
+                    Text("View Plans")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissUpgradePrompt() }) {
+                    Text("Maybe Later")
+                }
+            }
+        )
     }
 }
 

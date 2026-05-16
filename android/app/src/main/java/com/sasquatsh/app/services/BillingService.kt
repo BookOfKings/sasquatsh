@@ -2,6 +2,7 @@ package com.sasquatsh.app.services
 
 import com.sasquatsh.app.models.*
 import com.sasquatsh.app.services.api.BillingApi
+import com.sasquatsh.app.services.api.GooglePlayBillingApi
 import com.squareup.moshi.Moshi
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -9,6 +10,7 @@ import javax.inject.Singleton
 @Singleton
 class BillingService @Inject constructor(
     private val billingApi: BillingApi,
+    private val googlePlayBillingApi: GooglePlayBillingApi,
     private val moshi: Moshi
 ) {
 
@@ -42,5 +44,22 @@ class BillingService @Inject constructor(
         val json = moshi.adapter(Any::class.java).toJson(response.body())
         return moshi.adapter(ReactivateResponse::class.java).fromJson(json)
             ?: throw Exception("Failed to parse response")
+    }
+
+    suspend fun verifyGooglePlayPurchase(
+        purchaseToken: String,
+        productId: String,
+        orderId: String?
+    ): GooglePlayVerifyResponse {
+        val body = mapOf(
+            "purchaseToken" to purchaseToken,
+            "productId" to productId,
+            "orderId" to orderId
+        )
+        val response = googlePlayBillingApi.verifyPurchase(body = body)
+        if (!response.isSuccessful) throw Exception("Failed to verify Google Play purchase")
+        val json = moshi.adapter(Any::class.java).toJson(response.body())
+        return moshi.adapter(GooglePlayVerifyResponse::class.java).fromJson(json)
+            ?: throw Exception("Failed to parse verification response")
     }
 }

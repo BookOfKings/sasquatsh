@@ -24,6 +24,7 @@ import com.sasquatsh.app.services.BggService
 import com.sasquatsh.app.services.CollectionsService
 import com.sasquatsh.app.services.EventLocationsService
 import com.sasquatsh.app.services.EventsService
+import com.sasquatsh.app.services.TierLimitException
 import com.sasquatsh.app.services.GroupsService
 import com.sasquatsh.app.services.ProfileService
 import com.sasquatsh.app.services.ScryfallService
@@ -82,6 +83,7 @@ data class CreateEditEventUiState(
     val isSearchingBGG: Boolean = false,
     val isLoading: Boolean = false,
     val error: String? = null,
+    val showUpgradePrompt: Boolean = false,
     val isEditing: Boolean = false
 ) {
     val isBoardGame: Boolean get() = gameSystem == GameSystem.BOARD_GAME
@@ -539,10 +541,16 @@ class CreateEditEventViewModel @Inject constructor(
                     _uiState.update { it.copy(isLoading = false) }
                     onSuccess(event)
                 }
+            } catch (e: TierLimitException) {
+                _uiState.update { it.copy(showUpgradePrompt = true, isLoading = false) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.localizedMessage, isLoading = false) }
             }
         }
+    }
+
+    fun dismissUpgradePrompt() {
+        _uiState.update { it.copy(showUpgradePrompt = false) }
     }
 
     fun searchBGG(query: String) {

@@ -49,9 +49,28 @@ class GroupsService @Inject constructor(
             ?: throw Exception("Failed to parse group")
     }
 
+    @Suppress("UNCHECKED_CAST")
     suspend fun createGroup(input: CreateGroupInput): GameGroup {
         val response = groupsApi.createGroup(input)
-        if (!response.isSuccessful) throw Exception("Failed to create group")
+        if (!response.isSuccessful) {
+            val errorBody = response.errorBody()?.string()
+            if (errorBody != null) {
+                try {
+                    val map = moshi.adapter(Any::class.java).fromJson(errorBody) as? Map<String, Any?>
+                    val errorField = (map?.get("error") as? String) ?: ""
+                    if (errorField.startsWith("{")) {
+                        val inner = moshi.adapter(Any::class.java).fromJson(errorField) as? Map<String, Any?>
+                        if (inner?.get("code") == "TIER_LIMIT_REACHED") {
+                            throw TierLimitException(
+                                (inner["message"] as? String) ?: "Plan limit reached. Upgrade to continue."
+                            )
+                        }
+                    }
+                } catch (e: TierLimitException) { throw e }
+                catch (_: Exception) {}
+            }
+            throw Exception("Failed to create group")
+        }
         val json = moshi.adapter(Any::class.java).toJson(response.body())
         return moshi.adapter(GameGroup::class.java).fromJson(json)
             ?: throw Exception("Failed to parse group")

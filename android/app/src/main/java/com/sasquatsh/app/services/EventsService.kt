@@ -7,6 +7,8 @@ import com.squareup.moshi.Types
 import javax.inject.Inject
 import javax.inject.Singleton
 
+class TierLimitException(message: String) : Exception(message)
+
 @Singleton
 class EventsService @Inject constructor(
     private val eventsApi: EventsApi,
@@ -87,8 +89,28 @@ class EventsService @Inject constructor(
         return try {
             val errorBody = response.errorBody()?.string() ?: return null
             val map = moshi.adapter(Any::class.java).fromJson(errorBody) as? Map<String, Any?>
-            (map?.get("error") as? String) ?: (map?.get("message") as? String)
-        } catch (_: Exception) { null }
+            val errorField = (map?.get("error") as? String) ?: (map?.get("message") as? String)
+            // The error field may itself be JSON (e.g., tier limit errors)
+            if (errorField != null && errorField.startsWith("{")) {
+                try {
+                    val inner = moshi.adapter(Any::class.java).fromJson(errorField) as? Map<String, Any?>
+                    val code = inner?.get("code") as? String
+                    if (code == "TIER_LIMIT_REACHED") {
+                        throw TierLimitException(
+                            (inner["message"] as? String) ?: "Plan limit reached. Upgrade to continue."
+                        )
+                    }
+                    (inner?.get("message") as? String) ?: errorField
+                } catch (e: TierLimitException) {
+                    throw e
+                } catch (_: Exception) {
+                    errorField
+                }
+            } else {
+                errorField
+            }
+        } catch (e: TierLimitException) { throw e }
+        catch (_: Exception) { null }
     }
 
     suspend fun deleteEvent(id: String) {

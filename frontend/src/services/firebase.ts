@@ -27,7 +27,9 @@ export async function uploadImage(
   path: string
 ): Promise<string> {
   const storageRef = ref(storage, path)
-  await uploadBytes(storageRef, file)
+  await uploadBytes(storageRef, file, {
+    contentType: file.type || 'image/jpeg',
+  })
   return getDownloadURL(storageRef)
 }
 

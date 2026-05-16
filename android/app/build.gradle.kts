@@ -105,6 +105,9 @@ dependencies {
     // Browser (Custom Tabs)
     implementation(libs.browser)
 
+    // Google Play Billing
+    implementation(libs.billing)
+
     // Testing
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.compose.bom))

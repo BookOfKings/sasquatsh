@@ -313,7 +313,10 @@ private fun MainScaffold(authViewModel: AuthViewModel) {
             }
 
             composable(Routes.CREATE_EVENT) {
-                CreateEventView(onDismiss = { navController.popBackStack() })
+                CreateEventView(
+                    onDismiss = { navController.popBackStack() },
+                    onNavigateToPricing = { navController.navigate(Routes.PRICING) }
+                )
             }
 
             composable(
@@ -345,7 +348,10 @@ private fun MainScaffold(authViewModel: AuthViewModel) {
             }
 
             composable(Routes.CREATE_GROUP) {
-                CreateGroupView(onDismiss = { navController.popBackStack() })
+                CreateGroupView(
+                    onDismiss = { navController.popBackStack() },
+                    onNavigateToPricing = { navController.navigate(Routes.PRICING) }
+                )
             }
 
             composable(

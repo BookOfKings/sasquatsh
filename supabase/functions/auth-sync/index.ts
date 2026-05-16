@@ -149,24 +149,25 @@ Deno.serve(async (req) => {
       return jsonResponse(transformUser(data))
     }
 
-    // New user - parse body for username, recaptcha token, and referrer
-    let body: { username?: string; recaptchaToken?: string; referrerUsername?: string } = {}
+    // New user - parse body for username, recaptcha token, referrer, and platform
+    let body: { username?: string; recaptchaToken?: string; referrerUsername?: string; platform?: string } = {}
     try {
       body = await req.json()
     } catch {
       // No body or invalid JSON is ok for Google OAuth
     }
 
-    // Verify reCAPTCHA for new signups (skip for OAuth providers like Google)
+    // Verify reCAPTCHA for new signups (skip for OAuth providers and mobile apps)
     const isOAuthSignup = firebaseUser.signInProvider && firebaseUser.signInProvider !== 'password'
+    const isMobileApp = body.platform === 'ios' || body.platform === 'android'
 
     if (body.recaptchaToken) {
       const recaptchaResult = await verifyRecaptcha(body.recaptchaToken)
       if (!recaptchaResult.success) {
         return errorResponse(recaptchaResult.error || 'reCAPTCHA verification failed', 400)
       }
-    } else if (recaptchaSecretKey && !isOAuthSignup) {
-      // If secret is configured but no token provided, require it (except for OAuth)
+    } else if (recaptchaSecretKey && !isOAuthSignup && !isMobileApp) {
+      // If secret is configured but no token provided, require it (except for OAuth and mobile apps)
       return errorResponse('reCAPTCHA token required', 400)
     }
 

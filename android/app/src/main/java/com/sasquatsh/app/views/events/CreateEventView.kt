@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -91,6 +92,7 @@ import java.util.Locale
 fun CreateEventView(
     groupId: String? = null,
     onDismiss: () -> Unit,
+    onNavigateToPricing: () -> Unit = {},
     viewModel: CreateEditEventViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -1516,5 +1518,28 @@ private fun CollectionPickerForEvent(
                 }
             }
         }
+    }
+
+    if (uiState.showUpgradePrompt) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissUpgradePrompt() },
+            title = { Text("Plan Limit Reached") },
+            text = {
+                Text("You've reached the game limit on your current plan. Upgrade to host more games per event.")
+            },
+            confirmButton = {
+                Button(onClick = {
+                    viewModel.dismissUpgradePrompt()
+                    onNavigateToPricing()
+                }) {
+                    Text("View Plans")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissUpgradePrompt() }) {
+                    Text("Maybe Later")
+                }
+            }
+        )
     }
 }

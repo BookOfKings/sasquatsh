@@ -152,4 +152,9 @@ object NetworkModule {
     @Singleton
     fun provideShelfScanApi(retrofit: Retrofit): ShelfScanApi =
         retrofit.create(ShelfScanApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideGooglePlayBillingApi(retrofit: Retrofit): GooglePlayBillingApi =
+        retrofit.create(GooglePlayBillingApi::class.java)
 }
