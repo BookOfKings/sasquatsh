@@ -30,10 +30,8 @@ class GooglePlayBillingManager @Inject constructor(
         private const val TAG = "GooglePlayBilling"
 
         val PRODUCT_IDS = listOf(
-            "com.sasquatsh.basic.monthly",
-            "com.sasquatsh.basic.annual",
-            "com.sasquatsh.pro.monthly",
-            "com.sasquatsh.pro.annual",
+            "com.sasquatsh.basic",
+            "com.sasquatsh.pro",
         )
     }
 
@@ -162,13 +160,13 @@ class GooglePlayBillingManager @Inject constructor(
         return _products.value.find { it.productId == productId }
     }
 
-    fun getFormattedPrice(productDetails: ProductDetails): String? {
-        return productDetails.subscriptionOfferDetails
-            ?.firstOrNull()
-            ?.pricingPhases
-            ?.pricingPhaseList
-            ?.firstOrNull()
-            ?.formattedPrice
+    fun getFormattedPrice(productDetails: ProductDetails, basePlanId: String? = null): String? {
+        val offer = if (basePlanId != null) {
+            productDetails.subscriptionOfferDetails?.find { it.basePlanId == basePlanId }
+        } else {
+            productDetails.subscriptionOfferDetails?.firstOrNull()
+        }
+        return offer?.pricingPhases?.pricingPhaseList?.firstOrNull()?.formattedPrice
     }
 
     private suspend fun ensureConnected(): Boolean {

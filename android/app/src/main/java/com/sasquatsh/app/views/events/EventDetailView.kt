@@ -901,7 +901,7 @@ private fun PlayersAndItemsSection(
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            if (isHost) {
+            if (isHost || isRegistered) {
                 TextButton(onClick = onShowAddItem) {
                     Text("+ Add Item", style = MaterialTheme.typography.labelSmall)
                 }

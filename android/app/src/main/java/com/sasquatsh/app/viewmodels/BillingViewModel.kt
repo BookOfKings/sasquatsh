@@ -271,13 +271,20 @@ class BillingViewModel @Inject constructor(
     }
 
     fun getProductForTier(tier: String, annual: Boolean): ProductDetails? {
-        val suffix = if (annual) "annual" else "monthly"
-        val productId = "com.sasquatsh.$tier.$suffix"
+        val productId = "com.sasquatsh.$tier"
         return googlePlayBillingManager.getProductDetails(productId)
     }
 
-    fun getFormattedPrice(productDetails: ProductDetails): String {
-        return googlePlayBillingManager.getFormattedPrice(productDetails) ?: ""
+    fun getOfferTokenForPlan(productDetails: ProductDetails, annual: Boolean): String? {
+        val basePlanId = if (annual) "annual" else "monthly"
+        return productDetails.subscriptionOfferDetails
+            ?.find { it.basePlanId == basePlanId }
+            ?.offerToken
+    }
+
+    fun getFormattedPrice(productDetails: ProductDetails, annual: Boolean = false): String {
+        val basePlanId = if (annual) "annual" else "monthly"
+        return googlePlayBillingManager.getFormattedPrice(productDetails, basePlanId) ?: ""
     }
 
     fun formattedAmount(cents: Int): String {

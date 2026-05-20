@@ -1,3 +1,7 @@
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -5,6 +9,30 @@ plugins {
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
     alias(libs.plugins.google.services)
+}
+
+// Auto-increment versionCode from file
+val versionFile = file("version.properties")
+if (!versionFile.exists()) {
+    versionFile.writeText("VERSION_CODE=2\nVERSION_NAME=1.0.1\n")
+}
+val versionProps = Properties()
+versionProps.load(FileInputStream(versionFile))
+val autoVersionCode = versionProps.getProperty("VERSION_CODE", "1").toInt()
+val autoVersionName = versionProps.getProperty("VERSION_NAME", "1.0.0")
+
+// Increment on assembleRelease or bundleRelease
+tasks.configureEach {
+    if (name == "bundleRelease" || name == "assembleRelease") {
+        doLast {
+            val nextCode = autoVersionCode + 1
+            val props = Properties()
+            props.setProperty("VERSION_CODE", nextCode.toString())
+            props.setProperty("VERSION_NAME", autoVersionName)
+            props.store(FileOutputStream(versionFile), null)
+            println("Auto-incremented versionCode to $nextCode")
+        }
+    }
 }
 
 android {
@@ -15,8 +43,8 @@ android {
         applicationId = "com.sasquatsh.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = autoVersionCode
+        versionName = autoVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

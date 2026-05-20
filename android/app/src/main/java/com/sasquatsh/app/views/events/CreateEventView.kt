@@ -244,6 +244,29 @@ fun CreateEventView(
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
+
+    if (uiState.showUpgradePrompt) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissUpgradePrompt() },
+            title = { Text("Plan Limit Reached") },
+            text = {
+                Text("You've reached the game limit on your current plan. Upgrade to host more games per event.")
+            },
+            confirmButton = {
+                Button(onClick = {
+                    viewModel.dismissUpgradePrompt()
+                    onNavigateToPricing()
+                }) {
+                    Text("View Plans")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissUpgradePrompt() }) {
+                    Text("Maybe Later")
+                }
+            }
+        )
+    }
 }
 
 // ─── Basic Information Section ───
@@ -1518,28 +1541,5 @@ private fun CollectionPickerForEvent(
                 }
             }
         }
-    }
-
-    if (uiState.showUpgradePrompt) {
-        AlertDialog(
-            onDismissRequest = { viewModel.dismissUpgradePrompt() },
-            title = { Text("Plan Limit Reached") },
-            text = {
-                Text("You've reached the game limit on your current plan. Upgrade to host more games per event.")
-            },
-            confirmButton = {
-                Button(onClick = {
-                    viewModel.dismissUpgradePrompt()
-                    onNavigateToPricing()
-                }) {
-                    Text("View Plans")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.dismissUpgradePrompt() }) {
-                    Text("Maybe Later")
-                }
-            }
-        )
     }
 }

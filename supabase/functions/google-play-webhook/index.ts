@@ -14,10 +14,14 @@ const GOOGLE_SERVICE_ACCOUNT_KEY_BASE64 = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_K
 // Secret for RTDN Pub/Sub push verification
 const RTDN_SECRET = Deno.env.get('RTDN_SECRET') || ''
 
-// Product ID → tier mapping (same as iOS / Apple IAP)
+// Product ID → tier mapping
+// Supports both subscription IDs (com.sasquatsh.basic) and
+// legacy format with base plan suffix (com.sasquatsh.basic.monthly)
 const PRODUCT_TO_TIER: Record<string, string> = {
+  'com.sasquatsh.basic': 'basic',
   'com.sasquatsh.basic.monthly': 'basic',
   'com.sasquatsh.basic.annual': 'basic',
+  'com.sasquatsh.pro': 'pro',
   'com.sasquatsh.pro.monthly': 'pro',
   'com.sasquatsh.pro.annual': 'pro',
 }

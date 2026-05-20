@@ -194,6 +194,12 @@ private fun SplashScreen() {
                 modifier = Modifier.size(48.dp),
                 color = Color(0xFF6366F1)
             )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "v${com.sasquatsh.app.BuildConfig.VERSION_NAME} (${com.sasquatsh.app.BuildConfig.VERSION_CODE})",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f)
+            )
         }
     }
 }

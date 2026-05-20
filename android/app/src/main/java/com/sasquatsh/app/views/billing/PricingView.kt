@@ -144,7 +144,7 @@ fun PricingView(
 
                 // Basic Tier
                 val basicProduct = billingViewModel.getProductForTier("basic", isAnnual)
-                val basicPrice = basicProduct?.let { billingViewModel.getFormattedPrice(it) }
+                val basicPrice = basicProduct?.let { billingViewModel.getFormattedPrice(it, isAnnual) }
                     ?: if (isAnnual) "$49.99" else "$4.99"
                 val basicSubtitle = if (isAnnual) "/year" else "/month"
 
@@ -168,8 +168,8 @@ fun PricingView(
                     isLoading = billingState.purchaseInProgress,
                     onTap = {
                         if (activity != null && basicProduct != null) {
-                            val offerToken = basicProduct.subscriptionOfferDetails
-                                ?.firstOrNull()?.offerToken ?: return@TierCard
+                            val offerToken = billingViewModel.getOfferTokenForPlan(basicProduct, isAnnual)
+                                ?: return@TierCard
                             billingViewModel.purchaseSubscription(activity, basicProduct, offerToken)
                         }
                     }
@@ -177,7 +177,7 @@ fun PricingView(
 
                 // Pro Tier
                 val proProduct = billingViewModel.getProductForTier("pro", isAnnual)
-                val proPrice = proProduct?.let { billingViewModel.getFormattedPrice(it) }
+                val proPrice = proProduct?.let { billingViewModel.getFormattedPrice(it, isAnnual) }
                     ?: if (isAnnual) "$79.99" else "$7.99"
                 val proSubtitle = if (isAnnual) "/year" else "/month"
 
@@ -202,8 +202,8 @@ fun PricingView(
                     isLoading = billingState.purchaseInProgress,
                     onTap = {
                         if (activity != null && proProduct != null) {
-                            val offerToken = proProduct.subscriptionOfferDetails
-                                ?.firstOrNull()?.offerToken ?: return@TierCard
+                            val offerToken = billingViewModel.getOfferTokenForPlan(proProduct, isAnnual)
+                                ?: return@TierCard
                             billingViewModel.purchaseSubscription(activity, proProduct, offerToken)
                         }
                     }

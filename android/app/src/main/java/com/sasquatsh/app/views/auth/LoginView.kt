@@ -86,12 +86,17 @@ fun LoginView(
             try {
                 val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
                 val account = task.getResult(ApiException::class.java)
-                account?.idToken?.let { idToken ->
+                val idToken = account?.idToken
+                if (idToken != null) {
                     authViewModel.handleGoogleSignInResult(idToken)
+                } else {
+                    authViewModel.setError("Google Sign-In: no ID token returned")
                 }
             } catch (e: ApiException) {
-                Log.e("LoginView", "Google sign-in failed", e)
+                authViewModel.setError("Google Sign-In failed: code ${e.statusCode} - ${e.message}")
             }
+        } else {
+            authViewModel.setError("Google Sign-In cancelled or failed: resultCode=${result.resultCode}")
         }
     }
 

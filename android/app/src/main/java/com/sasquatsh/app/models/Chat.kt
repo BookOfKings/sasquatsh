@@ -23,6 +23,7 @@ data class ChatMessage(
     @Json(name = "user") val user: ChatUser? = null
 )
 
+@JsonClass(generateAdapter = true)
 data class SendMessageInput(
     @Json(name = "content") val content: String
 )
@@ -51,6 +52,7 @@ enum class ChatReportReason(val value: String) {
     }
 }
 
+@JsonClass(generateAdapter = true)
 data class ReportMessageInput(
     @Json(name = "reason") val reason: String,
     @Json(name = "details") val details: String? = null
