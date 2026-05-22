@@ -39,8 +39,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -381,19 +379,17 @@ fun EventDetailView(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    ExposedDropdownMenuBox(
-                        expanded = categoryExpanded,
-                        onExpandedChange = { categoryExpanded = it }
-                    ) {
+                    Box {
                         OutlinedTextField(
                             value = categories.find { it.first == selectedCategory }?.second ?: "Other",
                             onValueChange = {},
                             readOnly = true,
                             label = { Text("Category") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(categoryExpanded) },
-                            modifier = Modifier.fillMaxWidth().menuAnchor()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { categoryExpanded = true }
                         )
-                        androidx.compose.material3.ExposedDropdownMenu(
+                        DropdownMenu(
                             expanded = categoryExpanded,
                             onDismissRequest = { categoryExpanded = false }
                         ) {
