@@ -211,7 +211,8 @@ data class UpdateEventInput(
 data class CreateEventItemInput(
     @Json(name = "itemName") val itemName: String,
     @Json(name = "itemCategory") val itemCategory: String? = null,
-    @Json(name = "quantityNeeded") val quantityNeeded: Int? = null
+    @Json(name = "quantityNeeded") val quantityNeeded: Int? = null,
+    @Json(name = "bringingItem") val bringingItem: Boolean? = null
 )
 
 data class EventSearchFilter(

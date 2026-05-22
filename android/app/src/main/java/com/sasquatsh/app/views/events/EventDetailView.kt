@@ -306,6 +306,7 @@ fun EventDetailView(
                         PlayersAndItemsSection(
                             event = event,
                             isHost = isHost,
+                            isRegistered = isRegistered,
                             currentUserId = currentUserId,
                             onClaimItem = { viewModel.claimItem(it) },
                             onUnclaimItem = { viewModel.unclaimItem(it) },
@@ -359,29 +360,72 @@ fun EventDetailView(
     // Add Item dialog
     if (showAddItemDialog) {
         var itemName by remember { mutableStateOf("") }
+        var selectedCategory by remember { mutableStateOf("other") }
+        var bringingItem by remember { mutableStateOf(false) }
+        var categoryExpanded by remember { mutableStateOf(false) }
+        val categories = listOf("games" to "Games", "food" to "Food", "drinks" to "Drinks", "supplies" to "Supplies", "other" to "Other")
 
         AlertDialog(
             onDismissRequest = { showAddItemDialog = false },
             title = { Text("Add Item") },
             text = {
-                androidx.compose.material3.OutlinedTextField(
-                    value = itemName,
-                    onValueChange = { itemName = it },
-                    label = { Text("Item name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    androidx.compose.material3.OutlinedTextField(
+                        value = itemName,
+                        onValueChange = { itemName = it },
+                        label = { Text("Item name") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    androidx.compose.material3.ExposedDropdownMenuBox(
+                        expanded = categoryExpanded,
+                        onExpandedChange = { categoryExpanded = it }
+                    ) {
+                        androidx.compose.material3.OutlinedTextField(
+                            value = categories.find { it.first == selectedCategory }?.second ?: "Other",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Category") },
+                            trailingIcon = { androidx.compose.material3.ExposedDropdownMenuDefaults.TrailingIcon(categoryExpanded) },
+                            modifier = Modifier.fillMaxWidth().menuAnchor()
+                        )
+                        androidx.compose.material3.ExposedDropdownMenu(
+                            expanded = categoryExpanded,
+                            onDismissRequest = { categoryExpanded = false }
+                        ) {
+                            categories.forEach { (value, label) ->
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { Text(label) },
+                                    onClick = {
+                                        selectedCategory = value
+                                        categoryExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        androidx.compose.material3.Checkbox(
+                            checked = bringingItem,
+                            onCheckedChange = { bringingItem = it }
+                        )
+                        Text("I'm bringing this", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
             },
             confirmButton = {
                 TextButton(
                     onClick = {
                         if (itemName.isNotBlank()) {
-                            viewModel.addItem(itemName.trim(), "other")
+                            viewModel.addItem(itemName.trim(), selectedCategory, bringingItem)
                             showAddItemDialog = false
                         }
                     }
                 ) {
-                    Text("Add")
+                    Text(if (bringingItem) "Add & Claim" else "Add")
                 }
             },
             dismissButton = {
@@ -883,6 +927,7 @@ private fun GamesSection(
 private fun PlayersAndItemsSection(
     event: Event,
     isHost: Boolean,
+    isRegistered: Boolean,
     currentUserId: String?,
     onClaimItem: (String) -> Unit,
     onUnclaimItem: (String) -> Unit,

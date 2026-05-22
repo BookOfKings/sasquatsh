@@ -41,6 +41,7 @@ class AuthViewModel @Inject constructor(
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
     private var authStateListener: FirebaseAuth.AuthStateListener? = null
+    private var signupInProgress = false
 
     init {
         initialize()
@@ -52,9 +53,9 @@ class AuthViewModel @Inject constructor(
         authStateListener = FirebaseAuth.AuthStateListener { auth ->
             viewModelScope.launch {
                 val firebaseUser = auth.currentUser
-                if (firebaseUser != null) {
+                if (firebaseUser != null && !signupInProgress) {
                     syncUser()
-                } else {
+                } else if (firebaseUser == null) {
                     _uiState.update { it.copy(user = null) }
                 }
                 _uiState.update { it.copy(isInitialized = true, isLoading = false) }
@@ -79,6 +80,7 @@ class AuthViewModel @Inject constructor(
     fun signup(email: String, password: String, displayName: String, username: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
+            signupInProgress = true
             try {
                 val firebaseUser = authService.signup(email, password)
                 val profileUpdates = UserProfileChangeRequest.Builder()
@@ -91,6 +93,8 @@ class AuthViewModel @Inject constructor(
                 syncUser()
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.localizedMessage) }
+            } finally {
+                signupInProgress = false
             }
             _uiState.update { it.copy(isLoading = false) }
         }

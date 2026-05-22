@@ -393,19 +393,14 @@ private fun UserHeaderCard(
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                if (username != null) {
-                    Text(
-                        text = "@$username",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                SubscriptionBadgeView(tier = tier)
+            if (username != null) {
+                Text(
+                    text = "@$username",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
+            SubscriptionBadgeView(tier = tier)
         }
 
         Button(

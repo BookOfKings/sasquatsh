@@ -105,12 +105,12 @@ class EventDetailViewModel @Inject constructor(
         }
     }
 
-    fun addItem(name: String, category: String?) {
+    fun addItem(name: String, category: String?, bringingItem: Boolean = false) {
         val event = _uiState.value.event ?: return
         viewModelScope.launch {
             _uiState.update { it.copy(error = null) }
             try {
-                val input = CreateEventItemInput(itemName = name, itemCategory = category)
+                val input = CreateEventItemInput(itemName = name, itemCategory = category, bringingItem = if (bringingItem) true else null)
                 eventsService.addItem(event.id, input)
                 loadEvent(event.id)
             } catch (e: Exception) {
