@@ -37,7 +37,12 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.ExposedDropdownMenu
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -370,31 +375,31 @@ fun EventDetailView(
             title = { Text("Add Item") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    androidx.compose.material3.OutlinedTextField(
+                    OutlinedTextField(
                         value = itemName,
                         onValueChange = { itemName = it },
                         label = { Text("Item name") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    androidx.compose.material3.ExposedDropdownMenuBox(
+                    ExposedDropdownMenuBox(
                         expanded = categoryExpanded,
                         onExpandedChange = { categoryExpanded = it }
                     ) {
-                        androidx.compose.material3.OutlinedTextField(
+                        OutlinedTextField(
                             value = categories.find { it.first == selectedCategory }?.second ?: "Other",
                             onValueChange = {},
                             readOnly = true,
                             label = { Text("Category") },
-                            trailingIcon = { androidx.compose.material3.ExposedDropdownMenuDefaults.TrailingIcon(categoryExpanded) },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(categoryExpanded) },
                             modifier = Modifier.fillMaxWidth().menuAnchor()
                         )
-                        androidx.compose.material3.ExposedDropdownMenu(
+                        ExposedDropdownMenu(
                             expanded = categoryExpanded,
                             onDismissRequest = { categoryExpanded = false }
                         ) {
                             categories.forEach { (value, label) ->
-                                androidx.compose.material3.DropdownMenuItem(
+                                DropdownMenuItem(
                                     text = { Text(label) },
                                     onClick = {
                                         selectedCategory = value
@@ -408,7 +413,7 @@ fun EventDetailView(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        androidx.compose.material3.Checkbox(
+                        Checkbox(
                             checked = bringingItem,
                             onCheckedChange = { bringingItem = it }
                         )
