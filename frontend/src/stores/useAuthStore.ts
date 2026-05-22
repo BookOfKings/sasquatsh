@@ -28,6 +28,7 @@ const error = ref<string | null>(null)
 const isInitialized = ref(false)
 const redirectHandled = ref(false) // Track if we've already handled redirect result
 const signupInProgress = ref(false) // Prevent onAuthStateChanged from interfering during signup
+const signupJustCompleted = ref(false) // Brief guard after signup to prevent race with onAuthStateChanged
 
 // Detect if user is on a mobile device
 function isMobileDevice(): boolean {
@@ -146,9 +147,12 @@ async function initializeAuth(): Promise<void> {
           return
         }
 
-        // Skip if signup is in progress - signup handles its own sync
-        if (signupInProgress.value) {
-          console.log('[Auth] Signup in progress, skipping onAuthStateChanged sync')
+        // Skip if signup is in progress or just completed - signup handles its own sync.
+        // This prevents a race where onAuthStateChanged fires after signup sets
+        // signupInProgress=false, creating the user with an auto-generated username
+        // before the signup call can create it with the chosen username.
+        if (signupInProgress.value || signupJustCompleted.value) {
+          console.log('[Auth] Signup in progress or just completed, skipping onAuthStateChanged sync')
           firebaseUser.value = fbUser
           isLoading.value = false
           isInitialized.value = true
@@ -263,6 +267,10 @@ async function signupWithEmail(
     return { ok: false, message }
   } finally {
     signupInProgress.value = false
+    // Keep guard active briefly so any pending onAuthStateChanged callbacks
+    // triggered by updateProfile/sendEmailVerification don't race with signup
+    signupJustCompleted.value = true
+    setTimeout(() => { signupJustCompleted.value = false }, 3000)
     isLoading.value = false
   }
 }

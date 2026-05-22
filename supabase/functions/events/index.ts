@@ -245,7 +245,7 @@ Deno.serve(async (req) => {
           duration_minutes, city, state, postal_code, difficulty_level, max_players, host_is_playing,
           is_public, is_charity_event, min_age, status, host_user_id,
           host:users!host_user_id(id, display_name, avatar_url, is_founding_member, is_admin),
-          registrations:event_registrations(count),
+          registrations:event_registrations(user_id, status),
           games:event_games(thumbnail_url, is_primary)
         `)
         .eq('is_public', true)
@@ -313,7 +313,7 @@ Deno.serve(async (req) => {
           duration_minutes, city, state, difficulty_level, max_players, host_is_playing,
           is_public, is_charity_event, min_age, status,
           host:users!host_user_id(id, display_name, avatar_url, is_founding_member, is_admin),
-          registrations:event_registrations(count),
+          registrations:event_registrations(user_id, status),
           games:event_games(thumbnail_url, is_primary)
         `)
         .eq('host_user_id', user.id)
@@ -333,7 +333,7 @@ Deno.serve(async (req) => {
             duration_minutes, city, state, difficulty_level, max_players, host_is_playing,
             is_public, is_charity_event, min_age, status,
             host:users!host_user_id(id, display_name, avatar_url, is_founding_member, is_admin),
-            registrations:event_registrations(count),
+            registrations:event_registrations(user_id, status),
             games:event_games(thumbnail_url, is_primary)
           )
         `)
@@ -371,7 +371,7 @@ Deno.serve(async (req) => {
           duration_minutes, city, state, difficulty_level, max_players, host_is_playing,
           is_public, is_charity_event, min_age, status,
           host:users!host_user_id(id, display_name, avatar_url, is_founding_member, is_admin),
-          registrations:event_registrations(count),
+          registrations:event_registrations(user_id, status),
           games:event_games(thumbnail_url, is_primary)
         `)
         .eq('group_id', groupId)
@@ -1016,6 +1016,11 @@ function transformEventSummary(row: Record<string, unknown>) {
   const anyGameWithThumbnail = games?.find(g => g.thumbnail_url)
   const primaryGameThumbnail = primaryGame?.thumbnail_url || anyGameWithThumbnail?.thumbnail_url || null
 
+  const hostId = row.host ? (row.host as Record<string, unknown>).id as string : null
+  const confirmedRegs = Array.isArray(row.registrations)
+    ? row.registrations.filter((r: { user_id: string; status: string }) => r.status === 'confirmed' && r.user_id !== hostId).length
+    : 0
+
   return {
     id: row.id,
     title: row.title,
@@ -1031,8 +1036,8 @@ function transformEventSummary(row: Record<string, unknown>) {
     difficultyLevel: row.difficulty_level,
     maxPlayers: row.max_players,
     hostIsPlaying: row.host_is_playing ?? true,
-    // confirmedCount includes host if they're playing, plus registrations
-    confirmedCount: ((row.registrations as { count: number }[])?.[0]?.count ?? 0) + (row.host_is_playing !== false ? 1 : 0),
+    // confirmedCount: confirmed non-host registrations + host (if playing)
+    confirmedCount: confirmedRegs + (row.host_is_playing !== false ? 1 : 0),
     isPublic: row.is_public,
     isCharityEvent: row.is_charity_event,
     minAge: row.min_age,
@@ -1055,6 +1060,11 @@ function transformEvent(
   tables?: { id: string; table_number: number; table_name: string | null }[] | null,
   sessions?: Record<string, unknown>[] | null
 ) {
+  const hostUserId = row.host_user_id as string | null
+  const confirmedRegs = Array.isArray(row.registrations)
+    ? row.registrations.filter((r: { user_id: string; status: string }) => r.status === 'confirmed' && r.user_id !== hostUserId).length
+    : 0
+
   return {
     id: row.id,
     hostUserId: row.host_user_id,
@@ -1080,10 +1090,8 @@ function transformEvent(
     difficultyLevel: row.difficulty_level,
     maxPlayers: row.max_players,
     hostIsPlaying: row.host_is_playing ?? true,
-    // confirmedCount includes host if they're playing, plus confirmed registrations only
-    confirmedCount: (Array.isArray(row.registrations)
-      ? row.registrations.filter((r: { status: string }) => r.status === 'confirmed').length
-      : 0) + (row.host_is_playing !== false ? 1 : 0),
+    // confirmedCount: confirmed non-host registrations + host (if playing)
+    confirmedCount: confirmedRegs + (row.host_is_playing !== false ? 1 : 0),
     isPublic: row.is_public,
     isCharityEvent: row.is_charity_event,
     isMultiTable: row.is_multi_table ?? false,
