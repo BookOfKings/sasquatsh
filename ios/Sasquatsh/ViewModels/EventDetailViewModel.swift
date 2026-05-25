@@ -72,11 +72,16 @@ final class EventDetailViewModel {
         }
     }
 
-    func addItem(name: String, category: String?) async {
+    func addItem(name: String, category: String?, bringingItem: Bool = false) async {
         guard let services, let event else { return }
         error = nil
         do {
-            let input = CreateEventItemInput(itemName: name, itemCategory: category)
+            let input = CreateEventItemInput(
+                itemName: name,
+                itemCategory: category,
+                quantityNeeded: nil,
+                bringingItem: bringingItem ? true : nil
+            )
             _ = try await services.events.addItem(eventId: event.id, input: input)
             await loadEvent(id: event.id)
         } catch {

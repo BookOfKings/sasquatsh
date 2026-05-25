@@ -167,6 +167,7 @@ struct CreateEventItemInput: Codable {
     var itemName: String
     var itemCategory: String?
     var quantityNeeded: Int?
+    var bringingItem: Bool?
 }
 
 struct EventSearchFilter {

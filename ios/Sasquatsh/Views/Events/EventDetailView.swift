@@ -14,6 +14,7 @@ struct EventDetailView: View {
     @State private var showDeleteConfirm = false
     @State private var newItemName = ""
     @State private var newItemCategory = "other"
+    @State private var newItemBringing = false
     @State private var showUpgradePrompt = false
     @State private var upgradePromptType: LimitType = .games
     @State private var showItemsUpgradePrompt = false
@@ -401,7 +402,7 @@ struct EventDetailView: View {
                     .font(.md3TitleMedium)
                     .foregroundStyle(Color.md3OnSurface)
                 Spacer()
-                if let userId = authVM.user?.id, vm.isHost(userId: userId) {
+                if let userId = authVM.user?.id, vm.isHost(userId: userId) || vm.isRegistered(userId: userId) {
                     Button {
                         if TierConfig.hasFeature(hostTier, feature: \.items) {
                             showAddItem = true
@@ -504,16 +505,63 @@ struct EventDetailView: View {
         .padding()
         .cardStyle()
         .padding(.horizontal)
-        .alert("Add Item", isPresented: $showAddItem) {
-            TextField("Item name", text: $newItemName)
-            Button("Add") {
-                Task {
-                    await vm.addItem(name: newItemName, category: newItemCategory)
-                    newItemName = ""
+        .sheet(isPresented: $showAddItem) {
+            addItemSheet
+        }
+    }
+
+    private var addItemSheet: some View {
+        let categories: [(String, String)] = [
+            ("games", "Games"),
+            ("food", "Food"),
+            ("drinks", "Drinks"),
+            ("supplies", "Supplies"),
+            ("other", "Other")
+        ]
+        return NavigationStack {
+            Form {
+                Section {
+                    TextField("Item name", text: $newItemName)
+                    Picker("Category", selection: $newItemCategory) {
+                        ForEach(categories, id: \.0) { value, label in
+                            Text(label).tag(value)
+                        }
+                    }
+                    Toggle("I'm bringing this", isOn: $newItemBringing)
                 }
             }
-            Button("Cancel", role: .cancel) { newItemName = "" }
+            .navigationTitle("Add Item")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        resetAddItemForm()
+                        showAddItem = false
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(newItemBringing ? "Add & Claim" : "Add") {
+                        let name = newItemName.trimmingCharacters(in: .whitespaces)
+                        guard !name.isEmpty else { return }
+                        let category = newItemCategory
+                        let bringing = newItemBringing
+                        Task {
+                            await vm.addItem(name: name, category: category, bringingItem: bringing)
+                        }
+                        resetAddItemForm()
+                        showAddItem = false
+                    }
+                    .disabled(newItemName.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
         }
+        .presentationDetents([.medium])
+    }
+
+    private func resetAddItemForm() {
+        newItemName = ""
+        newItemCategory = "other"
+        newItemBringing = false
     }
 
     // MARK: - Chat

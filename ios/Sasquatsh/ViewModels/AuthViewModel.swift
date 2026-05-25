@@ -69,8 +69,9 @@ final class AuthViewModel {
 
             struct SyncBody: Codable {
                 let username: String
+                let platform: String
             }
-            let _: User = try await services.api.post("auth-sync", body: SyncBody(username: username), authenticated: true)
+            let _: User = try await services.api.post("auth-sync", body: SyncBody(username: username, platform: "ios"), authenticated: true)
             await syncUser()
         } catch {
             self.error = error.localizedDescription
@@ -126,8 +127,9 @@ final class AuthViewModel {
             // Include FCM token if available
             struct SyncInput: Codable {
                 let fcmToken: String?
+                let platform: String
             }
-            let input = SyncInput(fcmToken: AppDelegate.fcmToken)
+            let input = SyncInput(fcmToken: AppDelegate.fcmToken, platform: "ios")
             let syncedUser: User = try await services.api.post("auth-sync", body: input, authenticated: true)
             self.user = syncedUser
             self.error = nil
