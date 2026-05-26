@@ -14,6 +14,8 @@ protocol EventsServiceProtocol: Sendable {
     func addItem(eventId: String, input: CreateEventItemInput) async throws -> EventItem
     func claimItem(itemId: String) async throws
     func unclaimItem(itemId: String) async throws
+    func updateItem(itemId: String, name: String?, category: String?) async throws
+    func deleteItem(itemId: String) async throws
     func addGame(input: AddEventGameInput) async throws -> EventGame
     func removeGame(gameId: String) async throws
 }
@@ -77,8 +79,15 @@ final class EventsService: EventsServiceProtocol {
             let itemName: String
             let itemCategory: String?
             let quantityNeeded: Int?
+            let bringingItem: Bool?
         }
-        let body = ItemRequest(eventId: eventId, itemName: input.itemName, itemCategory: input.itemCategory, quantityNeeded: input.quantityNeeded)
+        let body = ItemRequest(
+            eventId: eventId,
+            itemName: input.itemName,
+            itemCategory: input.itemCategory,
+            quantityNeeded: input.quantityNeeded,
+            bringingItem: input.bringingItem
+        )
         return try await api.post("items", body: body)
     }
 
@@ -94,6 +103,25 @@ final class EventsService: EventsServiceProtocol {
             .init(name: "id", value: itemId),
             .init(name: "action", value: "unclaim")
         ])
+    }
+
+    func updateItem(itemId: String, name: String?, category: String?) async throws {
+        struct UpdateBody: Codable {
+            let itemName: String?
+            let itemCategory: String?
+        }
+        try await api.putVoid(
+            "items",
+            body: UpdateBody(itemName: name, itemCategory: category),
+            queryItems: [
+                .init(name: "id", value: itemId),
+                .init(name: "action", value: "update")
+            ]
+        )
+    }
+
+    func deleteItem(itemId: String) async throws {
+        try await api.deleteVoid("items", queryItems: [.init(name: "id", value: itemId)])
     }
 
     func addGame(input: AddEventGameInput) async throws -> EventGame {

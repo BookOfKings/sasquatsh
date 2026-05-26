@@ -15,6 +15,8 @@ struct EventDetailView: View {
     @State private var newItemName = ""
     @State private var newItemCategory = "other"
     @State private var newItemBringing = false
+    @State private var editingItemId: String? = nil
+    @State private var deletingItemId: String? = nil
     @State private var showUpgradePrompt = false
     @State private var upgradePromptType: LimitType = .games
     @State private var showItemsUpgradePrompt = false
@@ -448,6 +450,7 @@ struct EventDetailView: View {
                                                     .foregroundStyle(Color.md3OnSurfaceVariant)
                                             }
                                         }
+                                        .contextMenu { itemContextMenu(item) }
                                     }
                                 }
                             }
@@ -497,6 +500,16 @@ struct EventDetailView: View {
                             }
                             .font(.md3LabelSmall)
                             .foregroundStyle(Color.md3Primary)
+                            if canEditItem(item) || canDeleteItem(item) {
+                                Menu {
+                                    itemContextMenu(item)
+                                } label: {
+                                    Image(systemName: "ellipsis")
+                                        .font(.md3LabelMedium)
+                                        .foregroundStyle(Color.md3OnSurfaceVariant)
+                                        .padding(.leading, 4)
+                                }
+                            }
                         }
                     }
                 }
@@ -508,6 +521,23 @@ struct EventDetailView: View {
         .sheet(isPresented: $showAddItem) {
             addItemSheet
         }
+        .alert(
+            "Delete item?",
+            isPresented: Binding(
+                get: { deletingItemId != nil },
+                set: { if !$0 { deletingItemId = nil } }
+            )
+        ) {
+            Button("Cancel", role: .cancel) { deletingItemId = nil }
+            Button("Delete", role: .destructive) {
+                if let id = deletingItemId {
+                    Task { await vm.deleteItem(itemId: id) }
+                }
+                deletingItemId = nil
+            }
+        } message: {
+            Text("This will remove the item from the event.")
+        }
     }
 
     private var addItemSheet: some View {
@@ -518,6 +548,7 @@ struct EventDetailView: View {
             ("supplies", "Supplies"),
             ("other", "Other")
         ]
+        let isEditing = editingItemId != nil
         return NavigationStack {
             Form {
                 Section {
@@ -527,10 +558,12 @@ struct EventDetailView: View {
                             Text(label).tag(value)
                         }
                     }
-                    Toggle("I'm bringing this", isOn: $newItemBringing)
+                    if !isEditing {
+                        Toggle("I'm bringing this", isOn: $newItemBringing)
+                    }
                 }
             }
-            .navigationTitle("Add Item")
+            .navigationTitle(isEditing ? "Edit Item" : "Add Item")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -540,13 +573,15 @@ struct EventDetailView: View {
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(newItemBringing ? "Add & Claim" : "Add") {
+                    Button(confirmButtonLabel) {
                         let name = newItemName.trimmingCharacters(in: .whitespaces)
                         guard !name.isEmpty else { return }
                         let category = newItemCategory
-                        let bringing = newItemBringing
-                        Task {
-                            await vm.addItem(name: name, category: category, bringingItem: bringing)
+                        if let id = editingItemId {
+                            Task { await vm.updateItem(itemId: id, name: name, category: category) }
+                        } else {
+                            let bringing = newItemBringing
+                            Task { await vm.addItem(name: name, category: category, bringingItem: bringing) }
                         }
                         resetAddItemForm()
                         showAddItem = false
@@ -558,10 +593,53 @@ struct EventDetailView: View {
         .presentationDetents([.medium])
     }
 
+    private var confirmButtonLabel: String {
+        if editingItemId != nil { return "Save" }
+        return newItemBringing ? "Add & Claim" : "Add"
+    }
+
     private func resetAddItemForm() {
         newItemName = ""
         newItemCategory = "other"
         newItemBringing = false
+        editingItemId = nil
+    }
+
+    private func canEditItem(_ item: EventItem) -> Bool {
+        guard let userId = authVM.user?.id else { return false }
+        if vm.isHost(userId: userId) { return true }
+        return item.claimedByUserId == userId
+    }
+
+    private func canDeleteItem(_ item: EventItem) -> Bool {
+        guard let userId = authVM.user?.id else { return false }
+        return vm.isHost(userId: userId)
+    }
+
+    private func beginEditItem(_ item: EventItem) {
+        editingItemId = item.id
+        newItemName = item.itemName
+        newItemCategory = item.itemCategory
+        newItemBringing = false
+        showAddItem = true
+    }
+
+    @ViewBuilder
+    private func itemContextMenu(_ item: EventItem) -> some View {
+        if canEditItem(item) {
+            Button {
+                beginEditItem(item)
+            } label: {
+                Label("Edit", systemImage: "pencil")
+            }
+        }
+        if canDeleteItem(item) {
+            Button(role: .destructive) {
+                deletingItemId = item.id
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
     }
 
     // MARK: - Chat

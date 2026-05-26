@@ -89,6 +89,28 @@ final class EventDetailViewModel {
         }
     }
 
+    func updateItem(itemId: String, name: String, category: String) async {
+        guard let services, let event else { return }
+        error = nil
+        do {
+            try await services.events.updateItem(itemId: itemId, name: name, category: category)
+            await loadEvent(id: event.id)
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func deleteItem(itemId: String) async {
+        guard let services, let event else { return }
+        error = nil
+        do {
+            try await services.events.deleteItem(itemId: itemId)
+            await loadEvent(id: event.id)
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
     func addGame(_ input: AddEventGameInput) async {
         guard let services, let event else { return }
         error = nil
