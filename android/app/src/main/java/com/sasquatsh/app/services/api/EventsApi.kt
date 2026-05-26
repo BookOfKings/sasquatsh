@@ -97,6 +97,20 @@ interface EventsApi {
         @Query("action") action: String = "unclaim"
     ): Response<Unit>
 
+    // PUT items?id=...&action=update (body: { itemName, itemCategory })
+    @PUT("items")
+    suspend fun updateItem(
+        @Query("id") itemId: String,
+        @Query("action") action: String = "update",
+        @Body body: Map<String, String>
+    ): Response<Any>
+
+    // DELETE items?id=...
+    @DELETE("items")
+    suspend fun deleteItem(
+        @Query("id") itemId: String
+    ): Response<Unit>
+
     // POST event-games
     @POST("event-games")
     suspend fun addGame(

@@ -149,6 +149,19 @@ class EventsService @Inject constructor(
         if (!response.isSuccessful) throw Exception("Failed to unclaim item")
     }
 
+    suspend fun updateItem(itemId: String, name: String?, category: String?) {
+        val body = mutableMapOf<String, String>()
+        name?.let { body["itemName"] = it }
+        category?.let { body["itemCategory"] = it }
+        val response = eventsApi.updateItem(itemId, body = body)
+        if (!response.isSuccessful) throw Exception("Failed to update item")
+    }
+
+    suspend fun deleteItem(itemId: String) {
+        val response = eventsApi.deleteItem(itemId)
+        if (!response.isSuccessful) throw Exception("Failed to delete item")
+    }
+
     suspend fun addGame(input: AddEventGameInput) {
         val response = eventsApi.addGame(input)
         if (!response.isSuccessful) throw Exception("Failed to add game")

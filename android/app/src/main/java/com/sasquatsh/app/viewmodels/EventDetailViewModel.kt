@@ -105,6 +105,32 @@ class EventDetailViewModel @Inject constructor(
         }
     }
 
+    fun updateItem(itemId: String, name: String, category: String) {
+        val event = _uiState.value.event ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(error = null) }
+            try {
+                eventsService.updateItem(itemId, name, category)
+                loadEvent(event.id)
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.localizedMessage) }
+            }
+        }
+    }
+
+    fun deleteItem(itemId: String) {
+        val event = _uiState.value.event ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(error = null) }
+            try {
+                eventsService.deleteItem(itemId)
+                loadEvent(event.id)
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.localizedMessage) }
+            }
+        }
+    }
+
     fun addItem(name: String, category: String?, bringingItem: Boolean = false) {
         val event = _uiState.value.event ?: return
         viewModelScope.launch {

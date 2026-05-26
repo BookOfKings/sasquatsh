@@ -95,6 +95,9 @@ fun EventDetailView(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
     var showAddItemDialog by remember { mutableStateOf(false) }
+    var editingItem by remember { mutableStateOf<EventItem?>(null) }
+    var showDeleteItemConfirm by remember { mutableStateOf(false) }
+    var deletingItemId by remember { mutableStateOf<String?>(null) }
     var profileUserId by remember { mutableStateOf<String?>(null) }
     val authState by authViewModel.uiState.collectAsState()
     val currentUserId = authState.user?.id // Supabase user ID, not Firebase UID
@@ -313,6 +316,11 @@ fun EventDetailView(
                             onClaimItem = { viewModel.claimItem(it) },
                             onUnclaimItem = { viewModel.unclaimItem(it) },
                             onShowAddItem = { showAddItemDialog = true },
+                            onEditItem = { item -> editingItem = item },
+                            onDeleteItem = { itemId ->
+                                deletingItemId = itemId
+                                showDeleteItemConfirm = true
+                            },
                             onProfileClick = { profileUserId = it }
                         )
                         Spacer(modifier = Modifier.height(16.dp))
@@ -359,17 +367,21 @@ fun EventDetailView(
         )
     }
 
-    // Add Item dialog
-    if (showAddItemDialog) {
-        var itemName by remember { mutableStateOf("") }
-        var selectedCategory by remember { mutableStateOf("other") }
+    // Add / Edit Item dialog
+    if (showAddItemDialog || editingItem != null) {
+        val isEditing = editingItem != null
+        var itemName by remember(editingItem) { mutableStateOf(editingItem?.itemName ?: "") }
+        var selectedCategory by remember(editingItem) { mutableStateOf(editingItem?.itemCategory ?: "other") }
         var bringingItem by remember { mutableStateOf(false) }
         var categoryExpanded by remember { mutableStateOf(false) }
         val categories = listOf("games" to "Games", "food" to "Food", "drinks" to "Drinks", "supplies" to "Supplies", "other" to "Other")
 
         AlertDialog(
-            onDismissRequest = { showAddItemDialog = false },
-            title = { Text("Add Item") },
+            onDismissRequest = {
+                showAddItemDialog = false
+                editingItem = null
+            },
+            title = { Text(if (isEditing) "Edit Item" else "Add Item") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
@@ -404,15 +416,17 @@ fun EventDetailView(
                             }
                         }
                     }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Checkbox(
-                            checked = bringingItem,
-                            onCheckedChange = { bringingItem = it }
-                        )
-                        Text("I'm bringing this", style = MaterialTheme.typography.bodyMedium)
+                    if (!isEditing) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Checkbox(
+                                checked = bringingItem,
+                                onCheckedChange = { bringingItem = it }
+                            )
+                            Text("I'm bringing this", style = MaterialTheme.typography.bodyMedium)
+                        }
                     }
                 }
             },
@@ -420,16 +434,55 @@ fun EventDetailView(
                 TextButton(
                     onClick = {
                         if (itemName.isNotBlank()) {
-                            viewModel.addItem(itemName.trim(), selectedCategory, bringingItem)
-                            showAddItemDialog = false
+                            if (isEditing) {
+                                viewModel.updateItem(editingItem!!.id, itemName.trim(), selectedCategory)
+                                editingItem = null
+                            } else {
+                                viewModel.addItem(itemName.trim(), selectedCategory, bringingItem)
+                                showAddItemDialog = false
+                            }
                         }
                     }
                 ) {
-                    Text(if (bringingItem) "Add & Claim" else "Add")
+                    Text(if (isEditing) "Save" else if (bringingItem) "Add & Claim" else "Add")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showAddItemDialog = false }) {
+                TextButton(onClick = {
+                    showAddItemDialog = false
+                    editingItem = null
+                }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Delete Item confirmation dialog
+    if (showDeleteItemConfirm && deletingItemId != null) {
+        AlertDialog(
+            onDismissRequest = {
+                showDeleteItemConfirm = false
+                deletingItemId = null
+            },
+            title = { Text("Delete Item") },
+            text = { Text("Are you sure you want to delete this item?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        deletingItemId?.let { viewModel.deleteItem(it) }
+                        showDeleteItemConfirm = false
+                        deletingItemId = null
+                    }
+                ) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showDeleteItemConfirm = false
+                    deletingItemId = null
+                }) {
                     Text("Cancel")
                 }
             }
@@ -932,6 +985,8 @@ private fun PlayersAndItemsSection(
     onClaimItem: (String) -> Unit,
     onUnclaimItem: (String) -> Unit,
     onShowAddItem: () -> Unit,
+    onEditItem: (EventItem) -> Unit = {},
+    onDeleteItem: (String) -> Unit = {},
     onProfileClick: (String) -> Unit = {}
 ) {
     SectionCard(modifier = Modifier.padding(horizontal = 16.dp)) {
@@ -969,6 +1024,10 @@ private fun PlayersAndItemsSection(
                 PlayerRow(
                     registration = reg,
                     items = event.items?.filter { it.claimedByUserId == reg.userId },
+                    isHost = isHost,
+                    currentUserId = currentUserId,
+                    onEditItem = onEditItem,
+                    onDeleteItem = onDeleteItem,
                     onProfileClick = onProfileClick
                 )
                 HorizontalDivider(
@@ -991,6 +1050,10 @@ private fun PlayersAndItemsSection(
             Spacer(modifier = Modifier.height(4.dp))
 
             unclaimedItems.forEach { item ->
+                val canEditItem = isHost || item.claimedByUserId == currentUserId
+                val canDeleteItem = isHost
+                var itemMenuExpanded by remember { mutableStateOf(false) }
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1008,7 +1071,7 @@ private fun PlayersAndItemsSection(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                     if (item.claimedByUserId == currentUserId) {
                         TextButton(onClick = { onUnclaimItem(item.id) }) {
                             Text("Unclaim", style = MaterialTheme.typography.labelSmall)
@@ -1020,6 +1083,38 @@ private fun PlayersAndItemsSection(
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary
                             )
+                        }
+                    }
+                    if (canEditItem || canDeleteItem) {
+                        Box {
+                            IconButton(onClick = { itemMenuExpanded = true }, modifier = Modifier.size(28.dp)) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "Item options", modifier = Modifier.size(16.dp))
+                            }
+                            DropdownMenu(
+                                expanded = itemMenuExpanded,
+                                onDismissRequest = { itemMenuExpanded = false }
+                            ) {
+                                if (canEditItem) {
+                                    DropdownMenuItem(
+                                        text = { Text("Edit") },
+                                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                        onClick = {
+                                            itemMenuExpanded = false
+                                            onEditItem(item)
+                                        }
+                                    )
+                                }
+                                if (canDeleteItem) {
+                                    DropdownMenuItem(
+                                        text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp)) },
+                                        onClick = {
+                                            itemMenuExpanded = false
+                                            onDeleteItem(item.id)
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -1034,6 +1129,10 @@ private fun PlayersAndItemsSection(
 private fun PlayerRow(
     registration: EventRegistration,
     items: List<EventItem>?,
+    isHost: Boolean = false,
+    currentUserId: String? = null,
+    onEditItem: (EventItem) -> Unit = {},
+    onDeleteItem: (String) -> Unit = {},
     onProfileClick: (String) -> Unit = {}
 ) {
     Row(
@@ -1062,6 +1161,10 @@ private fun PlayerRow(
 
             // Items this player is bringing
             items?.forEach { item ->
+                val canEditItem = isHost || item.claimedByUserId == currentUserId
+                val canDeleteItem = isHost
+                var itemMenuExpanded by remember { mutableStateOf(false) }
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = item.itemName,
@@ -1074,6 +1177,38 @@ private fun PlayerRow(
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                    if (canEditItem || canDeleteItem) {
+                        Box {
+                            IconButton(onClick = { itemMenuExpanded = true }, modifier = Modifier.size(22.dp)) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "Item options", modifier = Modifier.size(14.dp))
+                            }
+                            DropdownMenu(
+                                expanded = itemMenuExpanded,
+                                onDismissRequest = { itemMenuExpanded = false }
+                            ) {
+                                if (canEditItem) {
+                                    DropdownMenuItem(
+                                        text = { Text("Edit") },
+                                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                        onClick = {
+                                            itemMenuExpanded = false
+                                            onEditItem(item)
+                                        }
+                                    )
+                                }
+                                if (canDeleteItem) {
+                                    DropdownMenuItem(
+                                        text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp)) },
+                                        onClick = {
+                                            itemMenuExpanded = false
+                                            onDeleteItem(item.id)
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
