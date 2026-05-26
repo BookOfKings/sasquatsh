@@ -610,19 +610,20 @@ private fun GameCard(
                 )
             }
             match.confidence?.let { conf ->
+                val pct = if (conf <= 1.0) (conf * 100).toInt() else conf.toInt()
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        if (conf > 0.7) Icons.Default.Verified else Icons.Default.QuestionMark,
+                        if (pct > 70) Icons.Default.Verified else Icons.Default.QuestionMark,
                         contentDescription = null,
                         modifier = Modifier.size(12.dp),
-                        tint = if (conf > 0.7) MaterialTheme.colorScheme.primary
+                        tint = if (pct > 70) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.tertiary
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        "${(conf * 100).toInt()}% match",
+                        "$pct% match",
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (conf > 0.7) MaterialTheme.colorScheme.primary
+                        color = if (pct > 70) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.tertiary
                     )
                 }
