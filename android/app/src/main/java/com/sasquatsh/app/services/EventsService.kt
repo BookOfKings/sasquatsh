@@ -130,11 +130,14 @@ class EventsService @Inject constructor(
     }
 
     suspend fun addItem(eventId: String, input: CreateEventItemInput) {
-        val body = mapOf(
+        val body = mutableMapOf<String, Any>(
             "eventId" to eventId,
             "itemName" to input.itemName,
             "itemCategory" to (input.itemCategory ?: "other")
         )
+        if (input.bringingItem == true) {
+            body["bringingItem"] = true
+        }
         val response = eventsApi.addItem(body)
         if (!response.isSuccessful) throw Exception("Failed to add item")
     }

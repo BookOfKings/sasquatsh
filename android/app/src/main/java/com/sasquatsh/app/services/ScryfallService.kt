@@ -14,10 +14,13 @@ class ScryfallService @Inject constructor(
 ) {
     private val cardListType = Types.newParameterizedType(List::class.java, ScryfallCard::class.java)
 
+    @Suppress("UNCHECKED_CAST")
     suspend fun searchCards(query: String): List<ScryfallCard> {
         val response = scryfallApi.searchCards(query)
         if (!response.isSuccessful) throw Exception("Failed to search cards")
-        val json = moshi.adapter(Any::class.java).toJson(response.body())
+        val body = response.body() as? Map<String, Any?> ?: return emptyList()
+        val cards = body["cards"] ?: return emptyList()
+        val json = moshi.adapter(Any::class.java).toJson(cards)
         return moshi.adapter<List<ScryfallCard>>(cardListType).fromJson(json) ?: emptyList()
     }
 }

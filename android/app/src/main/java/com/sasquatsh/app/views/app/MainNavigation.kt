@@ -76,6 +76,7 @@ import com.sasquatsh.app.views.groups.CreateGroupView
 import com.sasquatsh.app.views.groups.GroupDetailView
 import com.sasquatsh.app.views.groups.GroupListView
 import com.sasquatsh.app.views.lfp.PlayerRequestListView
+import com.sasquatsh.app.views.mtg.DeckBuilderView
 import com.sasquatsh.app.views.mtg.MyDecksView
 import com.sasquatsh.app.views.planning.PlanningSessionDetailView
 import com.sasquatsh.app.views.profile.BlockedUsersView
@@ -121,6 +122,9 @@ object Routes {
     const val BADGES = "badges"
     const val COLLECTION = "collection"
     const val MTG_DECKS = "mtg_decks"
+    const val DECK_BUILDER = "deck_builder?deckId={deckId}"
+    const val DECK_BUILDER_NEW = "deck_builder"
+    fun deckBuilder(deckId: String) = "deck_builder?deckId=$deckId"
     const val FIRST_PLAYER = "first_player"
     const val FINGER_PICKER = "finger_picker"
     const val SPIN_WHEEL = "spin_wheel"
@@ -430,7 +434,24 @@ private fun MainScaffold(authViewModel: AuthViewModel) {
 
             composable(Routes.MTG_DECKS) {
                 MyDecksView(
-                    onNavigateToDeck = { /* TODO: DeckBuilderView navigation */ }
+                    onNavigateToDeck = { deck ->
+                        if (deck != null) {
+                            navController.navigate(Routes.deckBuilder(deck.id))
+                        } else {
+                            navController.navigate(Routes.DECK_BUILDER_NEW)
+                        }
+                    }
+                )
+            }
+
+            composable(
+                route = Routes.DECK_BUILDER,
+                arguments = listOf(navArgument("deckId") { type = NavType.StringType; defaultValue = "" })
+            ) { backStackEntry ->
+                val deckId = backStackEntry.arguments?.getString("deckId")?.ifEmpty { null }
+                DeckBuilderView(
+                    deckId = deckId,
+                    onDismiss = { navController.popBackStack() }
                 )
             }
 

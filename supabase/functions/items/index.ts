@@ -245,10 +245,10 @@ Deno.serve(async (req) => {
       return errorResponse('Item ID required', 400)
     }
 
-    // Verify user is host of the event
+    // Verify user is host or the item claimer
     const { data: item } = await supabase
       .from('event_items')
-      .select('event_id')
+      .select('event_id, claimed_by_user_id')
       .eq('id', itemId)
       .single()
 
@@ -262,8 +262,11 @@ Deno.serve(async (req) => {
       .eq('id', item.event_id)
       .single()
 
-    if (!event || event.host_user_id !== user.id) {
-      return errorResponse('Only the host can remove items', 403)
+    const isHost = event && event.host_user_id === user.id
+    const isClaimer = item.claimed_by_user_id === user.id
+
+    if (!isHost && !isClaimer) {
+      return errorResponse('Only the host or item claimer can remove items', 403)
     }
 
     const { error } = await supabase

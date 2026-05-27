@@ -3,7 +3,10 @@ package com.sasquatsh.app.views.profile
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.ui.res.painterResource
+import com.sasquatsh.app.R
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -362,10 +365,10 @@ fun ProfileView(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Style,
+                        Image(
+                            painter = painterResource(id = R.drawable.mtg_logo),
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
+                            modifier = Modifier.size(32.dp)
                         )
                         Text(
                             text = "My MTG Decks",

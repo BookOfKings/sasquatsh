@@ -1552,6 +1552,25 @@ Deno.serve(async (req) => {
 
       if (eventError) return errorResponse(eventError.message, 500)
 
+      // Add all suggested games as event_games
+      if (suggestionsWithCounts.length > 0) {
+        const eventGames = suggestionsWithCounts
+          .sort((a, b) => b.voteCount - a.voteCount)
+          .map((s, index) => ({
+            event_id: event.id,
+            bgg_id: s.bgg_id,
+            game_name: s.game_name,
+            thumbnail_url: s.thumbnail_url,
+            min_players: s.min_players,
+            max_players: s.max_players,
+            playing_time: s.playing_time,
+            is_primary: index === 0,
+            is_alternative: index > 0,
+          }))
+
+        await supabase.from('event_games').insert(eventGames)
+      }
+
       // Handle multi-table session setup
       if (isMultiTable) {
         // Create event_tables

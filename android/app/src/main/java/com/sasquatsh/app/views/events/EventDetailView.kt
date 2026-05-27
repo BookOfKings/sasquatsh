@@ -1051,7 +1051,7 @@ private fun PlayersAndItemsSection(
 
             unclaimedItems.forEach { item ->
                 val canEditItem = isHost || item.claimedByUserId == currentUserId
-                val canDeleteItem = isHost
+                val canDeleteItem = isHost || item.claimedByUserId == currentUserId
                 var itemMenuExpanded by remember { mutableStateOf(false) }
 
                 Row(
@@ -1162,22 +1162,16 @@ private fun PlayerRow(
             // Items this player is bringing
             items?.forEach { item ->
                 val canEditItem = isHost || item.claimedByUserId == currentUserId
-                val canDeleteItem = isHost
-                var itemMenuExpanded by remember { mutableStateOf(false) }
+                val canDeleteItem = isHost || item.claimedByUserId == currentUserId
+                var itemMenuExpanded by remember(item.id) { mutableStateOf(false) }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = item.itemName,
+                        text = item.itemName + if (item.quantityNeeded > 1) " x${item.quantityNeeded}" else "",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
-                    if (item.quantityNeeded > 1) {
-                        Text(
-                            text = " x${item.quantityNeeded}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
                     if (canEditItem || canDeleteItem) {
                         Box {
                             IconButton(onClick = { itemMenuExpanded = true }, modifier = Modifier.size(22.dp)) {

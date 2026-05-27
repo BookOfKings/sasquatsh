@@ -63,9 +63,17 @@ fun MyDecksView(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var deckToDelete by remember { mutableStateOf<MtgDeck?>(null) }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
 
-    LaunchedEffect(Unit) {
-        viewModel.loadDecks()
+    // Reload decks when returning to this screen
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                viewModel.loadDecks()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     Scaffold(

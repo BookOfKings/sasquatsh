@@ -67,16 +67,16 @@ import com.sasquatsh.app.viewmodels.DeckBuilderViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeckBuilderView(
-    deck: MtgDeck?,
+    deckId: String? = null,
     onDismiss: () -> Unit,
     viewModel: DeckBuilderViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var formatExpanded by remember { mutableStateOf(false) }
 
-    LaunchedEffect(deck) {
-        if (deck != null) {
-            viewModel.loadForEdit(deck)
+    LaunchedEffect(deckId) {
+        if (deckId != null) {
+            viewModel.loadDeckById(deckId)
         }
     }
 
@@ -311,13 +311,11 @@ fun DeckBuilderView(
             // Search results
             if (uiState.searchResults.isNotEmpty()) {
                 items(uiState.searchResults.take(8)) { card ->
+                    val inDeck = uiState.cards.find { it.scryfallId == card.scryfallId }
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable {
-                                viewModel.addCard(card)
-                                viewModel.clearSearch()
-                            },
+                            .clickable { viewModel.addCard(card) },
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surface
                         )
@@ -363,6 +361,14 @@ fun DeckBuilderView(
                                 }
                             }
                             Spacer(modifier = Modifier.width(4.dp))
+                            if (inDeck != null) {
+                                Text(
+                                    "x${inDeck.quantity}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                            }
                             Icon(
                                 Icons.Default.AddCircle,
                                 contentDescription = "Add",

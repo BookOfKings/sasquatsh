@@ -86,6 +86,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -628,30 +629,88 @@ private fun FinalizedBanner(session: PlanningSession, onNavigateToEvent: (String
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .background(Color(0xFF2196F3).copy(alpha = 0.08f), RoundedCornerShape(12.dp))
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(Icons.Filled.Verified, null, tint = Color(0xFF2196F3))
-            Text(
-                "This session has been finalized",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium
-            )
+        // Finalized status banner
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF2196F3).copy(alpha = 0.08f), RoundedCornerShape(12.dp))
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Filled.Verified, null, tint = Color(0xFF2196F3))
+                Text(
+                    "This session has been finalized",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            session.finalizedDate?.let {
+                Text(
+                    "Event date: ${formatEventDate(it)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            session.createdEventId?.let { eventId ->
+                Button(onClick = { onNavigateToEvent(eventId) }) {
+                    Text("View Event")
+                }
+            }
         }
-        session.finalizedDate?.let {
-            Text(
-                "Event date: ${formatEventDate(it)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        session.createdEventId?.let { eventId ->
-            Button(onClick = { onNavigateToEvent(eventId) }) {
-                Text("View Event")
+
+        // Games list
+        val games = session.gameSuggestions
+        if (!games.isNullOrEmpty()) {
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Casino, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                        Text("Games", style = MaterialTheme.typography.titleSmall)
+                    }
+                    games.sortedByDescending { it.voteCount }.forEach { game ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            game.thumbnailUrl?.let { url ->
+                                AsyncImage(
+                                    model = url,
+                                    contentDescription = game.gameName,
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(RoundedCornerShape(6.dp)),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(game.gameName, style = MaterialTheme.typography.bodyMedium)
+                                val details = listOfNotNull(
+                                    game.playingTime?.let { "${it}min" },
+                                    if (game.minPlayers != null && game.maxPlayers != null) "${game.minPlayers}-${game.maxPlayers}p" else null
+                                ).joinToString(" · ")
+                                if (details.isNotEmpty()) {
+                                    Text(details, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                            if (game.voteCount > 0) {
+                                Text(
+                                    "${game.voteCount} vote${if (game.voteCount != 1) "s" else ""}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }

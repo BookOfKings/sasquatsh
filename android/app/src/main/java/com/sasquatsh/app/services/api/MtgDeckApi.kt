@@ -7,7 +7,7 @@ interface MtgDeckApi {
 
     // GET mtg-decks
     @GET("mtg-decks")
-    suspend fun getMyDecks(): Response<List<Any>>
+    suspend fun getMyDecks(): Response<Any>
 
     // GET mtg-decks?id=...
     @GET("mtg-decks")

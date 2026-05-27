@@ -210,6 +210,19 @@ class DeckBuilderViewModel @Inject constructor(
         }
     }
 
+    fun loadDeckById(id: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+            try {
+                val deck = mtgDeckService.getDeck(id)
+                loadForEdit(deck)
+                _uiState.update { it.copy(isLoading = false) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.localizedMessage, isLoading = false) }
+            }
+        }
+    }
+
     fun saveDeck(onSuccess: (MtgDeck) -> Unit) {
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true, error = null) }
@@ -229,28 +242,24 @@ class DeckBuilderViewModel @Inject constructor(
                     _uiState.update { it.copy(isSaving = false) }
                     onSuccess(deck)
                 } else {
-                    val input = CreateDeckInput(
+                    val cards = state.cards.map { card ->
+                        mapOf(
+                            "scryfallId" to card.scryfallId,
+                            "quantity" to card.quantity,
+                            "board" to card.board,
+                            "cardName" to (card.card?.name ?: "")
+                        )
+                    }
+                    val deck = mtgDeckService.createDeckWithCards(
                         name = state.deckName,
                         formatId = state.formatId,
                         description = state.description.ifEmpty { null },
                         powerLevel = state.powerLevel,
-                        isPublic = state.isPublic
+                        isPublic = state.isPublic,
+                        cards = cards
                     )
-                    val deck = mtgDeckService.createDeck(input)
                     deckId = deck.id
-                    _uiState.update { it.copy(isEditing = true) }
-
-                    // Add cards to the newly created deck
-                    for (card in state.cards) {
-                        val cardInput = DeckCardInput(
-                            scryfallId = card.scryfallId,
-                            quantity = card.quantity,
-                            board = card.board
-                        )
-                        mtgDeckService.addCard(deck.id, cardInput)
-                    }
-
-                    _uiState.update { it.copy(isSaving = false) }
+                    _uiState.update { it.copy(isEditing = true, isSaving = false) }
                     onSuccess(deck)
                 }
             } catch (e: Exception) {

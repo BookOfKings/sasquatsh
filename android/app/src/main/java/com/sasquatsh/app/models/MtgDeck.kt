@@ -74,16 +74,16 @@ data class ScryfallCardFace(
 @JsonClass(generateAdapter = true)
 data class MtgDeck(
     @Json(name = "id") val id: String,
-    @Json(name = "ownerUserId") val ownerUserId: String? = null,
+    @Json(name = "owner_user_id") val ownerUserId: String? = null,
     @Json(name = "name") val name: String,
-    @Json(name = "formatId") val formatId: String? = null,
-    @Json(name = "commanderScryfallId") val commanderScryfallId: String? = null,
-    @Json(name = "partnerCommanderScryfallId") val partnerCommanderScryfallId: String? = null,
+    @Json(name = "format_id") val formatId: String? = null,
+    @Json(name = "commander_scryfall_id") val commanderScryfallId: String? = null,
+    @Json(name = "partner_commander_scryfall_id") val partnerCommanderScryfallId: String? = null,
     @Json(name = "description") val description: String? = null,
-    @Json(name = "powerLevel") val powerLevel: Int? = null,
-    @Json(name = "isPublic") val isPublic: Boolean? = null,
+    @Json(name = "power_level") val powerLevel: Int? = null,
+    @Json(name = "is_public") val isPublic: Boolean? = null,
     @Json(name = "cards") val cards: List<MtgDeckCard>? = null,
-    @Json(name = "cardCount") val cardCount: Int? = null,
+    @Json(name = "card_count") val cardCount: Int? = null,
     @Json(name = "commander") val commander: ScryfallCard? = null,
     @Json(name = "partnerCommander") val partnerCommander: ScryfallCard? = null
 )
@@ -91,13 +91,14 @@ data class MtgDeck(
 @JsonClass(generateAdapter = true)
 data class MtgDeckCard(
     @Json(name = "id") val id: String,
-    @Json(name = "deckId") val deckId: String? = null,
-    @Json(name = "scryfallId") val scryfallId: String,
+    @Json(name = "deck_id") val deckId: String? = null,
+    @Json(name = "scryfall_id") val scryfallId: String,
     @Json(name = "quantity") val quantity: Int,
     @Json(name = "board") val board: String,
     @Json(name = "card") val card: ScryfallCard? = null
 )
 
+@JsonClass(generateAdapter = true)
 data class CreateDeckInput(
     @Json(name = "name") val name: String,
     @Json(name = "formatId") val formatId: String? = null,
@@ -106,6 +107,7 @@ data class CreateDeckInput(
     @Json(name = "isPublic") val isPublic: Boolean? = null
 )
 
+@JsonClass(generateAdapter = true)
 data class UpdateDeckInput(
     @Json(name = "name") val name: String? = null,
     @Json(name = "formatId") val formatId: String? = null,
@@ -116,6 +118,7 @@ data class UpdateDeckInput(
     @Json(name = "partnerCommanderScryfallId") val partnerCommanderScryfallId: String? = null
 )
 
+@JsonClass(generateAdapter = true)
 data class DeckCardInput(
     @Json(name = "scryfallId") val scryfallId: String,
     @Json(name = "quantity") val quantity: Int,
