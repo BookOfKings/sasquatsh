@@ -437,20 +437,7 @@ struct EventDetailView: View {
                                 // Show items this player is bringing
                                 if let items = event.items?.filter({ $0.claimedByUserId == reg.userId }), !items.isEmpty {
                                     ForEach(items) { item in
-                                        HStack(spacing: 4) {
-                                            Image(systemName: "bag.fill")
-                                                .font(.system(size: 10))
-                                                .foregroundStyle(Color.md3Primary)
-                                            Text(item.itemName)
-                                                .font(.md3LabelSmall)
-                                                .foregroundStyle(Color.md3OnSurfaceVariant)
-                                            if item.quantityNeeded > 1 {
-                                                Text("x\(item.quantityNeeded)")
-                                                    .font(.md3LabelSmall)
-                                                    .foregroundStyle(Color.md3OnSurfaceVariant)
-                                            }
-                                        }
-                                        .contextMenu { itemContextMenu(item) }
+                                        claimedItemChip(item)
                                     }
                                 }
                             }
@@ -616,6 +603,15 @@ struct EventDetailView: View {
         return vm.isHost(userId: userId)
     }
 
+    private func canUnclaimItem(_ item: EventItem) -> Bool {
+        guard let userId = authVM.user?.id else { return false }
+        return item.claimedByUserId == userId
+    }
+
+    private func hasAnyItemAction(_ item: EventItem) -> Bool {
+        canEditItem(item) || canUnclaimItem(item) || canDeleteItem(item)
+    }
+
     private func beginEditItem(_ item: EventItem) {
         editingItemId = item.id
         newItemName = item.itemName
@@ -633,12 +629,52 @@ struct EventDetailView: View {
                 Label("Edit", systemImage: "pencil")
             }
         }
+        if canUnclaimItem(item) {
+            Button {
+                Task { await vm.unclaimItem(item.id) }
+            } label: {
+                Label("Drop", systemImage: "hand.raised")
+            }
+        }
         if canDeleteItem(item) {
             Button(role: .destructive) {
                 deletingItemId = item.id
             } label: {
                 Label("Delete", systemImage: "trash")
             }
+        }
+    }
+
+    @ViewBuilder
+    private func claimedItemChip(_ item: EventItem) -> some View {
+        let chip = HStack(spacing: 4) {
+            Image(systemName: "bag.fill")
+                .font(.system(size: 10))
+                .foregroundStyle(Color.md3Primary)
+            Text(item.itemName)
+                .font(.md3LabelSmall)
+                .foregroundStyle(Color.md3OnSurfaceVariant)
+            if item.quantityNeeded > 1 {
+                Text("x\(item.quantityNeeded)")
+                    .font(.md3LabelSmall)
+                    .foregroundStyle(Color.md3OnSurfaceVariant)
+            }
+            if hasAnyItemAction(item) {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8))
+                    .foregroundStyle(Color.md3OnSurfaceVariant.opacity(0.6))
+            }
+        }
+
+        if hasAnyItemAction(item) {
+            Menu {
+                itemContextMenu(item)
+            } label: {
+                chip
+            }
+            .contextMenu { itemContextMenu(item) }
+        } else {
+            chip
         }
     }
 
