@@ -37,23 +37,23 @@ const referralLinkCopied = ref(false)
 // Check if initial page load is still in progress
 const isInitialLoading = computed(() => loadingMy.value && loadingHosted.value && loadingGroups.value)
 
+// Get today's date for filtering
+const today = new Date().toISOString().split('T')[0] ?? ''
+
 // Filter to pending planning invitations (open sessions where user hasn't accepted yet)
 const pendingPlanningInvitations = computed(() =>
-  planningInvitations.value.filter(p => p.status === 'open' && !p.acceptedAt && !p.hasResponded)
+  planningInvitations.value.filter(p => p.status === 'open' && !p.acceptedAt && !p.hasResponded && p.responseDeadline >= today)
 )
 
 // Needs response sessions (accepted but not responded yet)
 const needsResponseSessions = computed(() =>
-  planningInvitations.value.filter(p => p.status === 'open' && p.acceptedAt && !p.hasResponded)
+  planningInvitations.value.filter(p => p.status === 'open' && p.acceptedAt && !p.hasResponded && p.responseDeadline >= today)
 )
 
 // Active planning sessions (user has responded and is attending, session still open)
 const myActivePlanningSessions = computed(() =>
-  planningInvitations.value.filter(p => p.status === 'open' && p.hasResponded && !p.cannotAttendAny)
+  planningInvitations.value.filter(p => p.status === 'open' && p.hasResponded && !p.cannotAttendAny && p.responseDeadline >= today)
 )
-
-// Get today's date for filtering
-const today = new Date().toISOString().split('T')[0] ?? ''
 
 // Filter to only upcoming games (today or future)
 const myGames = computed(() =>

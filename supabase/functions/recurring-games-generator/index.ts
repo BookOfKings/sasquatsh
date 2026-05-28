@@ -83,15 +83,15 @@ async function generatePlanningSession(
   rg: Record<string, unknown>,
   nextDate: string
 ): Promise<boolean> {
-  // Only one open session at a time: skip if there's already an open session for this recurring game
-  const { data: openSession } = await supabase
+  // Skip if there are already 2+ open sessions for this recurring game
+  // (allows overlapping sessions for weekly games where deadlines span multiple weeks)
+  const { data: openSessions } = await supabase
     .from('planning_sessions')
     .select('id')
     .eq('from_recurring_game_id', rg.id)
     .eq('status', 'open')
-    .maybeSingle()
 
-  if (openSession) return false // wait for current session to finalize
+  if (openSessions && openSessions.length >= 2) return false // limit concurrent open sessions
 
   // Idempotency check: planning session already exists for this date?
   const { data: existingSession } = await supabase
@@ -470,12 +470,11 @@ Deno.serve(async (req) => {
 
         if (created) {
           generated.push(rg.id)
+          // Only advance next_occurrence_date when a session/event was actually created
+          await advanceNextDate(supabase, rg, nextDate)
         } else {
           skipped++
         }
-
-        // Advance next_occurrence_date regardless
-        await advanceNextDate(supabase, rg, nextDate)
       } catch (err) {
         errors.push(`Unexpected error for recurring game ${rg.id}: ${(err as Error).message}`)
       }
