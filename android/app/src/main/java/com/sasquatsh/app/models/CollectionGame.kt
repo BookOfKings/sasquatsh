@@ -23,6 +23,7 @@ data class CollectionResponse(
     @Json(name = "added") val added: Int? = null
 )
 
+@JsonClass(generateAdapter = true)
 data class AddCollectionGameInput(
     @Json(name = "bggId") val bggId: Int,
     @Json(name = "name") val name: String,

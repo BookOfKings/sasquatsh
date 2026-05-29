@@ -125,6 +125,7 @@ data class DeckCardInput(
     @Json(name = "board") val board: String
 )
 
+@JsonClass(generateAdapter = true)
 data class ImportDeckInput(
     @Json(name = "name") val name: String? = null,
     @Json(name = "formatId") val formatId: String? = null,

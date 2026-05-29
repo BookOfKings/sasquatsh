@@ -14,24 +14,33 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Inbox
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.outlined.AddCircleOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -53,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.sasquatsh.app.models.AddCollectionGameInput
+import com.sasquatsh.app.models.BggCollectionGame
 import com.sasquatsh.app.models.BggSearchResult
 import com.sasquatsh.app.models.CollectionGame
 import com.sasquatsh.app.views.shared.D20SpinnerView
@@ -111,17 +121,22 @@ fun MyCollectionView(
                     Tab(
                         selected = uiState.activeTab == 0,
                         onClick = { viewModel.updateActiveTab(0) },
-                        text = { Text("My Games (${uiState.myGames.size})") }
+                        text = { Text("Games", style = MaterialTheme.typography.labelSmall, maxLines = 1) }
                     )
                     Tab(
                         selected = uiState.activeTab == 1,
                         onClick = { viewModel.updateActiveTab(1) },
-                        text = { Text("Top 50") }
+                        text = { Text("Top 50", style = MaterialTheme.typography.labelSmall, maxLines = 1) }
                     )
                     Tab(
                         selected = uiState.activeTab == 2,
                         onClick = { viewModel.updateActiveTab(2) },
-                        text = { Text("Search") }
+                        text = { Text("Search", style = MaterialTheme.typography.labelSmall, maxLines = 1) }
+                    )
+                    Tab(
+                        selected = uiState.activeTab == 3,
+                        onClick = { viewModel.updateActiveTab(3) },
+                        text = { Text("Import", style = MaterialTheme.typography.labelSmall, maxLines = 1) }
                     )
                 }
 
@@ -143,6 +158,7 @@ fun MyCollectionView(
                 0 -> MyGamesTab(uiState, viewModel)
                 1 -> TopGamesTab(uiState, viewModel)
                 2 -> SearchTab(uiState, viewModel)
+                3 -> ImportBggTab(uiState, viewModel)
             }
         }
     }
@@ -352,6 +368,271 @@ private fun SearchTab(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ImportBggTab(
+    uiState: com.sasquatsh.app.viewmodels.CollectionUiState,
+    viewModel: CollectionViewModel
+) {
+    LaunchedEffect(Unit) {
+        viewModel.prefillBggUsername()
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(bottom = 20.dp)
+    ) {
+        // BGG logo + description
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            PoweredByBggLogo(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                height = 36.dp
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "Import your BoardGameGeek collection",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Username input
+        OutlinedTextField(
+            value = uiState.bggUsername,
+            onValueChange = { viewModel.updateBggUsername(it) },
+            placeholder = { Text("BGG Username") },
+            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+            trailingIcon = {
+                if (uiState.isFetchingBgg) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            singleLine = true
+        )
+
+        // Hint about profile BGG username
+        if (uiState.bggUsername.isEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Default.Info,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    "Set your BGG username in your Profile to auto-fill this field.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Fetch button
+        Button(
+            onClick = { viewModel.fetchBggCollection() },
+            enabled = uiState.bggUsername.trim().isNotEmpty() && !uiState.isFetchingBgg,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+        ) {
+            Text("Fetch Collection")
+        }
+
+        // Error message
+        uiState.bggError?.let { error ->
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                error,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        }
+
+        // Import result
+        uiState.bggImportResult?.let { result ->
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                result,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        }
+
+        // Games list + sync buttons
+        if (uiState.bggGames.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                "${uiState.bggGames.size} games found on BGG",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Sync buttons
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Button(
+                    onClick = { viewModel.importAddNewOnly() },
+                    enabled = !uiState.isImporting,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Add New Only", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+
+                Button(
+                    onClick = { viewModel.importFullSync() },
+                    enabled = !uiState.isImporting,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Full Sync", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+            }
+
+            // Importing indicator
+            if (uiState.isImporting) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "Importing...",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Description of sync modes
+            Text(
+                "Add New Only \u2014 adds games from BGG not already in your collection\n" +
+                        "Full Sync \u2014 makes your collection match BGG exactly (removes games not on BGG)",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Preview list (show first 20)
+            val previewGames = uiState.bggGames.take(20)
+            previewGames.forEach { game ->
+                BggCollectionGameRow(
+                    game = game,
+                    isOwned = uiState.ownedBggIds.contains(game.bggId)
+                )
+            }
+
+            if (uiState.bggGames.size > 20) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "...and ${uiState.bggGames.size - 20} more",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BggCollectionGameRow(
+    game: BggCollectionGame,
+    isOwned: Boolean
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        game.thumbnailUrl?.let { url ->
+            AsyncImage(
+                model = url,
+                contentDescription = game.name,
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(6.dp)),
+                contentScale = ContentScale.Crop
+            )
+        } ?: Box(modifier = Modifier.size(40.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                game.name,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            game.yearPublished?.let {
+                Text(
+                    "$it",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        if (isOwned) {
+            Icon(
+                Icons.Default.CheckCircle,
+                contentDescription = "Already owned",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(16.dp)
+            )
         }
     }
 }

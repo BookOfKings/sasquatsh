@@ -281,6 +281,7 @@ data class Warhammer40kEventConfig(
 
 // ─── Input models (sent to backend) ───
 
+@JsonClass(generateAdapter = true)
 data class MtgEventConfigInput(
     @Json(name = "formatId") val formatId: String? = null,
     @Json(name = "customFormatName") val customFormatName: String? = null,
@@ -310,6 +311,7 @@ data class MtgEventConfigInput(
     @Json(name = "houseRulesNotes") val houseRulesNotes: String? = null
 )
 
+@JsonClass(generateAdapter = true)
 data class PokemonEventConfigInput(
     @Json(name = "formatId") val formatId: String? = null,
     @Json(name = "customFormatName") val customFormatName: String? = null,
@@ -342,6 +344,7 @@ data class PokemonEventConfigInput(
     @Json(name = "allowSpectators") val allowSpectators: Boolean? = null
 )
 
+@JsonClass(generateAdapter = true)
 data class YugiohEventConfigInput(
     @Json(name = "formatId") val formatId: String? = null,
     @Json(name = "customFormatName") val customFormatName: String? = null,
@@ -677,6 +680,7 @@ data class Warhammer40kConfigState(
     }
 }
 
+@JsonClass(generateAdapter = true)
 data class Warhammer40kEventConfigInput(
     @Json(name = "gameType") val gameType: String? = null,
     @Json(name = "pointsLimit") val pointsLimit: Int? = null,

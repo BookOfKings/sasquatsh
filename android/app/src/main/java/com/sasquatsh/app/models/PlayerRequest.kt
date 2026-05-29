@@ -31,12 +31,14 @@ data class PlayerRequestEvent(
     @Json(name = "locationDetails") val locationDetails: String? = null
 )
 
+@JsonClass(generateAdapter = true)
 data class CreatePlayerRequestInput(
     @Json(name = "eventId") val eventId: String,
     @Json(name = "description") val description: String? = null,
     @Json(name = "playerCountNeeded") val playerCountNeeded: Int? = null
 )
 
+@JsonClass(generateAdapter = true)
 data class UpdatePlayerRequestInput(
     @Json(name = "description") val description: String? = null,
     @Json(name = "playerCountNeeded") val playerCountNeeded: Int? = null
@@ -79,6 +81,7 @@ data class EventLocation(
     @Json(name = "createdBy") val createdBy: UserSummary? = null
 )
 
+@JsonClass(generateAdapter = true)
 data class CreateEventLocationInput(
     @Json(name = "name") val name: String,
     @Json(name = "city") val city: String,
@@ -118,6 +121,7 @@ data class GameInvitationEvent(
     @Json(name = "host") val host: UserSummary? = null
 )
 
+@JsonClass(generateAdapter = true)
 data class CreateGameInvitationInput(
     @Json(name = "eventId") val eventId: String,
     @Json(name = "email") val email: String? = null,

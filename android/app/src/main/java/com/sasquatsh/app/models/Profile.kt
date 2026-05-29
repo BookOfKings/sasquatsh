@@ -24,6 +24,7 @@ data class UserProfile(
     @Json(name = "activeLocationRoom") val activeLocationRoom: String? = null,
     @Json(name = "activeLocationTable") val activeLocationTable: String? = null,
     @Json(name = "timezone") val timezone: String? = null,
+    @Json(name = "bggUsername") val bggUsername: String? = null,
     @Json(name = "bio") val bio: String? = null,
     @Json(name = "favoriteGames") val favoriteGames: List<String>? = null,
     @Json(name = "preferredGameTypes") val preferredGameTypes: List<String>? = null,
@@ -104,6 +105,7 @@ data class BlockedUser(
     @Json(name = "avatarUrl") val avatarUrl: String? = null
 )
 
+@JsonClass(generateAdapter = true)
 data class UpdateProfileInput(
     @Json(name = "username") val username: String? = null,
     @Json(name = "displayName") val displayName: String? = null,
@@ -121,6 +123,7 @@ data class UpdateProfileInput(
     @Json(name = "activeLocationRoom") val activeLocationRoom: String? = null,
     @Json(name = "activeLocationTable") val activeLocationTable: String? = null,
     @Json(name = "timezone") val timezone: String? = null,
+    @Json(name = "bggUsername") val bggUsername: String? = null,
     @Json(name = "bio") val bio: String? = null,
     @Json(name = "favoriteGames") val favoriteGames: List<String>? = null,
     @Json(name = "preferredGameTypes") val preferredGameTypes: List<String>? = null,

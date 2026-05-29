@@ -15,6 +15,7 @@ data class User(
     @Json(name = "subscriptionOverrideTier") val subscriptionOverrideTier: SubscriptionTier? = null,
     @Json(name = "isAdmin") val isAdmin: Boolean = false,
     @Json(name = "blockedUserIds") val blockedUserIds: List<String> = emptyList(),
+    @Json(name = "bggUsername") val bggUsername: String? = null,
     @Json(name = "createdAt") val createdAt: String? = null
 ) {
     val effectiveTier: SubscriptionTier

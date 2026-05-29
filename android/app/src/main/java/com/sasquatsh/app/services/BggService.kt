@@ -1,6 +1,7 @@
 package com.sasquatsh.app.services
 
 import com.sasquatsh.app.models.BggCacheListResponse
+import com.sasquatsh.app.models.BggCollectionResponse
 import com.sasquatsh.app.models.BggGame
 import com.sasquatsh.app.models.BggSearchResult
 import com.sasquatsh.app.services.api.BggApi
@@ -29,6 +30,14 @@ class BggService @Inject constructor(
         val json = moshi.adapter(Any::class.java).toJson(response.body())
         return moshi.adapter(BggGame::class.java).fromJson(json)
             ?: throw Exception("Failed to parse game details")
+    }
+
+    suspend fun fetchCollection(username: String): BggCollectionResponse {
+        val response = bggApi.fetchCollection(username)
+        if (!response.isSuccessful) throw Exception("Failed to fetch BGG collection")
+        val json = moshi.adapter(Any::class.java).toJson(response.body())
+        return moshi.adapter(BggCollectionResponse::class.java).fromJson(json)
+            ?: throw Exception("Failed to parse BGG collection")
     }
 
     suspend fun listCachedGames(page: Int = 1, limit: Int = 100): BggCacheListResponse {

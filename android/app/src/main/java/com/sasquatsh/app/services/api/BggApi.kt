@@ -17,6 +17,12 @@ interface BggApi {
         @Query("id") bggId: Int
     ): Response<Any>
 
+    // GET bgg?collection=...
+    @GET("bgg")
+    suspend fun fetchCollection(
+        @Query("collection") username: String
+    ): Response<Any>
+
     // GET bgg-cache?action=list&page=...&limit=...
     @GET("bgg-cache")
     suspend fun listCachedGames(

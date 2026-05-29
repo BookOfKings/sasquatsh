@@ -120,6 +120,7 @@ data class PlanningItem(
     @Json(name = "claimedBy") val claimedBy: UserSummary? = null
 )
 
+@JsonClass(generateAdapter = true)
 data class CreatePlanningSessionInput(
     @Json(name = "groupId") val groupId: String,
     @Json(name = "title") val title: String,
@@ -132,27 +133,32 @@ data class CreatePlanningSessionInput(
     @Json(name = "tableCount") val tableCount: Int? = null
 )
 
+@JsonClass(generateAdapter = true)
 data class ProposedDateInput(
     @Json(name = "date") val date: String,
     @Json(name = "startTime") val startTime: String? = null
 )
 
+@JsonClass(generateAdapter = true)
 data class PlanningResponseInput(
     @Json(name = "cannotAttendAny") val cannotAttendAny: Boolean,
     @Json(name = "dateAvailability") val dateAvailability: List<DateAvailabilityInput>
 )
 
+@JsonClass(generateAdapter = true)
 data class DateAvailabilityInput(
     @Json(name = "dateId") val dateId: String,
     @Json(name = "isAvailable") val isAvailable: Boolean
 )
 
+@JsonClass(generateAdapter = true)
 data class AddPlanningItemInput(
     @Json(name = "itemName") val itemName: String,
     @Json(name = "itemCategory") val itemCategory: ItemCategory,
     @Json(name = "quantityNeeded") val quantityNeeded: Int? = null
 )
 
+@JsonClass(generateAdapter = true)
 data class SuggestGameInput(
     @Json(name = "gameName") val gameName: String,
     @Json(name = "bggId") val bggId: Int? = null,
@@ -162,6 +168,7 @@ data class SuggestGameInput(
     @Json(name = "playingTime") val playingTime: Int? = null
 )
 
+@JsonClass(generateAdapter = true)
 data class ScheduleEntry(
     @Json(name = "suggestionId") val suggestionId: String,
     @Json(name = "tableNumber") val tableNumber: Int,

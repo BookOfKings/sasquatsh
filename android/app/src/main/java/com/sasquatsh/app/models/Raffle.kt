@@ -112,6 +112,7 @@ data class RaffleResponse(
     @Json(name = "raffle") val raffle: Raffle? = null
 )
 
+@JsonClass(generateAdapter = true)
 data class MailInEntryInput(
     @Json(name = "raffleId") val raffleId: String,
     @Json(name = "name") val name: String,

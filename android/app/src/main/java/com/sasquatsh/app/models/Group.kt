@@ -142,6 +142,7 @@ data class RecurringGame(
         }
 }
 
+@JsonClass(generateAdapter = true)
 data class CreateGroupInput(
     @Json(name = "name") val name: String,
     @Json(name = "description") val description: String? = null,
@@ -152,6 +153,7 @@ data class CreateGroupInput(
     @Json(name = "joinPolicy") val joinPolicy: JoinPolicy? = null
 )
 
+@JsonClass(generateAdapter = true)
 data class UpdateGroupInput(
     @Json(name = "name") val name: String? = null,
     @Json(name = "description") val description: String? = null,
@@ -179,6 +181,7 @@ data class GroupSearchFilter(
     }
 }
 
+@JsonClass(generateAdapter = true)
 data class CreateInvitationInput(
     @Json(name = "userId") val userId: String? = null,
     @Json(name = "email") val email: String? = null,
@@ -230,6 +233,7 @@ data class GroupMembership(
     @Json(name = "user") val user: UserSummary? = null
 )
 
+@JsonClass(generateAdapter = true)
 data class CreateRecurringGameInput(
     @Json(name = "groupId") val groupId: String,
     @Json(name = "title") val title: String,
@@ -253,6 +257,7 @@ data class CreateRecurringGameInput(
     @Json(name = "isPublic") val isPublic: Boolean? = null
 )
 
+@JsonClass(generateAdapter = true)
 data class UpdateRecurringGameInput(
     @Json(name = "title") val title: String? = null,
     @Json(name = "description") val description: String? = null,

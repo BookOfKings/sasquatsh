@@ -141,6 +141,7 @@ data class EventGameSession(
     @Json(name = "isUserRegistered") val isUserRegistered: Boolean = false
 )
 
+@JsonClass(generateAdapter = true)
 data class CreateEventInput(
     @Json(name = "title") val title: String,
     @Json(name = "description") val description: String? = null,
@@ -175,6 +176,7 @@ data class CreateEventInput(
     @Json(name = "warhammer40kConfig") val warhammer40kConfig: Warhammer40kEventConfigInput? = null
 )
 
+@JsonClass(generateAdapter = true)
 data class UpdateEventInput(
     @Json(name = "title") val title: String,
     @Json(name = "description") val description: String? = null,
@@ -208,6 +210,7 @@ data class UpdateEventInput(
     @Json(name = "warhammer40kConfig") val warhammer40kConfig: Warhammer40kEventConfigInput? = null
 )
 
+@JsonClass(generateAdapter = true)
 data class CreateEventItemInput(
     @Json(name = "itemName") val itemName: String,
     @Json(name = "itemCategory") val itemCategory: String? = null,

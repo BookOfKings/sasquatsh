@@ -56,6 +56,23 @@ data class BggCacheListResponse(
 )
 
 @JsonClass(generateAdapter = true)
+data class BggCollectionGame(
+    @Json(name = "bggId") val bggId: Int,
+    @Json(name = "name") val name: String,
+    @Json(name = "yearPublished") val yearPublished: Int? = null,
+    @Json(name = "thumbnailUrl") val thumbnailUrl: String? = null,
+    @Json(name = "imageUrl") val imageUrl: String? = null
+) {
+    val id: Int get() = bggId
+}
+
+@JsonClass(generateAdapter = true)
+data class BggCollectionResponse(
+    @Json(name = "games") val games: List<BggCollectionGame>,
+    @Json(name = "username") val username: String
+)
+
+@JsonClass(generateAdapter = true)
 data class EventGame(
     @Json(name = "id") val id: String,
     @Json(name = "eventId") val eventId: String,
@@ -71,6 +88,7 @@ data class EventGame(
     @Json(name = "createdAt") val createdAt: String
 )
 
+@JsonClass(generateAdapter = true)
 data class AddEventGameInput(
     @Json(name = "eventId") val eventId: String,
     @Json(name = "bggId") val bggId: Int? = null,
