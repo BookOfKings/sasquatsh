@@ -89,10 +89,12 @@ Deno.serve(async (req) => {
       headers: { 'Content-Type': 'application/json' },
     })
   } catch (err) {
-    console.error('Error processing webhook:', err)
+    // Return 200 to acknowledge receipt and prevent infinite Stripe retries.
+    // The error is logged for manual investigation.
+    console.error('Error processing webhook:', event.type, event.id, err)
     return new Response(
-      JSON.stringify({ error: err instanceof Error ? err.message : 'Unknown error' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+      JSON.stringify({ received: true, error: err instanceof Error ? err.message : 'Unknown error' }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
     )
   }
 })

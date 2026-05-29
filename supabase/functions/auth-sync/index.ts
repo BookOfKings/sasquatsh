@@ -368,34 +368,41 @@ async function processReferralCredit(
   const referralCount = totalReferrals ?? 0
 
   if (referralCount > 0 && referralCount % 10 === 0) {
-    // Check if this milestone was already rewarded
-    const { data: existingReward } = await supabase
-      .from('referral_rewards')
-      .select('id')
-      .eq('user_id', referrerUserId)
-      .eq('referral_count_at_reward', referralCount)
-      .maybeSingle()
+    // Get current override expiry to stack
+    const { data: referrerUser } = await supabase
+      .from('users')
+      .select('subscription_override_tier, subscription_override_expires_at')
+      .eq('id', referrerUserId)
+      .single()
 
-    if (!existingReward) {
-      // Get current override expiry to stack
-      const { data: referrerUser } = await supabase
-        .from('users')
-        .select('subscription_override_tier, subscription_override_expires_at')
-        .eq('id', referrerUserId)
-        .single()
-
-      // Calculate new expiry: extend from current expiry or start from now
-      let baseDate = new Date()
-      if (referrerUser?.subscription_override_expires_at) {
-        const currentExpiry = new Date(referrerUser.subscription_override_expires_at)
-        if (currentExpiry > baseDate) {
-          baseDate = currentExpiry
-        }
+    // Calculate new expiry: extend from current expiry or start from now
+    let baseDate = new Date()
+    if (referrerUser?.subscription_override_expires_at) {
+      const currentExpiry = new Date(referrerUser.subscription_override_expires_at)
+      if (currentExpiry > baseDate) {
+        baseDate = currentExpiry
       }
+    }
 
-      const newExpiry = new Date(baseDate)
-      newExpiry.setMonth(newExpiry.getMonth() + 3)
+    const newExpiry = new Date(baseDate)
+    newExpiry.setMonth(newExpiry.getMonth() + 3)
 
+    // Upsert the milestone reward - ignoreDuplicates ensures only the first
+    // concurrent request actually inserts (relies on unique constraint on
+    // user_id + referral_count_at_reward)
+    const { status: rewardStatus } = await supabase
+      .from('referral_rewards')
+      .upsert(
+        {
+          user_id: referrerUserId,
+          referral_count_at_reward: referralCount,
+          pro_expires_at: newExpiry.toISOString(),
+        },
+        { onConflict: 'user_id,referral_count_at_reward', ignoreDuplicates: true }
+      )
+
+    // Status 201 means a new row was created; 200 means it was a duplicate that was ignored
+    if (rewardStatus === 201) {
       // Only upgrade, don't downgrade (e.g., don't overwrite 'premium' with 'pro')
       const currentOverride = referrerUser?.subscription_override_tier
       const shouldSetOverride = !currentOverride || currentOverride === 'free' || currentOverride === 'basic' || currentOverride === 'pro'
@@ -411,15 +418,8 @@ async function processReferralCredit(
 
         console.log(`Awarded 3 months Pro to ${referrerUserId} for ${referralCount} referrals (expires ${newExpiry.toISOString()})`)
       }
-
-      // Record the milestone
-      await supabase
-        .from('referral_rewards')
-        .insert({
-          user_id: referrerUserId,
-          referral_count_at_reward: referralCount,
-          pro_expires_at: newExpiry.toISOString(),
-        })
+    } else {
+      console.log(`Milestone reward for ${referralCount} referrals already exists for ${referrerUserId}, skipping`)
     }
   }
 }

@@ -484,7 +484,7 @@ Deno.serve(async (req) => {
       query = query.ilike('location_city', `%${safeCity}%`)
     }
     if (state) {
-      query = query.eq('location_state', state)
+      query = query.eq('location_state', escapeFilterValue(state))
     }
 
     const { data, error } = await query

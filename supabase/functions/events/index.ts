@@ -268,8 +268,8 @@ Deno.serve(async (req) => {
         }
       } else {
         // No radius search - use city/state text filtering
-        if (city) query = query.ilike('city', `%${city}%`)
-        if (state) query = query.eq('state', state)
+        if (city) query = query.ilike('city', `%${escapeFilterValue(city)}%`)
+        if (state) query = query.eq('state', escapeFilterValue(state))
       }
       if (gameCategory) query = query.eq('game_category', gameCategory)
       if (difficulty) query = query.eq('difficulty_level', difficulty)
@@ -437,6 +437,14 @@ Deno.serve(async (req) => {
         return errorResponse('You must be an owner or admin of the group to create events for it', 403)
       }
     }
+
+    // Input length validation
+    if (body.title && body.title.length > 200) return errorResponse('Title is too long (max 200 characters)', 400)
+    if (body.city && body.city.length > 100) return errorResponse('City name is too long (max 100 characters)', 400)
+    if (body.postalCode && body.postalCode.length > 20) return errorResponse('Postal code is too long (max 20 characters)', 400)
+    if (body.state && body.state.length > 50) return errorResponse('State is too long (max 50 characters)', 400)
+    if (body.description && body.description.length > 5000) return errorResponse('Description is too long (max 5000 characters)', 400)
+    if (body.addressLine1 && body.addressLine1.length > 200) return errorResponse('Address is too long (max 200 characters)', 400)
 
     // Require either a venue or a city+postal code for location (postal code needed for radius search)
     const hasVenue = !!body.eventLocationId
@@ -703,6 +711,14 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json()
+
+    // Input length validation
+    if (body.title && body.title.length > 200) return errorResponse('Title is too long (max 200 characters)', 400)
+    if (body.city && body.city.length > 100) return errorResponse('City name is too long (max 100 characters)', 400)
+    if (body.postalCode && body.postalCode.length > 20) return errorResponse('Postal code is too long (max 20 characters)', 400)
+    if (body.state && body.state.length > 50) return errorResponse('State is too long (max 50 characters)', 400)
+    if (body.description && body.description.length > 5000) return errorResponse('Description is too long (max 5000 characters)', 400)
+    if (body.addressLine1 && body.addressLine1.length > 200) return errorResponse('Address is too long (max 200 characters)', 400)
 
     // Require either a venue or a city+postal code for location (postal code needed for radius search)
     const hasVenue = !!body.eventLocationId

@@ -24,6 +24,8 @@ export interface Group {
     avatarUrl: string | null
     isFoundingMember?: boolean
     isAdmin?: boolean
+    subscriptionTier?: 'free' | 'basic' | 'pro' | 'premium'
+    subscriptionOverrideTier?: 'free' | 'basic' | 'pro' | 'premium'
   }
 }
 
