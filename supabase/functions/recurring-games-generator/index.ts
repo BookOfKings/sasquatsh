@@ -429,6 +429,41 @@ async function autoFinalizeSessions(
   return { finalized, errors }
 }
 
+// ── Auto-cancel expired non-recurring planning sessions ──────────────
+async function autoCancelExpiredSessions(
+  supabase: ReturnType<typeof createClient>
+): Promise<{ cancelled: number; errors: string[] }> {
+  const errors: string[] = []
+
+  // Find open planning sessions (without a recurring game) where deadline has passed
+  const { data: expiredSessions, error: fetchError } = await supabase
+    .from('planning_sessions')
+    .select('id, title')
+    .is('from_recurring_game_id', null)
+    .eq('status', 'open')
+    .lt('response_deadline', new Date().toISOString())
+
+  if (fetchError || !expiredSessions || expiredSessions.length === 0) {
+    return { cancelled: 0, errors: fetchError ? [fetchError.message] : [] }
+  }
+
+  const { error: updateError } = await supabase
+    .from('planning_sessions')
+    .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+    .in('id', expiredSessions.map(s => s.id))
+
+  if (updateError) {
+    errors.push(`Failed to cancel expired sessions: ${updateError.message}`)
+    return { cancelled: 0, errors }
+  }
+
+  for (const s of expiredSessions) {
+    console.log(`Auto-cancelled expired session ${s.id} (${s.title})`)
+  }
+
+  return { cancelled: expiredSessions.length, errors }
+}
+
 // ── Main handler ───────────────────────────────────────────────────────
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -480,15 +515,20 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── Pass 2: Auto-finalize expired planning sessions ────────────
+    // ── Pass 2: Auto-finalize expired recurring planning sessions ───
     const finalizeResult = await autoFinalizeSessions(supabase)
     errors.push(...finalizeResult.errors)
+
+    // ── Pass 3: Auto-cancel expired non-recurring planning sessions ─
+    const cancelResult = await autoCancelExpiredSessions(supabase)
+    errors.push(...cancelResult.errors)
 
     return new Response(
       JSON.stringify({
         generated: generated.length,
         skipped,
         autoFinalized: finalizeResult.finalized,
+        autoCancelled: cancelResult.cancelled,
         errors,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
