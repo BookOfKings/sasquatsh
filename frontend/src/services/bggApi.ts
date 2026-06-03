@@ -1,4 +1,5 @@
 import type { BggSearchResult, BggGame, EventGame, AddEventGameInput } from '@/types/bgg'
+import type { EventGameSuggestion } from '@/types/events'
 
 const FUNCTIONS_URL = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -111,5 +112,46 @@ export async function updateEventGame(
   return authenticatedRequest<EventGame>(`/event-games?id=${gameId}`, token, {
     method: 'PUT',
     body: JSON.stringify(data),
+  })
+}
+
+// Event game suggestions
+export async function suggestEventGame(
+  token: string,
+  eventId: string,
+  data: { gameName: string; bggId?: number; thumbnailUrl?: string; minPlayers?: number; maxPlayers?: number; playingTime?: number }
+): Promise<EventGameSuggestion> {
+  return authenticatedRequest<EventGameSuggestion>(`/event-games?action=suggest`, token, {
+    method: 'POST',
+    body: JSON.stringify({ eventId, ...data }),
+  })
+}
+
+export async function voteEventGameSuggestion(
+  token: string,
+  suggestionId: string
+): Promise<{ voted: boolean }> {
+  return authenticatedRequest<{ voted: boolean }>(`/event-games?action=vote&suggestionId=${suggestionId}`, token, {
+    method: 'POST',
+  })
+}
+
+export async function removeEventGameSuggestion(
+  token: string,
+  suggestionId: string
+): Promise<void> {
+  return authenticatedRequest<void>(`/event-games?action=remove-suggestion&suggestionId=${suggestionId}`, token, {
+    method: 'POST',
+  })
+}
+
+export async function approveEventGameSuggestion(
+  token: string,
+  eventId: string,
+  suggestionId: string
+): Promise<EventGame> {
+  return authenticatedRequest<EventGame>(`/event-games?action=approve&suggestionId=${suggestionId}`, token, {
+    method: 'POST',
+    body: JSON.stringify({ eventId }),
   })
 }

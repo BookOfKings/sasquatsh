@@ -116,6 +116,7 @@ export interface Event {
   items: EventItem[] | null
   games: EventGameSummary[] | null
   plannedGames: PlannedGame[] | null // Games from multi-game planning (2+ interested)
+  gameSuggestions: EventGameSuggestion[] | null
   groupId: string | null
   fromPlanningSessionId: string | null // Set if event was created from planning session
   createdAt: string
@@ -133,6 +134,24 @@ export interface Event {
   // Recurring game link
   fromRecurringGameId: string | null
   recurringGame: { id: string; title: string } | null
+}
+
+export interface EventGameSuggestion {
+  id: string
+  suggestedByUserId: string
+  bggId: number | null
+  gameName: string
+  thumbnailUrl: string | null
+  minPlayers: number | null
+  maxPlayers: number | null
+  playingTime: number | null
+  createdAt: string
+  voteCount: number
+  hasVoted: boolean
+  suggestedBy?: {
+    displayName: string | null
+    avatarUrl: string | null
+  } | null
 }
 
 export interface CreateEventInput {

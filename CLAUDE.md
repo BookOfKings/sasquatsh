@@ -84,6 +84,21 @@ gamenightapp/
 
 If a secret needs to be stored, put it in **Project Oracle secrets** or **Supabase secrets** — never in source code.
 
+## Pre-Deployment Code Review
+
+**MANDATORY**: Before deploying ANY code (frontend, edge functions, or migrations), you MUST launch a separate Agent to review all changed files. Do NOT skip this step.
+
+1. Spawn an Agent (subagent_type: "general-purpose") to review the diff of all files that will be deployed
+2. The review agent should check for:
+   - Security issues (exposed secrets, injection vulnerabilities, missing auth checks)
+   - Logic errors and regressions
+   - TypeScript/type safety issues
+   - Missing error handling at system boundaries
+   - Breaking changes to API contracts
+   - Performance concerns (N+1 queries, unnecessary re-renders, missing indexes)
+3. If the review agent finds issues, fix them BEFORE deploying
+4. Only proceed with deployment after the review agent confirms the code is safe to ship
+
 ## Deployment
 
 ### Frontend Deployment (Firebase Hosting)

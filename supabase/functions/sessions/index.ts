@@ -318,6 +318,106 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Assign a player to a session (host/admin only)
+    if (action === 'assign-player') {
+      if (!sessionId) return errorResponse('sessionId required', 400)
+
+      const body = await req.json()
+      const targetUserId = body.userId as string
+      if (!targetUserId) return errorResponse('userId required', 400)
+
+      const { data: session, error: sessionError } = await supabase
+        .from('event_game_sessions')
+        .select(`
+          id, event_id, max_players, slot_index,
+          event:events(host_user_id, group_id)
+        `)
+        .eq('id', sessionId)
+        .single()
+
+      if (sessionError || !session) return errorResponse('Session not found', 404)
+
+      const event = session.event as { host_user_id: string; group_id: string | null }
+
+      // Check host or group admin
+      let authorized = event.host_user_id === user.id
+      if (!authorized && event.group_id) {
+        const { data: membership } = await supabase
+          .from('group_memberships')
+          .select('role')
+          .eq('group_id', event.group_id)
+          .eq('user_id', user.id)
+          .single()
+        authorized = membership?.role === 'owner' || membership?.role === 'admin'
+      }
+      if (!authorized) return errorResponse('Only host or group admins can assign players', 403)
+
+      // Check if already registered
+      const { data: existing } = await supabase
+        .from('game_session_registrations')
+        .select('id')
+        .eq('session_id', sessionId)
+        .eq('user_id', targetUserId)
+        .single()
+
+      if (existing) return errorResponse('Player is already assigned to this session', 400)
+
+      // Insert registration
+      const { error: insertError } = await supabase
+        .from('game_session_registrations')
+        .insert({
+          session_id: sessionId,
+          user_id: targetUserId,
+          is_host_reserved: true,
+        })
+
+      if (insertError) return errorResponse(insertError.message, 500)
+      return jsonResponse({ message: 'Player assigned' })
+    }
+
+    // Remove a player from a session (host/admin only)
+    if (action === 'unassign-player') {
+      if (!sessionId) return errorResponse('sessionId required', 400)
+
+      const body = await req.json()
+      const targetUserId = body.userId as string
+      if (!targetUserId) return errorResponse('userId required', 400)
+
+      const { data: session, error: sessionError } = await supabase
+        .from('event_game_sessions')
+        .select(`
+          id, event_id,
+          event:events(host_user_id, group_id)
+        `)
+        .eq('id', sessionId)
+        .single()
+
+      if (sessionError || !session) return errorResponse('Session not found', 404)
+
+      const event = session.event as { host_user_id: string; group_id: string | null }
+
+      let authorized = event.host_user_id === user.id
+      if (!authorized && event.group_id) {
+        const { data: membership } = await supabase
+          .from('group_memberships')
+          .select('role')
+          .eq('group_id', event.group_id)
+          .eq('user_id', user.id)
+          .single()
+        authorized = membership?.role === 'owner' || membership?.role === 'admin'
+      }
+      if (!authorized) return errorResponse('Only host or group admins can remove players', 403)
+
+      const { error: deleteError } = await supabase
+        .from('game_session_registrations')
+        .delete()
+        .eq('session_id', sessionId)
+        .eq('user_id', targetUserId)
+
+      if (deleteError) return errorResponse(deleteError.message, 500)
+      return jsonResponse({ message: 'Player removed' })
+    }
+
     return errorResponse('Invalid action', 400)
   }
 

@@ -180,6 +180,7 @@ function toEvent(row: Record<string, unknown>): Event {
       isAlternative: g.is_alternative as boolean,
     })) ?? null,
     plannedGames: row.plannedGames as Event['plannedGames'] ?? null,
+    gameSuggestions: row.gameSuggestions as Event['gameSuggestions'] ?? null,
     groupId: row.groupId as string | null ?? null,
     fromPlanningSessionId: row.fromPlanningSessionId as string | null ?? null,
     createdAt: row.created_at as string,
@@ -410,6 +411,32 @@ export async function deleteItem(
   return authenticatedRequest<void>(`/items?id=${itemId}`, token, {
     method: 'DELETE',
   })
+}
+
+export async function setupEventTables(
+  token: string,
+  eventId: string,
+  tableCount: number
+): Promise<{ message: string; tableCount: number }> {
+  return authenticatedRequest<{ message: string; tableCount: number }>(
+    `/events?id=${eventId}&action=setup-tables`,
+    token,
+    {
+      method: 'POST',
+      body: JSON.stringify({ tableCount }),
+    }
+  )
+}
+
+export async function disableEventTables(
+  token: string,
+  eventId: string
+): Promise<{ message: string }> {
+  return authenticatedRequest<{ message: string }>(
+    `/events?id=${eventId}&action=disable-tables`,
+    token,
+    { method: 'POST' }
+  )
 }
 
 export async function inviteGroupMembersToEvent(

@@ -178,7 +178,7 @@ const steps = computed(() => {
 // Step completion status
 const stepCompletion = computed((): Record<number, boolean> => ({
   1: hasResponded.value, // Dates - completed if user responded
-  2: (session.value?.gameSuggestions?.length ?? 0) > 0, // Games - completed if any games suggested
+  2: true, // Games - always complete (games are optional, can be decided later)
   3: (session.value?.items?.length ?? 0) > 0, // Items - completed if any items exist
   4: true, // People - always "complete" (just viewing)
   5: !!(session.value?.eventLocationId || session.value?.city), // Location - completed if set
@@ -1316,8 +1316,11 @@ function formatRelativeTime(isoString: string | null): string {
         <!-- Step 2: Games -->
         <div v-show="currentStep === 2" class="card mb-6">
           <div class="p-6 border-b border-gray-100">
-            <h2 class="font-semibold">Game Suggestions</h2>
-            <p class="text-sm text-gray-500 mt-1">Suggest and vote on games you want to play</p>
+            <div class="flex items-center gap-2">
+              <h2 class="font-semibold">Game Suggestions</h2>
+              <span class="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Optional</span>
+            </div>
+            <p class="text-sm text-gray-500 mt-1">Suggest and vote on games you want to play, or decide later</p>
           </div>
           <div class="p-6">
             <!-- Game count header -->
@@ -1516,8 +1519,27 @@ function formatRelativeTime(isoString: string | null): string {
                 @remove="handleRemoveSuggestion(suggestion)"
               />
             </div>
-            <div v-else class="text-gray-500 text-sm py-2">
-              No games suggested yet. Be the first to suggest a game!
+            <div v-else class="py-4">
+              <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+                <svg class="w-8 h-8 mx-auto text-blue-400 mb-2" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
+                </svg>
+                <p class="font-medium text-blue-800 mb-1">No games suggested yet</p>
+                <p class="text-sm text-blue-600 mb-3">
+                  Suggest games for the group to vote on, or skip this step and decide later.
+                  Everyone invited can suggest games at any time!
+                </p>
+                <button
+                  class="btn-outline text-sm"
+                  :disabled="!!(session.maxParticipants && !currentUserHasSlot)"
+                  @click="showGameSearch = true"
+                >
+                  <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/>
+                  </svg>
+                  Suggest a Game
+                </button>
+              </div>
             </div>
 
             <!-- Navigation buttons -->
@@ -1998,8 +2020,16 @@ function formatRelativeTime(isoString: string | null): string {
           </div>
           <div class="p-6">
             <p class="text-gray-600 mb-4">
-              When you're ready, finalize this session to create a draft event with the selected date and game.
+              When you're ready, finalize this session to create an event with the selected date{{ session.gameSuggestions?.length ? ' and game' : '' }}.
             </p>
+
+            <!-- No games info -->
+            <div v-if="!session.gameSuggestions?.length" class="bg-blue-50 text-blue-700 text-sm p-3 rounded-lg mb-4 flex items-start gap-2">
+              <svg class="w-5 h-5 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
+              </svg>
+              <span>No games were selected for this session. You can still create the event and add games to it afterwards, or go back to the Games step to let members suggest and vote on games first.</span>
+            </div>
 
             <!-- Multi-table note -->
             <div v-if="isMultiTable" class="bg-blue-50 text-blue-700 text-sm p-3 rounded-lg mb-4">
@@ -2018,12 +2048,13 @@ function formatRelativeTime(isoString: string | null): string {
               </div>
               <div v-if="!isMultiTable">
                 <label class="label">Selected Game</label>
-                <select v-model="selectedGameId" class="input">
+                <select v-if="session.gameSuggestions?.length" v-model="selectedGameId" class="input">
                   <option :value="null">No game selected</option>
                   <option v-for="game in session.gameSuggestions" :key="game.id" :value="game.id">
                     {{ game.gameName }} ({{ game.voteCount }} votes)
                   </option>
                 </select>
+                <p v-else class="text-sm text-gray-500 mt-1">No games suggested — you can add games after the event is created</p>
               </div>
             </div>
 

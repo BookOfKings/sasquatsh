@@ -42,6 +42,7 @@ Deno.serve(async (req) => {
   const url = new URL(req.url)
   const eventId = url.searchParams.get('id')
   const type = url.searchParams.get('type')
+  const action = url.searchParams.get('action')
 
   // GET - List events or single event
   if (req.method === 'GET') {
@@ -210,7 +211,38 @@ Deno.serve(async (req) => {
         })
       }
 
-      return jsonResponse(transformEvent(data, tables, sessions))
+      // Fetch game suggestions with votes
+      const { data: suggestionsData } = await supabase
+        .from('event_game_suggestions')
+        .select(`
+          id, event_id, suggested_by_user_id, bgg_id, game_name, thumbnail_url,
+          min_players, max_players, playing_time, created_at,
+          suggested_by:users!suggested_by_user_id(display_name, avatar_url),
+          votes:event_game_votes(user_id)
+        `)
+        .eq('event_id', eventId)
+        .order('created_at')
+
+      const gameSuggestions = (suggestionsData ?? []).map(s => {
+        const votes = (s.votes as { user_id: string }[]) ?? []
+        const suggestedBy = s.suggested_by as { display_name: string | null; avatar_url: string | null } | null
+        return {
+          id: s.id,
+          suggestedByUserId: s.suggested_by_user_id,
+          bggId: s.bgg_id,
+          gameName: s.game_name,
+          thumbnailUrl: s.thumbnail_url,
+          minPlayers: s.min_players,
+          maxPlayers: s.max_players,
+          playingTime: s.playing_time,
+          createdAt: s.created_at,
+          voteCount: votes.length,
+          hasVoted: votes.some(v => v.user_id === user.id),
+          suggestedBy: suggestedBy ? { displayName: suggestedBy.display_name, avatarUrl: suggestedBy.avatar_url } : null,
+        }
+      })
+
+      return jsonResponse(transformEvent(data, tables, sessions, gameSuggestions))
     }
 
     // Browse public events (with blocked user filtering)
@@ -385,8 +417,8 @@ Deno.serve(async (req) => {
     return errorResponse('Invalid type parameter', 400)
   }
 
-  // POST - Create event
-  if (req.method === 'POST') {
+  // POST - Create event (only when no action is specified)
+  if (req.method === 'POST' && !action) {
     const body = await req.json()
 
     // Check subscription tier limits for event creation
@@ -688,6 +720,93 @@ Deno.serve(async (req) => {
       .single()
 
     return jsonResponse(transformEvent(fullEvent || data))
+  }
+
+  // POST - Action-based routes
+  if (req.method === 'POST' && action === 'setup-tables') {
+    if (!eventId) return errorResponse('Event ID required', 400)
+
+    const { data: event } = await supabase
+      .from('events')
+      .select('host_user_id, group_id, is_multi_table')
+      .eq('id', eventId)
+      .single()
+
+    if (!event) return errorResponse('Event not found', 404)
+
+    // Allow host, site admin, or group admin
+    let authorized = event.host_user_id === user.id || user.is_admin === true
+    if (!authorized && event.group_id) {
+      const { data: membership } = await supabase
+        .from('group_memberships')
+        .select('role')
+        .eq('group_id', event.group_id)
+        .eq('user_id', user.id)
+        .single()
+      authorized = membership?.role === 'owner' || membership?.role === 'admin'
+    }
+    if (!authorized) return errorResponse('Not authorized', 403)
+
+    const body = await req.json()
+    const tableCount = body.tableCount as number
+
+    if (!tableCount || tableCount < 2 || tableCount > 20) {
+      return errorResponse('Table count must be between 2 and 20', 400)
+    }
+
+    // Set event as multi-table
+    await supabase
+      .from('events')
+      .update({ is_multi_table: true, updated_at: new Date().toISOString() })
+      .eq('id', eventId)
+
+    // Delete existing tables if any (cascade deletes sessions and registrations)
+    await supabase.from('event_tables').delete().eq('event_id', eventId)
+
+    // Create new tables
+    const tableRows = []
+    for (let i = 1; i <= tableCount; i++) {
+      tableRows.push({ event_id: eventId, table_number: i, table_name: `Table ${i}` })
+    }
+    const { error: tableError } = await supabase.from('event_tables').insert(tableRows)
+    if (tableError) return errorResponse(tableError.message, 500)
+
+    return jsonResponse({ message: `Set up ${tableCount} tables`, tableCount })
+  }
+
+  if (req.method === 'POST' && action === 'disable-tables') {
+    if (!eventId) return errorResponse('Event ID required', 400)
+
+    const { data: event } = await supabase
+      .from('events')
+      .select('host_user_id, group_id')
+      .eq('id', eventId)
+      .single()
+
+    if (!event) return errorResponse('Event not found', 404)
+
+    let authorized = event.host_user_id === user.id || user.is_admin === true
+    if (!authorized && event.group_id) {
+      const { data: membership } = await supabase
+        .from('group_memberships')
+        .select('role')
+        .eq('group_id', event.group_id)
+        .eq('user_id', user.id)
+        .single()
+      authorized = membership?.role === 'owner' || membership?.role === 'admin'
+    }
+    if (!authorized) return errorResponse('Not authorized', 403)
+
+    // Delete tables (cascade deletes sessions and registrations)
+    await supabase.from('event_tables').delete().eq('event_id', eventId)
+
+    // Set event as single-table
+    await supabase
+      .from('events')
+      .update({ is_multi_table: false, updated_at: new Date().toISOString() })
+      .eq('id', eventId)
+
+    return jsonResponse({ message: 'Multi-table mode disabled' })
   }
 
   // PUT - Update event
@@ -1074,7 +1193,8 @@ function transformEventSummary(row: Record<string, unknown>) {
 function transformEvent(
   row: Record<string, unknown>,
   tables?: { id: string; table_number: number; table_name: string | null }[] | null,
-  sessions?: Record<string, unknown>[] | null
+  sessions?: Record<string, unknown>[] | null,
+  gameSuggestions?: Record<string, unknown>[] | null
 ) {
   const hostUserId = row.host_user_id as string | null
   const confirmedRegs = Array.isArray(row.registrations)
@@ -1179,6 +1299,7 @@ function transformEvent(
         }))
       : null,
     plannedGames: row.planned_games ?? null,
+    gameSuggestions: gameSuggestions ?? null,
     createdAt: row.created_at,
     // Multi-table session data
     tables: tables

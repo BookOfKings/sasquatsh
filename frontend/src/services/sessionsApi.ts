@@ -128,6 +128,38 @@ export async function updateSession(
   )
 }
 
+// Assign player to session (host only)
+export async function assignPlayerToSession(
+  token: string,
+  sessionId: string,
+  userId: string
+): Promise<{ message: string }> {
+  return authenticatedRequest<{ message: string }>(
+    `/sessions?action=assign-player&sessionId=${sessionId}`,
+    token,
+    {
+      method: 'POST',
+      body: JSON.stringify({ userId }),
+    }
+  )
+}
+
+// Remove player from session (host only)
+export async function unassignPlayerFromSession(
+  token: string,
+  sessionId: string,
+  userId: string
+): Promise<{ message: string }> {
+  return authenticatedRequest<{ message: string }>(
+    `/sessions?action=unassign-player&sessionId=${sessionId}`,
+    token,
+    {
+      method: 'POST',
+      body: JSON.stringify({ userId }),
+    }
+  )
+}
+
 // Delete a session (host only)
 export async function deleteSession(
   token: string,

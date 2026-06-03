@@ -8,12 +8,17 @@ const props = defineProps<{
   sessions: GameSession[]
   isHost?: boolean
   registering?: boolean
+  availablePlayers?: { id: string; displayName: string | null; avatarUrl: string | null }[]
 }>()
 
 const emit = defineEmits<{
   (e: 'register', sessionId: string): void
   (e: 'cancel', sessionId: string): void
+  (e: 'assign-player', sessionId: string, userId: string): void
+  (e: 'unassign-player', sessionId: string, userId: string): void
 }>()
+
+const showAssignPlayer = ref(false)
 
 // Group sessions by slot index
 const slotIndexes = computed(() => {
@@ -36,10 +41,12 @@ const selectedSession = ref<GameSession | null>(null)
 
 function openSessionDetail(session: GameSession) {
   selectedSession.value = session
+  showAssignPlayer.value = false
 }
 
 function closeSessionDetail() {
   selectedSession.value = null
+  showAssignPlayer.value = false
 }
 
 function handleRegister(sessionId: string) {
@@ -239,6 +246,57 @@ function hasConflict(slotIndex: number): boolean {
             </div>
             <div v-else class="text-sm text-gray-500">
               No players yet
+            </div>
+          </div>
+
+          <!-- Host: Assign/Remove Players -->
+          <div v-if="isHost && availablePlayers?.length" class="mb-4">
+            <!-- Remove buttons on existing players -->
+            <div v-if="selectedSession.registrations.length > 0" class="mb-3">
+              <div
+                v-for="reg in selectedSession.registrations"
+                :key="'remove-' + reg.userId"
+                class="flex items-center justify-between py-1"
+              >
+                <div class="flex items-center gap-2 text-sm">
+                  <UserAvatar :avatar-url="reg.avatarUrl" :display-name="reg.displayName" size="sm" />
+                  <span>{{ reg.displayName || 'Unknown' }}</span>
+                </div>
+                <button
+                  class="text-xs text-red-500 hover:text-red-600"
+                  @click="emit('unassign-player', selectedSession.id, reg.userId)"
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+
+            <!-- Add player toggle -->
+            <button
+              v-if="!showAssignPlayer"
+              class="text-sm text-primary-500 hover:text-primary-600 flex items-center gap-1"
+              @click="showAssignPlayer = true"
+            >
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z"/>
+              </svg>
+              Assign Player
+            </button>
+
+            <!-- Player picker -->
+            <div v-if="showAssignPlayer" class="mt-2 border border-gray-200 rounded-lg max-h-40 overflow-y-auto">
+              <button
+                v-for="player in availablePlayers.filter(p => !selectedSession!.registrations.some(r => r.userId === p.id))"
+                :key="player.id"
+                class="w-full flex items-center gap-2 px-3 py-2 hover:bg-primary-50 text-left text-sm border-b border-gray-100 last:border-0 transition-colors"
+                @click="emit('assign-player', selectedSession!.id, player.id); showAssignPlayer = false"
+              >
+                <UserAvatar :avatar-url="player.avatarUrl" :display-name="player.displayName" size="sm" />
+                <span>{{ player.displayName || 'Unknown' }}</span>
+              </button>
+              <div v-if="availablePlayers.filter(p => !selectedSession!.registrations.some(r => r.userId === p.id)).length === 0" class="px-3 py-2 text-sm text-gray-400">
+                All players already assigned
+              </div>
             </div>
           </div>
 

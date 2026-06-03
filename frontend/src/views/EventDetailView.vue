@@ -4,8 +4,12 @@ import { useRoute, useRouter } from 'vue-router'
 import { useEventStore } from '@/stores/useEventStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { hasFeature } from '@/config/subscriptionLimits'
-import { inviteGroupMembersToEvent } from '@/services/eventsApi'
+import { inviteGroupMembersToEvent, setupEventTables, disableEventTables } from '@/services/eventsApi'
+import { createSession, deleteSession, assignPlayerToSession, unassignPlayerFromSession } from '@/services/sessionsApi'
 import { registerForSession, cancelSessionRegistration } from '@/services/sessionsApi'
+import { searchBggGames, getBggGame, removeEventGame, suggestEventGame, voteEventGameSuggestion, removeEventGameSuggestion, approveEventGameSuggestion } from '@/services/bggApi'
+import { getMyCollection, getUserCollection, type CollectionGame } from '@/services/collectionsApi'
+import type { BggSearchResult } from '@/types/bgg'
 import { supabase } from '@/services/supabase'
 import ShareModal from '@/components/common/ShareModal.vue'
 import AddToCalendar from '@/components/events/AddToCalendar.vue'
@@ -67,11 +71,30 @@ const invitingMembers = ref(false)
 // Session registration state (multi-table mode)
 const registeringSession = ref(false)
 
+// Table management state
+const showTableSetup = ref(false)
+const desiredTableCount = ref(3)
+const settingUpTables = ref(false)
+const addingGameToTable = ref(false)
+const showAssignGameToTable = ref<string | null>(null) // table ID to assign game to
+
 // Chat state
 const showChat = ref(false)
 
 // Track failed image URLs
 const failedImageUrls = ref<Set<string>>(new Set())
+
+// Game suggestion state (for adding games to event)
+const showAddGameSearch = ref(false)
+const gameSearchQuery = ref('')
+const gameSearchResults = ref<BggSearchResult[]>([])
+const searchingGames = ref(false)
+const addingGameToEvent = ref(false)
+const gameSearchSource = ref<'my_collection' | 'host_collection' | 'bgg'>('my_collection')
+const myCollectionGames = ref<CollectionGame[]>([])
+const hostCollectionGames = ref<CollectionGame[]>([])
+const collectionsLoaded = ref(false)
+let gameSearchTimeout: ReturnType<typeof setTimeout> | null = null
 
 const eventId = computed(() => route.params.id as string)
 const event = computed(() => eventStore.currentEvent.value)
@@ -88,6 +111,33 @@ const isRegistered = computed(() => {
 const spotsLeft = computed(() => {
   if (!event.value) return 0
   return event.value.maxPlayers - event.value.confirmedCount
+})
+
+// Available players for session assignment (host + registered attendees)
+const availablePlayersForSessions = computed(() => {
+  if (!event.value) return []
+  const players: { id: string; displayName: string | null; avatarUrl: string | null }[] = []
+  // Add host
+  if (event.value.host) {
+    players.push({
+      id: event.value.hostUserId,
+      displayName: event.value.host.displayName,
+      avatarUrl: event.value.host.avatarUrl,
+    })
+  }
+  // Add registered attendees
+  if (event.value.registrations) {
+    for (const reg of event.value.registrations) {
+      if (reg.userId !== event.value.hostUserId && reg.user) {
+        players.push({
+          id: reg.userId,
+          displayName: reg.user.displayName,
+          avatarUrl: reg.user.avatarUrl,
+        })
+      }
+    }
+  }
+  return players
 })
 
 // Check if this is an MTG event
@@ -150,6 +200,8 @@ const isPlannedGroupEvent = computed(() => {
 
 // Whether user can invite group members (set via async check on mount)
 const canInviteMembers = ref(false)
+// Whether user is a group admin/owner (for game suggestions visibility)
+const isGroupAdmin = ref(false)
 
 // Items grouped by status
 const neededItems = computed(() => {
@@ -205,7 +257,7 @@ async function handleRemoveMyItem(itemId: string) {
 
 // Check if user can invite members (host or group admin)
 async function checkCanInviteMembers() {
-  if (!event.value?.fromPlanningSessionId || !event.value?.groupId || !auth.user.value) {
+  if (!event.value?.groupId || !auth.user.value) {
     canInviteMembers.value = false
     return
   }
@@ -213,6 +265,7 @@ async function checkCanInviteMembers() {
   // Host can always invite
   if (isHost.value) {
     canInviteMembers.value = true
+    isGroupAdmin.value = true // Host is effectively an admin
     return
   }
 
@@ -224,7 +277,9 @@ async function checkCanInviteMembers() {
     .eq('user_id', auth.user.value.id)
     .single()
 
-  canInviteMembers.value = membership?.role === 'owner' || membership?.role === 'admin'
+  const isAdminOrOwner = membership?.role === 'owner' || membership?.role === 'admin'
+  canInviteMembers.value = !!event.value.fromPlanningSessionId && isAdminOrOwner
+  isGroupAdmin.value = isAdminOrOwner
 }
 
 // Load group members for invite modal
@@ -512,6 +567,243 @@ async function handleDelete() {
     showMessage(false, result.message)
   }
   deleting.value = false
+}
+
+// Game suggestion functions
+async function loadGameCollections() {
+  if (collectionsLoaded.value) return
+  try {
+    const token = await auth.getIdToken()
+    if (!token || !event.value) return
+
+    const promises: Promise<void>[] = []
+    promises.push(
+      getMyCollection(token).then(g => { myCollectionGames.value = g }).catch(() => {})
+    )
+    if (event.value.hostUserId && event.value.hostUserId !== auth.user.value?.id) {
+      promises.push(
+        getUserCollection(event.value.hostUserId).then(g => { hostCollectionGames.value = g }).catch(() => {})
+      )
+    }
+    await Promise.all(promises)
+    collectionsLoaded.value = true
+  } catch {
+    // Silent fail — BGG search is always available
+  }
+}
+
+const filteredCollectionGames = computed(() => {
+  const source = gameSearchSource.value === 'my_collection' ? myCollectionGames.value : hostCollectionGames.value
+  const q = gameSearchQuery.value.trim().toLowerCase()
+  if (!q) return source
+  return source.filter(g => g.game_name.toLowerCase().includes(q))
+})
+
+async function handleAddCollectionGame(game: CollectionGame) {
+  if (!event.value) return
+  addingGameToEvent.value = true
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    await suggestEventGame(token, event.value.id, {
+      gameName: game.game_name,
+      bggId: game.bgg_id,
+      thumbnailUrl: game.thumbnail_url ?? undefined,
+      minPlayers: game.min_players ?? undefined,
+      maxPlayers: game.max_players ?? undefined,
+      playingTime: game.playing_time ?? undefined,
+    })
+    await eventStore.loadEvent(eventId.value)
+    showMessage(true, `Suggested "${game.game_name}"`)
+  } catch (err) {
+    showMessage(false, err instanceof Error ? err.message : 'Failed to suggest game')
+  } finally {
+    addingGameToEvent.value = false
+  }
+}
+
+async function handleVoteSuggestion(suggestionId: string) {
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    await voteEventGameSuggestion(token, suggestionId)
+    await eventStore.loadEvent(eventId.value)
+  } catch (err) {
+    showMessage(false, err instanceof Error ? err.message : 'Failed to vote')
+  }
+}
+
+async function handleRemoveSuggestion(suggestionId: string) {
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    await removeEventGameSuggestion(token, suggestionId)
+    await eventStore.loadEvent(eventId.value)
+  } catch (err) {
+    showMessage(false, err instanceof Error ? err.message : 'Failed to remove suggestion')
+  }
+}
+
+// Table management functions
+async function handleSetupTables() {
+  if (!event.value) return
+  settingUpTables.value = true
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    await setupEventTables(token, event.value.id, desiredTableCount.value)
+    await eventStore.loadEvent(eventId.value)
+    showTableSetup.value = false
+    showMessage(true, `Set up ${desiredTableCount.value} tables`)
+  } catch (err) {
+    showMessage(false, err instanceof Error ? err.message : 'Failed to set up tables')
+  } finally {
+    settingUpTables.value = false
+  }
+}
+
+async function handleDisableTables() {
+  if (!event.value) return
+  if (!confirm('This will remove all tables and game sessions. Are you sure?')) return
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    await disableEventTables(token, event.value.id)
+    await eventStore.loadEvent(eventId.value)
+    showMessage(true, 'Tables removed')
+  } catch (err) {
+    showMessage(false, err instanceof Error ? err.message : 'Failed to remove tables')
+  }
+}
+
+async function handleAssignGameToTable(tableId: string, game: { gameName: string; bggId?: number | null; thumbnailUrl?: string | null; minPlayers?: number | null; maxPlayers?: number | null; playingTime?: number | null }) {
+  if (!event.value) return
+  addingGameToTable.value = true
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    await createSession(token, {
+      eventId: event.value.id,
+      tableId,
+      gameName: game.gameName,
+      bggId: game.bggId ?? undefined,
+      thumbnailUrl: game.thumbnailUrl ?? undefined,
+      minPlayers: game.minPlayers ?? undefined,
+      maxPlayers: game.maxPlayers ?? undefined,
+      durationMinutes: game.playingTime ?? 60,
+    })
+    showAssignGameToTable.value = null
+    await eventStore.loadEvent(eventId.value)
+    showMessage(true, `Assigned "${game.gameName}" to table`)
+  } catch (err) {
+    showMessage(false, err instanceof Error ? err.message : 'Failed to assign game')
+  } finally {
+    addingGameToTable.value = false
+  }
+}
+
+async function handleDeleteSessionFromTable(sessionId: string) {
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    await deleteSession(token, sessionId)
+    await eventStore.loadEvent(eventId.value)
+    showMessage(true, 'Game removed from table')
+  } catch (err) {
+    showMessage(false, err instanceof Error ? err.message : 'Failed to remove game')
+  }
+}
+
+async function handleAssignPlayer(sessionId: string, userId: string) {
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    await assignPlayerToSession(token, sessionId, userId)
+    await eventStore.loadEvent(eventId.value)
+  } catch (err) {
+    showMessage(false, err instanceof Error ? err.message : 'Failed to assign player')
+  }
+}
+
+async function handleUnassignPlayer(sessionId: string, userId: string) {
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    await unassignPlayerFromSession(token, sessionId, userId)
+    await eventStore.loadEvent(eventId.value)
+  } catch (err) {
+    showMessage(false, err instanceof Error ? err.message : 'Failed to remove player')
+  }
+}
+
+async function handleApproveSuggestion(suggestionId: string) {
+  if (!event.value) return
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    await approveEventGameSuggestion(token, event.value.id, suggestionId)
+    await eventStore.loadEvent(eventId.value)
+    showMessage(true, 'Game approved and added to event')
+  } catch (err) {
+    showMessage(false, err instanceof Error ? err.message : 'Failed to approve suggestion')
+  }
+}
+
+function handleGameSearch() {
+  if (gameSearchTimeout) clearTimeout(gameSearchTimeout)
+  if (!gameSearchQuery.value.trim()) {
+    gameSearchResults.value = []
+    return
+  }
+  gameSearchTimeout = setTimeout(async () => {
+    searchingGames.value = true
+    try {
+      gameSearchResults.value = await searchBggGames(gameSearchQuery.value)
+    } catch {
+      gameSearchResults.value = []
+    } finally {
+      searchingGames.value = false
+    }
+  }, 300)
+}
+
+async function handleAddGameToEvent(result: BggSearchResult) {
+  if (!event.value) return
+  addingGameToEvent.value = true
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    const game = await getBggGame(result.bggId)
+    await suggestEventGame(token, event.value.id, {
+      gameName: game.name,
+      bggId: game.bggId,
+      thumbnailUrl: game.thumbnailUrl ?? undefined,
+      minPlayers: game.minPlayers ?? undefined,
+      maxPlayers: game.maxPlayers ?? undefined,
+      playingTime: game.playingTime ?? undefined,
+    })
+    gameSearchQuery.value = ''
+    gameSearchResults.value = []
+    showAddGameSearch.value = false
+    await eventStore.loadEvent(eventId.value)
+    showMessage(true, `Suggested "${game.name}"`)
+  } catch (err) {
+    showMessage(false, err instanceof Error ? err.message : 'Failed to suggest game')
+  } finally {
+    addingGameToEvent.value = false
+  }
+}
+
+async function handleRemoveGameFromEvent(gameId: string) {
+  try {
+    const token = await auth.getIdToken()
+    if (!token) return
+    await removeEventGame(token, gameId)
+    await eventStore.loadEvent(eventId.value)
+    showMessage(true, 'Game removed')
+  } catch (err) {
+    showMessage(false, err instanceof Error ? err.message : 'Failed to remove game')
+  }
 }
 
 function goBack() {
@@ -878,6 +1170,254 @@ function goToLogin() {
           </div>
         </div>
 
+        <!-- Game Suggestions Section (for host, registered attendees, and group admins) -->
+        <div v-if="auth.isAuthenticated.value && (isHost || isRegistered || isGroupAdmin)" class="mb-6">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-semibold flex items-center gap-2">
+              <svg class="w-5 h-5 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15M17,5A2,2 0 0,0 15,7A2,2 0 0,0 17,9A2,2 0 0,0 19,7A2,2 0 0,0 17,5M7,15A2,2 0 0,0 5,17A2,2 0 0,0 7,19A2,2 0 0,0 9,17A2,2 0 0,0 7,15M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/>
+              </svg>
+              Game Suggestions
+            </h3>
+            <button
+              v-if="!showAddGameSearch"
+              class="btn-outline text-sm"
+              @click="showAddGameSearch = true; gameSearchSource = 'my_collection'; loadGameCollections()"
+            >
+              <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/>
+              </svg>
+              Suggest a Game
+            </button>
+          </div>
+
+          <p class="text-sm text-gray-500 mb-3">Suggest games and vote on what to play. The host can approve popular picks.</p>
+
+          <!-- Game Search -->
+          <div v-if="showAddGameSearch" class="mb-4">
+            <!-- Source tabs -->
+            <div class="flex gap-1 mb-2">
+              <button
+                type="button"
+                class="px-3 py-1 text-xs font-medium rounded-full transition-colors"
+                :class="gameSearchSource === 'my_collection' ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                @click="gameSearchSource = 'my_collection'; loadGameCollections()"
+              >My Collection</button>
+              <button
+                v-if="event.hostUserId && event.hostUserId !== auth.user.value?.id"
+                type="button"
+                class="px-3 py-1 text-xs font-medium rounded-full transition-colors"
+                :class="gameSearchSource === 'host_collection' ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                @click="gameSearchSource = 'host_collection'; loadGameCollections()"
+              >Host's Collection</button>
+              <button
+                type="button"
+                class="px-3 py-1 text-xs font-medium rounded-full transition-colors"
+                :class="gameSearchSource === 'bgg' ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                @click="gameSearchSource = 'bgg'"
+              >Search BGG</button>
+              <div class="flex-1"></div>
+              <button
+                class="p-1 text-gray-400 hover:text-gray-600"
+                @click="showAddGameSearch = false; gameSearchQuery = ''; gameSearchResults = []"
+              >
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Search input -->
+            <div class="relative">
+              <input
+                v-model="gameSearchQuery"
+                type="text"
+                class="input pr-10"
+                :placeholder="gameSearchSource === 'bgg' ? 'Search BoardGameGeek...' : 'Filter collection...'"
+                @input="gameSearchSource === 'bgg' ? handleGameSearch() : undefined"
+              />
+              <svg class="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"/>
+              </svg>
+            </div>
+
+            <!-- BGG attribution -->
+            <div v-if="gameSearchSource === 'bgg'" class="flex items-center justify-end mt-1">
+              <a href="https://boardgamegeek.com" target="_blank" rel="noopener noreferrer" class="hover:opacity-80 transition-opacity">
+                <img src="/powered-by-bgg.svg" alt="Powered by BoardGameGeek" class="h-5" />
+              </a>
+            </div>
+
+            <!-- Collection results -->
+            <template v-if="gameSearchSource !== 'bgg'">
+              <div v-if="filteredCollectionGames.length > 0" class="mt-2 border border-gray-200 rounded-lg max-h-60 overflow-y-auto">
+                <button
+                  v-for="game in filteredCollectionGames"
+                  :key="game.bgg_id"
+                  class="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-left border-b border-gray-100 last:border-0 transition-colors"
+                  :disabled="addingGameToEvent"
+                  @click="handleAddCollectionGame(game)"
+                >
+                  <img
+                    v-if="game.thumbnail_url"
+                    :src="game.thumbnail_url"
+                    :alt="game.game_name"
+                    class="w-10 h-10 object-cover rounded flex-shrink-0 bg-gray-100"
+                  />
+                  <div v-else class="w-10 h-10 flex items-center justify-center bg-gray-100 rounded flex-shrink-0">
+                    <svg class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5Z"/>
+                    </svg>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="font-medium truncate text-sm">{{ game.game_name }}</div>
+                    <div class="text-xs text-gray-500">
+                      <span v-if="game.year_published">{{ game.year_published }}</span>
+                      <span v-if="game.min_players && game.max_players"> · {{ game.min_players }}-{{ game.max_players }}p</span>
+                      <span v-if="game.playing_time"> · {{ game.playing_time }}min</span>
+                    </div>
+                  </div>
+                </button>
+              </div>
+              <div v-else-if="collectionsLoaded" class="mt-2 text-sm text-gray-500 text-center py-4">
+                {{ gameSearchSource === 'my_collection'
+                  ? (myCollectionGames.length === 0 ? 'Your collection is empty — add games in My Collection' : 'No matching games')
+                  : (hostCollectionGames.length === 0 ? "Host's collection is private or empty" : 'No matching games')
+                }}
+              </div>
+              <div v-else class="mt-2 text-sm text-gray-500 text-center py-4">Loading collection...</div>
+            </template>
+
+            <!-- BGG search results -->
+            <template v-else>
+              <div v-if="searchingGames" class="mt-2 text-gray-500 text-sm">Searching...</div>
+              <div v-else-if="gameSearchResults.length > 0" class="mt-2 border border-gray-200 rounded-lg max-h-60 overflow-y-auto">
+                <button
+                  v-for="result in gameSearchResults"
+                  :key="result.bggId"
+                  class="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-left border-b border-gray-100 last:border-0 transition-colors"
+                  :disabled="addingGameToEvent"
+                  @click="handleAddGameToEvent(result)"
+                >
+                  <img
+                    v-if="result.thumbnailUrl"
+                    :src="result.thumbnailUrl"
+                    :alt="result.name"
+                    class="w-10 h-10 object-cover rounded flex-shrink-0 bg-gray-100"
+                  />
+                  <div v-else class="w-10 h-10 flex items-center justify-center bg-gray-100 rounded flex-shrink-0">
+                    <svg class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5Z"/>
+                    </svg>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="font-medium truncate text-sm">{{ result.name }}</div>
+                    <div v-if="result.yearPublished" class="text-xs text-gray-500">{{ result.yearPublished }}</div>
+                  </div>
+                </button>
+              </div>
+            </template>
+          </div>
+
+          <!-- Suggestions list with voting -->
+          <div v-if="event.gameSuggestions && event.gameSuggestions.length > 0" class="space-y-2 mb-4">
+            <div
+              v-for="suggestion in [...event.gameSuggestions].sort((a, b) => b.voteCount - a.voteCount)"
+              :key="suggestion.id"
+              class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg"
+              :class="{ 'border-green-300 bg-green-50': suggestion.voteCount >= 2 }"
+            >
+              <!-- Thumbnail -->
+              <div class="w-10 h-10 rounded bg-gray-100 flex-shrink-0 overflow-hidden">
+                <img
+                  v-if="suggestion.thumbnailUrl"
+                  :src="suggestion.thumbnailUrl"
+                  :alt="suggestion.gameName"
+                  class="w-full h-full object-cover"
+                />
+                <div v-else class="w-full h-full flex items-center justify-center">
+                  <svg class="w-5 h-5 text-gray-300" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3M7,5A2,2 0 0,0 5,7A2,2 0 0,0 7,9A2,2 0 0,0 9,7A2,2 0 0,0 7,5M17,15A2,2 0 0,0 15,17A2,2 0 0,0 17,19A2,2 0 0,0 19,17A2,2 0 0,0 17,15Z"/>
+                  </svg>
+                </div>
+              </div>
+
+              <!-- Game info -->
+              <div class="flex-1 min-w-0">
+                <div class="font-medium text-sm">{{ suggestion.gameName }}</div>
+                <div class="flex flex-wrap gap-x-3 text-xs text-gray-500">
+                  <span v-if="suggestion.minPlayers && suggestion.maxPlayers">{{ suggestion.minPlayers }}-{{ suggestion.maxPlayers }}p</span>
+                  <span v-if="suggestion.playingTime">{{ suggestion.playingTime }}min</span>
+                  <span v-if="suggestion.suggestedBy">by {{ suggestion.suggestedBy.displayName }}</span>
+                </div>
+              </div>
+
+              <!-- Vote button -->
+              <button
+                class="flex items-center gap-1 px-2 py-1 rounded-lg text-sm transition-colors"
+                :class="suggestion.hasVoted ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                @click="handleVoteSuggestion(suggestion.id)"
+              >
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M23,10C23,8.89 22.1,8 21,8H14.68L15.64,3.43C15.66,3.33 15.67,3.22 15.67,3.11C15.67,2.7 15.5,2.32 15.23,2.05L14.17,1L7.59,7.59C7.22,7.95 7,8.45 7,9V19A2,2 0 0,0 9,21H18C18.83,21 19.54,20.5 19.84,19.78L22.86,12.73C22.95,12.5 23,12.26 23,12V10M1,21H5V9H1V21Z"/>
+                </svg>
+                <span class="font-medium">{{ suggestion.voteCount }}</span>
+              </button>
+
+              <!-- Host/Admin: Approve button -->
+              <button
+                v-if="isHost || isGroupAdmin"
+                class="px-2 py-1 rounded-lg text-xs font-medium bg-green-100 text-green-700 hover:bg-green-200 transition-colors"
+                title="Approve and add to event games"
+                @click="handleApproveSuggestion(suggestion.id)"
+              >
+                Approve
+              </button>
+
+              <!-- Remove button (host, group admin, or suggester) -->
+              <button
+                v-if="isHost || isGroupAdmin || suggestion.suggestedByUserId === auth.user.value?.id"
+                class="p-1 text-gray-400 hover:text-red-500"
+                title="Remove suggestion"
+                @click="handleRemoveSuggestion(suggestion.id)"
+              >
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- No suggestions prompt -->
+          <div v-else-if="!showAddGameSearch" class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+            <p class="text-sm text-blue-700 mb-2">No games suggested yet. Suggest games you'd like to play!</p>
+            <p class="text-xs text-blue-500">Vote on suggestions to show interest. The host can approve popular picks to add them to the event.</p>
+          </div>
+
+          <!-- Existing confirmed games with remove option (host only) -->
+          <div v-if="event.games && event.games.length > 0 && (isHost || isGroupAdmin)" class="mt-4 pt-4 border-t border-gray-200">
+            <h4 class="text-sm font-medium text-gray-700 mb-2">Confirmed Games</h4>
+            <div class="space-y-2">
+              <div
+                v-for="game in event.games"
+                :key="game.id"
+                class="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50"
+              >
+                <div class="flex-1 min-w-0 text-sm text-gray-600">{{ game.gameName }}</div>
+                <button
+                  class="p-1 text-gray-400 hover:text-red-500"
+                  title="Remove game"
+                  @click="handleRemoveGameFromEvent(game.id)"
+                >
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Registration Actions (simple mode) -->
         <div v-if="auth.isAuthenticated.value && !isHost && !event.isMultiTable">
           <button
@@ -1008,6 +1548,142 @@ function goToLogin() {
         <Warhammer40kWhatToBring :config="event.warhammer40kConfig" class="mb-6" />
       </template>
 
+      <!-- Table Management (host/admin only) -->
+      <div v-if="auth.isAuthenticated.value && (isHost || isGroupAdmin)" class="card mb-6">
+        <div class="p-4 border-b border-gray-100">
+          <div class="flex items-center justify-between">
+            <h2 class="font-semibold flex items-center gap-2">
+              <svg class="w-5 h-5 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19,19H5V8H19M19,3H18V1H16V3H8V1H6V3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3Z"/>
+              </svg>
+              Table Setup
+            </h2>
+            <template v-if="event.isMultiTable && event.tables">
+              <button class="text-sm text-red-500 hover:text-red-600" @click="handleDisableTables">
+                Remove Tables
+              </button>
+            </template>
+          </div>
+        </div>
+        <div class="p-4">
+          <!-- Not yet multi-table: setup prompt -->
+          <div v-if="!event.isMultiTable">
+            <p class="text-sm text-gray-600 mb-4">Set up multiple tables to run different games simultaneously. Attendees can sign up for specific tables.</p>
+            <div v-if="!showTableSetup">
+              <button class="btn-primary text-sm" @click="showTableSetup = true">
+                <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/>
+                </svg>
+                Set Up Tables
+              </button>
+            </div>
+            <div v-else class="flex items-center gap-3">
+              <label class="text-sm text-gray-600">Number of tables:</label>
+              <input
+                v-model.number="desiredTableCount"
+                type="number"
+                min="2"
+                max="20"
+                class="input w-20 text-center"
+              />
+              <button
+                class="btn-primary text-sm"
+                :disabled="settingUpTables || desiredTableCount < 2 || desiredTableCount > 20"
+                @click="handleSetupTables"
+              >
+                {{ settingUpTables ? 'Setting up...' : 'Create Tables' }}
+              </button>
+              <button class="btn-ghost text-sm" @click="showTableSetup = false">Cancel</button>
+            </div>
+          </div>
+
+          <!-- Multi-table: assign games to tables -->
+          <div v-else-if="event.tables">
+            <p class="text-sm text-gray-500 mb-4">Assign games to tables from your confirmed games or suggestions. Attendees will sign up for specific tables.</p>
+            <div class="space-y-4">
+              <div
+                v-for="table in event.tables"
+                :key="table.id"
+                class="border border-gray-200 rounded-lg p-3"
+              >
+                <div class="flex items-center justify-between mb-2">
+                  <h4 class="font-medium text-sm">{{ table.tableName || `Table ${table.tableNumber}` }}</h4>
+                  <button
+                    v-if="showAssignGameToTable !== table.id"
+                    class="text-xs text-primary-500 hover:text-primary-600"
+                    @click="showAssignGameToTable = table.id"
+                  >
+                    + Add Game
+                  </button>
+                  <button
+                    v-else
+                    class="text-xs text-gray-500 hover:text-gray-600"
+                    @click="showAssignGameToTable = null"
+                  >
+                    Cancel
+                  </button>
+                </div>
+
+                <!-- Games assigned to this table -->
+                <div v-if="event.sessions?.filter(s => s.tableId === table.id).length" class="space-y-1 mb-2">
+                  <div
+                    v-for="session in event.sessions.filter(s => s.tableId === table.id)"
+                    :key="session.id"
+                    class="flex items-center gap-2 p-2 bg-gray-50 rounded text-sm"
+                  >
+                    <div class="w-6 h-6 rounded bg-gray-200 flex-shrink-0 overflow-hidden">
+                      <img v-if="session.thumbnailUrl" :src="session.thumbnailUrl" :alt="session.gameName" class="w-full h-full object-cover" />
+                    </div>
+                    <span class="flex-1 truncate">{{ session.gameName }}</span>
+                    <span class="text-xs text-gray-400">{{ session.registeredCount }}p</span>
+                    <button class="p-0.5 text-gray-400 hover:text-red-500" @click="handleDeleteSessionFromTable(session.id)">
+                      <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <div v-else class="text-xs text-gray-400 mb-2">No games assigned yet</div>
+
+                <!-- Pick a game to assign -->
+                <div v-if="showAssignGameToTable === table.id" class="mt-2">
+                  <!-- Show confirmed games first, then suggestions -->
+                  <div v-if="(event.games?.length || 0) + (event.gameSuggestions?.length || 0) > 0" class="space-y-1 max-h-40 overflow-y-auto">
+                    <button
+                      v-for="game in event.games"
+                      :key="'g-' + game.id"
+                      class="w-full flex items-center gap-2 p-2 rounded hover:bg-primary-50 text-left text-sm transition-colors"
+                      :disabled="addingGameToTable"
+                      @click="handleAssignGameToTable(table.id, { gameName: game.gameName, bggId: game.bggId, thumbnailUrl: game.thumbnailUrl, minPlayers: game.minPlayers, maxPlayers: game.maxPlayers, playingTime: game.playingTime })"
+                    >
+                      <div class="w-6 h-6 rounded bg-gray-100 flex-shrink-0 overflow-hidden">
+                        <img v-if="game.thumbnailUrl" :src="game.thumbnailUrl" :alt="game.gameName" class="w-full h-full object-cover" />
+                      </div>
+                      <span class="flex-1 truncate">{{ game.gameName }}</span>
+                      <span class="chip-primary text-xs">Confirmed</span>
+                    </button>
+                    <button
+                      v-for="suggestion in event.gameSuggestions"
+                      :key="'s-' + suggestion.id"
+                      class="w-full flex items-center gap-2 p-2 rounded hover:bg-primary-50 text-left text-sm transition-colors"
+                      :disabled="addingGameToTable"
+                      @click="handleAssignGameToTable(table.id, { gameName: suggestion.gameName, bggId: suggestion.bggId, thumbnailUrl: suggestion.thumbnailUrl, minPlayers: suggestion.minPlayers, maxPlayers: suggestion.maxPlayers, playingTime: suggestion.playingTime })"
+                    >
+                      <div class="w-6 h-6 rounded bg-gray-100 flex-shrink-0 overflow-hidden">
+                        <img v-if="suggestion.thumbnailUrl" :src="suggestion.thumbnailUrl" :alt="suggestion.gameName" class="w-full h-full object-cover" />
+                      </div>
+                      <span class="flex-1 truncate">{{ suggestion.gameName }}</span>
+                      <span class="text-xs text-gray-400">{{ suggestion.voteCount }} votes</span>
+                    </button>
+                  </div>
+                  <p v-else class="text-xs text-gray-400">No games available. Add confirmed games or suggestions first.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Multi-Table Session Schedule -->
       <div v-if="event.isMultiTable && event.tables && event.sessions" class="card mb-6">
         <div class="p-4 border-b border-gray-100">
@@ -1027,10 +1703,13 @@ function goToLogin() {
           <SessionScheduleGrid
             :tables="event.tables"
             :sessions="event.sessions"
-            :is-host="isHost"
+            :is-host="isHost || isGroupAdmin"
             :registering="registeringSession"
+            :available-players="availablePlayersForSessions"
             @register="handleSessionRegister"
             @cancel="handleSessionCancel"
+            @assign-player="handleAssignPlayer"
+            @unassign-player="handleUnassignPlayer"
           />
         </div>
       </div>
